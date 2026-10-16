@@ -1,6 +1,7 @@
-//! 計時器核心：倒數、冷卻、超時、重複、通知，以及每個計時器的浮動視窗。
+//! 計時器核心：倒數、冷卻、超時、重複、通知，以及統一的浮動視窗。
 //!
 //! 計時在 Rust 背景執行緒進行（每 100ms 一次），主視窗縮小或在背景時也不會停。
+//! 通知、音效、音量與浮動視窗是全局設定；每個計時器只保存自己的時間與重新計時方式。
 
 use crate::{audio, fg, input};
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Webview
 
 const LONG_NOTIFY_INTERVAL: Duration = Duration::from_secs(3);
 const TICK: Duration = Duration::from_millis(100);
+pub const OVERLAY_LABEL: &str = "overlay";
 
 /* ---------------- 設定（會保存） ---------------- */
 
@@ -31,7 +33,33 @@ pub struct Overlay {
 
 impl Default for Overlay {
     fn default() -> Self {
-        Self { show: true, locked: false, opacity: 0.9, x: 120, y: 160, w: 300, h: 110 }
+        Self { show: true, locked: false, opacity: 0.9, x: 120, y: 160, w: 340, h: 180 }
+    }
+}
+
+/// 全局設定（設定面板）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Prefs {
+    /// "short" | "long"
+    pub notify: String,
+    /// "beep1" | "beep2" | "beep3" | "tts" | "file"
+    pub sound: String,
+    pub sound_file: String,
+    /// 0 ~ 200（%）
+    pub volume: u32,
+    pub overlay: Overlay,
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self {
+            notify: "short".into(),
+            sound: "beep1".into(),
+            sound_file: String::new(),
+            volume: 100,
+            overlay: Overlay::default(),
+        }
     }
 }
 
@@ -51,13 +79,7 @@ pub struct TimerCfg {
     pub keys: Vec<String>,
     /// 超逾回補（只在指派按鍵模式生效）
     pub overflow_comp: bool,
-    /// "short" | "long"
-    pub notify: String,
-    /// "beep1" | "beep2" | "beep3" | "tts" | "file"
-    pub sound: String,
-    pub sound_file: String,
     pub enabled: bool,
-    pub overlay: Overlay,
 }
 
 impl Default for TimerCfg {
@@ -72,11 +94,7 @@ impl Default for TimerCfg {
             repeat: 0,
             keys: Vec::new(),
             overflow_comp: false,
-            notify: "short".into(),
-            sound: "tts".into(),
-            sound_file: String::new(),
             enabled: true,
-            overlay: Overlay::default(),
         }
     }
 }
@@ -86,29 +104,32 @@ impl Default for TimerCfg {
 pub struct TimersFile {
     /// 只在新楓之谷為前景時監聽按鍵、顯示浮動視窗
     pub game_only: bool,
+    /// 總開關：關閉時所有計時器暫停，但不改動各自的啟用狀態
+    pub master_on: bool,
+    pub prefs: Prefs,
     pub next_id: u64,
     pub timers: Vec<TimerCfg>,
 }
 
 impl Default for TimersFile {
     fn default() -> Self {
-        let mk = |id: &str, name: &str, ms: u64, cd: u64, sound: &str, i: i32| TimerCfg {
+        let mk = |id: &str, name: &str, ms: u64, cd: u64| TimerCfg {
             id: id.into(),
             name: name.into(),
             builtin: true,
             duration_ms: ms,
             cooldown_ms: cd,
-            sound: sound.into(),
-            overlay: Overlay { y: 160 + i * 130, ..Overlay::default() },
             ..TimerCfg::default()
         };
         Self {
             game_only: true,
+            master_on: true,
+            prefs: Prefs::default(),
             next_id: 4,
             timers: vec![
-                mk("t1", "輪迴碑石", 9 * 60_000 + 50_000, 0, "beep1", 0),
-                mk("t2", "燃燒戒指", 15 * 60_000 + 5_000, 0, "beep2", 1),
-                mk("t3", "靈魂亞努斯", 2 * 60_000, 50_000, "beep3", 2),
+                mk("t1", "輪迴碑石", 9 * 60_000 + 50_000, 0),
+                mk("t2", "燃燒戒指", 15 * 60_000 + 5_000, 0),
+                mk("t3", "靈魂亞努斯", 2 * 60_000, 50_000),
             ],
         }
     }
@@ -137,9 +158,8 @@ struct Rt {
 pub struct Snap {
     id: String,
     name: String,
-    enabled: bool,
-    opacity: f64,
-    locked: bool,
+    /// 總開關與自身都開啟
+    active: bool,
     phase: &'static str,
     remain_ms: u64,
     over_ms: u64,
@@ -149,9 +169,18 @@ pub struct Snap {
 }
 
 #[derive(Serialize, Clone)]
+pub struct OverlayState {
+    opacity: f64,
+    locked: bool,
+}
+
+#[derive(Serialize, Clone)]
 pub struct TickPayload {
     fg: fg::FgInfo,
     listening: bool,
+    last_key: String,
+    master_on: bool,
+    overlay: OverlayState,
     timers: Vec<Snap>,
 }
 
@@ -160,6 +189,12 @@ struct Engine {
     rt: HashMap<String, Rt>,
     path: PathBuf,
     dirty: bool,
+}
+
+impl Engine {
+    fn active(&self, cfg: &TimerCfg) -> bool {
+        self.file.master_on && cfg.enabled
+    }
 }
 
 static ENGINE: OnceLock<Mutex<Engine>> = OnceLock::new();
@@ -222,12 +257,15 @@ fn in_cooldown(cfg: &TimerCfg, rt: &Rt, now: Instant) -> bool {
 pub fn on_input(key: &str, mods: u8) {
     let Some(lock) = ENGINE.get() else { return };
     let info = fg::current();
-    // 在本程式主視窗內打字不觸發；開啟「只在新楓之谷」時其他程式也不觸發
-    if info.is_main || (GAME_ONLY.load(Ordering::Relaxed) && !info.is_game) {
+    // 在本程式視窗內操作不觸發；開啟「只在新楓之谷」時其他程式也不觸發
+    if info.is_self || (GAME_ONLY.load(Ordering::Relaxed) && !info.is_game) {
         return;
     }
     let now = Instant::now();
     let mut e = lock.lock().unwrap();
+    if !e.file.master_on {
+        return;
+    }
     let Engine { file, rt, .. } = &mut *e;
     for cfg in &file.timers {
         if !cfg.enabled || !cfg.keys.iter().any(|b| input::matches(b, key, mods)) {
@@ -241,28 +279,24 @@ pub fn on_input(key: &str, mods: u8) {
     }
 }
 
-struct Notice {
-    sound: String,
-    file: String,
-    name: String,
-}
-
 impl Engine {
-    fn tick(&mut self, now: Instant) -> Vec<Notice> {
+    /// 推進計時，回傳需要通知的計時器名稱
+    fn tick(&mut self, now: Instant) -> Vec<String> {
         let mut out = Vec::new();
+        let master = self.file.master_on;
+        let long = self.file.prefs.notify == "long";
         let Engine { file, rt, .. } = self;
         for cfg in &file.timers {
             let r = rt.entry(cfg.id.clone()).or_default();
-            if !cfg.enabled {
-                r.phase = Phase::Idle;
+            if !(master && cfg.enabled) {
+                *r = Rt::default();
                 continue;
             }
-            let notice = || Notice { sound: cfg.sound.clone(), file: cfg.sound_file.clone(), name: cfg.name.clone() };
             match r.phase {
                 Phase::Running { start, total } => {
                     let end = start + Duration::from_millis(total);
                     if now >= end {
-                        out.push(notice());
+                        out.push(cfg.name.clone());
                         r.last_notify = Some(now);
                         r.phase = match cfg.mode.as_str() {
                             "normal" => Phase::Done,
@@ -279,10 +313,10 @@ impl Engine {
                     }
                 }
                 Phase::Done | Phase::Over { .. } => {
-                    // 長通知：持續提醒直到重新計時；沒有指派按鍵就只通知一次
+                    // 長通知：持續提醒直到重新計時；沒有指派按鍵就只通知一聲
                     let due = r.last_notify.map_or(true, |t| now.saturating_duration_since(t) >= LONG_NOTIFY_INTERVAL);
-                    if cfg.notify == "long" && !cfg.keys.is_empty() && due {
-                        out.push(notice());
+                    if long && !cfg.keys.is_empty() && due {
+                        out.push(cfg.name.clone());
                         r.last_notify = Some(now);
                     }
                 }
@@ -303,7 +337,7 @@ impl Engine {
                     .and_then(|r| r.last_restart)
                     .map(|t| cfg.cooldown_ms.saturating_sub(ms(now.saturating_duration_since(t))))
                     .unwrap_or(0);
-                let (name, remain, over, total) = match phase {
+                let (pname, remain, over, total) = match phase {
                     Phase::Idle => ("idle", cfg.duration_ms, 0, cfg.duration_ms),
                     Phase::Running { start, total } => {
                         ("running", total.saturating_sub(ms(now.saturating_duration_since(start))), 0, total)
@@ -314,10 +348,8 @@ impl Engine {
                 Snap {
                     id: cfg.id.clone(),
                     name: cfg.name.clone(),
-                    enabled: cfg.enabled,
-                    opacity: cfg.overlay.opacity.clamp(0.2, 1.0),
-                    locked: cfg.overlay.locked,
-                    phase: name,
+                    active: self.active(cfg),
+                    phase: pname,
                     remain_ms: remain,
                     over_ms: over,
                     total_ms: total,
@@ -329,16 +361,12 @@ impl Engine {
     }
 }
 
-/* ---------------- 浮動視窗 ---------------- */
+/* ---------------- 浮動視窗（全部計時器共用一個） ---------------- */
 
-#[derive(Clone, PartialEq)]
-struct OvState {
+#[derive(Clone, PartialEq, Default)]
+struct OvApplied {
     visible: bool,
     locked: bool,
-}
-
-fn overlay_label(id: &str) -> String {
-    format!("ov-{id}")
 }
 
 /// 顯示但不搶走遊戲的焦點
@@ -356,9 +384,9 @@ fn show_no_activate(w: &WebviewWindow) {
     let _ = w.show();
 }
 
-fn create_overlay(app: &AppHandle, cfg: &TimerCfg) -> Option<WebviewWindow> {
-    let w = WebviewWindowBuilder::new(app, overlay_label(&cfg.id), WebviewUrl::App("overlay.html".into()))
-        .title(format!("{} 浮動視窗", cfg.name))
+fn create_overlay(app: &AppHandle, o: &Overlay) -> Option<WebviewWindow> {
+    let w = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("overlay.html".into()))
+        .title("計時器浮動視窗")
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -367,83 +395,67 @@ fn create_overlay(app: &AppHandle, cfg: &TimerCfg) -> Option<WebviewWindow> {
         .resizable(true)
         .focused(false)
         .visible(false)
-        .min_inner_size(120.0, 50.0)
+        .min_inner_size(140.0, 50.0)
         .build()
         .ok()?;
-    let o = &cfg.overlay;
-    let _ = w.set_size(PhysicalSize::new(o.w.max(120), o.h.max(50)));
+    let _ = w.set_size(PhysicalSize::new(o.w.max(140), o.h.max(50)));
     let _ = w.set_position(PhysicalPosition::new(o.x, o.y));
     Some(w)
 }
 
-fn sync_overlays(app: &AppHandle, applied: &mut HashMap<String, OvState>, desired: Vec<(TimerCfg, OvState)>) {
-    let keep: Vec<String> = desired.iter().map(|(c, _)| c.id.clone()).collect();
-    // 已刪除的計時器 → 關閉視窗
-    applied.retain(|id, _| {
-        if keep.contains(id) {
-            true
-        } else {
-            if let Some(w) = app.get_webview_window(&overlay_label(id)) {
-                let _ = w.destroy();
+fn sync_overlay(app: &AppHandle, applied: &mut Option<OvApplied>, want: OvApplied, o: &Overlay) {
+    let win = match app.get_webview_window(OVERLAY_LABEL) {
+        Some(w) => w,
+        None if want.visible => match create_overlay(app, o) {
+            Some(w) => {
+                *applied = None;
+                w
             }
-            false
-        }
-    });
-    for (cfg, want) in desired {
-        let label = overlay_label(&cfg.id);
-        let existing = app.get_webview_window(&label);
-        let win = match existing {
-            Some(w) => w,
-            None if want.visible => match create_overlay(app, &cfg) {
-                Some(w) => {
-                    applied.remove(&cfg.id);
-                    w
-                }
-                None => continue,
-            },
-            None => continue,
-        };
-        let prev = applied.get(&cfg.id).cloned();
-        if prev.as_ref().map(|p| p.locked) != Some(want.locked) {
-            let _ = win.set_ignore_cursor_events(want.locked);
-        }
-        if prev.as_ref().map(|p| p.visible) != Some(want.visible) {
-            if want.visible {
-                show_no_activate(&win);
-            } else {
-                let _ = win.hide();
-            }
-        }
-        applied.insert(cfg.id.clone(), want);
+            None => return,
+        },
+        None => return,
+    };
+    let prev = applied.clone();
+    if prev.as_ref().map(|p| p.locked) != Some(want.locked) {
+        let _ = win.set_ignore_cursor_events(want.locked);
     }
+    if prev.as_ref().map(|p| p.visible) != Some(want.visible) {
+        if want.visible {
+            show_no_activate(&win);
+        } else {
+            let _ = win.hide();
+        }
+    }
+    *applied = Some(want);
 }
 
 /// 浮動視窗被拖曳或縮放時記住位置大小
-pub fn overlay_moved(id: &str, x: i32, y: i32) {
+pub fn overlay_moved(x: i32, y: i32) {
+    if x <= -10000 || y <= -10000 {
+        return; // 最小化等特殊座標
+    }
     if let Some(lock) = ENGINE.get() {
         let mut e = lock.lock().unwrap();
-        if let Some(t) = e.file.timers.iter_mut().find(|t| t.id == id) {
-            if (t.overlay.x, t.overlay.y) != (x, y) && x > -10000 && y > -10000 {
-                t.overlay.x = x;
-                t.overlay.y = y;
-                e.dirty = true;
-            }
+        let o = &mut e.file.prefs.overlay;
+        if (o.x, o.y) != (x, y) {
+            o.x = x;
+            o.y = y;
+            e.dirty = true;
         }
     }
 }
 
-pub fn overlay_resized(id: &str, w: u32, h: u32) {
+pub fn overlay_resized(w: u32, h: u32) {
     if w == 0 || h == 0 {
         return;
     }
     if let Some(lock) = ENGINE.get() {
         let mut e = lock.lock().unwrap();
-        if let Some(t) = e.file.timers.iter_mut().find(|t| t.id == id) {
-            if (t.overlay.w, t.overlay.h) != (w, h) {
-                t.overlay.w = w;
-                t.overlay.h = h;
-                e.dirty = true;
-            }
+        let o = &mut e.file.prefs.overlay;
+        if (o.w, o.h) != (w, h) {
+            o.w = w;
+            o.h = h;
+            e.dirty = true;
         }
     }
 }
@@ -457,50 +469,57 @@ pub fn init(app: &AppHandle, path: PathBuf) {
 
     let app = app.clone();
     std::thread::spawn(move || {
-        let mut applied: HashMap<String, OvState> = HashMap::new();
+        let mut applied: Option<OvApplied> = None;
         let mut last_save = Instant::now();
         loop {
             std::thread::sleep(TICK);
             let now = Instant::now();
             let info = fg::current();
             // 自己的浮動視窗在前景（例如正在拖曳）時，維持原本的遊戲判定
-            if !info.is_self {
+            if !info.is_self || info.is_main {
                 GAME_FG.store(info.is_game, Ordering::SeqCst);
             }
             let game_fg = GAME_FG.load(Ordering::SeqCst);
             let game_only = GAME_ONLY.load(Ordering::SeqCst);
 
-            // 鎖內只做計算，視窗操作與音效都在解鎖後進行，避免與主執行緒互相等待
-            let (notices, snaps, desired, to_save) = {
+            // 鎖內只做計算；視窗操作與音效都在解鎖後進行，避免與主執行緒互相等待
+            let (names, snaps, prefs, master, want, to_save) = {
                 let mut e = eng();
-                let notices = e.tick(now);
+                let names = e.tick(now);
                 let snaps = e.snapshot(now);
-                let desired: Vec<(TimerCfg, OvState)> = e
-                    .file
-                    .timers
-                    .iter()
-                    .map(|c| {
-                        // 未鎖定時一律顯示，方便調整位置；鎖定後才依遊戲前景顯示
-                        let visible = c.enabled && c.overlay.show && (!game_only || game_fg || !c.overlay.locked);
-                        (c.clone(), OvState { visible, locked: c.overlay.locked })
-                    })
-                    .collect();
-                let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_secs(1) {
+                let prefs = e.file.prefs.clone();
+                let master = e.file.master_on;
+                let any_active = snaps.iter().any(|s| s.active);
+                let o = &prefs.overlay;
+                // 只在新楓之谷時：離開遊戲就隱藏；但未鎖定且正在本程式中調整時仍顯示，方便擺放位置
+                let in_place = !game_only || game_fg || (!o.locked && info.is_self);
+                let want = OvApplied { visible: o.show && master && any_active && in_place, locked: o.locked };
+                let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_millis(800) {
                     e.dirty = false;
                     last_save = now;
                     Some((e.path.clone(), e.file.clone()))
                 } else {
                     None
                 };
-                (notices, snaps, desired, to_save)
+                (names, snaps, prefs, master, want, to_save)
             };
 
-            for n in notices {
-                audio::play(&n.sound, &n.file, &n.name);
+            for name in names {
+                audio::play(&prefs.sound, &prefs.sound_file, &name, prefs.volume);
             }
-            sync_overlays(&app, &mut applied, desired);
-            let listening = !info.is_main && (!game_only || info.is_game);
-            let _ = app.emit("timer-tick", TickPayload { fg: info, listening, timers: snaps });
+            sync_overlay(&app, &mut applied, want, &prefs.overlay);
+            let listening = master && !info.is_self && (!game_only || info.is_game);
+            let _ = app.emit(
+                "timer-tick",
+                TickPayload {
+                    fg: info,
+                    listening,
+                    last_key: input::last_key(),
+                    master_on: master,
+                    overlay: OverlayState { opacity: prefs.overlay.opacity.clamp(0.2, 1.0), locked: prefs.overlay.locked },
+                    timers: snaps,
+                },
+            );
             if let Some((path, file)) = to_save {
                 save(&path, &file);
             }
@@ -510,25 +529,19 @@ pub fn init(app: &AppHandle, path: PathBuf) {
 
 /* ---------------- 指令 ---------------- */
 
-fn mark_dirty(e: &mut Engine) {
-    e.dirty = true;
-}
-
 #[tauri::command]
 pub fn get_timers() -> TimersFile {
     eng().file.clone()
 }
 
-/// 更新單一計時器設定（浮動視窗的位置大小以後端為準）
+/// 更新單一計時器設定
 #[tauri::command]
 pub fn update_timer(timer: TimerCfg) {
     let mut e = eng();
     let Engine { file, rt, .. } = &mut *e;
     if let Some(t) = file.timers.iter_mut().find(|t| t.id == timer.id) {
-        let geom = (t.overlay.x, t.overlay.y, t.overlay.w, t.overlay.h);
         let dur_changed = t.duration_ms != timer.duration_ms;
         *t = TimerCfg { builtin: t.builtin, ..timer };
-        (t.overlay.x, t.overlay.y, t.overlay.w, t.overlay.h) = geom;
         // 倒數中修改時間：已經過的時間保留，以新時間繼續倒數
         if dur_changed {
             if let Some(r) = rt.get_mut(&t.id) {
@@ -538,7 +551,20 @@ pub fn update_timer(timer: TimerCfg) {
             }
         }
     }
-    mark_dirty(&mut e);
+    e.dirty = true;
+}
+
+/// 更新全局設定（浮動視窗的位置大小以後端為準）
+#[tauri::command]
+pub fn update_prefs(prefs: Prefs) {
+    let mut e = eng();
+    let o = &e.file.prefs.overlay;
+    let geom = (o.x, o.y, o.w, o.h);
+    e.file.prefs = Prefs { volume: prefs.volume.min(200), ..prefs };
+    let o = &mut e.file.prefs.overlay;
+    (o.x, o.y, o.w, o.h) = geom;
+    o.opacity = o.opacity.clamp(0.2, 1.0);
+    e.dirty = true;
 }
 
 #[tauri::command]
@@ -546,14 +572,9 @@ pub fn add_timer() -> TimerCfg {
     let mut e = eng();
     let id = format!("u{}", e.file.next_id);
     e.file.next_id += 1;
-    let n = e.file.timers.len() as i32;
-    let t = TimerCfg {
-        id,
-        overlay: Overlay { x: 160 + (n % 4) * 40, y: 160 + (n % 4) * 40, ..Overlay::default() },
-        ..TimerCfg::default()
-    };
+    let t = TimerCfg { id, ..TimerCfg::default() };
     e.file.timers.push(t.clone());
-    mark_dirty(&mut e);
+    e.dirty = true;
     t
 }
 
@@ -562,7 +583,7 @@ pub fn delete_timer(id: String) {
     let mut e = eng();
     e.file.timers.retain(|t| t.id != id || t.builtin);
     e.rt.remove(&id);
-    mark_dirty(&mut e);
+    e.dirty = true;
 }
 
 /// 「開始」按鈕：不受冷卻限制
@@ -572,12 +593,11 @@ pub fn timer_start(id: String) {
     let mut e = eng();
     let Engine { file, rt, .. } = &mut *e;
     if let Some(cfg) = file.timers.iter_mut().find(|t| t.id == id) {
-        if !cfg.enabled {
-            cfg.enabled = true;
-        }
+        cfg.enabled = true;
+        file.master_on = true;
         restart(cfg, rt.entry(id).or_default(), now);
     }
-    mark_dirty(&mut e);
+    e.dirty = true;
 }
 
 #[tauri::command]
@@ -588,19 +608,15 @@ pub fn timer_stop(id: String) {
     }
 }
 
-/// 全部開啟／關閉：同時切換啟用狀態與浮動視窗
+/// 總開關：只影響原本有開啟的計時器（各自的啟用狀態不變）
 #[tauri::command]
-pub fn set_all(on: bool) -> TimersFile {
+pub fn set_master(on: bool) {
     let mut e = eng();
-    for t in e.file.timers.iter_mut() {
-        t.enabled = on;
-        t.overlay.show = on;
-    }
+    e.file.master_on = on;
     if !on {
         e.rt.clear();
     }
-    mark_dirty(&mut e);
-    e.file.clone()
+    e.dirty = true;
 }
 
 #[tauri::command]
@@ -608,29 +624,28 @@ pub fn set_game_only(on: bool) {
     GAME_ONLY.store(on, Ordering::SeqCst);
     let mut e = eng();
     e.file.game_only = on;
-    mark_dirty(&mut e);
+    e.dirty = true;
 }
 
 /// 把浮動視窗移回主螢幕左上附近
 #[tauri::command]
-pub fn reset_overlay(app: AppHandle, id: String) {
+pub fn reset_overlay(app: AppHandle) {
     let (x, y) = (120, 160);
     {
         let mut e = eng();
-        if let Some(t) = e.file.timers.iter_mut().find(|t| t.id == id) {
-            t.overlay.x = x;
-            t.overlay.y = y;
-        }
-        mark_dirty(&mut e);
+        e.file.prefs.overlay.x = x;
+        e.file.prefs.overlay.y = y;
+        e.dirty = true;
     }
-    if let Some(w) = app.get_webview_window(&overlay_label(&id)) {
+    if let Some(w) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = w.set_position(PhysicalPosition::new(x, y));
     }
 }
 
+/// 試聽：用目前的音效與音量設定
 #[tauri::command]
-pub fn preview_sound(timer: TimerCfg) {
-    audio::play(&timer.sound, &timer.sound_file, &timer.name);
+pub fn preview_sound(prefs: Prefs, name: String) {
+    audio::play(&prefs.sound, &prefs.sound_file, &name, prefs.volume);
 }
 
 #[tauri::command]
@@ -640,16 +655,6 @@ pub async fn pick_sound_file() -> Option<String> {
         .add_filter("音效檔", &["wav", "mp3", "ogg", "flac"])
         .pick_file()
         .map(|p| p.to_string_lossy().into_owned())
-}
-
-#[tauri::command]
-pub fn start_capture() {
-    input::start_capture();
-}
-
-#[tauri::command]
-pub fn cancel_capture() {
-    input::cancel_capture();
 }
 
 #[cfg(test)]
@@ -688,37 +693,59 @@ mod tests {
         assert!(!in_cooldown(&c, &r, t0 + Duration::from_secs(51)));
     }
 
+    fn engine(mode: &str, repeat: u32, t0: Instant) -> Engine {
+        let c = TimerCfg { id: "a".into(), repeat, ..cfg(mode, false) };
+        let mut rt = HashMap::new();
+        let mut r = Rt::default();
+        restart(&c, &mut r, t0);
+        rt.insert("a".to_string(), r);
+        Engine { file: TimersFile { timers: vec![c], ..TimersFile::default() }, rt, path: PathBuf::new(), dirty: false }
+    }
+
     #[test]
     fn modes_at_timeout() {
         let t0 = Instant::now();
-        let mk = |mode: &str, repeat: u32| {
-            let c = TimerCfg { id: "a".into(), repeat, ..cfg(mode, false) };
-            let mut rt = HashMap::new();
-            let mut r = Rt::default();
-            restart(&c, &mut r, t0);
-            rt.insert("a".to_string(), r);
-            Engine { file: TimersFile { timers: vec![c], ..TimersFile::default() }, rt, path: PathBuf::new(), dirty: false }
-        };
         let later = t0 + Duration::from_millis(10_050);
 
-        let mut e = mk("normal", 0);
+        let mut e = engine("normal", 0, t0);
         assert_eq!(e.tick(later).len(), 1);
         assert!(matches!(e.rt["a"].phase, Phase::Done));
 
-        let mut e = mk("key", 0);
+        let mut e = engine("key", 0, t0);
         e.tick(later);
         assert!(matches!(e.rt["a"].phase, Phase::Over { .. }));
 
-        let mut e = mk("count", 2);
+        let mut e = engine("count", 2, t0);
         e.tick(later);
         assert!(matches!(e.rt["a"].phase, Phase::Running { .. }));
         assert_eq!(e.rt["a"].round, 2);
         e.tick(t0 + Duration::from_millis(20_100));
         assert!(matches!(e.rt["a"].phase, Phase::Done));
 
-        let mut e = mk("count", 0); // 無限
+        let mut e = engine("count", 0, t0); // 無限
         e.tick(later);
         e.tick(t0 + Duration::from_millis(20_100));
         assert!(matches!(e.rt["a"].phase, Phase::Running { .. }));
+    }
+
+    #[test]
+    fn master_switch_pauses_without_touching_enabled() {
+        let t0 = Instant::now();
+        let mut e = engine("key", 0, t0);
+        e.file.master_on = false;
+        e.tick(t0 + Duration::from_secs(1));
+        assert!(matches!(e.rt["a"].phase, Phase::Idle));
+        assert!(e.file.timers[0].enabled);
+    }
+
+    #[test]
+    fn old_file_format_still_loads() {
+        // 舊版每個計時器各自有音效與浮動視窗設定，新版應能忽略並讀入
+        let old = r#"{"game_only":false,"next_id":5,"timers":[{"id":"t1","name":"輪迴碑石","duration_ms":590000,"sound":"beep1","overlay":{"show":true}}]}"#;
+        let f: TimersFile = serde_json::from_str(old).unwrap();
+        assert!(!f.game_only);
+        assert!(f.master_on);
+        assert_eq!(f.timers[0].duration_ms, 590_000);
+        assert_eq!(f.prefs.volume, 100);
     }
 }

@@ -78,7 +78,6 @@
             <div class="card grow">
               <label class="card-label" for="rawInput">貼上文字</label>
               <textarea id="rawInput" placeholder="貼上包含序號、時間、道具名稱等的任何文字…"></textarea>
-              <p class="hint">規則：15–25 碼英數字，排除純數字，自動去除重複</p>
               <div class="row">
                 <button class="pill primary" id="extractBtn">擷取序號</button>
                 <button class="pill ghost danger" id="clearBtn">清除</button>
@@ -126,17 +125,69 @@
           <span></span>
         </nav>
         <div class="timer-bar">
-          <button class="pill primary small" id="allBtn">全部開啟</button>
-          <label class="switch-wrap" data-tip="開啟後只在新楓之谷是目前視窗時監聽按鍵；切到其他視窗時繼續倒數，但暫停監聽並隱藏已鎖定的浮動視窗。">
-            <span class="switch"><input type="checkbox" id="gameOnly" /><span class="slider"></span></span>
+          <label class="switch-wrap" data-tip="開啟後只在新楓之谷是目前視窗時監聽按鍵與顯示浮動視窗；切到其他視窗時繼續倒數。">
+            <span class="switch sm"><input type="checkbox" id="gameOnly" /><span class="slider"></span></span>
             <span>只在新楓之谷時運作</span>
           </label>
           <span class="fg-chip" id="fgChip"><i></i><span>偵測中…</span></span>
+          <span class="key-chip" id="keyChip">最後按鍵：—</span>
           <span class="spacer"></span>
           <button class="pill ghost small" id="addTimerBtn">＋ 新增計時器</button>
+          <button class="pill ghost small icon-pill" id="timerSettingsBtn">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            設定
+          </button>
         </div>
         <div class="timer-scroll">
           <div class="timer-grid" id="timerGrid"></div>
+        </div>
+        <button class="master-btn" id="masterBtn"><i></i><span>全部關閉</span></button>
+
+        <!-- 計時器全局設定 -->
+        <div class="sheet-backdrop" id="sheetBackdrop"></div>
+        <div class="sheet" id="timerSheet">
+          <div class="sheet-head">
+            <strong>計時器設定</strong>
+            <button class="link-btn" id="sheetClose">完成</button>
+          </div>
+          <p class="sub">通知</p>
+          <div class="field"><span class="lbl">通知方式</span>
+            <div class="seg" id="prefNotify">
+              <button data-v="short" data-tip="短：時間到只通知一次。">短</button>
+              <button data-v="long" data-tip="長：每 3 秒重複通知，直到重新計時；計時器沒有指派按鍵時只通知一聲。">長</button>
+            </div>
+          </div>
+          <div class="field"><span class="lbl">音效</span>
+            <div class="inline">
+              <select class="sel" id="prefSound">
+                <option value="beep1">提示音 1（叮咚）</option>
+                <option value="beep2">提示音 2（三短嗶）</option>
+                <option value="beep3">提示音 3（琶音）</option>
+                <option value="tts">語音唸出計時器名稱</option>
+                <option value="file">自訂音效檔…</option>
+              </select>
+              <button class="link-btn" id="prefPreview">▶ 試聽</button>
+            </div>
+          </div>
+          <div class="field" id="prefFileRow"><span class="lbl">音效檔</span>
+            <div class="inline"><button class="pill ghost small" id="prefPick">選擇檔案</button><small class="muted" id="prefFileName"></small></div>
+          </div>
+          <div class="field"><span class="lbl">音量</span>
+            <div class="inline"><input type="range" class="range" id="prefVolume" min="0" max="200" step="5" /><span class="muted val" id="prefVolumeVal"></span></div>
+          </div>
+          <p class="sub">浮動視窗</p>
+          <div class="field"><span class="lbl">顯示</span>
+            <label class="switch sm"><input type="checkbox" id="prefOvShow" /><span class="slider"></span></label>
+          </div>
+          <div class="field"><span class="lbl" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。">鎖定 <i class="info">i</i></span>
+            <label class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></label>
+          </div>
+          <div class="field"><span class="lbl">透明度</span>
+            <div class="inline"><input type="range" class="range" id="prefOvOpacity" min="20" max="100" /><span class="muted val" id="prefOvOpacityVal"></span></div>
+          </div>
+          <div class="field"><span class="lbl"></span>
+            <div class="inline"><button class="pill ghost small" id="prefOvReset">重設位置</button></div>
+          </div>
         </div>
       </section>
     </main>

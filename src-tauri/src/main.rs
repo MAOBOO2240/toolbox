@@ -239,10 +239,10 @@ fn main() {
                     WindowEvent::CloseRequested { .. } => window.app_handle().exit(0),
                     _ => {}
                 }
-            } else if let Some(id) = label.strip_prefix("ov-") {
+            } else if label == timers::OVERLAY_LABEL {
                 match event {
-                    WindowEvent::Moved(p) => timers::overlay_moved(id, p.x, p.y),
-                    WindowEvent::Resized(s) => timers::overlay_resized(id, s.width, s.height),
+                    WindowEvent::Moved(p) => timers::overlay_moved(p.x, p.y),
+                    WindowEvent::Resized(s) => timers::overlay_resized(s.width, s.height),
                     _ => {}
                 }
             }
@@ -257,17 +257,16 @@ fn main() {
             save_settings,
             timers::get_timers,
             timers::update_timer,
+            timers::update_prefs,
             timers::add_timer,
             timers::delete_timer,
             timers::timer_start,
             timers::timer_stop,
-            timers::set_all,
+            timers::set_master,
             timers::set_game_only,
             timers::reset_overlay,
             timers::preview_sound,
-            timers::pick_sound_file,
-            timers::start_capture,
-            timers::cancel_capture
+            timers::pick_sound_file
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

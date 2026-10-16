@@ -1,23 +1,21 @@
 "use strict";
 
-/* 計時器頁面：卡片設定、即時顯示、按鍵指派 */
+/* 計時器頁面：卡片直接編輯、全局設定面板、按鍵指派、即時顯示 */
 (() => {
   const tapi = TAURI ? {
     get: () => invoke("get_timers"),
     update: (timer) => invoke("update_timer", { timer }),
+    updatePrefs: (prefs) => invoke("update_prefs", { prefs }),
     add: () => invoke("add_timer"),
     del: (id) => invoke("delete_timer", { id }),
     start: (id) => invoke("timer_start", { id }),
     stop: (id) => invoke("timer_stop", { id }),
-    setAll: (on) => invoke("set_all", { on }),
+    setMaster: (on) => invoke("set_master", { on }),
     gameOnly: (on) => invoke("set_game_only", { on }),
-    resetOverlay: (id) => invoke("reset_overlay", { id }),
-    preview: (timer) => invoke("preview_sound", { timer }),
+    resetOverlay: () => invoke("reset_overlay"),
+    preview: (prefs, name) => invoke("preview_sound", { prefs, name }),
     pickFile: () => invoke("pick_sound_file"),
-    capture: () => invoke("start_capture"),
-    cancelCapture: () => invoke("cancel_capture"),
     onTick: (cb) => listen("timer-tick", (e) => cb(e.payload)),
-    onCaptured: (cb) => listen("key-captured", (e) => cb(e.payload)),
   } : mockApi();
 
   const MODE_TIPS = {
@@ -25,19 +23,7 @@
     count: "次數：時間到自動重新倒數，跑完設定的次數後停止（0 = 無限重複）。",
     key: "指派按鍵：時間到後進入超時並向上計時，按下指派按鍵才重新計時。",
   };
-  const NOTIFY_TIPS = {
-    short: "短：只通知一次。",
-    long: "長：每 3 秒重複通知，直到重新計時；沒有指派按鍵時只通知一聲。",
-  };
   const COMP_TIP = "超逾回補：超時期間按下指派按鍵，會以「原本時間 − 超時時間」重新計時；超時超過原本時間則用完整時間。";
-  const LOCK_TIP = "鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。";
-  const SOUNDS = [
-    ["beep1", "提示音 1（叮咚）"],
-    ["beep2", "提示音 2（三短嗶）"],
-    ["beep3", "提示音 3（琶音）"],
-    ["tts", "語音唸出名稱"],
-    ["file", "自訂音效檔…"],
-  ];
   const KEY_LABEL = {
     Left: "←", Right: "→", Up: "↑", Down: "↓",
     Mouse4: "滑鼠側鍵(後)", Mouse5: "滑鼠側鍵(前)", MouseMid: "滑鼠中鍵",
@@ -45,111 +31,117 @@
   };
   const keyLabel = (k) => k.split("+").map((p) => KEY_LABEL[p] || p).join(" + ");
 
-  let file = { game_only: true, timers: [] };
+  let file = { game_only: true, master_on: true, prefs: {}, timers: [] };
   let snaps = {};
-  const openSettings = new Set();
-  let capturing = null; // { id, index }
+  let editing = null; // 正在直接編輯時間的計時器 id
   let loaded = false;
 
   const byId = (id) => file.timers.find((t) => t.id === id);
   const card = (id) => document.querySelector(`.tcard[data-id="${CSS.escape(id)}"]`);
 
+  /* ---------- 即時儲存（節流：立即送出，之後最多每 60ms 一次） ---------- */
+  function throttled(fn, wait = 60) {
+    const state = {};
+    return (key, arg) => {
+      const s = (state[key] ||= { timer: null, pending: null });
+      if (s.timer) { s.pending = arg; return; }
+      run(() => fn(arg));
+      s.timer = setTimeout(function flush() {
+        if (s.pending !== null) {
+          const a = s.pending;
+          s.pending = null;
+          run(() => fn(a));
+          s.timer = setTimeout(flush, wait);
+        } else {
+          s.timer = null;
+        }
+      }, wait);
+    };
+  }
+  const pushTimer = throttled((t) => tapi.update(JSON.parse(JSON.stringify(t))));
+  const pushPrefs = throttled((p) => tapi.updatePrefs(JSON.parse(JSON.stringify(p))));
+  const saveTimer = (t) => pushTimer(t.id, t);
+  const savePrefs = () => pushPrefs("prefs", file.prefs);
+
   /* ---------- 格式 ---------- */
+  const pad = (n) => String(n).padStart(2, "0");
   function fmt(totalSec) {
     totalSec = Math.max(0, totalSec);
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    const pad = (n) => String(n).padStart(2, "0");
     return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   }
 
-  /** 剩餘 30% 起由原色漸變為紅色，回傳 0~1 的紅色程度 */
-  function redness(snap) {
+  /** 剩餘 30% 起由原色漸變為紅色，回傳 0~1 */
+  function heat(snap) {
     if (snap.phase !== "running" || !snap.total_ms) return 0;
     const frac = snap.remain_ms / snap.total_ms;
     return frac >= 0.3 ? 0 : Math.min(1, 1 - frac / 0.3);
   }
 
-  /* ---------- 儲存 ---------- */
-  const saveTimers = {};
-  function save(t, now = false) {
-    clearTimeout(saveTimers[t.id]);
-    const go = () => run(() => tapi.update(t));
-    if (now) go(); else saveTimers[t.id] = setTimeout(go, 250);
-  }
-
   /* ---------- 卡片 ---------- */
-  function seg(cls, items, tips) {
-    return `<div class="seg ${cls}">${items.map(([v, l]) => `<button data-v="${v}" data-tip="${tips?.[v] || ""}">${l}</button>`).join("")}</div>`;
-  }
   const sw = (cls) => `<label class="switch sm"><input type="checkbox" class="${cls}" /><span class="slider"></span></label>`;
+  const TRASH = '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 
   function cardHtml(t) {
     return `
       <div class="tc-head">
-        <input class="tc-name f-name" maxlength="20" spellcheck="false" />
-        ${t.builtin ? '<span class="badge">預設</span>' : ""}
+        <input class="tc-name f-name" maxlength="20" spellcheck="false" title="點擊修改名稱" />
         <span class="spacer"></span>
-        <span class="tc-en-label">啟用</span>${sw("f-enabled")}
+        ${t.builtin ? "" : `<button class="icon-btn f-del" title="刪除計時器">${TRASH}</button>`}
+        ${sw("f-enabled")}
       </div>
-      <div class="tc-display"><span class="tc-time">00:00</span><span class="tc-status">待命</span></div>
+      <div class="tc-clock">
+        <div class="tc-time-wrap">
+          <button class="tc-time f-time" title="點擊直接修改時間">00:00</button>
+          <div class="tc-edit">
+            <input type="number" class="f-min" min="0" max="999" /><span>:</span><input type="number" class="f-sec" min="0" max="59" />
+          </div>
+          <label class="tc-cd" title="冷卻時間：重新計時後的這段時間內按鍵無效">CD<input type="number" class="f-cd" min="0" max="3600" />s</label>
+        </div>
+        <span class="tc-status">待命</span>
+      </div>
       <div class="tc-actions">
         <button class="pill primary small f-start">開始</button>
         <button class="pill ghost danger small f-stop">結束</button>
-        <span class="spacer"></span>
-        <button class="link-btn f-toggle">設定 <span class="caret">›</span></button>
       </div>
-      <div class="tc-settings">
-        <div class="field"><span class="lbl">時間</span>
-          <div class="inline"><input type="number" class="num-in f-min" min="0" max="999" /><span>分</span><input type="number" class="num-in f-sec" min="0" max="59" /><span>秒</span></div></div>
-        <div class="field"><span class="lbl">冷卻時間</span>
-          <div class="inline"><input type="number" class="num-in f-cd" min="0" max="3600" /><span>秒</span><small class="muted">冷卻中按鍵無效</small></div></div>
-        <div class="field"><span class="lbl">重新計時</span>${seg("f-mode", [["normal", "一般"], ["count", "次數"], ["key", "指派按鍵"]], MODE_TIPS)}</div>
+      <div class="tc-opts">
+        <div class="field"><span class="lbl">重新計時</span>
+          <div class="seg f-mode">
+            <button data-v="normal" data-tip="${MODE_TIPS.normal}">一般</button>
+            <button data-v="count" data-tip="${MODE_TIPS.count}">次數</button>
+            <button data-v="key" data-tip="${MODE_TIPS.key}">指派按鍵</button>
+          </div>
+        </div>
         <div class="field r-repeat"><span class="lbl">次數</span>
           <div class="inline"><input type="number" class="num-in f-repeat" min="0" max="9999" /><span>次</span><small class="muted">0 = 無限重複</small></div></div>
         <div class="field"><span class="lbl">指派按鍵</span><div class="keys f-keys"></div></div>
         <div class="field r-comp"><span class="lbl" data-tip="${COMP_TIP}">超逾回補 <i class="info">i</i></span>${sw("f-comp")}</div>
-        <div class="field"><span class="lbl">通知</span>${seg("f-notify", [["short", "短"], ["long", "長"]], NOTIFY_TIPS)}</div>
-        <div class="field"><span class="lbl">音效</span>
-          <div class="inline"><select class="sel f-sound">${SOUNDS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
-          <button class="link-btn f-preview">▶ 試聽</button></div></div>
-        <div class="field r-file"><span class="lbl">音效檔</span>
-          <div class="inline"><button class="pill ghost small f-pick">選擇檔案</button><small class="muted fname"></small></div></div>
-        <p class="sub">浮動視窗</p>
-        <div class="field"><span class="lbl">顯示</span>${sw("f-ov")}</div>
-        <div class="field"><span class="lbl" data-tip="${LOCK_TIP}">鎖定 <i class="info">i</i></span>${sw("f-lock")}</div>
-        <div class="field"><span class="lbl">透明度</span>
-          <div class="inline"><input type="range" class="range f-opacity" min="20" max="100" /><span class="f-op-val muted"></span></div></div>
-        <div class="field"><span class="lbl"></span>
-          <div class="inline"><button class="pill ghost small f-reset">重設位置</button>
-          ${t.builtin ? "" : '<button class="pill ghost danger small f-del">刪除計時器</button>'}</div></div>
       </div>`;
   }
 
   function fillCard(el, t) {
+    if (!el) return;
     const q = (s) => el.querySelector(s);
-    if (document.activeElement !== q(".f-name")) q(".f-name").value = t.name;
+    const focused = document.activeElement;
+    if (focused !== q(".f-name")) q(".f-name").value = t.name;
+    if (focused !== q(".f-cd")) q(".f-cd").value = Math.round(t.cooldown_ms / 1000);
+    fitCd(q(".f-cd"));
+    if (focused !== q(".f-repeat")) q(".f-repeat").value = t.repeat;
     q(".f-enabled").checked = t.enabled;
-    q(".f-min").value = Math.floor(t.duration_ms / 60000);
-    q(".f-sec").value = Math.floor((t.duration_ms % 60000) / 1000);
-    q(".f-cd").value = Math.round(t.cooldown_ms / 1000);
-    q(".f-repeat").value = t.repeat;
     q(".f-comp").checked = t.overflow_comp;
-    q(".f-sound").value = t.sound;
-    q(".fname").textContent = t.sound_file ? t.sound_file.split(/[\\/]/).pop() : "尚未選擇";
-    q(".f-ov").checked = t.overlay.show;
-    q(".f-lock").checked = t.overlay.locked;
-    q(".f-opacity").value = Math.round(t.overlay.opacity * 100);
-    q(".f-op-val").textContent = `${Math.round(t.overlay.opacity * 100)}%`;
     el.querySelectorAll(".f-mode button").forEach((b) => b.classList.toggle("on", b.dataset.v === t.mode));
-    el.querySelectorAll(".f-notify button").forEach((b) => b.classList.toggle("on", b.dataset.v === t.notify));
     q(".r-repeat").hidden = t.mode !== "count";
     q(".r-comp").hidden = t.mode !== "key";
-    q(".r-file").hidden = t.sound !== "file";
     el.classList.toggle("disabled", !t.enabled);
-    el.classList.toggle("open", openSettings.has(t.id));
+    el.classList.toggle("editing", editing === t.id);
     renderKeys(el, t);
+  }
+
+  /** CD 輸入框寬度跟著數字位數 */
+  function fitCd(inp) {
+    inp.style.width = `${Math.max(1, String(inp.value).length) + 0.3}ch`;
   }
 
   function renderKeys(el, t) {
@@ -161,7 +153,7 @@
       b.className = "keycap";
       const waiting = cap && cap.index === i;
       b.classList.toggle("waiting", !!waiting);
-      b.textContent = waiting ? "按下新按鍵…（Esc 取消指派）" : keyLabel(k);
+      b.textContent = waiting ? "按新按鍵…（Esc 取消指派）" : keyLabel(k);
       b.title = "點擊後按新按鍵替換；按 Esc 取消這個指派";
       b.addEventListener("click", (e) => { e.stopPropagation(); beginCapture(t.id, i); });
       box.appendChild(b);
@@ -170,81 +162,162 @@
     add.className = "keycap add";
     const waitingNew = cap && cap.index === null;
     add.classList.toggle("waiting", !!waitingNew);
-    add.textContent = waitingNew ? "按下按鍵…（Esc 取消）" : "＋ 指派按鍵";
+    add.textContent = waitingNew ? "請按按鍵…（Esc 取消）" : "＋ 指派按鍵";
     add.addEventListener("click", (e) => { e.stopPropagation(); beginCapture(t.id, null); });
     box.appendChild(add);
+  }
+
+  /* ---------- 直接修改時間 ---------- */
+  function openEditor(id) {
+    if (editing && editing !== id) closeEditor();
+    const t = byId(id);
+    const el = card(id);
+    editing = id;
+    el.classList.add("editing");
+    const mi = el.querySelector(".f-min"), si = el.querySelector(".f-sec");
+    mi.value = Math.floor(t.duration_ms / 60000);
+    mi.style.width = `${Math.max(2, String(mi.value).length) + 0.3}ch`;
+    si.value = pad(Math.floor((t.duration_ms % 60000) / 1000));
+    mi.focus();
+    mi.select();
+  }
+
+  function closeEditor() {
+    if (!editing) return;
+    const el = card(editing);
+    editing = null;
+    if (el) el.classList.remove("editing");
+  }
+
+  /* ---------- 按鍵指派（在程式視窗內擷取） ---------- */
+  let capturing = null; // { id, index }
+  let pendingMod = null;
+
+  const CODE = {
+    Space: "Space", Enter: "Enter", NumpadEnter: "Enter", Tab: "Tab", Escape: "Esc", Backspace: "Backspace",
+    Insert: "Insert", Delete: "Delete", Home: "Home", End: "End", PageUp: "PageUp", PageDown: "PageDown",
+    ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down",
+    CapsLock: "CapsLock", Pause: "Pause", ScrollLock: "ScrollLock", NumLock: "NumLock", PrintScreen: "PrintScreen",
+    ShiftLeft: "Shift", ShiftRight: "Shift", ControlLeft: "Ctrl", ControlRight: "Ctrl",
+    AltLeft: "Alt", AltRight: "Alt", MetaLeft: "Win", MetaRight: "Win",
+    NumpadMultiply: "Num*", NumpadAdd: "NumAdd", NumpadSubtract: "Num-", NumpadDecimal: "Num.", NumpadDivide: "Num/",
+    Semicolon: ";", Equal: "=", Comma: ",", Minus: "-", Period: ".", Slash: "/", Backquote: "`",
+    BracketLeft: "[", Backslash: "\\", BracketRight: "]", Quote: "'",
+  };
+  const MODS = ["Ctrl", "Alt", "Shift", "Win"];
+
+  function codeName(code) {
+    if (CODE[code]) return CODE[code];
+    let m;
+    if ((m = /^Key([A-Z])$/.exec(code))) return m[1];
+    if ((m = /^Digit(\d)$/.exec(code))) return m[1];
+    if ((m = /^Numpad(\d)$/.exec(code))) return `Num${m[1]}`;
+    if ((m = /^F(\d{1,2})$/.exec(code))) return `F${m[1]}`;
+    return null;
+  }
+
+  function combo(e, key) {
+    const held = { Ctrl: e.ctrlKey, Alt: e.altKey, Shift: e.shiftKey, Win: e.metaKey };
+    return [...MODS.filter((m) => held[m] && m !== key), key].join("+");
   }
 
   function beginCapture(id, index) {
     if (document.activeElement) document.activeElement.blur();
     const prev = capturing;
     capturing = { id, index };
+    pendingMod = null;
     if (prev && prev.id !== id) fillCard(card(prev.id), byId(prev.id));
     renderKeys(card(id), byId(id));
-    run(() => tapi.capture());
   }
 
   function endCapture() {
     if (!capturing) return;
     const { id } = capturing;
     capturing = null;
-    run(() => tapi.cancelCapture());
     const t = byId(id);
     if (t) renderKeys(card(id), t);
   }
 
-  function onCaptured({ key, cancel }) {
-    if (!capturing) return;
+  function finishCapture(key, cancel) {
     const { id, index } = capturing;
     capturing = null;
+    pendingMod = null;
     const t = byId(id);
     if (!t) return;
     if (cancel) {
-      if (index !== null) { t.keys.splice(index, 1); toast("已取消指派按鍵"); save(t, true); }
+      if (index !== null) { t.keys.splice(index, 1); toast("已取消指派按鍵"); saveTimer(t); }
     } else if (index !== null) {
       t.keys[index] = key;
       t.keys = [...new Set(t.keys)];
-      save(t, true);
+      saveTimer(t);
     } else if (!t.keys.includes(key)) {
       t.keys.push(key);
-      save(t, true);
+      saveTimer(t);
     }
     renderKeys(card(id), t);
   }
 
+  document.addEventListener("keydown", (e) => {
+    if (!capturing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    const name = codeName(e.code);
+    if (!name) return;
+    if (MODS.includes(name)) { pendingMod = name; return; } // 只按修飾鍵：放開時才算
+    pendingMod = null;
+    if (name === "Esc" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) finishCapture("", true);
+    else finishCapture(combo(e, name), false);
+  }, true);
+
+  document.addEventListener("keyup", (e) => {
+    if (!capturing) return;
+    e.preventDefault();
+    const name = codeName(e.code);
+    if (pendingMod && name === pendingMod) finishCapture(combo(e, name), false);
+  }, true);
+
+  // 滑鼠側鍵、中鍵
+  document.addEventListener("mousedown", (e) => {
+    if (!capturing || ![1, 3, 4].includes(e.button)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    finishCapture(combo(e, e.button === 3 ? "Mouse4" : e.button === 4 ? "Mouse5" : "MouseMid"), false);
+  }, true);
+  // 避免側鍵觸發上一頁／下一頁
+  document.addEventListener("mouseup", (e) => { if ([3, 4].includes(e.button)) e.preventDefault(); }, true);
+
+  document.addEventListener("click", (e) => {
+    if (capturing && !e.target.closest(".keycap")) endCapture();
+    if (editing && !e.target.closest(".tc-time-wrap")) closeEditor();
+  });
+
+  /* ---------- 卡片事件 ---------- */
   function wireCard(el, t) {
     const q = (s) => el.querySelector(s);
-    const set = (fn, now) => { fn(); fillCard(el, t); save(t, now); };
+    const setNow = (fn) => { fn(); fillCard(el, t); saveTimer(t); };
 
-    q(".f-name").addEventListener("input", (e) => { t.name = e.target.value.trim() || "計時器"; save(t); });
-    q(".f-enabled").addEventListener("change", (e) => set(() => (t.enabled = e.target.checked), true));
+    q(".f-name").addEventListener("input", (e) => { t.name = e.target.value.trim() || "計時器"; saveTimer(t); });
+    q(".f-enabled").addEventListener("change", (e) => setNow(() => (t.enabled = e.target.checked)));
+
+    q(".f-time").addEventListener("click", (e) => { e.stopPropagation(); openEditor(t.id); });
     const setDur = () => {
       const m = Math.max(0, parseInt(q(".f-min").value) || 0);
       const s = Math.min(59, Math.max(0, parseInt(q(".f-sec").value) || 0));
       t.duration_ms = Math.max(1, m * 60 + s) * 1000;
-      save(t);
+      saveTimer(t);
+      paint(el, t, snaps[t.id]);
     };
-    q(".f-min").addEventListener("input", setDur);
+    q(".f-min").addEventListener("input", (e) => { e.target.style.width = `${Math.max(2, e.target.value.length) + 0.3}ch`; setDur(); });
     q(".f-sec").addEventListener("input", setDur);
-    q(".f-cd").addEventListener("input", (e) => { t.cooldown_ms = Math.max(0, parseInt(e.target.value) || 0) * 1000; save(t); });
-    q(".f-repeat").addEventListener("input", (e) => { t.repeat = Math.max(0, parseInt(e.target.value) || 0); save(t); });
-    el.querySelectorAll(".f-mode button").forEach((b) => b.addEventListener("click", () => set(() => (t.mode = b.dataset.v), true)));
-    el.querySelectorAll(".f-notify button").forEach((b) => b.addEventListener("click", () => set(() => (t.notify = b.dataset.v), true)));
-    q(".f-comp").addEventListener("change", (e) => set(() => (t.overflow_comp = e.target.checked), true));
-    q(".f-sound").addEventListener("change", (e) => set(() => (t.sound = e.target.value), true));
-    q(".f-preview").addEventListener("click", () => run(() => tapi.preview(t)));
-    q(".f-pick").addEventListener("click", () => run(async () => {
-      const p = await tapi.pickFile();
-      if (p) set(() => (t.sound_file = p), true);
-    }));
-    q(".f-ov").addEventListener("change", (e) => set(() => (t.overlay.show = e.target.checked), true));
-    q(".f-lock").addEventListener("change", (e) => set(() => (t.overlay.locked = e.target.checked), true));
-    q(".f-opacity").addEventListener("input", (e) => {
-      t.overlay.opacity = Number(e.target.value) / 100;
-      q(".f-op-val").textContent = `${e.target.value}%`;
-      save(t);
-    });
-    q(".f-reset").addEventListener("click", () => run(() => tapi.resetOverlay(t.id)));
+    el.querySelectorAll(".tc-edit input").forEach((inp) =>
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === "Escape") closeEditor(); })
+    );
+
+    q(".f-cd").addEventListener("input", (e) => { t.cooldown_ms = Math.max(0, parseInt(e.target.value) || 0) * 1000; fitCd(e.target); saveTimer(t); });
+    q(".f-repeat").addEventListener("input", (e) => { t.repeat = Math.max(0, parseInt(e.target.value) || 0); saveTimer(t); });
+    el.querySelectorAll(".f-mode button").forEach((b) => b.addEventListener("click", () => setNow(() => (t.mode = b.dataset.v))));
+    q(".f-comp").addEventListener("change", (e) => setNow(() => (t.overflow_comp = e.target.checked)));
     q(".f-del")?.addEventListener("click", () => run(async () => {
       if (!confirm(`確定要刪除「${t.name}」嗎？`)) return;
       await tapi.del(t.id);
@@ -254,12 +327,9 @@
     q(".f-start").addEventListener("click", () => run(async () => {
       await tapi.start(t.id);
       if (!t.enabled) { t.enabled = true; fillCard(el, t); }
+      if (!file.master_on) { file.master_on = true; renderMaster(); }
     }));
     q(".f-stop").addEventListener("click", () => run(() => tapi.stop(t.id)));
-    q(".f-toggle").addEventListener("click", () => {
-      openSettings.has(t.id) ? openSettings.delete(t.id) : openSettings.add(t.id);
-      el.classList.toggle("open", openSettings.has(t.id));
-    });
   }
 
   function renderAll() {
@@ -273,19 +343,23 @@
       grid.appendChild(el);
       fillCard(el, t);
       wireCard(el, t);
-      if (snaps[t.id]) paint(el, t, snaps[t.id]);
+      paint(el, t, snaps[t.id]);
     }
     $("#gameOnly").checked = file.game_only;
-    updateAllBtn();
+    renderMaster();
+    renderPrefs();
   }
 
-  function updateAllBtn() {
-    const any = file.timers.some((t) => t.enabled);
-    $("#allBtn").textContent = any ? "全部關閉" : "全部開啟";
+  function renderMaster() {
+    const btn = $("#masterBtn");
+    btn.classList.toggle("off", !file.master_on);
+    btn.querySelector("span").textContent = file.master_on ? "全部關閉" : "全部開啟";
+    $("#timerGrid").classList.toggle("paused", !file.master_on);
   }
 
   /* ---------- 即時顯示 ---------- */
   function statusText(t, s) {
+    if (!file.master_on) return "總開關已關閉";
     if (!t.enabled) return "已停用";
     const cd = s.cooldown_left_ms > 0 ? ` · 冷卻 ${Math.ceil(s.cooldown_left_ms / 1000)} 秒` : "";
     switch (s.phase) {
@@ -300,42 +374,85 @@
   }
 
   function paint(el, t, s) {
-    const time = el.querySelector(".tc-time");
+    if (!el) return;
+    s = s || { phase: "idle", remain_ms: t.duration_ms, over_ms: 0, total_ms: t.duration_ms, cooldown_left_ms: 0, round: 0 };
+    const time = el.querySelector(".f-time");
     let text;
     if (s.phase === "over") text = `+${fmt(Math.floor(s.over_ms / 1000))}`;
     else if (s.phase === "running") text = fmt(Math.ceil(s.remain_ms / 1000));
     else if (s.phase === "done") text = "00:00";
     else text = fmt(Math.round(t.duration_ms / 1000));
     if (time.textContent !== text) time.textContent = text;
-    time.className = `tc-time ${s.phase}`;
-    time.style.setProperty("--heat", redness(s).toFixed(3));
+    time.className = `tc-time f-time ${s.phase}`;
+    time.style.setProperty("--heat", heat(s).toFixed(3));
     el.querySelector(".tc-status").textContent = statusText(t, s);
     const startBtn = el.querySelector(".f-start");
     const label = s.phase === "running" || s.phase === "over" ? "重新計時" : "開始";
     if (startBtn.textContent !== label) startBtn.textContent = label;
     el.querySelector(".f-stop").disabled = s.phase === "idle";
+    const cdLabel = el.querySelector(".tc-cd");
+    cdLabel.classList.toggle("cooling", s.cooldown_left_ms > 0);
   }
 
   function onTick(p) {
     for (const s of p.timers) {
       snaps[s.id] = s;
       const t = byId(s.id);
-      const el = t && card(s.id);
-      if (el) paint(el, t, s);
+      if (t) paint(card(s.id), t, s);
     }
+    if (p.master_on !== file.master_on) { file.master_on = p.master_on; renderMaster(); }
     const chip = $("#fgChip");
     chip.classList.toggle("game", p.fg.is_game);
     chip.classList.toggle("paused", !p.listening);
-    const who = p.fg.is_main ? "本程式" : p.fg.exe || "—";
+    const who = p.fg.is_self ? "本程式" : p.fg.exe || "—";
     chip.querySelector("span").textContent = `前景：${who} · ${p.listening ? "監聽中" : "暫停監聽"}`;
+    $("#keyChip").textContent = `最後按鍵：${p.last_key ? keyLabel(p.last_key) : "—"}`;
   }
 
-  /* ---------- 上方工具列 ---------- */
-  $("#allBtn").addEventListener("click", () => run(async () => {
-    const on = !file.timers.some((t) => t.enabled);
-    file = await tapi.setAll(on);
-    renderAll();
-    toast(on ? "已全部開啟" : "已全部關閉");
+  /* ---------- 全局設定面板 ---------- */
+  const sheet = $("#timerSheet");
+  const backdrop = $("#sheetBackdrop");
+  const openSheet = (on) => { sheet.classList.toggle("show", on); backdrop.classList.toggle("show", on); };
+  $("#timerSettingsBtn").addEventListener("click", (e) => { e.stopPropagation(); openSheet(true); });
+  $("#sheetClose").addEventListener("click", () => openSheet(false));
+  backdrop.addEventListener("click", () => openSheet(false));
+
+  function renderPrefs() {
+    const p = file.prefs;
+    $$("#prefNotify button").forEach((b) => b.classList.toggle("on", b.dataset.v === p.notify));
+    $("#prefSound").value = p.sound;
+    $("#prefFileRow").hidden = p.sound !== "file";
+    $("#prefFileName").textContent = p.sound_file ? p.sound_file.split(/[\\/]/).pop() : "尚未選擇";
+    $("#prefVolume").value = p.volume;
+    $("#prefVolumeVal").textContent = `${p.volume}%`;
+    $("#prefOvShow").checked = p.overlay.show;
+    $("#prefOvLock").checked = p.overlay.locked;
+    $("#prefOvOpacity").value = Math.round(p.overlay.opacity * 100);
+    $("#prefOvOpacityVal").textContent = `${Math.round(p.overlay.opacity * 100)}%`;
+  }
+  const setPref = (fn) => { fn(file.prefs); renderPrefs(); savePrefs(); };
+
+  $$("#prefNotify button").forEach((b) => b.addEventListener("click", () => setPref((p) => (p.notify = b.dataset.v))));
+  $("#prefSound").addEventListener("change", (e) => setPref((p) => (p.sound = e.target.value)));
+  $("#prefPick").addEventListener("click", () => run(async () => {
+    const f = await tapi.pickFile();
+    if (f) setPref((p) => (p.sound_file = f));
+  }));
+  $("#prefVolume").addEventListener("input", (e) => setPref((p) => (p.volume = Number(e.target.value))));
+  $("#prefPreview").addEventListener("click", () => run(() => tapi.preview(file.prefs, file.timers[0]?.name || "計時器")));
+  $("#prefOvShow").addEventListener("change", (e) => setPref((p) => (p.overlay.show = e.target.checked)));
+  $("#prefOvLock").addEventListener("change", (e) => setPref((p) => (p.overlay.locked = e.target.checked)));
+  $("#prefOvOpacity").addEventListener("input", (e) => setPref((p) => (p.overlay.opacity = Number(e.target.value) / 100)));
+  $("#prefOvReset").addEventListener("click", () => run(() => tapi.resetOverlay()));
+
+  /* ---------- 上方與左下控制 ---------- */
+  $("#masterBtn").addEventListener("click", () => run(async () => {
+    const on = !file.master_on;
+    await tapi.setMaster(on);
+    file.master_on = on;
+    renderMaster();
+    file.timers.forEach((t) => fillCard(card(t.id), t));
+    toast(on ? "已開啟（只恢復原本有啟用的計時器）" : "已關閉所有計時器");
   }));
   $("#gameOnly").addEventListener("change", (e) => run(async () => {
     file.game_only = e.target.checked;
@@ -344,14 +461,11 @@
   $("#addTimerBtn").addEventListener("click", () => run(async () => {
     const t = await tapi.add();
     file.timers.push(t);
-    openSettings.add(t.id);
     renderAll();
-    card(t.id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    card(t.id)?.querySelector(".f-name").focus();
+    const el = card(t.id);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    el?.querySelector(".f-name").select();
   }));
-  document.addEventListener("click", (e) => {
-    if (capturing && !e.target.closest(".keycap")) endCapture();
-  });
 
   async function load() {
     file = await tapi.get();
@@ -360,7 +474,6 @@
   }
 
   tapi.onTick(onTick);
-  tapi.onCaptured(onCaptured);
   load();
 
   window.Timers = {
@@ -369,52 +482,49 @@
 
   /* ---------- 瀏覽器預覽用的模擬後端 ---------- */
   function mockApi() {
-    const ov = (i) => ({ show: true, locked: false, opacity: 0.9, x: 120, y: 160 + i * 130, w: 300, h: 110 });
-    const base = { cooldown_ms: 0, mode: "key", repeat: 0, keys: [], overflow_comp: false, notify: "short", sound_file: "", enabled: true };
+    const base = { cooldown_ms: 0, mode: "key", repeat: 0, keys: [], overflow_comp: false, enabled: true };
     const f = {
-      game_only: true, next_id: 4,
+      game_only: true, master_on: true, next_id: 4,
+      prefs: { notify: "short", sound: "beep1", sound_file: "", volume: 100, overlay: { show: true, locked: false, opacity: 0.9, x: 120, y: 160, w: 340, h: 180 } },
       timers: [
-        { ...base, id: "t1", name: "輪迴碑石", builtin: true, duration_ms: 590000, sound: "beep1", keys: ["S", "Left", "Right"], overlay: ov(0) },
-        { ...base, id: "t2", name: "燃燒戒指", builtin: true, duration_ms: 905000, sound: "beep2", keys: ["Ctrl+F1"], overlay: ov(1) },
-        { ...base, id: "t3", name: "靈魂亞努斯", builtin: true, duration_ms: 120000, cooldown_ms: 50000, sound: "beep3", keys: ["Mouse4"], overlay: ov(2) },
+        { ...base, id: "t1", name: "輪迴碑石", builtin: true, duration_ms: 590000, keys: ["S", "Left", "Right"] },
+        { ...base, id: "t2", name: "燃燒戒指", builtin: true, duration_ms: 905000, keys: ["Ctrl+F1"] },
+        { ...base, id: "t3", name: "靈魂亞努斯", builtin: true, duration_ms: 120000, cooldown_ms: 50000, keys: ["Mouse4"] },
       ],
     };
     const rt = {};
-    let tickCb = () => {}, capCb = () => {}, cap = false;
+    let tickCb = () => {};
     setInterval(() => {
       const now = Date.now();
       tickCb({
         fg: { exe: "MapleStory.exe", is_game: true, is_self: false, is_main: false },
-        listening: true,
+        listening: true, last_key: "Ctrl+S", master_on: f.master_on,
+        overlay: { opacity: f.prefs.overlay.opacity, locked: f.prefs.overlay.locked },
         timers: f.timers.map((t) => {
           const r = rt[t.id];
-          if (!r || !t.enabled) return { id: t.id, phase: "idle", remain_ms: t.duration_ms, over_ms: 0, total_ms: t.duration_ms, cooldown_left_ms: 0, round: 0 };
+          const base = { id: t.id, name: t.name, active: f.master_on && t.enabled, round: 1 };
+          if (!r || !base.active) return { ...base, phase: "idle", remain_ms: t.duration_ms, over_ms: 0, total_ms: t.duration_ms, cooldown_left_ms: 0, round: 0 };
           const el = now - r.start;
           const cd = Math.max(0, t.cooldown_ms - el);
-          if (el < r.total) return { id: t.id, phase: "running", remain_ms: r.total - el, over_ms: 0, total_ms: r.total, cooldown_left_ms: cd, round: 1 };
-          return { id: t.id, phase: "over", remain_ms: 0, over_ms: el - r.total, total_ms: r.total, cooldown_left_ms: cd, round: 1 };
+          if (el < r.total) return { ...base, phase: "running", remain_ms: r.total - el, over_ms: 0, total_ms: r.total, cooldown_left_ms: cd };
+          return { ...base, phase: "over", remain_ms: 0, over_ms: el - r.total, total_ms: r.total, cooldown_left_ms: cd };
         }),
       });
     }, 100);
-    document.addEventListener("keydown", (e) => {
-      if (!cap) return;
-      cap = false;
-      if (e.key === "Escape") capCb({ key: "", cancel: true });
-      else capCb({ key: [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.key.length === 1 ? e.key.toUpperCase() : e.key.replace("Arrow", "")].filter(Boolean).join("+"), cancel: false });
-    });
     let n = 4;
+    const clone = (x) => JSON.parse(JSON.stringify(x));
     return {
-      get: async () => JSON.parse(JSON.stringify(f)),
-      update: async (t) => { const i = f.timers.findIndex((x) => x.id === t.id); f.timers[i] = JSON.parse(JSON.stringify(t)); },
-      add: async () => { const t = { ...base, id: `u${n++}`, name: "新計時器", builtin: false, duration_ms: 60000, sound: "tts", overlay: ov(0) }; f.timers.push(t); return JSON.parse(JSON.stringify(t)); },
+      get: async () => clone(f),
+      update: async (t) => { const i = f.timers.findIndex((x) => x.id === t.id); f.timers[i] = clone(t); },
+      updatePrefs: async (p) => { f.prefs = clone(p); },
+      add: async () => { const t = { ...base, id: `u${n++}`, name: "新計時器", builtin: false, duration_ms: 60000 }; f.timers.push(t); return clone(t); },
       del: async (id) => { f.timers = f.timers.filter((t) => t.id !== id); },
-      start: async (id) => { const t = f.timers.find((x) => x.id === id); t.enabled = true; rt[id] = { start: Date.now(), total: t.duration_ms }; },
+      start: async (id) => { const t = f.timers.find((x) => x.id === id); t.enabled = true; f.master_on = true; rt[id] = { start: Date.now(), total: t.duration_ms }; },
       stop: async (id) => { delete rt[id]; },
-      setAll: async (on) => { f.timers.forEach((t) => { t.enabled = on; t.overlay.show = on; }); return JSON.parse(JSON.stringify(f)); },
+      setMaster: async (on) => { f.master_on = on; },
       gameOnly: async (on) => { f.game_only = on; },
       resetOverlay: async () => {}, preview: async () => {}, pickFile: async () => null,
-      capture: async () => { cap = true; }, cancelCapture: async () => { cap = false; },
-      onTick: (cb) => { tickCb = cb; }, onCaptured: (cb) => { capCb = cb; },
+      onTick: (cb) => { tickCb = cb; },
     };
   }
 })();

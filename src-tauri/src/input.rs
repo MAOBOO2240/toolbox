@@ -4,15 +4,15 @@
 //! 不會拖慢系統輸入。用途：
 //! - 序號工具：偵測 Ctrl+V 後切換下一組
 //! - 計時器：指派按鍵（含組合鍵、滑鼠側鍵）觸發重新計時
-//! - 按鍵指派：擷取使用者按下的按鍵（Esc 取消）
+//!
+//! 按鍵指派的擷取在介面端進行（程式視窗本身有焦點），名稱格式與這裡一致。
 
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 pub const CTRL: u8 = 1;
 pub const ALT: u8 = 2;
@@ -21,8 +21,6 @@ pub const WIN: u8 = 8;
 
 /// 序號工具的自動切換是否啟用
 pub static PASTE_ACTIVE: AtomicBool = AtomicBool::new(false);
-/// 是否正在擷取按鍵指派
-static CAPTURING: AtomicBool = AtomicBool::new(false);
 
 enum Raw {
     Key { vk: u32, down: bool },
@@ -31,36 +29,24 @@ enum Raw {
 
 static RAW_TX: OnceLock<Sender<Raw>> = OnceLock::new();
 static PASTE_TX: OnceLock<Sender<()>> = OnceLock::new();
-static APP: OnceLock<AppHandle> = OnceLock::new();
+/// 最後一次偵測到的按鍵（顯示在介面上，方便確認監聽是否正常）
+static LAST_KEY: Mutex<String> = Mutex::new(String::new());
 
-#[derive(Serialize, Clone)]
-struct Captured {
-    key: String,
-    cancel: bool,
+pub fn last_key() -> String {
+    LAST_KEY.lock().unwrap().clone()
+}
+
+fn set_last(key: String) {
+    *LAST_KEY.lock().unwrap() = key;
 }
 
 pub fn start(app: AppHandle, paste_tx: Sender<()>) {
-    let _ = APP.set(app);
+    let _ = app;
     let _ = PASTE_TX.set(paste_tx);
     let (tx, rx) = mpsc::channel();
     let _ = RAW_TX.set(tx);
     std::thread::spawn(move || worker(rx));
     platform::install_hooks();
-}
-
-pub fn start_capture() {
-    CAPTURING.store(true, Ordering::SeqCst);
-}
-
-pub fn cancel_capture() {
-    CAPTURING.store(false, Ordering::SeqCst);
-}
-
-fn finish_capture(key: String, cancel: bool) {
-    CAPTURING.store(false, Ordering::SeqCst);
-    if let Some(app) = APP.get() {
-        let _ = app.emit("key-captured", Captured { key, cancel });
-    }
 }
 
 /// 左右 Ctrl/Shift/Alt/Win 合併成同一個鍵
@@ -186,8 +172,6 @@ fn mods_of(pressed: &HashMap<u32, Instant>, except: u32) -> u8 {
 fn worker(rx: Receiver<Raw>) {
     // 目前按住的鍵與最後一次收到的時間（用來過濾長按的重複事件）
     let mut pressed: HashMap<u32, Instant> = HashMap::new();
-    // 只按修飾鍵而沒按其他鍵時，放開才算擷取到單一修飾鍵
-    let mut lone_mod: Option<u32> = None;
 
     while let Ok(raw) = rx.recv() {
         let now = Instant::now();
@@ -205,39 +189,14 @@ fn worker(rx: Receiver<Raw>) {
                     } else {
                         pressed.insert(vk, now);
                     }
-                    let mods = mods_of(&pressed, vk);
-                    let is_mod = mod_bit(vk) != 0;
-                    lone_mod = if is_mod { Some(vk) } else { None };
-
-                    if CAPTURING.load(Ordering::SeqCst) {
-                        if !is_mod {
-                            if vk == 0x1B && mods == 0 {
-                                finish_capture(String::new(), true);
-                            } else {
-                                finish_capture(combo(mods, &key_name(vk)), false);
-                            }
-                        }
-                        continue;
-                    }
-                    on_press(vk, mods);
+                    on_press(vk, mods_of(&pressed, vk));
                 } else {
                     pressed.remove(&vk);
-                    if lone_mod == Some(vk) {
-                        lone_mod = None;
-                        if CAPTURING.load(Ordering::SeqCst) {
-                            let mods = mods_of(&pressed, vk);
-                            finish_capture(combo(mods, &key_name(vk)), false);
-                        }
-                    }
                 }
             }
             Raw::Mouse(name) => {
-                lone_mod = None;
                 let mods = mods_of(&pressed, 0);
-                if CAPTURING.load(Ordering::SeqCst) {
-                    finish_capture(combo(mods, name), false);
-                    continue;
-                }
+                set_last(combo(mods, name));
                 crate::timers::on_input(name, mods);
             }
         }
@@ -245,6 +204,7 @@ fn worker(rx: Receiver<Raw>) {
 }
 
 fn on_press(vk: u32, mods: u8) {
+    set_last(combo(mods, &key_name(vk)));
     // Ctrl+V：序號工具自動切換（在本程式視窗內貼上不算）
     if vk == 0x56 && mods & CTRL != 0 && PASTE_ACTIVE.load(Ordering::Relaxed) {
         if !crate::fg::current().is_self {
