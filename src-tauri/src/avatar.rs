@@ -403,7 +403,13 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         let hreq = req.hair.clone();
         if let Some(h) = &hreq {
             let fem = h.gender.as_deref().map(|g| g == "F").unwrap_or(female);
-            match pick_family(&ctx.hair, &h.name, |id| id / 10 * 10, fem, true) {
+            let found = if h.name.trim().is_empty() {
+                // 沒指定造型、只指定顏色：用預設髮型
+                [if fem { 31000 } else { 30000 }, 30000].into_iter().find(|&id| ctx.has("Character/Hair", id)).map(|id| (id, id))
+            } else {
+                pick_family(&ctx.hair, &h.name, |id| id / 10 * 10, fem, true)
+            };
+            match found {
                 Some((fam, id)) => {
                     let mut chosen = id;
                     if let Some(c) = h.color.as_deref().and_then(hair_color_idx) {
@@ -429,7 +435,12 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         let freq = req.face.clone();
         if let Some(f) = &freq {
             let fem = f.gender.as_deref().map(|g| g == "F").unwrap_or(female);
-            match pick_family(&ctx.face, &f.name, face_fam, fem, false) {
+            let found = if f.name.trim().is_empty() {
+                [if fem { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id)).map(|id| (id, id))
+            } else {
+                pick_family(&ctx.face, &f.name, face_fam, fem, false)
+            };
+            match found {
                 Some((fam, id)) => {
                     let mut chosen = id;
                     if let Some(c) = f.color.as_deref().and_then(face_color_idx) {

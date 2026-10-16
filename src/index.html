@@ -345,10 +345,17 @@
             <div class="b-stage" id="bStage">
               <img id="bLook" alt="" hidden />
               <canvas id="bCanvas" width="300" height="300" hidden></canvas>
+              <button class="b-zoom" id="bZoom" title="放大／縮小">
+                <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path id="bZoomPlus" d="M10.5 7.5v6M7.5 10.5h6"/></svg>
+              </button>
               <div class="b-empty" id="bEmpty">
                 <svg viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>
                 <span>空白紙娃娃</span>
               </div>
+            </div>
+            <div class="b-colors">
+              <div class="b-color-row"><span class="muted">髮色</span><div class="b-swatches" id="bHairColors"></div></div>
+              <div class="b-color-row"><span class="muted">瞳色</span><div class="b-swatches" id="bFaceColors"></div></div>
             </div>
             <div class="b-wear" id="bWear"></div>
             <p class="b-note muted" id="bDollNote"></p>

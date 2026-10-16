@@ -162,6 +162,8 @@ if (typeof document !== "undefined") (() => {
     saveTimer = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} }, 200);
   };
 
+  const HAIR_SW = [["黑色", "#2a2a2e"], ["紅色", "#d8433f"], ["橘色", "#ec8a34"], ["黃色", "#eac53a"], ["綠色", "#58a85c"], ["藍色", "#4677d6"], ["紫色", "#8c55cc"], ["褐色", "#8b5b3b"]];
+  const FACE_SW = [["黑色", "#2a2a2e"], ["藍色", "#3a6fe0"], ["紅色", "#d23344"], ["綠色", "#5bb032"], ["褐色", "#c8902a"], ["祖母綠", "#26b6c6"], ["紫色", "#8a3ad0"], ["紫水晶", "#d24aa8"], ["白色", "#e9e9ee"]];
   let ch = null; // 目前載入的角色（API 結果，不保存，重開時從 Rust 快取取回）
 
   const intFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 });
@@ -289,17 +291,22 @@ if (typeof document !== "undefined") (() => {
   function lookReq(tryH, tryF, mode) {
     const h = currentHair(), f = currentFace();
     const g = charGender() || gender();
-    const part = (cur, tried) => {
-      if (tried) return { name: tried.name, color: cur?.color || null, mix: cur?.mix || null, rate: cur ? cur.rate : null, gender: poolGender(tried.pool) };
-      if (cur) return { name: cur.name, color: cur.color || null, mix: cur.mix || null, rate: cur.rate, gender: g };
+    // 選了下方的顏色就用那個顏色（不混染），否則保留角色原本的顏色與混染
+    const part = (cur, tried, pick) => {
+      const color = pick || cur?.color || null;
+      const mix = pick ? null : cur?.mix || null;
+      const rate = pick ? null : cur ? cur.rate : null;
+      if (tried) return { name: tried.name, color, mix, rate, gender: poolGender(tried.pool) };
+      if (cur) return { name: cur.name, color, mix, rate, gender: g };
+      if (pick) return { name: "", color, gender: g };
       return null;
     };
     return {
       game_dir: st.gamePath || null,
       skin: ch?.beauty?.character_skin?.skin_name || null,
       gender: g,
-      hair: part(h, tryH),
-      face: part(f, tryF),
+      hair: part(h, tryH, st.hairColor),
+      face: part(f, tryF, st.faceColor),
       mode,
     };
   }
@@ -308,8 +315,10 @@ if (typeof document !== "undefined") (() => {
     const look = $("#bLook"), empty = $("#bEmpty"), note = $("#bDollNote");
     note.textContent = "";
     if (out) {
+      look.dataset.w = out.w;
       look.src = out.png;
       look.hidden = false;
+      sizeLook();
       empty.hidden = true;
       if (out.warnings?.length) note.textContent = out.warnings.join("；");
       return;
@@ -317,6 +326,7 @@ if (typeof document !== "undefined") (() => {
     // 讀不到遊戲資料：有角色就先顯示官方角色圖
     const img = ch?.basic?.character_image;
     if (img && !(st.tryHair || st.tryFace)) {
+      delete look.dataset.w;
       look.src = img;
       look.hidden = false;
       empty.hidden = true;
@@ -332,20 +342,49 @@ if (typeof document !== "undefined") (() => {
     if (out) { pic.src = out.png; pic.hidden = false; } else { pic.hidden = true; }
   });
 
+  /** 紙娃娃用整數倍放大，保持像素清楚；放大鏡切換大小 */
+  function sizeLook() {
+    const look = $("#bLook");
+    const base = Number(look.dataset.w) || 0;
+    const w = base || look.naturalWidth || 0;
+    if (!w) return;
+    const scale = base ? (st.zoom ? 5 : 3) : (st.zoom ? 3 : 1.6);
+    look.style.width = `${Math.round(w * scale)}px`;
+    $("#bZoom").classList.toggle("on", !!st.zoom);
+    $("#bZoomPlus").setAttribute("d", st.zoom ? "M7.5 10.5h6" : "M10.5 7.5v6M7.5 10.5h6");
+  }
+
+  function renderSwatches() {
+    const make = (box, list, cur, set) => {
+      box.innerHTML = "";
+      for (const [name, hex] of list) {
+        const b = document.createElement("button");
+        b.className = "b-sw" + (cur === name ? " on" : "");
+        b.style.setProperty("--c", hex);
+        b.title = cur === name ? `${name}（再按一次恢復角色原本的顏色）` : name;
+        b.addEventListener("click", () => { set(cur === name ? null : name); save(); renderSwatches(); renderDoll(); renderRight(); });
+        box.appendChild(b);
+      }
+    };
+    make($("#bHairColors"), HAIR_SW, st.hairColor, (v) => (st.hairColor = v));
+    make($("#bFaceColors"), FACE_SW, st.faceColor, (v) => (st.faceColor = v));
+  }
+
   function renderDoll() {
     const tryH = st.tryHair, tryF = st.tryFace;
-    if (!TAURI || (!ch && !tryH && !tryF)) showDoll(null);
+    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor)) showDoll(null);
     else showDoll(lookReq(tryH, tryF, "full"));
 
     const wear = $("#bWear");
     wear.innerHTML = "";
     const h = currentHair(), f = currentFace();
     const skin = ch?.beauty?.character_skin?.skin_name;
-    const hairText = tryH ? (h ? `${h.color}${C.stripColor(tryH.name)}` : tryH.name) : h ? `${h.color}${h.name}` : "—";
-    const faceText = tryF ? (f ? `${tryF.name}（${f.color}）` : tryF.name) : f ? `${f.name}（${f.color}）` : "—";
-    const mixText = (x) => (x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
-    wear.append(wearLine("髮型", hairText, tryH ? "試穿中" : mixText(h)));
-    wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f)));
+    const hc = st.hairColor || h?.color || "", fc = st.faceColor || f?.color || "";
+    const hairText = tryH ? (hc ? `${hc}${C.stripColor(tryH.name)}` : tryH.name) : h ? `${hc}${h.name}` : "—";
+    const faceText = tryF ? (fc ? `${tryF.name}（${fc}）` : tryF.name) : f ? `${f.name}（${fc}）` : "—";
+    const mixText = (x, pick) => (!pick && x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
+    wear.append(wearLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor)));
+    wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor)));
     if (skin) wear.append(wearLine("膚色", skin));
     if (ch?.cash) {
       const list = ch.cash[`cash_item_equipment_preset_${ch.cash.preset_no}`]?.length
@@ -364,8 +403,8 @@ if (typeof document !== "undefined") (() => {
     }
 
     const tryBox = $("#bTry");
-    tryBox.hidden = !(tryH || tryF);
-    $("#bTryText").textContent = [tryH && `髮型：${C.stripColor(tryH.name)}`, tryF && `臉型：${tryF.name}`].filter(Boolean).join("　");
+    tryBox.hidden = !(tryH || tryF || st.hairColor || st.faceColor);
+    $("#bTryText").textContent = [tryH && `髮型：${C.stripColor(tryH.name)}`, tryF && `臉型：${tryF.name}`, st.hairColor && `髮色：${st.hairColor}`, st.faceColor && `瞳色：${st.faceColor}`].filter(Boolean).join("　");
   }
 
   function tryOn(pool, name) {
@@ -512,8 +551,9 @@ if (typeof document !== "undefined") (() => {
 
     const hist = $("#bHistory");
     hist.innerHTML = "";
-    const hk = sortedKeys(st.hist);
-    if (!hk.length) hist.innerHTML = '<div class="g-empty">保管箱還是空的</div>';
+    // 保管箱只顯示左邊目前選的種類（皇家美髮／皇家整形）
+    const hk = sortedKeys(st.hist).filter((k) => splitKey(k)[0].startsWith(st.kind || "hair"));
+    if (!hk.length) hist.innerHTML = `<div class="g-empty">${st.kind === "face" ? "皇家整形" : "皇家美髮"}的保管箱還是空的</div>`;
     let lastPool = null;
     for (const k of hk) {
       const [pool, name] = splitKey(k);
@@ -541,6 +581,7 @@ if (typeof document !== "undefined") (() => {
 
   function renderAll() {
     renderPage();
+    renderSwatches();
     renderPool();
     renderDoll();
     renderRight();
@@ -554,7 +595,7 @@ if (typeof document !== "undefined") (() => {
     st.page = b.dataset.page; save(); renderPage();
     if (st.page === "import") checkWz();
   }));
-  $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); }));
+  $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); renderRight(); }));
   $$("#bGender button").forEach((b) => b.addEventListener("click", () => {
     st.gender = b.dataset.g;
     save(); renderPool();
@@ -562,7 +603,9 @@ if (typeof document !== "undefined") (() => {
   $("#bLookup").addEventListener("click", () => lookup(false));
   $("#bRefresh").addEventListener("click", () => lookup(true));
   $("#bName").addEventListener("keydown", (e) => { if (e.key === "Enter") lookup(false); });
-  $("#bTryReset").addEventListener("click", () => { st.tryHair = st.tryFace = null; save(); renderDoll(); });
+  $("#bTryReset").addEventListener("click", () => { st.tryHair = st.tryFace = st.hairColor = st.faceColor = null; save(); renderSwatches(); renderDoll(); renderRight(); });
+  $("#bZoom").addEventListener("click", () => { st.zoom = !st.zoom; save(); sizeLook(); });
+  $("#bLook").addEventListener("load", sizeLook);
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
   $("#bCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
