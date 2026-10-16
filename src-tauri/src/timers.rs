@@ -33,7 +33,7 @@ pub struct Overlay {
 
 impl Default for Overlay {
     fn default() -> Self {
-        Self { show: true, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 }
+        Self { show: false, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 }
     }
 }
 
@@ -268,7 +268,7 @@ pub fn on_input(key: &str, mods: u8) {
     }
     let Engine { file, rt, .. } = &mut *e;
     for cfg in &file.timers {
-        if !cfg.enabled || !cfg.keys.iter().any(|b| input::matches(b, key, mods)) {
+        if !cfg.enabled || cfg.mode != "key" || !cfg.keys.iter().any(|b| input::matches(b, key, mods)) {
             continue;
         }
         let r = rt.entry(cfg.id.clone()).or_default();
@@ -315,7 +315,7 @@ impl Engine {
                 Phase::Done | Phase::Over { .. } => {
                     // 長通知：持續提醒直到重新計時；沒有指派按鍵就只通知一聲
                     let due = r.last_notify.map_or(true, |t| now.saturating_duration_since(t) >= LONG_NOTIFY_INTERVAL);
-                    if long && !cfg.keys.is_empty() && due {
+                    if long && cfg.mode == "key" && !cfg.keys.is_empty() && due {
                         out.push(cfg.name.clone());
                         r.last_notify = Some(now);
                     }
@@ -369,19 +369,22 @@ struct OvApplied {
     locked: bool,
 }
 
-/// 顯示但不搶走遊戲的焦點
-fn show_no_activate(w: &WebviewWindow) {
+/// 顯示（不搶走遊戲的焦點）或隱藏浮動視窗。
+///
+/// 顯示時直接呼叫 Win32 ShowWindow，Tauri 內部不知道視窗已顯示；
+/// 所以隱藏也必須直接呼叫 ShowWindow，否則 Tauri 會以為本來就隱藏而略過。
+fn set_overlay_visible(w: &WebviewWindow, visible: bool) {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOWNOACTIVATE};
         if let Ok(h) = w.hwnd() {
             unsafe {
-                ShowWindow(h.0 as _, SW_SHOWNOACTIVATE);
+                ShowWindow(h.0 as _, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE });
             }
             return;
         }
     }
-    let _ = w.show();
+    let _ = if visible { w.show() } else { w.hide() };
 }
 
 fn create_overlay(app: &AppHandle, o: &Overlay) -> Option<WebviewWindow> {
@@ -420,11 +423,7 @@ fn sync_overlay(app: &AppHandle, applied: &mut Option<OvApplied>, want: OvApplie
         let _ = win.set_ignore_cursor_events(want.locked);
     }
     if prev.as_ref().map(|p| p.visible) != Some(want.visible) {
-        if want.visible {
-            show_no_activate(&win);
-        } else {
-            let _ = win.hide();
-        }
+        set_overlay_visible(&win, want.visible);
     }
     *applied = Some(want);
 }
@@ -463,7 +462,9 @@ pub fn overlay_resized(w: u32, h: u32) {
 /* ---------------- 背景執行緒 ---------------- */
 
 pub fn init(app: &AppHandle, path: PathBuf) {
-    let file = load(&path);
+    let mut file = load(&path);
+    // 每次開啟程式，浮動視窗的顯示開關預設為關閉
+    file.prefs.overlay.show = false;
     GAME_ONLY.store(file.game_only, Ordering::SeqCst);
     let _ = ENGINE.set(Mutex::new(Engine { file, rt: HashMap::new(), path, dirty: false }));
 
@@ -489,11 +490,12 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 let snaps = e.snapshot(now);
                 let prefs = e.file.prefs.clone();
                 let master = e.file.master_on;
-                let any_active = snaps.iter().any(|s| s.active);
+                // 有計時器正在倒數或超時才顯示浮動視窗
+                let any_running = snaps.iter().any(|s| s.active && matches!(s.phase, "running" | "over"));
                 let o = &prefs.overlay;
                 // 只在新楓之谷時：離開遊戲就隱藏；但未鎖定且正在本程式中調整時仍顯示，方便擺放位置
                 let in_place = !game_only || game_fg || (!o.locked && info.is_self);
-                let want = OvApplied { visible: o.show && master && any_active && in_place, locked: o.locked };
+                let want = OvApplied { visible: o.show && master && any_running && in_place, locked: o.locked };
                 let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_millis(800) {
                     e.dirty = false;
                     last_save = now;

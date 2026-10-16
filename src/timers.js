@@ -19,7 +19,7 @@
   } : mockApi();
 
   const MODE_TIPS = {
-    normal: "一般：時間到通知後停止。按下指派按鍵可重新開始。",
+    normal: "一般：時間到通知後停止，按「開始」可再次計時。",
     count: "次數：時間到自動重新倒數，跑完設定的次數後停止（0 = 無限重複）。",
     key: "指派按鍵：時間到後進入超時並向上計時，按下指派按鍵才重新計時。",
   };
@@ -132,7 +132,7 @@
     q(".f-comp").checked = t.overflow_comp;
     el.querySelectorAll(".f-mode button").forEach((b) => b.classList.toggle("on", b.dataset.v === t.mode));
     q(".r-repeat").hidden = t.mode !== "count";
-    q(".r-keys").hidden = t.mode === "count";
+    q(".r-keys").hidden = t.mode !== "key"; // 只有「指派按鍵」模式才使用按鍵
     q(".r-comp").hidden = t.mode !== "key";
     el.classList.toggle("disabled", !t.enabled);
     el.classList.toggle("editing", editing === t.id);
@@ -471,7 +471,7 @@
     const base = { cooldown_ms: 0, mode: "key", repeat: 0, keys: [], overflow_comp: false, enabled: true };
     const f = {
       game_only: true, master_on: true, next_id: 4,
-      prefs: { notify: "short", sound: "beep1", sound_file: "", volume: 100, overlay: { show: true, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 } },
+      prefs: { notify: "short", sound: "beep1", sound_file: "", volume: 100, overlay: { show: false, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 } },
       timers: [
         { ...base, id: "t1", name: "輪迴碑石", builtin: true, duration_ms: 590000, keys: ["S", "Left", "Right"] },
         { ...base, id: "t2", name: "燃燒戒指", builtin: true, duration_ms: 905000, keys: ["Ctrl+F1"] },

@@ -195,6 +195,13 @@ function showView(name) {
   if (currentView === "serial" && name !== "serial" && state.active) {
     run(async () => update(await api.setActive(false)));
   }
+  // 打開序號複製時，若還有未使用的序號就自動開啟自動切換
+  if (name === "serial" && currentView !== "serial" && !state.active && state.index < state.serials.length) {
+    run(async () => {
+      update(await api.setActive(true));
+      toast("自動切換已開啟，目前序號已放入剪貼簿");
+    });
+  }
   currentView = name;
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
 }

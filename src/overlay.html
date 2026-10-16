@@ -25,13 +25,9 @@
       container-type: size;
       /* 只有底色有透明度，文字永遠不透明 */
       background: rgba(18, 18, 20, var(--bg));
-      transition: box-shadow 0.2s;
     }
-    /* 未鎖定：顯示邊框與縮放把手，可拖曳 */
-    .ov.unlocked {
-      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
-      cursor: move;
-    }
+    /* 未鎖定：可拖曳，右下角顯示縮放把手（不顯示邊框） */
+    .ov.unlocked { cursor: move; }
     /* 每一列的高度依計時器數量平均分配，但不會過高 */
     .row {
       flex: none;
@@ -120,8 +116,8 @@
       locked = p.overlay.locked;
       ov.classList.toggle("unlocked", !locked);
 
-      // 只顯示開啟中的計時器，依原本順序排列
-      const list = p.timers.filter((s) => s.active);
+      // 只顯示正在倒數或超時的計時器，依原本順序排列
+      const list = p.timers.filter((s) => s.active && (s.phase === "running" || s.phase === "over"));
       ov.style.setProperty("--n", Math.max(1, list.length));
       const keep = new Set(list.map((s) => s.id));
       for (const [id, r] of rows) if (!keep.has(id)) { r.el.remove(); rows.delete(id); }
