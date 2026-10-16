@@ -287,6 +287,14 @@ if (typeof document !== "undefined") (() => {
     };
   }
 
+  /** 目前外觀套組的點裝（沒有套組就用基本點裝），不含戒指等看不到的 */
+  function cashList() {
+    if (!ch?.cash) return [];
+    const preset = ch.cash[`cash_item_equipment_preset_${ch.cash.preset_no}`];
+    const list = preset?.length ? preset : ch.cash.cash_item_equipment_base || [];
+    return list.filter((x) => !/戒指|EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
+  }
+
   /** 組出要畫的造型：角色原本的造型，加上試穿（換造型時保留角色原本的顏色與混染） */
   function lookReq(tryH, tryF, mode) {
     const h = currentHair(), f = currentFace();
@@ -308,6 +316,7 @@ if (typeof document !== "undefined") (() => {
       hair: part(h, tryH, st.hairColor),
       face: part(f, tryF, st.faceColor),
       mode,
+      equips: mode === "full" ? cashList().map((x) => x.cash_item_name) : [],
     };
   }
 
@@ -387,10 +396,7 @@ if (typeof document !== "undefined") (() => {
     wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor)));
     if (skin) wear.append(wearLine("膚色", skin));
     if (ch?.cash) {
-      const list = ch.cash[`cash_item_equipment_preset_${ch.cash.preset_no}`]?.length
-        ? ch.cash[`cash_item_equipment_preset_${ch.cash.preset_no}`]
-        : ch.cash.cash_item_equipment_base || [];
-      const shown = list.filter((x) => !/戒指|EXP/.test(x.cash_item_equipment_slot + x.cash_item_name));
+      const shown = cashList();
       if (shown.length) {
         const det = document.createElement("details");
         det.className = "b-cash";
@@ -552,7 +558,11 @@ if (typeof document !== "undefined") (() => {
     const hist = $("#bHistory");
     hist.innerHTML = "";
     // 保管箱只顯示左邊目前選的種類（皇家美髮／皇家整形）
-    const hk = sortedKeys(st.hist).filter((k) => splitKey(k)[0].startsWith(st.kind || "hair"));
+    // 保管箱包含這一次抽到的，數量才會和總抽數一致
+    const all = { ...st.hist };
+    for (const [k, n] of Object.entries(st.batch)) all[k] = (all[k] || 0) + n;
+    const drawsOf = (p) => (st.histDraws[p] || 0) + (st.batchDraws[p] || 0);
+    const hk = sortedKeys(all).filter((k) => splitKey(k)[0].startsWith(st.kind || "hair"));
     if (!hk.length) hist.innerHTML = `<div class="g-empty">${st.kind === "face" ? "皇家整形" : "皇家美髮"}的保管箱還是空的</div>`;
     let lastPool = null;
     for (const k of hk) {
@@ -561,11 +571,11 @@ if (typeof document !== "undefined") (() => {
         lastPool = pool;
         const g = document.createElement("div");
         g.className = "g-group";
-        g.textContent = `${C.POOL_NAME[pool]}・${intFmt.format(st.histDraws[pool])} 抽`;
+        g.textContent = `${C.POOL_NAME[pool]}・${intFmt.format(drawsOf(pool))} 抽`;
         hist.appendChild(g);
       }
-      const count = st.hist[k];
-      const draws = st.histDraws[pool] || 0;
+      const count = all[k];
+      const draws = drawsOf(pool);
       const actual = draws ? (count / draws) * 100 : 0;
       const expect = st.pools[pool].filter((it) => it.name === name).reduce((a, it) => a + it.prob, 0);
       const cls = !expect || Math.abs(actual - expect) < 1e-9 ? "same" : actual > expect ? "up" : "down";

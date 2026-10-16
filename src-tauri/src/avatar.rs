@@ -16,7 +16,13 @@ struct Ctx {
     hair: Vec<(u32, String)>,
     face: Vec<(u32, String)>,
     skin: Vec<(u32, String)>,
+    /// 裝備（點裝）：編號、名稱、分類資料夾
+    equip: Vec<(u32, String, &'static str)>,
+    /// 圖層 z 名稱 → 佔用的欄位代碼（Base/smap.img）
+    smap: HashMap<String, String>,
 }
+
+const EQUIP_CATS: [&str; 10] = ["Cap", "Accessory", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon"];
 
 static CTX: Mutex<Option<Ctx>> = Mutex::new(None);
 
@@ -73,8 +79,20 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
         .img("Base", "zmap.img")
         .map(|z| z.children().iter().enumerate().map(|(i, (k, _))| (k.clone(), i as i32)).collect())
         .unwrap_or_default();
+    let smap = data
+        .img("Base", "smap.img")
+        .map(|z| z.children().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect())
+        .unwrap_or_default();
     let eqp = data.img("String", "Eqp.img")?;
+    let mut equip = Vec::new();
+    for cat in EQUIP_CATS {
+        for (id, name) in names_of(&eqp, cat) {
+            equip.push((id, name, cat));
+        }
+    }
     let ctx = Ctx {
+        equip,
+        smap,
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -153,6 +171,10 @@ fn pick_family(list: &[(u32, String)], name: &str, family: impl Fn(u32) -> u32, 
 #[derive(Clone)]
 struct Layer {
     name: String,
+    /// z 圖層名稱（例如 hairOverHead）
+    zname: String,
+    /// 0 = 身體／頭，1 = 臉型，2 = 髮型，10 以上 = 裝備
+    owner: usize,
     z: i32,
     origin: (i32, i32),
     map: Vec<(String, (i32, i32))>,
@@ -232,9 +254,54 @@ impl Ctx {
             if w <= 1 && h <= 1 {
                 continue;
             }
-            out.push(Layer { name: k, z: self.z_of(&z), origin, map, w, h, px });
+            out.push(Layer { name: k, z: self.z_of(&z), zname: z, owner: 0, origin, map, w, h, px });
         }
         Ok(out)
+    }
+
+    /// 依名稱找點裝：只取遊戲資料裡真的有圖的，同名時優先選符合性別的
+    fn find_equip(&mut self, name: &str, female: bool) -> Option<(u32, &'static str)> {
+        let name = name.trim();
+        let mut hits: Vec<(u32, &'static str)> = self.equip.iter().filter(|(_, n, _)| n == name).map(|(id, _, c)| (*id, *c)).collect();
+        hits.retain(|(id, cat)| {
+            let rel = format!("Character/{cat}");
+            self.has(&rel, *id)
+        });
+        let gender_ok = |id: u32| match id / 1000 % 10 {
+            0 => !female,
+            1 => female,
+            _ => true,
+        };
+        hits.iter().copied().find(|(id, _)| gender_ok(*id)).or_else(|| hits.first().copied())
+    }
+
+    /// 裝備的畫格：一般是 stand1/0；點裝武器會依武器種類再分一層（例如 30/stand1/0）；帽子、飾品用 default
+    fn equip_frame(&mut self, rel: &str, id: u32, pose: &str) -> Option<String> {
+        let root = self.data.img(rel, &format!("{id:08}.img")).ok()?;
+        let has = |p: &str| resolve(&root, p, 0).is_some();
+        for cand in [format!("{pose}/0"), "stand1/0".to_string(), "stand2/0".to_string(), "default".to_string()] {
+            if has(&cand) {
+                return Some(cand);
+            }
+        }
+        for (k, _) in root.children() {
+            if k.chars().all(|c| c.is_ascii_digit()) {
+                for cand in [format!("{k}/{pose}/0"), format!("{k}/stand1/0"), format!("{k}/stand2/0")] {
+                    if has(&cand) {
+                        return Some(cand);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn vslot(&mut self, rel: &str, id: u32) -> String {
+        self.data
+            .img(rel, &format!("{id:08}.img"))
+            .ok()
+            .and_then(|r| r.path("info/vslot").and_then(|v| v.as_str()).map(str::to_string))
+            .unwrap_or_default()
     }
 
     /// 混染：兩種顏色的同名圖層依比例混合
@@ -354,6 +421,9 @@ pub struct RenderReq {
     /// "full"（全身）或 "head"（只有頭）
     #[serde(default)]
     pub mode: Option<String>,
+    /// 點裝名稱（API 目前外觀套組）
+    #[serde(default)]
+    pub equips: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -459,10 +529,37 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
             face_id = [if female { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id));
         }
 
+        // 點裝：先找出編號，武器決定站姿（雙手武器用 stand2）
+        let mut equips: Vec<(u32, &'static str)> = Vec::new();
+        let mut missing: Vec<String> = Vec::new();
+        if !head_only {
+            for name in &req.equips {
+                match ctx.find_equip(name, female) {
+                    Some(e) => equips.push(e),
+                    None => missing.push(name.clone()),
+                }
+            }
+        }
+        let mut pose = "stand1";
+        if let Some(&(wid, _)) = equips.iter().find(|(_, c)| *c == "Weapon") {
+            let root = ctx.data.img("Character/Weapon", &format!("{wid:08}.img")).ok();
+            if let Some(root) = root {
+                let mut base = root.as_ref();
+                if base.get("stand1").is_none() && base.get("stand2").is_none() {
+                    if let Some((_, sub)) = root.children().iter().find(|(k, n)| k.chars().all(|c| c.is_ascii_digit()) && n.get("stand1").or(n.get("stand2")).is_some()) {
+                        base = sub;
+                    }
+                }
+                if base.get("stand1").is_none() && base.get("stand2").is_some() {
+                    pose = "stand2";
+                }
+            }
+        }
+
         let mut parts: Vec<Layer> = Vec::new();
         let mut has_head = false;
         if !head_only {
-            match ctx.layers("Character", body_id, "stand1/0", &[], skin) {
+            match ctx.layers("Character", body_id, &format!("{pose}/0"), &[], skin) {
                 Ok(l) => parts.extend(l),
                 Err(e) => warnings.push(format!("身體：{e}")),
             }
@@ -483,15 +580,55 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         }
         if let Some(id) = face_id {
             match ctx.mixed("Character/Face", id, face_mix, "default", skin) {
-                Ok(l) => parts.extend(l),
+                Ok(l) => parts.extend(l.into_iter().map(|mut l| {
+                    l.owner = 1;
+                    l
+                })),
                 Err(e) => warnings.push(format!("臉型：{e}")),
             }
         }
         if let Some(id) = hair_id {
             match ctx.mixed("Character/Hair", id, hair_mix, "default", skin) {
-                Ok(l) => parts.extend(l.into_iter().filter(|l| !(head_only && l.name == "hairBelowBody"))),
+                Ok(l) => parts.extend(l.into_iter().filter(|l| !(head_only && l.name == "hairBelowBody")).map(|mut l| {
+                    l.owner = 2;
+                    l
+                })),
                 Err(e) => warnings.push(format!("髮型：{e}")),
             }
+        }
+
+        // 點裝圖層；帽子、面具等會依 vslot 蓋掉部分髮型或臉型
+        let mut covered: Vec<String> = Vec::new();
+        for (i, (id, cat)) in equips.iter().enumerate() {
+            let rel = format!("Character/{cat}");
+            let Some(frame) = ctx.equip_frame(&rel, *id, pose) else { continue };
+            match ctx.layers(&rel, *id, &frame, &[], skin) {
+                Ok(l) if !l.is_empty() => {
+                    let vs = ctx.vslot(&rel, *id);
+                    if matches!(*cat, "Cap" | "Accessory" | "Longcoat" | "Coat" | "Cape") {
+                        covered.extend(vs.as_bytes().chunks(2).map(|c| String::from_utf8_lossy(c).into_owned()));
+                    }
+                    parts.extend(l.into_iter().map(|mut l| {
+                        l.owner = 10 + i;
+                        l
+                    }));
+                }
+                Ok(_) => {}
+                Err(e) => warnings.push(format!("點裝 {id}：{e}")),
+            }
+        }
+        if !covered.is_empty() {
+            let smap = &ctx.smap;
+            parts.retain(|l| {
+                if l.owner != 1 && l.owner != 2 {
+                    return true;
+                }
+                let codes = smap.get(&l.zname).map(String::as_str).unwrap_or("");
+                !codes.as_bytes().chunks(2).any(|c| covered.iter().any(|v| v.as_bytes() == c))
+            });
+        }
+        if !missing.is_empty() {
+            warnings.push(format!("遊戲資料裡找不到點裝：{}", missing.join("、")));
         }
 
         let start: &[(&str, (i32, i32))] = if !head_only && parts.iter().any(|l| l.map.iter().any(|(k, _)| k == "navel")) {
