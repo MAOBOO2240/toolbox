@@ -140,6 +140,7 @@ if (typeof document !== "undefined") (() => {
       pools: C.parse(DEFAULT_TEXT), kind: "hair", gender: "F", page: "sim", cost: DEFAULT_COST, costV2: true, gamePath: "",
       stats: blankStats(), batch: {}, batchDraws: zero(), hist: {}, histDraws: zero(),
       charName: "", tryHair: null, tryFace: null,
+      dress: false, outfit: null, looks: [], pickSlot: "Cap", pickG: "", pickCash: true,
     };
   }
   let st = (() => {
@@ -180,6 +181,14 @@ if (typeof document !== "undefined") (() => {
     $$("#bPages button").forEach((b) => b.classList.toggle("on", b.dataset.page === st.page));
     $("#bPageSim").hidden = st.page !== "sim";
     $("#bPageImport").hidden = st.page !== "import";
+    // 變更點裝模式：左邊換成選點裝，右邊換成目前裝備與收藏
+    $("#bPool").hidden = !!st.dress;
+    $("#bPick").hidden = !st.dress;
+    $("#bSide").hidden = !!st.dress;
+    $("#bDressSide").hidden = !st.dress;
+    $("#bDress").textContent = st.dress ? "完成，回到抽獎" : "變更點裝";
+    $("#bDress").classList.toggle("solid", !!st.dress);
+    window.refreshBack?.();
   }
 
   /* ---------- 獎池 ---------- */
@@ -211,8 +220,8 @@ if (typeof document !== "undefined") (() => {
         tag.textContent = "主打";
         name.appendChild(tag);
       }
-      name.title = "點一下直接試穿";
-      name.addEventListener("click", () => tryOn(pool, it.name));
+      row.title = "點一下直接試穿";
+      row.addEventListener("click", (e) => { if (!e.target.closest(".g-draw")) tryOn(pool, it.name); });
       const prob = document.createElement("span");
       prob.className = "r b-prob";
       prob.textContent = `${decFmt.format(it.prob)}%`;
@@ -316,7 +325,8 @@ if (typeof document !== "undefined") (() => {
       hair: part(h, tryH, st.hairColor),
       face: part(f, tryF, st.faceColor),
       mode,
-      equips: mode === "full" ? cashList().map((x) => x.cash_item_name) : [],
+      equips: mode === "full" && !st.outfit ? cashList().map((x) => x.cash_item_name) : [],
+      equip_ids: mode === "full" && st.outfit ? st.outfit.map((x) => x.id) : null,
     };
   }
 
@@ -324,6 +334,8 @@ if (typeof document !== "undefined") (() => {
     const look = $("#bLook"), empty = $("#bEmpty"), note = $("#bDollNote");
     note.textContent = "";
     if (out) {
+      lastEquips = out.equips || [];
+      if (st.dress) renderEquipped();
       look.dataset.w = out.w;
       look.src = out.png;
       look.hidden = false;
@@ -346,11 +358,13 @@ if (typeof document !== "undefined") (() => {
     if (err) note.textContent = err;
   });
 
+  let lastEquips = []; // 紙娃娃最後一次實際穿上的點裝（角色原本的套組解析後的結果）
   const showLast = renderQueue((out) => {
     const pic = $("#bLastPic");
     if (out) { pic.src = out.png; pic.hidden = false; } else { pic.hidden = true; }
   });
 
+  const pan = { x: 0, y: 0 };
   /** 紙娃娃用整數倍放大，保持像素清楚；放大鏡切換大小 */
   function sizeLook() {
     const look = $("#bLook");
@@ -359,6 +373,9 @@ if (typeof document !== "undefined") (() => {
     if (!w) return;
     const scale = base ? (st.zoom ? 5 : 3) : (st.zoom ? 3 : 1.6);
     look.style.width = `${Math.round(w * scale)}px`;
+    if (!st.zoom) pan.x = pan.y = 0;
+    look.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
+    $("#bStage").classList.toggle("pannable", !!st.zoom);
     $("#bZoom").classList.toggle("on", !!st.zoom);
     $("#bZoomPlus").setAttribute("d", st.zoom ? "M7.5 10.5h6" : "M10.5 7.5v6M7.5 10.5h6");
   }
@@ -395,22 +412,6 @@ if (typeof document !== "undefined") (() => {
     wear.append(wearLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor)));
     wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor)));
     if (skin) wear.append(wearLine("膚色", skin));
-    if (ch?.cash) {
-      const shown = cashList();
-      if (shown.length) {
-        const det = document.createElement("details");
-        det.className = "b-cash";
-        const sum = document.createElement("summary");
-        sum.textContent = `點裝 ${shown.length} 件`;
-        det.append(sum);
-        for (const x of shown) det.append(wearLine(x.cash_item_equipment_slot, x.cash_item_name));
-        wear.append(det);
-      }
-    }
-
-    const tryBox = $("#bTry");
-    tryBox.hidden = !(tryH || tryF || st.hairColor || st.faceColor);
-    $("#bTryText").textContent = [tryH && `髮型：${C.stripColor(tryH.name)}`, tryF && `臉型：${tryF.name}`, st.hairColor && `髮色：${st.hairColor}`, st.faceColor && `瞳色：${st.faceColor}`].filter(Boolean).join("　");
   }
 
   function tryOn(pool, name) {
@@ -431,7 +432,7 @@ if (typeof document !== "undefined") (() => {
       return;
     }
     if (!TAURI) return toast("預覽模式無法呼叫 API");
-    const btns = [$("#bLookup"), $("#bRefresh")];
+    const btns = [$("#bLookup")];
     btns.forEach((b) => (b.disabled = true));
     $("#bStatus").textContent = "查詢中…";
     try {
@@ -531,29 +532,13 @@ if (typeof document !== "undefined") (() => {
     $("#bHits").textContent = intFmt.format(st.stats.hits);
     const last = $("#bLastName");
     last.textContent = st.last ? st.last.name : "按下單抽開始";
+    $("#bLast .b-last-tag").hidden = !st.last;
     $("#bLast").classList.toggle("feat", !!st.last?.feat);
     $("#bLast").classList.toggle("empty", !st.last);
     if (st.last && TAURI) {
       const L = { pool: st.last.pool, name: st.last.name };
       showLast(lookReq(isHair(L.pool) ? L : null, isHair(L.pool) ? null : L, "head"));
     } else showLast(null);
-
-    const box = $("#bBatch");
-    box.innerHTML = "";
-    const keys = sortedKeys(st.batch);
-    const n = Object.values(st.batchDraws).reduce((a, b) => a + b, 0);
-    $("#bBatchBadge").textContent = n ? `${intFmt.format(n)} 抽` : "";
-    if (!keys.length) box.innerHTML = '<span class="g-chip-empty">按下抽獎後，這裡會顯示這次的結果</span>';
-    for (const k of keys) {
-      const [pool, name] = splitKey(k);
-      const chip = document.createElement("span");
-      chip.className = "g-chip" + (isFeat(pool, name) ? " rare" : "");
-      chip.append(document.createTextNode(name));
-      const b = document.createElement("b");
-      b.textContent = `×${st.batch[k]}`;
-      chip.append(b);
-      box.appendChild(chip);
-    }
 
     const hist = $("#bHistory");
     hist.innerHTML = "";
@@ -591,6 +576,7 @@ if (typeof document !== "undefined") (() => {
 
   function renderAll() {
     renderPage();
+    if (st.dress) { renderPick(); renderEquipped(); }
     renderSwatches();
     renderPool();
     renderDoll();
@@ -602,7 +588,9 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 事件 ---------- */
   $$("#bPages button").forEach((b) => b.addEventListener("click", () => {
-    st.page = b.dataset.page; save(); renderPage();
+    st.page = b.dataset.page;
+    if (st.page === "sim") st.dress = false;
+    save(); renderPage();
     if (st.page === "import") checkWz();
   }));
   $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); renderRight(); }));
@@ -611,10 +599,34 @@ if (typeof document !== "undefined") (() => {
     save(); renderPool();
   }));
   $("#bLookup").addEventListener("click", () => lookup(false));
-  $("#bRefresh").addEventListener("click", () => lookup(true));
   $("#bName").addEventListener("keydown", (e) => { if (e.key === "Enter") lookup(false); });
-  $("#bTryReset").addEventListener("click", () => { st.tryHair = st.tryFace = st.hairColor = st.faceColor = null; save(); renderSwatches(); renderDoll(); renderRight(); });
-  $("#bZoom").addEventListener("click", () => { st.zoom = !st.zoom; save(); sizeLook(); });
+  $("#bRestore").addEventListener("click", () => {
+    st.tryHair = st.tryFace = st.hairColor = st.faceColor = null;
+    st.outfit = null;
+    save(); renderSwatches(); renderDoll(); renderRight(); renderPick();
+  });
+  // 放大後可以按住左鍵拖曳移動角色
+  (() => {
+    const stage = $("#bStage");
+    let drag = null;
+    stage.addEventListener("pointerdown", (e) => {
+      if (!st.zoom || e.button !== 0 || e.target.closest("button")) return;
+      drag = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      stage.setPointerCapture(e.pointerId);
+      stage.classList.add("dragging");
+      e.preventDefault();
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      pan.x = e.clientX - drag.x;
+      pan.y = e.clientY - drag.y;
+      $("#bLook").style.transform = `translate(${pan.x}px, ${pan.y}px)`;
+    });
+    const end = () => { drag = null; stage.classList.remove("dragging"); };
+    stage.addEventListener("pointerup", end);
+    stage.addEventListener("pointercancel", end);
+  })();
+  $("#bZoom").addEventListener("click", () => { st.zoom = !st.zoom; pan.x = pan.y = 0; save(); sizeLook(); });
   $("#bLook").addEventListener("load", sizeLook);
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
@@ -667,6 +679,222 @@ if (typeof document !== "undefined") (() => {
     save();
     checkWz();
   });
+
+  /* ---------- 變更點裝 ---------- */
+  const SLOTS = [
+    ["Cap", "帽子", "c-pink"], ["Face", "臉飾", "c-purple"], ["Eye", "眼飾", "c-blue"], ["Ear", "耳環", "c-amber"],
+    ["Coat", "上衣", "c-orange"], ["Longcoat", "套服", "c-red"], ["Pants", "褲裙", "c-teal"], ["Shoes", "鞋子", "c-green"],
+    ["Glove", "手套", "c-silver"], ["Cape", "披風", "c-purple"], ["Shield", "輔助武器", "c-blue"], ["Weapon", "武器", "c-orange"],
+  ];
+  const SLOT_NAME = Object.fromEntries(SLOTS.map(([k, n]) => [k, n]));
+  const itemLists = {}; // 欄位 → 道具清單（Rust 讀完後快取）
+  const iconCache = new Map(); // 編號 → 圖示 data URL（null = 沒有圖示）
+  const PAGE = 240;
+  let shown = PAGE;
+
+  /** 目前穿著的點裝：有自訂就用自訂，否則是角色原本的套組 */
+  const curOutfit = () => st.outfit || lastEquips.map(({ id, name, slot }) => ({ id, name, slot }));
+
+  function setOutfit(list) {
+    st.outfit = list;
+    save();
+    renderDoll();
+    renderEquipped();
+    markIcons();
+  }
+
+  /** 穿上：同一個欄位只能有一件；套服和上衣、褲裙互斥 */
+  function wear(item) {
+    let list = curOutfit().filter((x) => x.id !== item.id);
+    if (curOutfit().some((x) => x.id === item.id)) return setOutfit(list); // 已穿著 → 脫下
+    const clash = { Longcoat: ["Coat", "Pants"], Coat: ["Longcoat"], Pants: ["Longcoat"] }[item.slot] || [];
+    list = list.filter((x) => x.slot !== item.slot && !clash.includes(x.slot));
+    list.push({ id: item.id, name: item.name, slot: item.slot });
+    setOutfit(list);
+  }
+
+  /* 圖示：進入畫面的才向 Rust 要，一次要一批 */
+  let iconWant = new Set(), iconTimer = null;
+  const io = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver((ents) => {
+    for (const e of ents) if (e.isIntersecting) { iconWant.add(Number(e.target.dataset.id)); io.unobserve(e.target); }
+    clearTimeout(iconTimer);
+    iconTimer = setTimeout(loadIcons, 40);
+  }, { root: null, rootMargin: "120px" }) : null;
+
+  async function loadIcons() {
+    const ids = [...iconWant].filter((id) => !iconCache.has(id)).slice(0, 80);
+    iconWant = new Set([...iconWant].filter((id) => !ids.includes(id) && !iconCache.has(id)));
+    if (!ids.length || !TAURI) return;
+    try {
+      const pngs = await invoke("beauty_icons", { gameDir: st.gamePath || null, ids });
+      ids.forEach((id, i) => iconCache.set(id, pngs[i] || null));
+    } catch (_) { ids.forEach((id) => iconCache.set(id, null)); }
+    $$("[data-id]").forEach((el) => fillIcon(el));
+    if (iconWant.size) loadIcons();
+  }
+
+  function fillIcon(el) {
+    const id = Number(el.dataset.id);
+    if (!iconCache.has(id) || el.dataset.done) return;
+    el.dataset.done = "1";
+    const png = iconCache.get(id);
+    if (png) { const img = new Image(); img.src = png; img.alt = ""; el.prepend(img); }
+    else el.classList.add("noicon");
+  }
+
+  function iconEl(item, tag = "button") {
+    const el = document.createElement(tag);
+    el.className = "b-icon";
+    el.dataset.id = item.id;
+    if (iconCache.has(item.id)) fillIcon(el); else io?.observe(el);
+    return el;
+  }
+
+  function markIcons() {
+    const on = new Set(curOutfit().map((x) => x.id));
+    $$("#bIcons .b-icon").forEach((el) => el.classList.toggle("on", on.has(Number(el.dataset.id))));
+  }
+
+  function filtered() {
+    const list = itemLists[st.pickSlot] || [];
+    const q = ($("#bPickSearch").value || "").trim();
+    return list.filter((it) =>
+      (!st.pickCash || it.cash) &&
+      (!q || it.name.includes(q) || String(it.id).includes(q)) &&
+      (!st.pickG || (() => { const g = Math.floor(it.id / 1000) % 10; return g > 1 || (st.pickG === "F" ? g === 1 : g === 0); })())
+    );
+  }
+
+  async function renderPick() {
+    if (!st.dress) return;
+    const slots = $("#bSlots");
+    if (!slots.childElementCount) {
+      for (const [k, n, c] of SLOTS) {
+        const b = document.createElement("button");
+        b.className = `cbtn ${c}`;
+        b.dataset.slot = k;
+        b.textContent = n;
+        b.addEventListener("click", () => { st.pickSlot = k; shown = PAGE; save(); renderPick(); });
+        slots.appendChild(b);
+      }
+    }
+    $$("#bSlots button").forEach((b) => b.classList.toggle("on", b.dataset.slot === st.pickSlot));
+    $$("#bPickG button").forEach((b) => b.classList.toggle("on", b.dataset.g === (st.pickG || "")));
+    $("#bPickCash").classList.toggle("on", !!st.pickCash);
+    const box = $("#bIcons");
+    if (!TAURI) { box.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
+    if (!itemLists[st.pickSlot]) {
+      box.innerHTML = '<div class="g-empty">讀取中…</div>';
+      const slot = st.pickSlot;
+      try { itemLists[slot] = await invoke("beauty_items", { gameDir: st.gamePath || null, slot }); }
+      catch (e) { box.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
+      if (slot !== st.pickSlot) return;
+    }
+    const list = filtered();
+    box.innerHTML = "";
+    if (!list.length) { box.innerHTML = '<div class="g-empty">沒有符合的道具</div>'; return; }
+    for (const it of list.slice(0, shown)) {
+      const el = iconEl(it);
+      el.title = it.name;
+      el.addEventListener("mouseenter", () => { $("#bPickHover").textContent = `${it.name}（${it.id}）`; });
+      el.addEventListener("click", () => wear(it));
+      box.appendChild(el);
+    }
+    if (list.length > shown) {
+      const more = document.createElement("button");
+      more.className = "cbtn c-silver small b-more";
+      more.textContent = `顯示更多（還有 ${list.length - shown} 件）`;
+      more.addEventListener("click", () => { shown += PAGE * 2; renderPick(); });
+      box.appendChild(more);
+    }
+    $("#bPickCount").textContent = `${list.length} 件`;
+    markIcons();
+  }
+
+  function renderEquipped() {
+    const box = $("#bEqList");
+    box.innerHTML = "";
+    const list = curOutfit();
+    if (!list.length) box.innerHTML = '<div class="g-empty">目前沒有穿任何點裝</div>';
+    const order = Object.fromEntries(SLOTS.map(([k], i) => [k, i]));
+    for (const it of [...list].sort((a, b) => (order[a.slot] ?? 99) - (order[b.slot] ?? 99))) {
+      const row = document.createElement("div");
+      row.className = "b-eq-row";
+      const ic = iconEl(it, "span");
+      const txt = document.createElement("div");
+      txt.className = "b-eq-text";
+      txt.innerHTML = `<span></span><small class="muted"></small>`;
+      txt.children[0].textContent = it.name;
+      txt.children[1].textContent = SLOT_NAME[it.slot] || "";
+      const del = document.createElement("button");
+      del.className = "b-x";
+      del.title = "脫下";
+      del.textContent = "×";
+      del.addEventListener("click", () => setOutfit(curOutfit().filter((x) => x.id !== it.id)));
+      row.append(ic, txt, del);
+      box.appendChild(row);
+    }
+    renderSaved();
+  }
+
+  function renderSaved() {
+    const box = $("#bSaved");
+    box.innerHTML = "";
+    if (!st.looks.length) { box.innerHTML = '<div class="g-empty">按「儲存目前時裝」把現在穿的點裝存起來</div>'; return; }
+    st.looks.forEach((lk, i) => {
+      const card = document.createElement("div");
+      card.className = "b-look";
+      card.title = "點一下穿上這套時裝";
+      if (lk.pic) { const img = new Image(); img.src = lk.pic; img.alt = ""; card.append(img); }
+      const nm = document.createElement("input");
+      nm.type = "text";
+      nm.value = lk.name;
+      nm.title = "可以直接修改名稱";
+      nm.addEventListener("click", (e) => e.stopPropagation());
+      nm.addEventListener("input", () => { lk.name = nm.value; save(); });
+      const del = document.createElement("button");
+      del.className = "b-x";
+      del.title = "刪除";
+      del.textContent = "×";
+      del.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!(await confirmBox(`確定要刪除「${lk.name}」嗎？`))) return;
+        st.looks.splice(i, 1); save(); renderSaved();
+      });
+      card.append(nm, del);
+      card.addEventListener("click", () => { setOutfit(lk.outfit.map((x) => ({ ...x }))); toast(`已穿上「${lk.name}」`); });
+      box.appendChild(card);
+    });
+  }
+
+  $("#bDress").addEventListener("click", () => {
+    st.dress = !st.dress;
+    save(); renderPage(); renderPick(); renderEquipped();
+  });
+  $$("#bPickG button").forEach((b) => b.addEventListener("click", () => { st.pickG = b.dataset.g; shown = PAGE; save(); renderPick(); }));
+  $("#bPickCash").addEventListener("click", () => { st.pickCash = !st.pickCash; shown = PAGE; save(); renderPick(); });
+  let searchTimer;
+  $("#bPickSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { shown = PAGE; renderPick(); }, 200); });
+  $("#bOutfitChar").addEventListener("click", () => { st.outfit = null; save(); renderDoll(); renderEquipped(); markIcons(); });
+  $("#bOutfitClear").addEventListener("click", () => setOutfit([]));
+  $("#bSaveLook").addEventListener("click", () => {
+    const outfit = curOutfit();
+    if (!outfit.length) return toast("目前沒有穿任何點裝");
+    const look = $("#bLook");
+    st.looks.unshift({ name: `時裝 ${st.looks.length + 1}`, outfit: outfit.map((x) => ({ ...x })), pic: look.hidden || !look.src.startsWith("data:") ? "" : look.src });
+    if (st.looks.length > 30) st.looks.length = 30;
+    save(); renderSaved();
+    toast("已儲存目前時裝");
+  });
+
+  // 在「解析」頁或變更點裝時，左上角變成「上一頁」回到抽獎模擬
+  if (window.BackHooks) window.BackHooks["view-beauty"] = {
+    label: () => (st.page === "import" || st.dress ? "上一頁" : null),
+    back: () => {
+      if (st.page !== "import" && !st.dress) return false;
+      st.page = "sim"; st.dress = false; save(); renderAll(); return true;
+    },
+  };
 
   renderAll();
   // 重新開啟時，若之前有查過角色，從本機快取取回（不會用掉 API 次數，除非快取已過期）

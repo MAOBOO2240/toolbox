@@ -126,3 +126,100 @@
 .b-note:empty { display: none; }
 #bWzStatus.bad { color: #e5484d; }
 .b-wz { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; margin-bottom: 0.5rem; }
+
+/* 獎池整列都可以點來試穿 */
+.b-row { cursor: pointer; }
+.b-row .b-name { align-self: stretch; }
+
+/* 拖曳放大後的角色 */
+.b-stage.pannable { cursor: grab; touch-action: none; }
+.b-stage.dragging { cursor: grabbing; }
+.b-stage img { will-change: transform; user-select: none; -webkit-user-drag: none; }
+
+/* 單抽結果：本次獲得 + 名稱 */
+.b-last-line { display: flex; align-items: center; justify-content: center; gap: 0.55rem; flex-wrap: wrap; }
+.b-last-tag {
+  padding: 0.15rem 0.55rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--blue) 16%, transparent);
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.b-last-tag[hidden] { display: none; }
+.b-last.feat .b-last-tag { background: #f5b301; color: #2a1a00; }
+
+.b-dress-btn { width: 100%; padding: 0.6rem; font-size: 1rem; font-weight: 700; }
+
+/* ---------- 變更點裝：左邊選道具 ---------- */
+.b-pick { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; padding: 0.9rem; }
+.b-pick[hidden] { display: none; }
+.b-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.b-pick-head strong { font-size: 1.05rem; }
+.b-pick-g { display: flex; gap: 0.3rem; }
+.b-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.35rem; }
+.b-slots .cbtn { padding: 0.45rem 0.2rem; font-size: 0.88rem; font-weight: 600; }
+.b-pick-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.45rem; align-items: center; }
+.b-pick-tools .muted { font-size: 0.75rem; min-width: 3.2rem; text-align: right; }
+.b-icons {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr)); grid-auto-rows: 3.1rem;
+  gap: 0.35rem; align-content: start;
+  padding: 0.15rem;
+}
+.b-icon {
+  position: relative;
+  display: grid; place-items: center;
+  border: 0; border-radius: 0.65rem; padding: 0;
+  background: var(--card-2);
+  cursor: pointer;
+  overflow: hidden;
+}
+.b-icon img { image-rendering: pixelated; max-width: 88%; max-height: 88%; transform: scale(1.25); }
+.b-icon:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 55%, transparent); }
+.b-icon.on { background: color-mix(in srgb, var(--blue) 22%, var(--card-2)); box-shadow: inset 0 0 0 2px var(--blue); }
+.b-icon.noicon::after { content: "?"; color: var(--text-2); font-weight: 700; }
+.b-icons .g-empty, .b-icons .b-more { grid-column: 1 / -1; }
+.b-more { margin-top: 0.3rem; }
+.b-pick-foot { font-size: 0.75rem; min-height: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- 變更點裝：右邊目前裝備與收藏 ---------- */
+.b-dress-side[hidden] { display: none; }
+.b-card-head { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.55rem; }
+.b-card-head strong { font-size: 1rem; }
+.b-equipped { display: flex; flex-direction: column; min-height: 0; flex: 1.1; padding: 0.9rem; }
+.b-saved { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 0.9rem; }
+.b-eq-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; }
+.b-eq-row {
+  display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) 1.9rem; gap: 0.6rem; align-items: center;
+  padding: 0.3rem 0.4rem; border-radius: 0.7rem; background: var(--card-2);
+}
+.b-eq-row .b-icon { width: 2.6rem; height: 2.6rem; cursor: default; background: var(--card); }
+.b-eq-text { display: flex; flex-direction: column; min-width: 0; font-size: 0.88rem; }
+.b-eq-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.b-eq-text small { font-size: 0.72rem; }
+.b-x {
+  width: 1.9rem; height: 1.9rem; border: 0; border-radius: 0.55rem; cursor: pointer;
+  background: color-mix(in srgb, #e5484d 16%, transparent); color: #e5484d;
+  font-size: 1.1rem; font-weight: 700; line-height: 1;
+}
+.b-x:hover { background: #e5484d; color: #fff; }
+.b-saved-grid {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr)); gap: 0.5rem; align-content: start;
+}
+.b-saved-grid .g-empty { grid-column: 1 / -1; }
+.b-look {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 0.35rem;
+  padding: 0.5rem 0.45rem 0.45rem;
+  border-radius: 0.8rem; background: var(--card-2);
+  cursor: pointer;
+}
+.b-look:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 55%, transparent); }
+.b-look img { image-rendering: pixelated; height: 4.6rem; width: auto; max-width: 100%; object-fit: contain; }
+#view-beauty .b-look input[type="text"] { width: 100%; text-align: center; padding: 0.2rem 0.3rem; font-size: 0.8rem; background: transparent; }
+#view-beauty .b-look input[type="text"]:focus { background: var(--card); }
+.b-look .b-x { position: absolute; top: 0.3rem; right: 0.3rem; width: 1.5rem; height: 1.5rem; font-size: 0.95rem; opacity: 0; }
+.b-look:hover .b-x { opacity: 1; }
+#bPageSim > [hidden] { display: none !important; }

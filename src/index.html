@@ -314,7 +314,7 @@
 
         <div class="g-page b-sim" id="bPageSim">
           <!-- 左：獎池 -->
-          <div class="card g-pool b-pool">
+          <div class="card g-pool b-pool" id="bPool">
             <div class="b-tabs">
               <div class="b-kind" id="bKind">
                 <button class="cbtn c-pink" data-kind="hair">皇家美髮</button>
@@ -334,12 +334,32 @@
             <div class="g-table" id="bTable"></div>
           </div>
 
+          <!-- 左（變更點裝）：選點裝 -->
+          <div class="card b-pick" id="bPick" hidden>
+            <div class="b-pick-head">
+              <strong>選擇點裝</strong>
+              <div class="b-pick-g" id="bPickG">
+                <button class="cbtn c-silver small" data-g="">全部</button>
+                <button class="cbtn c-red small" data-g="F">女</button>
+                <button class="cbtn c-blue small" data-g="M">男</button>
+              </div>
+            </div>
+            <div class="b-slots" id="bSlots"></div>
+            <div class="b-pick-tools">
+              <input type="text" id="bPickSearch" placeholder="搜尋道具名稱或編號" />
+              <button class="cbtn c-amber small" id="bPickCash" title="只列出點裝（現金道具）">只看點裝</button>
+              <span class="muted" id="bPickCount"></span>
+            </div>
+            <div class="b-icons" id="bIcons"></div>
+            <div class="b-pick-foot muted" id="bPickHover">滑鼠移到圖示上可以看名稱；點一下穿上，再點一次脫下</div>
+          </div>
+
           <!-- 中：紙娃娃 -->
           <div class="card b-doll-card">
             <div class="b-search">
               <input type="text" id="bName" placeholder="輸入角色名稱" />
               <button class="cbtn c-blue small solid" id="bLookup">查詢</button>
-              <button class="cbtn c-teal small" id="bRefresh" title="重新向 Nexon 取得最新資料（會使用 API 次數）">重新整理</button>
+              <button class="cbtn c-red small" id="bRestore" title="清除試穿、顏色與點裝變更，回到角色目前的造型">恢復原本造型</button>
             </div>
             <p class="b-status muted" id="bStatus">輸入角色名稱可以載入目前的造型；不輸入則使用空白紙娃娃</p>
             <div class="b-stage" id="bStage">
@@ -358,15 +378,12 @@
               <div class="b-color-row"><span class="muted">瞳色</span><div class="b-swatches" id="bFaceColors"></div></div>
             </div>
             <div class="b-wear" id="bWear"></div>
+            <button class="cbtn c-purple b-dress-btn" id="bDress">變更點裝</button>
             <p class="b-note muted" id="bDollNote"></p>
-            <div class="b-try" id="bTry" hidden>
-              <span id="bTryText"></span>
-              <button class="cbtn c-red small" id="bTryReset">恢復原本造型</button>
-            </div>
           </div>
 
           <!-- 右：抽獎 -->
-          <div class="b-side">
+          <div class="b-side" id="bSide">
             <div class="g-stats b-stats">
               <div class="g-stat"><span>總花費</span><b id="bSpent">0</b></div>
               <div class="g-stat"><span>總抽數</span><b id="bDraws">0</b></div>
@@ -383,17 +400,34 @@
             </div>
             <div class="card b-last" id="bLast">
               <img id="bLastPic" alt="" hidden />
-              <strong id="bLastName"></strong>
+              <div class="b-last-line"><span class="b-last-tag">本次獲得</span><strong id="bLastName"></strong></div>
             </div>
             <div class="card g-results">
-              <section class="g-sec g-sec-batch">
-                <div class="g-res-head"><strong>本次獲得</strong><span class="muted" id="bBatchBadge"></span></div>
-                <div class="g-chips" id="bBatch"></div>
-              </section>
               <section class="g-sec g-sec-vault">
                 <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量・實際機率</span></div>
                 <div class="g-vault-scroll" id="bHistory"></div>
               </section>
+            </div>
+          </div>
+
+          <!-- 右（變更點裝）：目前裝備與收藏 -->
+          <div class="b-side b-dress-side" id="bDressSide" hidden>
+            <div class="card b-equipped">
+              <div class="b-card-head">
+                <strong>目前裝備</strong>
+                <span class="spacer"></span>
+                <button class="cbtn c-teal small" id="bOutfitChar" title="換回角色目前外觀套組的點裝">角色點裝</button>
+                <button class="cbtn c-red small" id="bOutfitClear">全部脫下</button>
+              </div>
+              <div class="b-eq-list" id="bEqList"></div>
+            </div>
+            <div class="card b-saved">
+              <div class="b-card-head">
+                <strong>收藏的時裝</strong>
+                <span class="spacer"></span>
+                <button class="cbtn c-blue small solid" id="bSaveLook">儲存目前時裝</button>
+              </div>
+              <div class="b-saved-grid" id="bSaved"></div>
             </div>
           </div>
         </div>

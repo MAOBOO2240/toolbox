@@ -230,8 +230,21 @@ function showView(name) {
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
 }
 
+/** 各工具可以接管返回按鈕：在子頁面（例如解析）時顯示「上一頁」並回到抽獎模擬 */
+const BackHooks = {};
+function refreshBack() {
+  $$(".view").forEach((v) => {
+    const label = v.querySelector(".back-label");
+    if (!label) return;
+    const h = BackHooks[v.id];
+    label.textContent = (h && h.label()) || (CATS[currentCat] ? CATS[currentCat].title : "");
+  });
+}
+window.BackHooks = BackHooks;
+window.refreshBack = refreshBack;
+
 function openTool(id) {
-  $$(".back-label").forEach((el) => (el.textContent = CATS[currentCat].title));
+  refreshBack();
   $("#app").classList.add("collapsed");
   showView(id);
   if (id === "timer" && window.Timers) window.Timers.onShow();
@@ -240,7 +253,12 @@ function openTool(id) {
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));
-$$("[data-back]").forEach((b) => b.addEventListener("click", () => showCat(currentCat)));
+$$("[data-back]").forEach((b) => b.addEventListener("click", () => {
+  const view = b.closest(".view");
+  const h = view && BackHooks[view.id];
+  if (h && h.back()) { refreshBack(); return; }
+  showCat(currentCat);
+}));
 
 /* ---------- 序號複製 ---------- */
 let state = { raw: "", serials: [], index: 0, active: false };

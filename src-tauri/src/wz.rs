@@ -307,6 +307,53 @@ pub fn parse_img(file: &WzFile, off: usize) -> Result<Node, String> {
     Ok(Node::Props(props(&mut r, d, off)?))
 }
 
+/// 只讀 img 最上層的某一個屬性（例如 info），不解析其他動作，速度快很多
+pub fn parse_img_child(file: &WzFile, off: usize, key: &str) -> Result<Option<Node>, String> {
+    let d = file.data();
+    let mut r = Reader::new(d, off);
+    if str_block(&mut r, d, off)? != "Property" {
+        return Err("img 開頭不是 Property".into());
+    }
+    r.u16()?;
+    let n = r.cint()?;
+    for _ in 0..n.clamp(0, 100_000) {
+        let name = str_block(&mut r, d, off)?;
+        match r.u8()? {
+            0 => {}
+            2 | 11 => {
+                r.i16()?;
+            }
+            3 | 19 => {
+                r.cint()?;
+            }
+            20 => {
+                r.clong()?;
+            }
+            4 => {
+                if r.u8()? == 0x80 {
+                    r.f32()?;
+                }
+            }
+            5 => {
+                r.f64()?;
+            }
+            8 => {
+                str_block(&mut r, d, off)?;
+            }
+            9 => {
+                let len = r.u32()? as usize;
+                let end = r.p + len;
+                if name == key {
+                    return Ok(Some(extended(&mut r, d, off)?));
+                }
+                r.p = end;
+            }
+            t => return Err(format!("屬性類型異常 {t}")),
+        }
+    }
+    Ok(None)
+}
+
 fn str_block(r: &mut Reader, d: &[u8], img: usize) -> Result<String, String> {
     match r.u8()? {
         0x00 | 0x73 => r.wzstr(),
@@ -578,6 +625,13 @@ impl Data {
             return Ok((c.w, c.h, canvas_rgba(file, c)?));
         }
         Err(format!("{rel}/{img}/{inner} 不是圖片"))
+    }
+
+    /// 只讀某個 img 最上層的一個屬性（不快取）
+    pub fn img_child(&mut self, rel: &str, name: &str, key: &str) -> Result<Option<Node>, String> {
+        let pkg = self.package(rel)?;
+        let (fi, off) = *pkg.imgs.get(name).ok_or_else(|| format!("找不到 {name}"))?;
+        parse_img_child(&pkg.files[fi], off, key)
     }
 
     /// 已取得的圖片節點（屬於 `rel/img`）轉成像素

@@ -275,7 +275,9 @@ fn main() {
             maple_api::maple_lookup,
             avatar::beauty_render,
             avatar::beauty_wz_status,
-            avatar::pick_game_dir
+            avatar::pick_game_dir,
+            avatar::beauty_items,
+            avatar::beauty_icons
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

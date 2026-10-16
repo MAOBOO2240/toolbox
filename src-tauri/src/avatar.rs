@@ -20,6 +20,59 @@ struct Ctx {
     equip: Vec<(u32, String, &'static str)>,
     /// 圖層 z 名稱 → 佔用的欄位代碼（Base/smap.img）
     smap: HashMap<String, String>,
+    /// 道具圖示快取
+    icons: HashMap<u32, Option<String>>,
+    /// 各欄位的道具清單快取
+    lists: HashMap<String, Vec<ItemOut>>,
+}
+
+/// 點裝欄位：飾品依編號再細分成臉飾、眼飾、耳環
+fn slot_key(id: u32, cat: &str) -> &'static str {
+    match cat {
+        "Accessory" => match id / 10000 {
+            101 => "Face",
+            102 => "Eye",
+            103 => "Ear",
+            _ => "Acc",
+        },
+        "Cap" => "Cap",
+        "Coat" => "Coat",
+        "Longcoat" => "Longcoat",
+        "Pants" => "Pants",
+        "Shoes" => "Shoes",
+        "Glove" => "Glove",
+        "Cape" => "Cape",
+        "Shield" => "Shield",
+        "Weapon" => "Weapon",
+        _ => "Acc",
+    }
+}
+
+fn slot_cat(slot: &str) -> Option<(&'static str, Option<u32>)> {
+    Some(match slot {
+        "Face" => ("Accessory", Some(101)),
+        "Eye" => ("Accessory", Some(102)),
+        "Ear" => ("Accessory", Some(103)),
+        "Cap" => ("Cap", None),
+        "Coat" => ("Coat", None),
+        "Longcoat" => ("Longcoat", None),
+        "Pants" => ("Pants", None),
+        "Shoes" => ("Shoes", None),
+        "Glove" => ("Glove", None),
+        "Cape" => ("Cape", None),
+        "Shield" => ("Shield", None),
+        "Weapon" => ("Weapon", None),
+        _ => return None,
+    })
+}
+
+#[derive(Serialize, Clone)]
+pub struct ItemOut {
+    pub id: u32,
+    pub name: String,
+    pub slot: &'static str,
+    /// 是否為點裝（info/cash = 1）
+    pub cash: bool,
 }
 
 const EQUIP_CATS: [&str; 10] = ["Cap", "Accessory", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon"];
@@ -93,6 +146,8 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
     let ctx = Ctx {
         equip,
         smap,
+        icons: HashMap::new(),
+        lists: HashMap::new(),
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -275,6 +330,35 @@ impl Ctx {
         hits.iter().copied().find(|(id, _)| gender_ok(*id)).or_else(|| hits.first().copied())
     }
 
+    fn equip_by_id(&mut self, id: u32) -> Option<(u32, &'static str)> {
+        let cat = self.equip.iter().find(|(i, _, _)| *i == id).map(|(_, _, c)| *c)?;
+        self.has(&format!("Character/{cat}"), id).then_some((id, cat))
+    }
+
+    fn equip_name(&self, id: u32) -> String {
+        self.equip.iter().find(|(i, _, _)| *i == id).map(|(_, n, _)| n.clone()).unwrap_or_default()
+    }
+
+    fn icon(&mut self, id: u32) -> Option<String> {
+        if let Some(v) = self.icons.get(&id) {
+            return v.clone();
+        }
+        let v = (|| {
+            let (_, cat) = self.equip_by_id(id)?;
+            let rel = format!("Character/{cat}");
+            let img = format!("{id:08}.img");
+            let root = self.data.img(&rel, &img).ok()?;
+            let node = ["info/icon", "info/iconRaw"].iter().find_map(|p| resolve(&root, p, 0).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
+            let (w, h, px) = self.data.pixels_of(&rel, &img, &node).ok()?;
+            if w <= 1 && h <= 1 {
+                return None;
+            }
+            png_data_url(w, h, &px).ok()
+        })();
+        self.icons.insert(id, v.clone());
+        v
+    }
+
     /// 裝備的畫格：一般是 stand1/0；點裝武器會依武器種類再分一層（例如 30/stand1/0）；帽子、飾品用 default
     fn equip_frame(&mut self, rel: &str, id: u32, pose: &str) -> Option<String> {
         let root = self.data.img(rel, &format!("{id:08}.img")).ok()?;
@@ -424,6 +508,9 @@ pub struct RenderReq {
     /// 點裝名稱（API 目前外觀套組）
     #[serde(default)]
     pub equips: Vec<String>,
+    /// 直接指定點裝編號（變更點裝後使用），有值時忽略 equips
+    #[serde(default)]
+    pub equip_ids: Option<Vec<u32>>,
 }
 
 #[derive(Serialize)]
@@ -434,6 +521,8 @@ pub struct RenderOut {
     pub hair_id: Option<u32>,
     pub face_id: Option<u32>,
     pub warnings: Vec<String>,
+    /// 實際穿上的點裝
+    pub equips: Vec<ItemOut>,
 }
 
 #[derive(Serialize)]
@@ -533,13 +622,23 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         let mut equips: Vec<(u32, &'static str)> = Vec::new();
         let mut missing: Vec<String> = Vec::new();
         if !head_only {
-            for name in &req.equips {
-                match ctx.find_equip(name, female) {
-                    Some(e) => equips.push(e),
-                    None => missing.push(name.clone()),
+            if let Some(ids) = &req.equip_ids {
+                for &id in ids {
+                    match ctx.equip_by_id(id) {
+                        Some(e) => equips.push(e),
+                        None => missing.push(id.to_string()),
+                    }
+                }
+            } else {
+                for name in &req.equips {
+                    match ctx.find_equip(name, female) {
+                        Some(e) => equips.push(e),
+                        None => missing.push(name.clone()),
+                    }
                 }
             }
         }
+        let equip_out: Vec<ItemOut> = equips.iter().map(|&(id, cat)| ItemOut { id, name: ctx.equip_name(id), slot: slot_key(id, cat), cash: true }).collect();
         let mut pose = "stand1";
         if let Some(&(wid, _)) = equips.iter().find(|(_, c)| *c == "Weapon") {
             let root = ctx.data.img("Character/Weapon", &format!("{wid:08}.img")).ok();
@@ -639,13 +738,61 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
             &[("brow", (0, 0))]
         };
         let (w, h, px) = compose(&parts, start).ok_or("沒有可以顯示的圖片")?;
-        Ok(RenderOut { png: png_data_url(w, h, &px)?, w, h, hair_id, face_id, warnings })
+        Ok(RenderOut { png: png_data_url(w, h, &px)?, w, h, hair_id, face_id, warnings, equips: equip_out })
     })
 }
 
 #[tauri::command]
 pub async fn beauty_render(req: RenderReq) -> Result<RenderOut, String> {
     tauri::async_runtime::spawn_blocking(move || render_blocking(req)).await.map_err(|e| e.to_string())?
+}
+
+/// 某個欄位的所有點裝（只列出遊戲資料裡真的有圖的）
+#[tauri::command]
+pub async fn beauty_items(game_dir: Option<String>, slot: String) -> Result<Vec<ItemOut>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_ctx(game_dir.as_deref(), |ctx| {
+            if let Some(v) = ctx.lists.get(&slot) {
+                return Ok(v.clone());
+            }
+            let (cat, prefix) = slot_cat(&slot).ok_or("未知的欄位")?;
+            let rel = format!("Character/{cat}");
+            let pkg = ctx.data.package(&rel)?;
+            let mut seen = std::collections::HashSet::new();
+            let cands: Vec<(u32, String, &'static str)> = ctx
+                .equip
+                .iter()
+                .filter(|(id, _, c)| *c == cat && prefix.map(|p| id / 10000 == p).unwrap_or(true))
+                .filter(|(id, _, _)| pkg.imgs.contains_key(&format!("{id:08}.img")))
+                .filter(|(id, _, _)| seen.insert(*id))
+                .cloned()
+                .collect();
+            let mut list = Vec::with_capacity(cands.len());
+            for (id, name, c) in cands {
+                let cash = ctx
+                    .data
+                    .img_child(&rel, &format!("{id:08}.img"), "info")
+                    .ok()
+                    .flatten()
+                    .and_then(|info| info.get("cash").and_then(|v| v.as_int()))
+                    .map(|v| v == 1)
+                    .unwrap_or(false);
+                list.push(ItemOut { id, name, slot: slot_key(id, c), cash });
+            }
+            ctx.lists.insert(slot, list.clone());
+            Ok(list)
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 道具圖示（PNG data URL），找不到的回傳 null
+#[tauri::command]
+pub async fn beauty_icons(game_dir: Option<String>, ids: Vec<u32>) -> Result<Vec<Option<String>>, String> {
+    tauri::async_runtime::spawn_blocking(move || with_ctx(game_dir.as_deref(), |ctx| Ok(ids.iter().map(|&id| ctx.icon(id)).collect())))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

@@ -823,7 +823,12 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 事件 ---------- */
-  $$("#gPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderAll(); }));
+  $$("#gPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderAll(); window.refreshBack?.(); }));
+  // 在「解析/垃圾」頁時，左上角變成「上一頁」回到抽獎模擬
+  if (window.BackHooks) window.BackHooks["view-gacha"] = {
+    label: () => (st.page === "import" ? "上一頁" : null),
+    back: () => { if (st.page !== "import") return false; st.page = "sim"; save(); renderAll(); return true; },
+  };
   $$("#gTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
 
   $("#gCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
