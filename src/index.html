@@ -97,7 +97,7 @@
               </div>
               <div class="bar"><div class="bar-fill" id="barFill"></div></div>
               <button class="current" id="currentSerial" title="點擊複製">—</button>
-              <p class="done-banner" id="doneBanner">🎉 已全部使用完畢</p>
+              <p class="done-banner" id="doneBanner">已全部使用完畢</p>
               <div class="row">
                 <button class="pill ghost" id="prevBtn">‹ 上一組</button>
                 <button class="pill ghost" id="nextBtn">下一組 ›</button>
@@ -167,7 +167,7 @@
                 <option value="tts">語音唸出計時器名稱</option>
                 <option value="file">自訂音效檔…</option>
               </select>
-              <button class="link-btn" id="prefPreview">▶ 試聽</button>
+              <button class="link-btn" id="prefPreview">試聽</button>
             </div>
           </div>
           <div class="field" id="prefFileRow"><span class="lbl">音效檔</span>
@@ -196,86 +196,99 @@
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">黃金蘋果轉蛋模擬器</span>
-          <span></span>
+          <div class="seg g-pages" id="gPages">
+            <button data-page="sim">模擬</button>
+            <button data-page="import">文字解析與垃圾清單</button>
+          </div>
         </nav>
-        <div class="gx">
-          <!-- 左：獎池道具 -->
-          <section class="gx-panel gx-left">
-            <h3 class="gx-title">📄 獎池道具</h3>
-            <div class="gx-pools" id="gTabs">
-              <button data-pool="apple">黃金蘋果</button>
-              <button data-pool="silver">幸運的銀色箱子</button>
-              <button data-pool="gold">幸運的金色箱子</button>
+
+        <!-- 第一頁：模擬 -->
+        <div class="g-page" id="gPageSim">
+          <div class="card g-pool">
+            <div class="seg g-tabs" id="gTabs">
+              <button data-pool="apple">黃金蘋果<small></small></button>
+              <button data-pool="silver">銀色箱子<small></small></button>
+              <button data-pool="gold">金色箱子<small></small></button>
+            </div>
+            <div class="g-toolbar">
+              <label class="g-cost">每抽成本<input type="text" inputmode="decimal" id="gCost" placeholder="0" /></label>
+              <button class="pill ghost small" id="gAutoPrice" data-tip="依機率估算基準價值：越稀有越高。垃圾道具與機率超過 30% 的道具會留空。">自動帶入價格</button>
+              <span class="spacer"></span>
+              <button class="pill ghost danger small" id="gClearItems">清除道具</button>
+            </div>
+            <p class="g-warn" id="gWarn" hidden></p>
+            <div class="g-thead"><span>抽</span><span>名稱</span><span class="r">機率</span><span class="r">價值</span><span></span></div>
+            <div class="g-table" id="gTable"></div>
+            <div class="g-add">
+              <input type="text" id="gNewName" placeholder="新增道具名稱" />
+              <input type="text" inputmode="decimal" id="gNewProb" placeholder="機率 %" />
+              <input type="text" inputmode="decimal" id="gNewValue" placeholder="價值" />
+              <button class="pill primary small" id="gAdd">新增</button>
+            </div>
+          </div>
+
+          <div class="g-side">
+            <div class="g-stats">
+              <div class="g-stat"><span>總花費</span><b id="sSpent">0</b></div>
+              <div class="g-stat"><span>總價值</span><b id="sValue">0</b></div>
+              <div class="g-stat"><span>損益</span><b id="sProfit">0</b></div>
+              <div class="g-stat"><span>總抽數</span><b id="sDraws">0</b></div>
+              <div class="g-stat"><span>蘋果碎片</span><b id="sFrags">0</b></div>
             </div>
 
-            <div class="gx-row-between">
-              <button class="gx-collapse" id="gParseToggle">▼ 智慧文字解析</button>
-              <div class="gx-cost">
-                <span>💰 每一抽成本:</span>
-                <input type="text" inputmode="decimal" id="gCost" placeholder="0" />
-                <button class="gx-btn blue small" id="gAutoPrice" title="依機率估算基準價值（越稀有越高），垃圾道具與機率 > 30% 的道具留空">🤖 自動帶入價格</button>
+            <div class="card g-actions">
+              <div class="g-draw-row">
+                <button class="pill primary" data-draw="1">單抽</button>
+                <button class="pill primary" data-draw="10">10 抽</button>
+                <button class="pill primary" data-draw="100">100 抽</button>
+              </div>
+              <div class="g-box-row">
+                <button class="g-box silver" id="gOpenSilver"><span>開啟幸運銀箱</span><small>消耗 30 碎片</small></button>
+                <button class="g-box gold" id="gOpenGold"><span>開啟幸運金箱</span><small>消耗 100 碎片</small></button>
+              </div>
+              <div class="g-actions-foot">
+                <span class="muted">按住按鈕可連續抽取・每抽獲得 1 個碎片</span>
+                <button class="link-btn danger-link" id="gReset">重置統計</button>
               </div>
             </div>
-            <div class="gx-parse" id="gParseBody">
-              <textarea id="gPaste" placeholder="請貼上網頁機率文字（可同時包含黃金蘋果、幸運的銀色箱子、幸運的金色箱子）..."></textarea>
-              <button class="gx-btn blue wide" id="gParse">🔍 解析內容</button>
-              <label class="gx-sub">🗑️ 垃圾道具清單（用空格或換行分隔，名稱包含關鍵字即視為垃圾，價值計為 0）</label>
-              <textarea id="gJunk" class="gx-junk"></textarea>
+
+            <div class="card g-analysis">
+              <div class="g-metrics" id="gMetrics"></div>
+              <p class="g-comment" id="gComment"></p>
             </div>
 
-            <div class="gx-divider"></div>
-
-            <div class="gx-manual gx-labels"><span>名稱</span><span>機率(%)</span><span>價值</span></div>
-            <div class="gx-manual">
-              <input type="text" id="gNewName" placeholder="名稱" />
-              <input type="text" inputmode="decimal" id="gNewProb" placeholder="0.0" />
-              <input type="text" inputmode="decimal" id="gNewValue" placeholder="0" />
+            <div class="card g-results">
+              <div class="g-res-scroll">
+                <div class="g-res-head"><strong>本次獲得</strong><span class="muted" id="gBatchBadge"></span></div>
+                <div class="g-chips" id="gBatch"></div>
+                <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量・總價值・實際機率</span></div>
+                <div id="gHistory"></div>
+              </div>
             </div>
-            <div class="gx-actions">
-              <button class="gx-btn blue" id="gAdd">➕ 新增</button>
-              <button class="gx-btn red" id="gClearItems">🗑️ 清除道具</button>
+          </div>
+        </div>
+
+        <!-- 第二頁：文字解析與垃圾清單 -->
+        <div class="g-page g-import" id="gPageImport" hidden>
+          <div class="card g-imp">
+            <h3>文字解析</h3>
+            <p class="hint">貼上網頁上的機率文字，可以同時包含黃金蘋果、幸運的銀色箱子、幸運的金色箱子。會依「幸運的銀色箱子」「幸運的金色箱子」標題自動分到三個獎池，並取代原本的道具。</p>
+            <textarea id="gPaste" placeholder="例如：&#10;靈魂赫卡忒：使魔造型交換券	0.60%&#10;漆黑的BOSS飾品碎片	3.00%&#10;幸運的銀色箱子&#10;睿智葫蘆	6.00%"></textarea>
+            <div class="g-imp-foot">
+              <span class="muted" id="gParseResult"></span>
+              <button class="pill primary small" id="gParse">解析並套用</button>
             </div>
-
-            <div class="gx-list-head"><span>抽</span><span>名稱</span><span>機率(%)</span><span>價值</span><span class="c">操作</span></div>
-            <p class="gx-warn" id="gWarn" hidden></p>
-            <div class="gx-list" id="gTable"></div>
-          </section>
-
-          <!-- 右：抽獎模擬 -->
-          <section class="gx-panel gx-right">
-            <h3 class="gx-title">🎯 抽獎模擬 <small>(按住可連續抽取)</small></h3>
-            <div class="gx-draws">
-              <button class="gx-btn green" data-draw="1">🎲 單抽</button>
-              <button class="gx-btn green" data-draw="10">💎 10抽</button>
-              <button class="gx-btn green" data-draw="100">💎 100抽</button>
-              <button class="gx-btn green" data-draw="1000">💎 1000抽</button>
-              <button class="gx-btn red" id="gReset">🔄 重置</button>
+          </div>
+          <div class="card g-imp">
+            <h3>垃圾道具清單</h3>
+            <p class="hint">用空格或換行分隔關鍵字。道具名稱包含任一關鍵字就視為垃圾道具：自動帶入價格時留空，計算時當作 0。</p>
+            <textarea id="gJunk"></textarea>
+            <div class="g-imp-foot">
+              <span class="muted" id="gJunkCount"></span>
+              <button class="pill ghost small" id="gJunkReset">恢復預設清單</button>
             </div>
-            <div class="gx-boxes">
-              <button class="gx-btn silver" id="gOpenSilver">📦 開啟幸運銀箱 <small>－30 碎片</small></button>
-              <button class="gx-btn gold" id="gOpenGold">🎁 開啟幸運金箱 <small>－100 碎片</small></button>
-            </div>
-
-            <div class="gx-stats">
-              <div class="gx-stat"><span>💸 花費</span><b class="t-green" id="sSpent">0</b></div>
-              <div class="gx-stat"><span>💎 價值</span><b class="t-blue" id="sValue">0</b></div>
-              <div class="gx-stat"><span>⚖️ 損益</span><b id="sProfit">0</b></div>
-              <div class="gx-stat"><span>🎲 總抽數</span><b id="sDraws">0</b></div>
-              <div class="gx-stat"><span>🍎 碎片</span><b class="t-gold" id="sFrags">0</b></div>
-            </div>
-
-            <div class="gx-ai">
-              <div class="gx-ai-exp" id="gAiExp">🤖 期望回報：等待數據</div>
-              <div class="gx-ai-text" id="gAiText">🤖 AI評論：等待分析中...</div>
-            </div>
-
-            <h4 class="gx-h4 accent"><span>✨ 本次獲得道具</span><span class="muted" id="gBatchBadge"></span></h4>
-            <div class="gx-chips" id="gBatch"></div>
-
-            <h4 class="gx-h4">📦 保管箱 (歷史累積道具)</h4>
-            <div class="gx-inv gx-inv-head"><span>名稱</span><span>數量</span><span>總價值</span><span>實際機率(%)</span></div>
-            <div id="gHistory"></div>
-          </section>
+            <div class="g-junk-match" id="gJunkMatch"></div>
+          </div>
         </div>
       </section>
     </main>

@@ -19,20 +19,21 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #2d2d2d;
-  --side: #353535;
-  --card: #3b3b3b;
-  --card-2: #4a4a4a;
-  --text: #f5f5f7;
-  --text-2: rgba(235, 235, 245, 0.62);
-  --sep: rgba(255, 255, 255, 0.12);
-  --blue: #0a84ff;
-  --blue-soft: rgba(10, 132, 255, 0.22);
-  --green: #30d158;
-  --red: #ff453a;
-  --orange: #ff9f0a;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.18);
-  --glass: rgba(45, 45, 45, 0.85);
+  /* 深色模式：帶藍調的深石板色，層次分明、文字對比高 */
+  --bg: #14171d;
+  --side: #1a1e26;
+  --card: #222731;
+  --card-2: #2d3340;
+  --text: #f2f4f8;
+  --text-2: #a3acbd;
+  --sep: rgba(148, 163, 184, 0.16);
+  --blue: #4c8dff;
+  --blue-soft: rgba(76, 141, 255, 0.18);
+  --green: #34d17a;
+  --red: #ff5a5f;
+  --orange: #ffb340;
+  --shadow: 0 0 0 1px rgba(148, 163, 184, 0.10), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --glass: rgba(20, 23, 29, 0.86);
   color-scheme: dark;
 }
 
@@ -157,7 +158,7 @@ input, select { font: inherit; color: inherit; }
   transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
 .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
-:root[data-theme="dark"] .seg button.on { background: #5c5c5e; }
+:root[data-theme="dark"] .seg button.on { background: #3e4657; }
 
 .content { flex: 1; min-width: 0; position: relative; overflow: hidden; }
 
@@ -389,6 +390,7 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .item .tag { font-size: 0.72rem; font-weight: 700; }
 .item.used .code { color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--sep); }
 .item.used .num { background: var(--green); color: #fff; }
+.item .num .check { width: 0.9rem; height: 0.9rem; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .item.cur { background: var(--blue-soft); }
 .item.cur .num { background: var(--blue); color: #fff; }
 .item.cur .code { color: var(--blue); font-weight: 700; }
@@ -413,7 +415,7 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
   white-space: nowrap;
   z-index: 80;
 }
-:root[data-theme="dark"] .toast { background: rgba(90, 90, 94, 0.95); }
+:root[data-theme="dark"] .toast { background: rgba(45, 51, 64, 0.97); box-shadow: 0 0 0 1px var(--sep); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- 確認對話框（倉儲管理器樣式） ---------- */

@@ -288,7 +288,9 @@ function render(prev) {
     const i = Number(li.dataset.i);
     li.classList.toggle("used", i < index);
     li.classList.toggle("cur", i === index);
-    li.querySelector(".num").textContent = i < index ? "✓" : i + 1;
+    const num = li.querySelector(".num");
+    if (i < index) num.innerHTML = '<svg viewBox="0 0 24 24" class="check"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    else num.textContent = i + 1;
     li.querySelector(".tag").textContent = i === index ? "目前" : "";
   });
 

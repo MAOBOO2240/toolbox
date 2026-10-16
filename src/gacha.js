@@ -282,7 +282,7 @@ if (typeof document !== "undefined") (() => {
   const C = GachaCore;
   const KEY = "gacha-v2";
   const DRAW_CAP = 2_000_000; // 「抽到為止」的安全上限
-  const POOL_ICON = { apple: "🍎", silver: "📦", gold: "🎁" };
+  const SHORT = { apple: "蘋果", silver: "銀箱", gold: "金箱" };
 
   const DEFAULT_TEXT = `靈魂赫卡忒：使魔造型交換券	0.60%
 靈魂赫卡忒：盧米埃造型交換券	0.60%
@@ -387,7 +387,7 @@ if (typeof document !== "undefined") (() => {
   const blankStats = () => ({ spent: 0, value: 0, draws: 0, frags: 0 });
   function defaults() {
     return {
-      pools: C.parse(DEFAULT_TEXT), values: {}, cost: 0, junk: DEFAULT_JUNK, tab: "apple", parseOpen: true,
+      pools: C.parse(DEFAULT_TEXT), values: {}, cost: 0, junk: DEFAULT_JUNK, tab: "apple", page: "sim",
       stats: blankStats(), batch: {}, batchDraws: zeroPools(), hist: {}, histDraws: zeroPools(),
     };
   }
@@ -397,9 +397,8 @@ if (typeof document !== "undefined") (() => {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && s.pools) return { ...d, ...s, stats: { ...blankStats(), ...s.stats }, batchDraws: { ...zeroPools(), ...s.batchDraws }, histDraws: { ...zeroPools(), ...s.histDraws } };
-      // 從舊版移轉獎池與價值設定
       const old = JSON.parse(localStorage.getItem("gacha-v1"));
-      if (old && old.pools) return { ...d, pools: old.pools, values: old.values || {}, cost: old.cost || 0, junk: (old.junk || "").trim() ? old.junk : DEFAULT_JUNK };
+      if (old && old.pools) return { ...d, pools: old.pools, values: old.values || {}, cost: old.cost || 0 };
     } catch (_) {}
     return d;
   })();
@@ -422,19 +421,28 @@ if (typeof document !== "undefined") (() => {
     return `${sign}${a >= 100 ? intFmt.format(a) : decFmt.format(a)}`;
   }
   const parseNum = (s) => {
-    const n = parseFloat(String(s).replace(/[,\s]/g, ""));
+    const n = parseFloat(String(s).replace(/[,\s%]/g, ""));
     return isFinite(n) ? n : null;
   };
   const valueOf = (name) => (typeof st.values[name] === "number" && isFinite(st.values[name]) ? st.values[name] : 0);
 
-  /* ---------- 左：獎池 ---------- */
-  function renderTabs() {
-    $$("#gTabs button").forEach((b) => b.classList.toggle("on", b.dataset.pool === st.tab));
-    $("#gParseBody").classList.toggle("collapsed", !st.parseOpen);
-    $("#gParseToggle").textContent = `${st.parseOpen ? "▼" : "▶"} 智慧文字解析`;
+  /* ---------- 分頁 ---------- */
+  function renderPage() {
+    $$("#gPages button").forEach((b) => b.classList.toggle("on", b.dataset.page === st.page));
+    $("#gPageSim").hidden = st.page !== "sim";
+    $("#gPageImport").hidden = st.page !== "import";
   }
 
-  function input(cls, value, opts = {}) {
+  /* ---------- 獎池表格 ---------- */
+  function renderTabs() {
+    $$("#gTabs button").forEach((b) => {
+      const p = b.dataset.pool;
+      b.classList.toggle("on", p === st.tab);
+      b.querySelector("small").textContent = `${st.pools[p].length} 項`;
+    });
+  }
+
+  function textInput(cls, value, opts = {}) {
     const el = document.createElement("input");
     el.type = "text";
     el.className = cls;
@@ -450,63 +458,71 @@ if (typeof document !== "undefined") (() => {
     const total = C.sum(items);
     const warn = $("#gWarn");
     warn.hidden = total <= 100 + 1e-6;
-    warn.textContent = `機率總和 ${decFmt.format(total)}% 超過 100%，請檢查道具機率（模擬時依比例換算）。`;
+    warn.textContent = `機率總和 ${decFmt.format(total)}% 超過 100%，請檢查道具機率（模擬時會依比例換算）。`;
 
     const box = $("#gTable");
     box.innerHTML = "";
     if (!items.length) {
-      box.innerHTML = '<div class="gx-empty">請先解析內容或手動新增道具</div>';
+      box.innerHTML = '<div class="g-empty">這個獎池還沒有道具，可以到「文字解析與垃圾清單」貼上文字，或在下方新增。</div>';
       return;
     }
     C.withFiller(items).forEach((it, idx) => {
       const row = document.createElement("div");
-      row.className = "gx-item" + (it.filler ? " filler" : "");
+      row.className = "g-row" + (it.filler ? " filler" : "");
       const drawBtn = document.createElement("button");
-      drawBtn.className = "gx-draw";
+      drawBtn.className = "g-draw";
       drawBtn.textContent = "抽";
-      drawBtn.title = st.tab === "apple" ? "一直抽到這個道具為止" : "用碎片一直開箱到這個道具為止";
-      const name = input("", it.name, { disabled: it.filler });
-      const prob = input("", it.filler ? decFmt.format(it.prob) : String(it.prob), { decimal: true, disabled: it.filler });
+      drawBtn.title = st.tab === "apple" ? "一直抽到這個道具為止" : "用現有碎片一直開箱到這個道具為止";
+      const name = textInput("g-name", it.name, { disabled: it.filler });
+      const prob = textInput("g-prob", it.filler ? `${decFmt.format(it.prob)}%` : `${it.prob}%`, { decimal: true, disabled: it.filler });
       const v = st.values[it.name];
-      const val = input("", it.filler ? "0" : typeof v === "number" ? intFmt.format(v) : "", { decimal: true, placeholder: "0", disabled: it.filler });
+      const val = textInput("g-val", it.filler ? "0" : typeof v === "number" ? intFmt.format(v) : "", { decimal: true, placeholder: "—", disabled: it.filler });
       row.append(drawBtn, name, prob, val);
       if (it.filler) {
         drawBtn.disabled = true;
         row.append(document.createElement("span"));
-      } else {
-        const del = document.createElement("button");
-        del.className = "gx-del";
-        del.textContent = "✕";
-        del.title = "移除這個道具";
-        row.append(del);
-        drawBtn.addEventListener("click", () => drawUntil(st.tab, it.name));
-        del.addEventListener("click", () => { st.pools[st.tab].splice(idx, 1); save(); renderAll(); });
-        name.addEventListener("change", () => {
-          const nn = name.value.trim();
-          if (!nn || nn === it.name) { name.value = it.name; return; }
-          if (!(nn in st.values) && it.name in st.values) st.values[nn] = st.values[it.name];
-          it.name = nn;
-          save(); renderRight();
-        });
-        prob.addEventListener("input", () => {
-          const n = parseNum(prob.value);
-          if (n === null || n < 0) return;
-          it.prob = n;
-          save(); renderRight();
-        });
-        prob.addEventListener("change", () => renderTable());
-        val.addEventListener("focus", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? String(x) : ""; val.select(); });
-        val.addEventListener("input", () => {
-          st.values[it.name] = val.value.trim() === "" ? null : parseNum(val.value);
-          save(); renderRight();
-        });
-        val.addEventListener("blur", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? intFmt.format(x) : ""; });
+        box.appendChild(row);
+        return;
       }
+      const del = document.createElement("button");
+      del.className = "g-del";
+      del.textContent = "✕";
+      del.title = "移除這個道具";
+      row.append(del);
+
+      drawBtn.addEventListener("click", () => drawUntil(st.tab, it.name));
+      del.addEventListener("click", () => { st.pools[st.tab].splice(idx, 1); save(); renderPool(); renderRight(); });
+      name.addEventListener("change", () => {
+        const nn = name.value.trim();
+        if (!nn || nn === it.name) { name.value = it.name; return; }
+        if (!(nn in st.values) && it.name in st.values) st.values[nn] = st.values[it.name];
+        it.name = nn;
+        save(); renderRight();
+      });
+      prob.addEventListener("focus", () => { prob.value = String(it.prob); prob.select(); });
+      prob.addEventListener("input", () => {
+        const n = parseNum(prob.value);
+        if (n === null || n < 0) return;
+        it.prob = n;
+        save(); renderRight();
+      });
+      prob.addEventListener("blur", () => renderPool());
+      val.addEventListener("focus", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? String(x) : ""; val.select(); });
+      val.addEventListener("input", () => {
+        st.values[it.name] = val.value.trim() === "" ? null : parseNum(val.value);
+        save(); renderRight();
+      });
+      val.addEventListener("blur", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? intFmt.format(x) : ""; });
       box.appendChild(row);
     });
   }
 
-  /* ---------- 右：統計、AI、本次獲得、保管箱 ---------- */
+  function renderPool() {
+    renderTabs();
+    renderTable();
+  }
+
+  /* ---------- 統計、分析、結果 ---------- */
   function renderStats() {
     const s = st.stats;
     const profit = s.value - s.spent;
@@ -514,26 +530,39 @@ if (typeof document !== "undefined") (() => {
     $("#sValue").textContent = big(s.value);
     const pEl = $("#sProfit");
     pEl.textContent = (profit > 0 ? "+" : "") + big(profit);
-    pEl.className = profit > 0 ? "t-green" : profit < 0 ? "t-red" : "";
+    pEl.className = profit > 0 ? "pos" : profit < 0 ? "neg" : "";
     $("#sDraws").textContent = intFmt.format(s.draws);
     $("#sFrags").textContent = intFmt.format(s.frags);
-    $("#gOpenSilver").disabled = s.frags < C.BOX_COST.silver;
-    $("#gOpenGold").disabled = s.frags < C.BOX_COST.gold;
+    for (const [pool, id] of [["silver", "#gOpenSilver"], ["gold", "#gOpenGold"]]) {
+      const need = C.BOX_COST[pool];
+      const btn = $(id);
+      btn.disabled = s.frags < need;
+      btn.querySelector("small").textContent = btn.disabled ? `碎片不足（需 ${need}）` : `消耗 ${need} 碎片`;
+    }
   }
 
-  function renderAI() {
+  const metric = (label, value, cls = "") => `<div class="g-metric"><span>${label}</span><b class="${cls}">${value}</b></div>`;
+
+  function renderAnalysis() {
     const a = C.analyze(st, st.tab);
-    const lines = C.comment(a, big);
-    let exp;
-    if (!a.hasValues) exp = "🤖 期望回報：等待數據（請填入道具價值）";
-    else if (st.tab === "apple") {
-      exp = `🤖 期望回報：每抽 ${big(a.combined)}（道具 ${big(a.itemEv)} ＋ 碎片 ${big(a.frag.value)}）`;
-      if (a.cp !== null) exp += `　CP ${a.cp.toFixed(2)} 倍　賺錢機率 ${(a.win * 100).toFixed(1)}%`;
+    let html = "";
+    if (st.tab === "apple") {
+      html += metric("每抽期望值", a.hasValues ? big(a.combined) : "—");
+      html += metric("CP 值", a.cp === null || !a.hasValues ? "—" : `${a.cp.toFixed(2)} 倍`, a.cp === null ? "" : a.cp >= 1 ? "pos" : "neg");
+      html += metric("單抽賺錢機率", a.hasValues && st.cost > 0 ? `${(a.win * 100).toFixed(1)}%` : "—");
+      html += metric("碎片價值", a.hasValues ? big(a.frag.value) : "—");
     } else {
-      exp = `🤖 期望回報：每箱 ${big(a.boxEv)}　每碎片 ${big(a.perFrag)}`;
+      html += metric("每箱期望值", a.hasValues ? big(a.boxEv) : "—");
+      html += metric("每碎片價值", a.hasValues ? big(a.perFrag) : "—");
+      html += metric("高於平均機率", a.hasValues ? `${(a.aboveAvg * 100).toFixed(1)}%` : "—");
+      html += metric("稀有道具占比", a.hasValues ? `${(a.rare * 100).toFixed(0)}%` : "—");
     }
-    $("#gAiExp").textContent = exp;
-    $("#gAiText").textContent = "🤖 AI評論：" + lines.join("");
+    $("#gMetrics").innerHTML = html;
+    // 評語只取最重要的兩句，保持簡潔
+    const lines = C.comment(a, big).slice(0, 2);
+    const c = $("#gComment");
+    c.innerHTML = "<b>AI 評語</b>";
+    c.append(document.createTextNode(lines.join("")));
   }
 
   const key = (pool, name) => `${pool}|${name}`;
@@ -549,26 +578,31 @@ if (typeof document !== "undefined") (() => {
   function renderBatch() {
     const box = $("#gBatch");
     box.innerHTML = "";
-    const keys = sortedKeys(st.batch);
     const d = st.batchDraws;
     const parts = [];
-    if (d.apple) parts.push(`本次共 ${intFmt.format(d.apple)} 抽`);
+    if (d.apple) parts.push(`${intFmt.format(d.apple)} 抽`);
     if (d.silver) parts.push(`銀箱 ${intFmt.format(d.silver)} 次`);
     if (d.gold) parts.push(`金箱 ${intFmt.format(d.gold)} 次`);
-    $("#gBatchBadge").textContent = parts.length ? `(${parts.join("・")})` : "";
+    $("#gBatchBadge").textContent = parts.join("・");
+    const keys = sortedKeys(st.batch);
     if (!keys.length) {
-      box.innerHTML = '<div class="gx-chip-empty">尚無本次抽取結果</div>';
+      box.innerHTML = '<span class="g-chip-empty">按下抽獎或開箱後，這裡會顯示這次的結果</span>';
       return;
     }
     for (const k of keys) {
       const [pool, name] = splitKey(k);
-      const chip = document.createElement("div");
-      chip.className = "gx-chip" + (isRare(pool, name) ? " rare" : "");
-      const label = document.createElement("span");
-      label.textContent = (pool === "apple" ? "" : POOL_ICON[pool] + " ") + name;
+      const chip = document.createElement("span");
+      chip.className = "g-chip" + (isRare(pool, name) ? " rare" : "");
+      if (pool !== "apple") {
+        const src = document.createElement("span");
+        src.className = "src";
+        src.textContent = SHORT[pool];
+        chip.append(src);
+      }
+      chip.append(document.createTextNode(name));
       const n = document.createElement("b");
-      n.textContent = `x${st.batch[k]}`;
-      chip.append(label, n);
+      n.textContent = `×${st.batch[k]}`;
+      chip.append(n);
       box.appendChild(chip);
     }
   }
@@ -578,7 +612,7 @@ if (typeof document !== "undefined") (() => {
     box.innerHTML = "";
     const keys = sortedKeys(st.hist);
     if (!keys.length) {
-      box.innerHTML = '<div class="gx-empty">（保管箱暫無物品）</div>';
+      box.innerHTML = '<div class="g-empty">保管箱還是空的</div>';
       return;
     }
     let lastPool = null;
@@ -587,9 +621,8 @@ if (typeof document !== "undefined") (() => {
       if (pool !== lastPool) {
         lastPool = pool;
         const g = document.createElement("div");
-        g.className = "gx-inv-group";
-        const n = st.histDraws[pool];
-        g.textContent = `${POOL_ICON[pool]} ${C.POOL_NAME[pool]}（${intFmt.format(n)} ${pool === "apple" ? "抽" : "次"}）`;
+        g.className = "g-group";
+        g.textContent = `${C.POOL_NAME[pool]}・${intFmt.format(st.histDraws[pool])} ${pool === "apple" ? "抽" : "次"}`;
         box.appendChild(g);
       }
       const count = st.hist[k];
@@ -599,30 +632,49 @@ if (typeof document !== "undefined") (() => {
       const cls = !expect || Math.abs(actual - expect) < 1e-9 ? "same" : actual > expect ? "up" : "down";
       const arrow = cls === "up" ? " ▲" : cls === "down" ? " ▼" : "";
       const row = document.createElement("div");
-      row.className = "gx-inv";
+      row.className = "g-hrow";
       const nameEl = document.createElement("span");
       nameEl.textContent = name;
       nameEl.title = name;
       row.append(nameEl);
       row.insertAdjacentHTML("beforeend",
-        `<span>${intFmt.format(count)}</span><span>${valueOf(name) ? big(valueOf(name) * count) : "0"}</span><span class="${cls}">${actual.toFixed(2)}%${arrow}</span>`);
+        `<span>×${intFmt.format(count)}</span><span class="muted">${valueOf(name) ? big(valueOf(name) * count) : "—"}</span><span class="${cls}">${actual.toFixed(2)}%${arrow}</span>`);
       box.appendChild(row);
     }
   }
 
   function renderRight() {
     renderStats();
-    renderAI();
+    renderAnalysis();
     renderBatch();
     renderHistory();
   }
 
-  function renderAll() {
-    renderTabs();
-    renderTable();
-    renderRight();
-    if (document.activeElement !== $("#gCost")) $("#gCost").value = st.cost ? intFmt.format(st.cost) : "";
+  /* ---------- 第二頁：解析與垃圾清單 ---------- */
+  function renderImport() {
     if (document.activeElement !== $("#gJunk")) $("#gJunk").value = st.junk;
+    renderJunkMatch();
+  }
+  function renderJunkMatch() {
+    const junk = junkList();
+    const names = [];
+    for (const p of C.POOLS) for (const it of st.pools[p]) if (!names.includes(it.name) && C.isJunk(it.name, junk)) names.push(it.name);
+    $("#gJunkCount").textContent = `${junk.length} 個關鍵字・目前符合 ${names.length} 項道具`;
+    const box = $("#gJunkMatch");
+    box.innerHTML = "";
+    for (const n of names) {
+      const s = document.createElement("span");
+      s.textContent = n;
+      box.appendChild(s);
+    }
+  }
+
+  function renderAll() {
+    renderPage();
+    renderPool();
+    renderRight();
+    renderImport();
+    if (document.activeElement !== $("#gCost")) $("#gCost").value = st.cost ? intFmt.format(st.cost) : "";
   }
 
   /* ---------- 模擬 ---------- */
@@ -667,7 +719,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   function drawN(n, fresh) {
-    if (!st.pools.apple.length) return toast("黃金蘋果獎池是空的，請先解析或新增道具");
+    if (!st.pools.apple.length) { toast("黃金蘋果獎池是空的"); return false; }
     if (fresh) beginBatch();
     const draw = appleDrawer();
     for (let i = 0; i < n; i++) draw();
@@ -680,28 +732,26 @@ if (typeof document !== "undefined") (() => {
     if (fresh) beginBatch();
     boxOpener(pool)();
     commit();
-    return true;
   }
 
   function drawUntil(pool, name) {
     if (pool === "apple") {
-      if (!st.pools.apple.length) return;
       beginBatch();
       const draw = appleDrawer();
       for (let i = 0; i < DRAW_CAP; i++) {
-        if (draw().name === name) return commit(`抽到「${name}」！共 ${intFmt.format(i + 1)} 抽`);
+        if (draw().name === name) return commit(`抽到「${name}」，共 ${intFmt.format(i + 1)} 抽`);
       }
       return commit(`已達 ${intFmt.format(DRAW_CAP)} 抽上限仍未抽到`);
     }
     // 箱子：只用現有碎片開箱，碎片用完就停止
     const need = C.BOX_COST[pool];
-    if (st.stats.frags < need) return toast(`碎片不足，開${pool === "gold" ? "金" : "銀"}箱需要 ${need} 個碎片`);
+    if (st.stats.frags < need) return toast(`碎片不足，開${SHORT[pool]}需要 ${need} 個碎片`);
     beginBatch();
     const open = boxOpener(pool);
     let n = 0;
     while (st.stats.frags >= need) {
       n++;
-      if (open().name === name) return commit(`開到「${name}」！共開 ${n} 箱`);
+      if (open().name === name) return commit(`開到「${name}」，共開 ${n} 箱`);
     }
     commit(`碎片用完了，開了 ${n} 箱仍未開到「${name}」`);
   }
@@ -721,49 +771,43 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 事件 ---------- */
-  function doParse() {
-    const parsed = C.parse($("#gPaste").value);
-    const got = C.POOLS.filter((p) => parsed[p].length);
-    if (!got.length) return toast("沒有解析到任何「名稱 + 機率%」的道具");
-    for (const p of got) st.pools[p] = parsed[p];
-    if (!got.includes(st.tab)) st.tab = got[0];
-    save();
-    renderAll();
-    toast(got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、"));
-  }
-  $("#gParse").addEventListener("click", doParse);
-  $("#gParseToggle").addEventListener("click", () => { st.parseOpen = !st.parseOpen; save(); renderTabs(); });
-  $$("#gTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderTabs(); renderTable(); renderAI(); }));
+  $$("#gPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderAll(); }));
+  $$("#gTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
 
   $("#gCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
-  $("#gCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderAI(); });
+  $("#gCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderAnalysis(); });
   $("#gCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
-  $("#gJunk").addEventListener("input", (e) => { st.junk = e.target.value; save(); });
 
   $("#gAutoPrice").addEventListener("click", () => {
-    if (!(st.cost > 0)) return toast("請先輸入每一抽成本，自動價格以它為基準");
+    if (!(st.cost > 0)) return toast("請先輸入每抽成本，自動價格以它為基準");
     st.values = C.autoPrice(st.pools, st.cost, junkList());
     save();
     renderAll();
-    toast("已自動帶入基準價格，可再依實際行情調整");
+    toast("已帶入基準價格，可再依實際行情調整");
   });
 
   $("#gAdd").addEventListener("click", () => {
     const name = $("#gNewName").value.trim();
     const prob = parseNum($("#gNewProb").value);
-    if (!name || !(prob > 0)) return toast("請輸入名稱與機率");
+    if (!name || !(prob > 0)) return toast("請輸入道具名稱與機率");
     st.pools[st.tab].push({ name, prob });
     const v = parseNum($("#gNewValue").value);
     if (v !== null) st.values[name] = v;
     $("#gNewName").value = $("#gNewProb").value = $("#gNewValue").value = "";
     save();
-    renderAll();
+    renderPool();
+    renderRight();
+    $("#gNewName").focus();
   });
+  ["#gNewName", "#gNewProb", "#gNewValue"].forEach((id) =>
+    $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("#gAdd").click(); })
+  );
 
+  // 清除道具：三個獎池一起清空
   $("#gClearItems").addEventListener("click", async () => {
-    if (!st.pools[st.tab].length) return;
-    if (!(await confirmBox(`確定要清除「${C.POOL_NAME[st.tab]}」的所有道具嗎？`))) return;
-    st.pools[st.tab] = [];
+    if (!C.POOLS.some((p) => st.pools[p].length)) return;
+    if (!(await confirmBox("確定要清除黃金蘋果、銀色箱子、金色箱子的所有道具嗎？"))) return;
+    for (const p of C.POOLS) st.pools[p] = [];
     save();
     renderAll();
   });
@@ -779,6 +823,31 @@ if (typeof document !== "undefined") (() => {
     st.batchDraws = zeroPools(); st.histDraws = zeroPools();
     save();
     renderAll();
+  });
+
+  // 第二頁
+  $("#gParse").addEventListener("click", () => {
+    const parsed = C.parse($("#gPaste").value);
+    const got = C.POOLS.filter((p) => parsed[p].length);
+    if (!got.length) {
+      $("#gParseResult").textContent = "沒有解析到任何「名稱 + 機率%」的道具";
+      return;
+    }
+    for (const p of got) st.pools[p] = parsed[p];
+    if (!got.includes(st.tab)) st.tab = got[0];
+    save();
+    renderAll();
+    const msg = got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+    $("#gParseResult").textContent = `已套用：${msg}`;
+    toast(`已套用：${msg}`);
+  });
+  $("#gJunk").addEventListener("input", (e) => { st.junk = e.target.value; save(); renderJunkMatch(); });
+  $("#gJunkReset").addEventListener("click", async () => {
+    if (!(await confirmBox("確定要把垃圾道具清單恢復成預設內容嗎？"))) return;
+    st.junk = DEFAULT_JUNK;
+    save();
+    $("#gJunk").value = st.junk;
+    renderJunkMatch();
   });
 
   renderAll();
