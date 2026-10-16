@@ -348,9 +348,12 @@
     // 最後一格：新增計時器
     const add = document.createElement("div");
     add.className = "tcard tadd";
-    add.innerHTML = '<button class="tadd-circle" title="新增計時器"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="tadd-label">新增計時器</span>';
+    add.innerHTML = '<button class="tadd-circle" title="新增計時器"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>';
     add.querySelector("button").addEventListener("click", () => addTimer());
     grid.appendChild(add);
+    // 和一張計時器卡片一樣高，圓圈落在那個位置的正中間
+    const first = grid.querySelector(".tcard:not(.tadd)");
+    if (first) add.style.minHeight = `${first.offsetHeight}px`;
     $("#gameOnly").checked = file.game_only;
     renderMaster();
     renderPrefs();
