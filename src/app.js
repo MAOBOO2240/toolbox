@@ -68,16 +68,12 @@ async function run(fn) {
   }
 }
 
-/** 同色系確認對話框，回傳 Promise<boolean> */
-function confirmBox(message, { title = "確認", ok = "確定", cancel = "取消", danger = false } = {}) {
+/** 確認對話框（倉儲管理器樣式：是／否），回傳 Promise<boolean> */
+function confirmBox(message) {
   const back = $("#alertBackdrop");
-  $("#alertTitle").textContent = title;
   $("#alertMsg").textContent = message;
   const okBtn = $("#alertOk");
   const cancelBtn = $("#alertCancel");
-  okBtn.textContent = ok;
-  cancelBtn.textContent = cancel;
-  okBtn.classList.toggle("danger", danger);
   back.classList.add("show");
   return new Promise((resolve) => {
     const done = (v) => {
@@ -107,6 +103,28 @@ const store = {
 document.addEventListener("keydown", (e) => {
   if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")) e.preventDefault();
 });
+
+/* ---------- 滾輪：每格捲動距離縮小 ---------- */
+const WHEEL_STEP = 48; // 每一格滾輪捲動的像素
+function scrollableParent(el) {
+  for (; el && el !== document.body; el = el.parentElement) {
+    const oy = getComputedStyle(el).overflowY;
+    if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) return el;
+  }
+  return null;
+}
+document.addEventListener("wheel", (e) => {
+  if (e.ctrlKey || e.deltaY === 0) return;
+  // 數字輸入框、下拉選單保留原本的滾輪行為
+  if (e.target.closest("select")) return;
+  const box = scrollableParent(e.target);
+  if (!box) return;
+  e.preventDefault();
+  // 觸控板的細微捲動照原比例，滑鼠滾輪每格固定 WHEEL_STEP
+  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  const step = Math.abs(px) >= 50 ? Math.sign(px) * WHEEL_STEP : px * 0.6;
+  box.scrollTop += step;
+}, { passive: false });
 
 /* ---------- 外觀設定（齒輪） ---------- */
 let settings = { theme: "system", font: "m" };
@@ -300,7 +318,7 @@ $("#extractBtn").addEventListener("click", () =>
 
 $("#clearBtn").addEventListener("click", () =>
   run(async () => {
-    if (state.serials.length && !(await confirmBox("確定要清除序號清單與目前進度嗎？", { title: "清除序號", ok: "清除", danger: true }))) return;
+    if (state.serials.length && !(await confirmBox("確定要清除序號清單與目前進度嗎？"))) return;
     $("#rawInput").value = "";
     update(await api.clear());
   })

@@ -319,7 +319,7 @@
     el.querySelectorAll(".f-mode button").forEach((b) => b.addEventListener("click", () => setNow(() => (t.mode = b.dataset.v))));
     q(".f-comp").addEventListener("change", (e) => setNow(() => (t.overflow_comp = e.target.checked)));
     q(".f-del")?.addEventListener("click", () => run(async () => {
-      if (!(await confirmBox(`確定要刪除「${t.name}」嗎？`, { ok: "刪除", danger: true }))) return;
+      if (!(await confirmBox(`確定要刪除「${t.name}」嗎？`))) return;
       await tapi.del(t.id);
       file.timers = file.timers.filter((x) => x.id !== t.id);
       renderAll();
