@@ -177,8 +177,8 @@ const CATS = {
     eyebrow: "MapleStory",
     tools: [
       { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
-      { id: "gacha", name: "黃金蘋果轉蛋模擬器", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple" },
       { id: "beauty", name: "美容美髮模擬器", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors" },
+      { id: "gacha", name: "黃金蘋果轉蛋模擬器", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple" },
     ],
   },
   tools: {

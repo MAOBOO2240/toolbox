@@ -277,7 +277,8 @@ fn main() {
             avatar::beauty_wz_status,
             avatar::pick_game_dir,
             avatar::beauty_items,
-            avatar::beauty_icons
+            avatar::beauty_icons,
+            avatar::beauty_skins
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

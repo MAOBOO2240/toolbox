@@ -569,9 +569,17 @@ impl Package {
 pub struct Data {
     pub root: PathBuf,
     packages: HashMap<String, Arc<Package>>,
-    /// img 解析結果快取（分類路徑 + img 名稱）
+    /// img 解析結果快取（分類路徑 + img 名稱），超過上限時先丟最舊的
     imgs: HashMap<String, Arc<Node>>,
+    img_order: std::collections::VecDeque<String>,
+    /// 已解壓縮的像素快取（避免每次重畫都重新解壓縮）
+    pixels: HashMap<String, (u32, u32, Arc<Vec<u8>>)>,
+    pixel_order: std::collections::VecDeque<String>,
+    pixel_bytes: usize,
 }
+
+const IMG_CACHE_MAX: usize = 600;
+const PIXEL_CACHE_BYTES: usize = 96 * 1024 * 1024;
 
 impl Data {
     pub fn new(game_dir: &Path) -> Result<Self, String> {
@@ -579,7 +587,15 @@ impl Data {
         if !root.join("Character").is_dir() {
             return Err(format!("在 {} 找不到 Data\\Character 資料夾", game_dir.display()));
         }
-        Ok(Data { root, packages: HashMap::new(), imgs: HashMap::new() })
+        Ok(Data {
+            root,
+            packages: HashMap::new(),
+            imgs: HashMap::new(),
+            img_order: Default::default(),
+            pixels: HashMap::new(),
+            pixel_order: Default::default(),
+            pixel_bytes: 0,
+        })
     }
 
     /// 分類路徑，例如 "Character/Hair" 或 "Character/Hair/_Canvas"
@@ -600,12 +616,40 @@ impl Data {
         }
         let pkg = self.package(rel)?;
         let n = Arc::new(pkg.img(name)?);
-        // 只快取較小的 img，避免記憶體無限成長
-        if self.imgs.len() > 400 {
-            self.imgs.clear();
+        while self.imgs.len() >= IMG_CACHE_MAX {
+            match self.img_order.pop_front() {
+                Some(old) => {
+                    self.imgs.remove(&old);
+                }
+                None => break,
+            }
         }
+        self.img_order.push_back(key.clone());
         self.imgs.insert(key, n.clone());
         Ok(n)
+    }
+
+    fn cached_pixels(&self, key: &str) -> Option<(u32, u32, Vec<u8>)> {
+        self.pixels.get(key).map(|(w, h, px)| (*w, *h, px.as_ref().clone()))
+    }
+
+    fn store_pixels(&mut self, key: String, w: u32, h: u32, px: &[u8]) {
+        if px.len() > PIXEL_CACHE_BYTES / 8 {
+            return;
+        }
+        while self.pixel_bytes + px.len() > PIXEL_CACHE_BYTES {
+            match self.pixel_order.pop_front() {
+                Some(old) => {
+                    if let Some((_, _, v)) = self.pixels.remove(&old) {
+                        self.pixel_bytes -= v.len();
+                    }
+                }
+                None => break,
+            }
+        }
+        self.pixel_bytes += px.len();
+        self.pixel_order.push_back(key.clone());
+        self.pixels.insert(key, (w, h, Arc::new(px.to_vec())));
     }
 
     /// 取得某個 img 內圖片節點的像素：優先使用 `_outlink`，其次 `_inlink`，最後是本身的資料
@@ -620,9 +664,15 @@ impl Data {
                 let link = link.to_string();
                 return self.canvas_pixels(rel, img, &link);
             }
+            let key = format!("{rel}/{img}@{}", c.data_off);
+            if let Some(v) = self.cached_pixels(&key) {
+                return Ok(v);
+            }
             let pkg = self.package(rel)?;
             let file = pkg.file_of(img).ok_or("找不到圖片檔")?;
-            return Ok((c.w, c.h, canvas_rgba(file, c)?));
+            let px = canvas_rgba(file, c)?;
+            self.store_pixels(key, c.w, c.h, &px);
+            return Ok((c.w, c.h, px));
         }
         Err(format!("{rel}/{img}/{inner} 不是圖片"))
     }
@@ -644,13 +694,22 @@ impl Data {
         if let Some(link) = prop("_inlink") {
             return self.canvas_pixels(rel, img, &link);
         }
+        let key = format!("{rel}/{img}@{}", c.data_off);
+        if let Some(v) = self.cached_pixels(&key) {
+            return Ok(v);
+        }
         let pkg = self.package(rel)?;
         let file = pkg.file_of(img).ok_or("找不到圖片檔")?;
-        Ok((c.w, c.h, canvas_rgba(file, c)?))
+        let px = canvas_rgba(file, c)?;
+        self.store_pixels(key, c.w, c.h, &px);
+        Ok((c.w, c.h, px))
     }
 
     /// 解析 `_outlink`，例如 "Character/Hair/_Canvas/00030000.img/default/hair"，回傳像素
     pub fn outlink_rgba(&mut self, link: &str) -> Result<(u32, u32, Vec<u8>), String> {
+        if let Some(v) = self.cached_pixels(link) {
+            return Ok(v);
+        }
         let idx = link.find(".img/").ok_or("outlink 格式錯誤")? + 4;
         let (pkg_and_img, inner) = (&link[..idx], &link[idx + 1..]);
         let slash = pkg_and_img.rfind('/').ok_or("outlink 格式錯誤")?;
@@ -659,7 +718,11 @@ impl Data {
         let pkg = self.package(rel)?;
         let file = pkg.file_of(img).ok_or("找不到圖片檔")?;
         match node.path(inner) {
-            Some(Node::Canvas(c, _)) => Ok((c.w, c.h, canvas_rgba(file, c)?)),
+            Some(Node::Canvas(c, _)) => {
+                let px = canvas_rgba(file, c)?;
+                self.store_pixels(link.to_string(), c.w, c.h, &px);
+                Ok((c.w, c.h, px))
+            }
             _ => Err(format!("找不到圖片 {link}")),
         }
     }

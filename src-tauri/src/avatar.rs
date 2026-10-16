@@ -73,6 +73,112 @@ pub struct ItemOut {
     pub slot: &'static str,
     /// 是否為點裝（info/cash = 1）
     pub cash: bool,
+    /// 染色（只有紙娃娃輸出的裝備清單會帶）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dye: Option<Dye>,
+}
+
+/// 時裝染色（與遊戲的染色稜鏡相同的參數）
+/// range：0 全色系、1 紅、2 黃、3 綠、4 青、5 藍、6 紫
+#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug, PartialEq)]
+pub struct Dye {
+    #[serde(default)]
+    pub range: u8,
+    #[serde(default)]
+    pub hue: i32,
+    #[serde(default)]
+    pub sat: i32,
+    #[serde(default)]
+    pub val: i32,
+}
+
+impl Dye {
+    fn is_noop(&self) -> bool {
+        self.hue.rem_euclid(360) == 0 && self.sat == 0 && self.val == 0
+    }
+}
+
+fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let d = max - min;
+    let h = if d <= 0.0 {
+        0.0
+    } else if max == r {
+        60.0 * ((g - b) / d).rem_euclid(6.0)
+    } else if max == g {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    let s = if max <= 0.0 { 0.0 } else { d / max };
+    (h, s, max)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
+    let c = v * s;
+    let hp = (h.rem_euclid(360.0)) / 60.0;
+    let x = c * (1.0 - (hp.rem_euclid(2.0) - 1.0).abs());
+    let (r, g, b) = match hp as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    (r + m, g + m, b + m)
+}
+
+/// 依色系範圍調整色相、飽和度、亮度
+fn apply_dye(px: &mut [u8], dye: &Dye) {
+    if dye.is_noop() {
+        return;
+    }
+    let (lo, hi) = match dye.range {
+        1 => (330.0, 30.0),
+        2 => (30.0, 90.0),
+        3 => (90.0, 150.0),
+        4 => (150.0, 210.0),
+        5 => (210.0, 270.0),
+        6 => (270.0, 330.0),
+        _ => (0.0, 360.0),
+    };
+    let in_range = |h: f32| if dye.range == 0 { true } else if lo > hi { h >= lo || h < hi } else { h >= lo && h < hi };
+    let ds = dye.sat.clamp(-100, 100) as f32 / 100.0;
+    let dv = dye.val.clamp(-100, 100) as f32 / 100.0;
+    for p in px.chunks_exact_mut(4) {
+        if p[3] == 0 {
+            continue;
+        }
+        let (h, s, v) = rgb_to_hsv(p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0);
+        // 灰階（黑線、白色）沒有色相，只在全色系時調整亮度
+        if s < 0.04 && dye.range != 0 {
+            continue;
+        }
+        if !in_range(h) {
+            continue;
+        }
+        let h2 = h + dye.hue as f32;
+        let s2 = if ds >= 0.0 { s + (1.0 - s) * ds } else { s * (1.0 + ds) };
+        let v2 = if dv >= 0.0 { v + (1.0 - v) * dv } else { v * (1.0 + dv) };
+        let (r, g, b) = hsv_to_rgb(h2, s2.clamp(0.0, 1.0), v2.clamp(0.0, 1.0));
+        p[0] = (r * 255.0).round() as u8;
+        p[1] = (g * 255.0).round() as u8;
+        p[2] = (b * 255.0).round() as u8;
+    }
+}
+
+/// 紙娃娃要穿的一件點裝：用編號或名稱指定，可以帶染色
+#[derive(Deserialize, Clone, Default)]
+pub struct EquipReq {
+    #[serde(default)]
+    pub id: Option<u32>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub dye: Option<Dye>,
 }
 
 const EQUIP_CATS: [&str; 10] = ["Cap", "Accessory", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon"];
@@ -347,8 +453,9 @@ impl Ctx {
             let (_, cat) = self.equip_by_id(id)?;
             let rel = format!("Character/{cat}");
             let img = format!("{id:08}.img");
-            let root = self.data.img(&rel, &img).ok()?;
-            let node = ["info/icon", "info/iconRaw"].iter().find_map(|p| resolve(&root, p, 0).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
+            // 只讀 info，不解析整個道具（快很多，也不會把紙娃娃用的快取擠掉）
+            let info = self.data.img_child(&rel, &img, "info").ok()??;
+            let node = ["icon", "iconRaw"].iter().find_map(|k| info.get(k).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
             let (w, h, px) = self.data.pixels_of(&rel, &img, &node).ok()?;
             if w <= 1 && h <= 1 {
                 return None;
@@ -467,6 +574,7 @@ fn png_data_url(w: u32, h: u32, px: &[u8]) -> Result<String, String> {
         let mut enc = png::Encoder::new(&mut buf, w, h);
         enc.set_color(png::ColorType::Rgba);
         enc.set_depth(png::BitDepth::Eight);
+        enc.set_compression(png::Compression::Fast);
         let mut wr = enc.write_header().map_err(|e| e.to_string())?;
         wr.write_image_data(px).map_err(|e| e.to_string())?;
     }
@@ -511,6 +619,12 @@ pub struct RenderReq {
     /// 直接指定點裝編號（變更點裝後使用），有值時忽略 equips
     #[serde(default)]
     pub equip_ids: Option<Vec<u32>>,
+    /// 新格式：每件點裝可帶染色；有值時忽略 equips 與 equip_ids
+    #[serde(default)]
+    pub items: Option<Vec<EquipReq>>,
+    /// 指定膚色編號（12000 起），優先於 skin 名稱
+    #[serde(default)]
+    pub skin_id: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -550,9 +664,9 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
 
         // 膚色：精靈皮膚 → 12012 → 身體 2012、頭 12012
         let skin = req
-            .skin
-            .as_deref()
-            .and_then(|s| ctx.skin.iter().find(|(_, n)| n == s.trim()).map(|(id, _)| id % 1000))
+            .skin_id
+            .map(|id| id % 1000)
+            .or_else(|| req.skin.as_deref().and_then(|s| ctx.skin.iter().find(|(_, n)| n == s.trim()).map(|(id, _)| id % 1000)))
             .unwrap_or(0);
         let (body_id, head_id) = if ctx.has("Character", 2000 + skin) { (2000 + skin, 12000 + skin) } else { (2000, 12000) };
 
@@ -619,28 +733,34 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         }
 
         // 點裝：先找出編號，武器決定站姿（雙手武器用 stand2）
-        let mut equips: Vec<(u32, &'static str)> = Vec::new();
+        let mut equips: Vec<(u32, &'static str, Option<Dye>)> = Vec::new();
         let mut missing: Vec<String> = Vec::new();
         if !head_only {
-            if let Some(ids) = &req.equip_ids {
-                for &id in ids {
-                    match ctx.equip_by_id(id) {
-                        Some(e) => equips.push(e),
-                        None => missing.push(id.to_string()),
-                    }
-                }
+            let reqs: Vec<EquipReq> = if let Some(items) = &req.items {
+                items.clone()
+            } else if let Some(ids) = &req.equip_ids {
+                ids.iter().map(|&id| EquipReq { id: Some(id), ..Default::default() }).collect()
             } else {
-                for name in &req.equips {
-                    match ctx.find_equip(name, female) {
-                        Some(e) => equips.push(e),
-                        None => missing.push(name.clone()),
-                    }
+                req.equips.iter().map(|n| EquipReq { name: Some(n.clone()), ..Default::default() }).collect()
+            };
+            for e in reqs {
+                let found = match (e.id, e.name.as_deref()) {
+                    (Some(id), _) => ctx.equip_by_id(id),
+                    (None, Some(n)) => ctx.find_equip(n, female),
+                    _ => None,
+                };
+                match found {
+                    Some((id, cat)) => equips.push((id, cat, e.dye.filter(|d| !d.is_noop()))),
+                    None => missing.push(e.name.clone().or(e.id.map(|i| i.to_string())).unwrap_or_default()),
                 }
             }
         }
-        let equip_out: Vec<ItemOut> = equips.iter().map(|&(id, cat)| ItemOut { id, name: ctx.equip_name(id), slot: slot_key(id, cat), cash: true }).collect();
+        let equip_out: Vec<ItemOut> = equips
+            .iter()
+            .map(|&(id, cat, dye)| ItemOut { id, name: ctx.equip_name(id), slot: slot_key(id, cat), cash: true, dye })
+            .collect();
         let mut pose = "stand1";
-        if let Some(&(wid, _)) = equips.iter().find(|(_, c)| *c == "Weapon") {
+        if let Some(&(wid, _, _)) = equips.iter().find(|(_, c, _)| *c == "Weapon") {
             let root = ctx.data.img("Character/Weapon", &format!("{wid:08}.img")).ok();
             if let Some(root) = root {
                 let mut base = root.as_ref();
@@ -698,11 +818,16 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
 
         // 點裝圖層；帽子、面具等會依 vslot 蓋掉部分髮型或臉型
         let mut covered: Vec<String> = Vec::new();
-        for (i, (id, cat)) in equips.iter().enumerate() {
+        for (i, (id, cat, dye)) in equips.iter().enumerate() {
             let rel = format!("Character/{cat}");
             let Some(frame) = ctx.equip_frame(&rel, *id, pose) else { continue };
             match ctx.layers(&rel, *id, &frame, &[], skin) {
-                Ok(l) if !l.is_empty() => {
+                Ok(mut l) if !l.is_empty() => {
+                    if let Some(d) = dye {
+                        for layer in l.iter_mut() {
+                            apply_dye(&mut layer.px, d);
+                        }
+                    }
                     let vs = ctx.vslot(&rel, *id);
                     if matches!(*cat, "Cap" | "Accessory" | "Longcoat" | "Coat" | "Cape") {
                         covered.extend(vs.as_bytes().chunks(2).map(|c| String::from_utf8_lossy(c).into_owned()));
@@ -751,36 +876,100 @@ pub async fn beauty_render(req: RenderReq) -> Result<RenderOut, String> {
 #[tauri::command]
 pub async fn beauty_items(game_dir: Option<String>, slot: String) -> Result<Vec<ItemOut>, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        with_ctx(game_dir.as_deref(), |ctx| items_of(ctx, &slot))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+const ALL_SLOTS: [&str; 12] = ["Cap", "Face", "Eye", "Ear", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon"];
+
+fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
+    if let Some(v) = ctx.lists.get(slot) {
+        return Ok(v.clone());
+    }
+    if slot == "All" {
+        let mut all = Vec::new();
+        for s in ALL_SLOTS {
+            // 某個分類讀不到（例如資料夾不存在）就略過，不影響其他分類
+            if let Ok(v) = items_of(ctx, s) {
+                all.extend(v);
+            }
+        }
+        ctx.lists.insert(slot.to_string(), all.clone());
+        return Ok(all);
+    }
+    let slot = slot.to_string();
+    let (cat, prefix) = slot_cat(&slot).ok_or("未知的欄位")?;
+    let rel = format!("Character/{cat}");
+    let pkg = ctx.data.package(&rel)?;
+    let mut seen = std::collections::HashSet::new();
+    let cands: Vec<(u32, String, &'static str)> = ctx
+        .equip
+        .iter()
+        .filter(|(id, _, c)| *c == cat && prefix.map(|p| id / 10000 == p).unwrap_or(true))
+        .filter(|(id, _, _)| pkg.imgs.contains_key(&format!("{id:08}.img")))
+        .filter(|(id, _, _)| seen.insert(*id))
+        .cloned()
+        .collect();
+    let mut list = Vec::with_capacity(cands.len());
+    for (id, name, c) in cands {
+        let cash = ctx
+            .data
+            .img_child(&rel, &format!("{id:08}.img"), "info")
+            .ok()
+            .flatten()
+            .and_then(|info| info.get("cash").and_then(|v| v.as_int()))
+            .map(|v| v == 1)
+            .unwrap_or(false);
+        list.push(ItemOut { id, name, slot: slot_key(id, c), cash, dye: None });
+    }
+    ctx.lists.insert(slot, list.clone());
+    Ok(list)
+}
+
+#[derive(Serialize)]
+pub struct SkinOut {
+    pub id: u32,
+    pub name: String,
+    /// 頭部圖片的平均膚色，用來畫色塊
+    pub color: String,
+}
+
+/// 遊戲資料裡有身體圖的膚色
+#[tauri::command]
+pub async fn beauty_skins(game_dir: Option<String>) -> Result<Vec<SkinOut>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
         with_ctx(game_dir.as_deref(), |ctx| {
-            if let Some(v) = ctx.lists.get(&slot) {
-                return Ok(v.clone());
-            }
-            let (cat, prefix) = slot_cat(&slot).ok_or("未知的欄位")?;
-            let rel = format!("Character/{cat}");
-            let pkg = ctx.data.package(&rel)?;
+            let list = ctx.skin.clone();
+            let mut out = Vec::new();
             let mut seen = std::collections::HashSet::new();
-            let cands: Vec<(u32, String, &'static str)> = ctx
-                .equip
-                .iter()
-                .filter(|(id, _, c)| *c == cat && prefix.map(|p| id / 10000 == p).unwrap_or(true))
-                .filter(|(id, _, _)| pkg.imgs.contains_key(&format!("{id:08}.img")))
-                .filter(|(id, _, _)| seen.insert(*id))
-                .cloned()
-                .collect();
-            let mut list = Vec::with_capacity(cands.len());
-            for (id, name, c) in cands {
-                let cash = ctx
-                    .data
-                    .img_child(&rel, &format!("{id:08}.img"), "info")
+            for (id, name) in list {
+                let s = id % 1000;
+                if !seen.insert(s) || !ctx.has("Character", 2000 + s) {
+                    continue;
+                }
+                let color = ctx
+                    .layers("Character", 12000 + s, "front", &["head"], s)
                     .ok()
-                    .flatten()
-                    .and_then(|info| info.get("cash").and_then(|v| v.as_int()))
-                    .map(|v| v == 1)
-                    .unwrap_or(false);
-                list.push(ItemOut { id, name, slot: slot_key(id, c), cash });
+                    .and_then(|l| l.into_iter().next())
+                    .map(|l| {
+                        // 只取不透明、不太暗的像素（排除外框線）
+                        let (mut r, mut g, mut b, mut n) = (0u64, 0u64, 0u64, 0u64);
+                        for p in l.px.chunks_exact(4) {
+                            if p[3] > 200 && (p[0] as u32 + p[1] as u32 + p[2] as u32) > 200 {
+                                r += p[0] as u64;
+                                g += p[1] as u64;
+                                b += p[2] as u64;
+                                n += 1;
+                            }
+                        }
+                        if n == 0 { String::new() } else { format!("#{:02x}{:02x}{:02x}", r / n, g / n, b / n) }
+                    })
+                    .unwrap_or_default();
+                out.push(SkinOut { id, name, color });
             }
-            ctx.lists.insert(slot, list.clone());
-            Ok(list)
+            Ok(out)
         })
     })
     .await
@@ -840,6 +1029,19 @@ mod tests {
         assert_eq!(pick_family(&list, "神經藥臉部", fam, true, false), Some((58080, 58080)));
         let hair = vec![(66790, "黑色餘韻髮型".to_string()), (66791, "紅色餘韻髮型".to_string())];
         assert_eq!(pick_family(&hair, "藍色餘韻髮型", |id| id / 10 * 10, true, true).map(|x| x.0), Some(66790));
+    }
+
+    #[test]
+    fn dye_hsv() {
+        let (h, s2, v) = rgb_to_hsv(1.0, 0.0, 0.0);
+        assert!((h - 0.0).abs() < 1e-3 && (s2 - 1.0).abs() < 1e-3 && (v - 1.0).abs() < 1e-3);
+        let (r, g, b) = hsv_to_rgb(120.0, 1.0, 1.0);
+        assert!(r < 1e-3 && (g - 1.0).abs() < 1e-3 && b < 1e-3);
+        // 紅色轉 120 度變綠色；藍色不在紅色系範圍內，不受影響
+        let mut px = vec![255, 0, 0, 255, 0, 0, 255, 255];
+        apply_dye(&mut px, &Dye { range: 1, hue: 120, sat: 0, val: 0 });
+        assert_eq!(&px[0..3], &[0, 255, 0]);
+        assert_eq!(&px[4..7], &[0, 0, 255]);
     }
 
     #[test]

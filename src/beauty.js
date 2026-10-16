@@ -140,7 +140,7 @@ if (typeof document !== "undefined") (() => {
       pools: C.parse(DEFAULT_TEXT), kind: "hair", gender: "F", page: "sim", cost: DEFAULT_COST, costV2: true, gamePath: "",
       stats: blankStats(), batch: {}, batchDraws: zero(), hist: {}, histDraws: zero(),
       charName: "", tryHair: null, tryFace: null,
-      dress: false, outfit: null, looks: [], pickSlot: "Cap", pickG: "", pickCash: true,
+      dress: false, outfit: null, favs: [], pickSlot: "All", pickG: "", pickCash: true, skinId: null,
     };
   }
   let st = (() => {
@@ -157,6 +157,14 @@ if (typeof document !== "undefined") (() => {
   const fixTry = (t, kind) => (typeof t === "string" ? { pool: kind + (st.gender || "F"), name: t } : t || null);
   st.tryHair = fixTry(st.tryHair, "hair");
   st.tryFace = fixTry(st.tryFace, "face");
+  // 舊版收藏的是整套，改成一件一件收藏
+  if (Array.isArray(st.looks)) {
+    const seen = new Set((st.favs || []).map((x) => x.id));
+    st.favs = [...(st.favs || [])];
+    for (const lk of st.looks) for (const it of lk.outfit || []) if (!seen.has(it.id)) { seen.add(it.id); st.favs.push(it); }
+    delete st.looks;
+  }
+  if (!Array.isArray(st.favs)) st.favs = [];
   let saveTimer;
   const save = () => {
     clearTimeout(saveTimer);
@@ -304,6 +312,15 @@ if (typeof document !== "undefined") (() => {
     return list.filter((x) => !/戒指|EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
   }
 
+  /** API 的染色稜鏡 → 紙娃娃染色參數 */
+  function prismToDye(p) {
+    if (!p) return null;
+    const r = String(p.color_range || "");
+    const range = /紅/.test(r) ? 1 : /黃/.test(r) ? 2 : /綠/.test(r) ? 3 : /青/.test(r) ? 4 : /藍/.test(r) ? 5 : /紫/.test(r) ? 6 : 0;
+    const d = { range, hue: Number(p.hue) || 0, sat: Number(p.saturation) || 0, val: Number(p.value) || 0 };
+    return d.hue || d.sat || d.val ? d : null;
+  }
+
   /** 組出要畫的造型：角色原本的造型，加上試穿（換造型時保留角色原本的顏色與混染） */
   function lookReq(tryH, tryF, mode) {
     const h = currentHair(), f = currentFace();
@@ -325,8 +342,10 @@ if (typeof document !== "undefined") (() => {
       hair: part(h, tryH, st.hairColor),
       face: part(f, tryF, st.faceColor),
       mode,
-      equips: mode === "full" && !st.outfit ? cashList().map((x) => x.cash_item_name) : [],
-      equip_ids: mode === "full" && st.outfit ? st.outfit.map((x) => x.id) : null,
+      skin_id: st.skinId || null,
+      items: mode !== "full" ? [] : st.outfit
+        ? st.outfit.map((x) => ({ id: x.id, dye: x.dye || null }))
+        : cashList().map((x) => ({ name: x.cash_item_name, dye: prismToDye(x.cash_item_coloring_prism) })),
     };
   }
 
@@ -398,7 +417,7 @@ if (typeof document !== "undefined") (() => {
 
   function renderDoll() {
     const tryH = st.tryHair, tryF = st.tryFace;
-    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor)) showDoll(null);
+    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.skinId && !st.outfit?.length)) showDoll(null);
     else showDoll(lookReq(tryH, tryF, "full"));
 
     const wear = $("#bWear");
@@ -411,7 +430,22 @@ if (typeof document !== "undefined") (() => {
     const mixText = (x, pick) => (!pick && x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
     wear.append(wearLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor)));
     wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor)));
-    if (skin) wear.append(wearLine("膚色", skin));
+    {
+      const row = wearLine("膚色", "");
+      const link = document.createElement("button");
+      link.className = "b-link";
+      link.textContent = curSkinName();
+      link.title = "點一下變更膚色";
+      link.addEventListener("click", openSkin);
+      row.children[1].replaceWith(link);
+      if (st.skinId) { const e = document.createElement("small"); e.className = "muted"; e.textContent = "試穿中"; row.append(e); }
+      wear.append(row);
+    }
+  }
+
+  function curSkinName() {
+    if (st.skinId) return (skins || []).find((x) => x.id === st.skinId)?.name || `膚色 ${st.skinId}`;
+    return ch?.beauty?.character_skin?.skin_name || "奶油皮膚";
   }
 
   function tryOn(pool, name) {
@@ -603,6 +637,8 @@ if (typeof document !== "undefined") (() => {
   $("#bRestore").addEventListener("click", () => {
     st.tryHair = st.tryFace = st.hairColor = st.faceColor = null;
     st.outfit = null;
+    st.skinId = null;
+    closeFloat();
     save(); renderSwatches(); renderDoll(); renderRight(); renderPick();
   });
   // 放大後可以按住左鍵拖曳移動角色
@@ -682,6 +718,7 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 變更點裝 ---------- */
   const SLOTS = [
+    ["All", "全部", "c-silver"],
     ["Cap", "帽子", "c-pink"], ["Face", "臉飾", "c-purple"], ["Eye", "眼飾", "c-blue"], ["Ear", "耳環", "c-amber"],
     ["Coat", "上衣", "c-orange"], ["Longcoat", "套服", "c-red"], ["Pants", "褲裙", "c-teal"], ["Shoes", "鞋子", "c-green"],
     ["Glove", "手套", "c-silver"], ["Cape", "披風", "c-purple"], ["Shield", "輔助武器", "c-blue"], ["Weapon", "武器", "c-orange"],
@@ -691,9 +728,10 @@ if (typeof document !== "undefined") (() => {
   const iconCache = new Map(); // 編號 → 圖示 data URL（null = 沒有圖示）
   const PAGE = 240;
   let shown = PAGE;
+  const plain = ({ id, name, slot, dye }) => (dye ? { id, name, slot, dye: { ...dye } } : { id, name, slot });
 
   /** 目前穿著的點裝：有自訂就用自訂，否則是角色原本的套組 */
-  const curOutfit = () => st.outfit || lastEquips.map(({ id, name, slot }) => ({ id, name, slot }));
+  const curOutfit = () => st.outfit || lastEquips.map(plain);
 
   function setOutfit(list) {
     st.outfit = list;
@@ -703,18 +741,33 @@ if (typeof document !== "undefined") (() => {
     markIcons();
   }
 
-  /** 穿上：同一個欄位只能有一件；套服和上衣、褲裙互斥 */
-  function wear(item) {
-    let list = curOutfit().filter((x) => x.id !== item.id);
-    if (curOutfit().some((x) => x.id === item.id)) return setOutfit(list); // 已穿著 → 脫下
+  /** 穿上：同一個欄位只能有一件；套服和上衣、褲裙互斥。toggle = 已穿著時脫下 */
+  function wear(item, toggle = true) {
+    const cur = curOutfit();
+    if (cur.some((x) => x.id === item.id)) {
+      if (toggle) setOutfit(cur.filter((x) => x.id !== item.id));
+      return;
+    }
     const clash = { Longcoat: ["Coat", "Pants"], Coat: ["Longcoat"], Pants: ["Longcoat"] }[item.slot] || [];
-    list = list.filter((x) => x.slot !== item.slot && !clash.includes(x.slot));
-    list.push({ id: item.id, name: item.name, slot: item.slot });
+    const list = cur.filter((x) => x.slot !== item.slot && !clash.includes(x.slot));
+    list.push(plain(item));
     setOutfit(list);
   }
 
+  const isFav = (id) => st.favs.some((x) => x.id === id);
+  function addFav(item) {
+    if (isFav(item.id)) return toast("已經在收藏裡了");
+    st.favs.unshift(plain(item));
+    save(); renderSaved();
+    toast(`已收藏「${item.name}」`);
+  }
+  function removeFav(item) {
+    st.favs = st.favs.filter((x) => x.id !== item.id);
+    save(); renderSaved();
+  }
+
   /* 圖示：進入畫面的才向 Rust 要，一次要一批 */
-  let iconWant = new Set(), iconTimer = null;
+  let iconWant = new Set(), iconTimer = null, iconBusy = false;
   const io = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver((ents) => {
     for (const e of ents) if (e.isIntersecting) { iconWant.add(Number(e.target.dataset.id)); io.unobserve(e.target); }
     clearTimeout(iconTimer);
@@ -722,15 +775,18 @@ if (typeof document !== "undefined") (() => {
   }, { root: null, rootMargin: "120px" }) : null;
 
   async function loadIcons() {
-    const ids = [...iconWant].filter((id) => !iconCache.has(id)).slice(0, 80);
-    iconWant = new Set([...iconWant].filter((id) => !ids.includes(id) && !iconCache.has(id)));
-    if (!ids.length || !TAURI) return;
+    if (iconBusy || !TAURI) return;
+    const ids = [...iconWant].filter((id) => !iconCache.has(id)).slice(0, 60);
+    ids.forEach((id) => iconWant.delete(id));
+    if (!ids.length) return;
+    iconBusy = true;
     try {
       const pngs = await invoke("beauty_icons", { gameDir: st.gamePath || null, ids });
       ids.forEach((id, i) => iconCache.set(id, pngs[i] || null));
     } catch (_) { ids.forEach((id) => iconCache.set(id, null)); }
-    $$("[data-id]").forEach((el) => fillIcon(el));
-    if (iconWant.size) loadIcons();
+    iconBusy = false;
+    $$("#view-beauty [data-id]:not([data-done])").forEach(fillIcon);
+    if (iconWant.size) setTimeout(loadIcons, 0);
   }
 
   function fillIcon(el) {
@@ -738,21 +794,108 @@ if (typeof document !== "undefined") (() => {
     if (!iconCache.has(id) || el.dataset.done) return;
     el.dataset.done = "1";
     const png = iconCache.get(id);
-    if (png) { const img = new Image(); img.src = png; img.alt = ""; el.prepend(img); }
+    if (png) { const img = new Image(); img.src = png; img.alt = ""; img.draggable = false; el.prepend(img); }
     else el.classList.add("noicon");
   }
+
+  /* ---------- 拖曳：拖到收藏 = 收藏；拖到角色或目前裝備 = 穿上 ---------- */
+  let suppressClick = false;
+  function draggable(el, item) {
+    el.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      const sx = e.clientX, sy = e.clientY;
+      let ghost = null, over = null;
+      const zoneOf = (x, y) => {
+        const t = document.elementFromPoint(x, y);
+        if (!t) return null;
+        if (t.closest(".b-saved")) return "fav";
+        if (t.closest(".b-equipped") || t.closest("#bStage")) return "wear";
+        return null;
+      };
+      const mark = (z) => {
+        if (z === over) return;
+        over = z;
+        $(".b-saved")?.classList.toggle("drop", z === "fav");
+        $(".b-equipped")?.classList.toggle("drop", z === "wear");
+        $("#bStage").classList.toggle("drop", z === "wear");
+      };
+      const move = (ev) => {
+        if (!ghost) {
+          if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+          ghost = document.createElement("div");
+          ghost.className = "b-ghost";
+          const img = el.querySelector("img");
+          if (img) ghost.append(img.cloneNode());
+          else ghost.textContent = item.name.slice(0, 2);
+          document.body.append(ghost);
+          document.body.classList.add("b-dragging");
+        }
+        ghost.style.transform = `translate(${ev.clientX - 22}px, ${ev.clientY - 22}px)`;
+        mark(zoneOf(ev.clientX, ev.clientY));
+      };
+      const up = (ev) => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        if (!ghost) return;
+        ghost.remove();
+        document.body.classList.remove("b-dragging");
+        const z = zoneOf(ev.clientX, ev.clientY);
+        mark(null);
+        suppressClick = true;
+        setTimeout(() => (suppressClick = false), 0);
+        if (z === "fav") addFav(item);
+        else if (z === "wear") wear(item, false);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+    el.addEventListener("click", (e) => { if (suppressClick) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+    el.addEventListener("contextmenu", (e) => { e.preventDefault(); openCtx(e.clientX, e.clientY, item); });
+  }
+
+  /* ---------- 右鍵選單 ---------- */
+  function openCtx(x, y, item) {
+    const m = $("#bCtx");
+    m.innerHTML = "";
+    const worn = curOutfit().some((o) => o.id === item.id);
+    const opts = [
+      [isFav(item.id) ? "取消收藏" : "收藏", () => (isFav(item.id) ? removeFav(item) : addFav(item))],
+      [worn ? "脫下" : "穿上", () => wear(item, true)],
+    ];
+    if (worn) opts.push(["染色", () => openDye(item.id)]);
+    const title = document.createElement("div");
+    title.className = "b-ctx-title";
+    title.textContent = item.name;
+    m.append(title);
+    for (const [label, fn] of opts) {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.addEventListener("click", () => { closeCtx(); fn(); });
+      m.append(b);
+    }
+    m.hidden = false;
+    const r = m.getBoundingClientRect();
+    m.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`;
+    m.style.top = `${Math.min(y, innerHeight - r.height - 8)}px`;
+  }
+  const closeCtx = () => { $("#bCtx").hidden = true; };
+  document.addEventListener("pointerdown", (e) => { if (!e.target.closest("#bCtx")) closeCtx(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCtx(); closeFloat(); } });
+  window.addEventListener("blur", closeCtx);
 
   function iconEl(item, tag = "button") {
     const el = document.createElement(tag);
     el.className = "b-icon";
     el.dataset.id = item.id;
+    el.title = item.name;
     if (iconCache.has(item.id)) fillIcon(el); else io?.observe(el);
+    draggable(el, item);
     return el;
   }
 
   function markIcons() {
     const on = new Set(curOutfit().map((x) => x.id));
-    $$("#bIcons .b-icon").forEach((el) => el.classList.toggle("on", on.has(Number(el.dataset.id))));
+    $$("#bIcons .b-icon, #bSaved .b-icon").forEach((el) => el.classList.toggle("on", on.has(Number(el.dataset.id))));
   }
 
   function filtered() {
@@ -768,7 +911,8 @@ if (typeof document !== "undefined") (() => {
   async function renderPick() {
     if (!st.dress) return;
     const slots = $("#bSlots");
-    if (!slots.childElementCount) {
+    if (slots.childElementCount !== SLOTS.length) {
+      slots.innerHTML = "";
       for (const [k, n, c] of SLOTS) {
         const b = document.createElement("button");
         b.className = `cbtn ${c}`;
@@ -784,7 +928,8 @@ if (typeof document !== "undefined") (() => {
     const box = $("#bIcons");
     if (!TAURI) { box.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
     if (!itemLists[st.pickSlot]) {
-      box.innerHTML = '<div class="g-empty">讀取中…</div>';
+      box.innerHTML = `<div class="g-empty">讀取中…${st.pickSlot === "All" ? "（第一次讀取全部分類需要一點時間）" : ""}</div>`;
+      $("#bPickCount").textContent = "";
       const slot = st.pickSlot;
       try { itemLists[slot] = await invoke("beauty_items", { gameDir: st.gamePath || null, slot }); }
       catch (e) { box.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
@@ -792,24 +937,27 @@ if (typeof document !== "undefined") (() => {
     }
     const list = filtered();
     box.innerHTML = "";
+    $("#bPickCount").textContent = `${list.length} 件`;
     if (!list.length) { box.innerHTML = '<div class="g-empty">沒有符合的道具</div>'; return; }
+    const frag = document.createDocumentFragment();
     for (const it of list.slice(0, shown)) {
       const el = iconEl(it);
-      el.title = it.name;
-      el.addEventListener("mouseenter", () => { $("#bPickHover").textContent = `${it.name}（${it.id}）`; });
+      el.addEventListener("mouseenter", () => { $("#bPickHover").textContent = `${it.name}・${SLOT_NAME[it.slot] || ""}（${it.id}）`; });
       el.addEventListener("click", () => wear(it));
-      box.appendChild(el);
+      frag.appendChild(el);
     }
     if (list.length > shown) {
       const more = document.createElement("button");
       more.className = "cbtn c-silver small b-more";
       more.textContent = `顯示更多（還有 ${list.length - shown} 件）`;
       more.addEventListener("click", () => { shown += PAGE * 2; renderPick(); });
-      box.appendChild(more);
+      frag.appendChild(more);
     }
-    $("#bPickCount").textContent = `${list.length} 件`;
+    box.appendChild(frag);
     markIcons();
   }
+
+  const PALETTE_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3Z"/><circle cx="7.5" cy="11" r="1.3"/><circle cx="10" cy="7.3" r="1.3"/><circle cx="14.5" cy="7.3" r="1.3"/><circle cx="17" cy="11" r="1.3"/></svg>';
 
   function renderEquipped() {
     const box = $("#bEqList");
@@ -825,13 +973,18 @@ if (typeof document !== "undefined") (() => {
       txt.className = "b-eq-text";
       txt.innerHTML = `<span></span><small class="muted"></small>`;
       txt.children[0].textContent = it.name;
-      txt.children[1].textContent = SLOT_NAME[it.slot] || "";
+      txt.children[1].textContent = (SLOT_NAME[it.slot] || "") + (it.dye ? "・已染色" : "");
+      const dye = document.createElement("button");
+      dye.className = "b-dye-btn" + (it.dye ? " on" : "");
+      dye.title = "染色";
+      dye.innerHTML = PALETTE_SVG;
+      dye.addEventListener("click", () => openDye(it.id));
       const del = document.createElement("button");
       del.className = "b-x";
       del.title = "脫下";
       del.textContent = "×";
       del.addEventListener("click", () => setOutfit(curOutfit().filter((x) => x.id !== it.id)));
-      row.append(ic, txt, del);
+      row.append(ic, txt, dye, del);
       box.appendChild(row);
     }
     renderSaved();
@@ -840,51 +993,117 @@ if (typeof document !== "undefined") (() => {
   function renderSaved() {
     const box = $("#bSaved");
     box.innerHTML = "";
-    if (!st.looks.length) { box.innerHTML = '<div class="g-empty">按「儲存目前時裝」把現在穿的點裝存起來</div>'; return; }
-    st.looks.forEach((lk, i) => {
-      const card = document.createElement("div");
-      card.className = "b-look";
-      card.title = "點一下穿上這套時裝";
-      if (lk.pic) { const img = new Image(); img.src = lk.pic; img.alt = ""; card.append(img); }
-      const nm = document.createElement("input");
-      nm.type = "text";
-      nm.value = lk.name;
-      nm.title = "可以直接修改名稱";
-      nm.addEventListener("click", (e) => e.stopPropagation());
-      nm.addEventListener("input", () => { lk.name = nm.value; save(); });
-      const del = document.createElement("button");
-      del.className = "b-x";
-      del.title = "刪除";
-      del.textContent = "×";
-      del.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!(await confirmBox(`確定要刪除「${lk.name}」嗎？`))) return;
-        st.looks.splice(i, 1); save(); renderSaved();
-      });
-      card.append(nm, del);
-      card.addEventListener("click", () => { setOutfit(lk.outfit.map((x) => ({ ...x }))); toast(`已穿上「${lk.name}」`); });
-      box.appendChild(card);
-    });
+    if (!st.favs.length) { box.innerHTML = '<div class="g-empty">還沒有收藏的時裝</div>'; return; }
+    for (const it of st.favs) {
+      const el = iconEl(it);
+      el.addEventListener("click", () => wear(it));
+      box.appendChild(el);
+    }
+    markIcons();
   }
+
+  /* ---------- 浮動視窗：染色、膚色 ---------- */
+  function closeFloat() { $("#bDyeWin").hidden = true; $("#bSkinWin").hidden = true; dyeId = null; }
+
+  const RANGES = [["全色系", "c-silver"], ["紅色系", "c-red"], ["黃色系", "c-amber"], ["綠色系", "c-green"], ["青色系", "c-teal"], ["藍色系", "c-blue"], ["紫色系", "c-purple"]];
+  let dyeId = null;
+  function dyeItem() { return curOutfit().find((x) => x.id === dyeId); }
+  function openDye(id) {
+    if (!st.outfit) st.outfit = curOutfit(); // 先把角色原本的套組變成可以修改的清單
+    dyeId = id;
+    const it = dyeItem();
+    if (!it) return;
+    $("#bSkinWin").hidden = true;
+    $("#bDyeTitle").textContent = `染色：${it.name}`;
+    const box = $("#bDyeRanges");
+    if (!box.childElementCount) {
+      RANGES.forEach(([n, c], i) => {
+        const b = document.createElement("button");
+        b.className = `cbtn small ${c}`;
+        b.textContent = n;
+        b.dataset.r = i;
+        b.addEventListener("click", () => setDye({ range: i }));
+        box.appendChild(b);
+      });
+    }
+    $("#bDyeWin").hidden = false;
+    syncDye();
+  }
+  function syncDye() {
+    const d = dyeItem()?.dye || { range: 0, hue: 0, sat: 0, val: 0 };
+    $$("#bDyeRanges button").forEach((b) => b.classList.toggle("on", Number(b.dataset.r) === (d.range || 0)));
+    for (const [k, el] of [["hue", "Hue"], ["sat", "Sat"], ["val", "Val"]]) {
+      const v = d[k] || 0;
+      if (document.activeElement !== $(`#bDye${el}`)) $(`#bDye${el}`).value = v;
+      $(`#bDye${el}V`).textContent = k === "hue" ? `${v}°` : v > 0 ? `+${v}` : `${v}`;
+    }
+  }
+  function setDye(patch) {
+    const it = dyeItem();
+    if (!it) return;
+    const d = { range: 0, hue: 0, sat: 0, val: 0, ...(it.dye || {}), ...patch };
+    const empty = !d.hue && !d.sat && !d.val;
+    st.outfit = curOutfit().map((x) => (x.id === it.id ? (empty && !d.range ? plain({ ...x, dye: null }) : { ...x, dye: d }) : x));
+    save();
+    syncDye();
+    renderDoll();
+    clearTimeout(setDye.t);
+    setDye.t = setTimeout(renderEquipped, 250);
+  }
+  $("#bDyeHue").addEventListener("input", (e) => setDye({ hue: Number(e.target.value) }));
+  $("#bDyeSat").addEventListener("input", (e) => setDye({ sat: Number(e.target.value) }));
+  $("#bDyeVal").addEventListener("input", (e) => setDye({ val: Number(e.target.value) }));
+  $("#bDyeReset").addEventListener("click", () => setDye({ range: 0, hue: 0, sat: 0, val: 0 }));
+  $("#bDyeDone").addEventListener("click", closeFloat);
+  $("#bDyeClose").addEventListener("click", closeFloat);
+
+  let skins = null;
+  async function openSkin() {
+    $("#bDyeWin").hidden = true;
+    $("#bSkinWin").hidden = false;
+    const box = $("#bSkinList");
+    if (!TAURI) { box.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
+    if (!skins) {
+      box.innerHTML = '<div class="g-empty">讀取中…</div>';
+      try { skins = await invoke("beauty_skins", { gameDir: st.gamePath || null }); }
+      catch (e) { box.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
+    }
+    renderSkins();
+  }
+  function renderSkins() {
+    const box = $("#bSkinList");
+    box.innerHTML = "";
+    const cur = curSkinName();
+    for (const sk of skins || []) {
+      const b = document.createElement("button");
+      b.className = "b-skin" + (sk.name === cur ? " on" : "");
+      b.innerHTML = `<i></i><span></span>`;
+      b.firstChild.style.background = sk.color || "var(--card-2)";
+      b.lastChild.textContent = sk.name;
+      b.addEventListener("click", () => { st.skinId = sk.id; save(); renderDoll(); renderRight(); renderSkins(); });
+      box.appendChild(b);
+    }
+  }
+  $("#bSkinClose").addEventListener("click", closeFloat);
+  $("#bSkinChar").addEventListener("click", () => { st.skinId = null; save(); renderDoll(); renderRight(); if (skins) renderSkins(); });
 
   $("#bDress").addEventListener("click", () => {
     st.dress = !st.dress;
+    if (!st.dress) closeFloat();
     save(); renderPage(); renderPick(); renderEquipped();
   });
   $$("#bPickG button").forEach((b) => b.addEventListener("click", () => { st.pickG = b.dataset.g; shown = PAGE; save(); renderPick(); }));
   $("#bPickCash").addEventListener("click", () => { st.pickCash = !st.pickCash; shown = PAGE; save(); renderPick(); });
   let searchTimer;
   $("#bPickSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { shown = PAGE; renderPick(); }, 200); });
-  $("#bOutfitChar").addEventListener("click", () => { st.outfit = null; save(); renderDoll(); renderEquipped(); markIcons(); });
-  $("#bOutfitClear").addEventListener("click", () => setOutfit([]));
+  $("#bOutfitChar").addEventListener("click", () => { st.outfit = null; closeFloat(); save(); renderDoll(); renderEquipped(); markIcons(); });
+  $("#bOutfitClear").addEventListener("click", () => { closeFloat(); setOutfit([]); });
   $("#bSaveLook").addEventListener("click", () => {
-    const outfit = curOutfit();
-    if (!outfit.length) return toast("目前沒有穿任何點裝");
-    const look = $("#bLook");
-    st.looks.unshift({ name: `時裝 ${st.looks.length + 1}`, outfit: outfit.map((x) => ({ ...x })), pic: look.hidden || !look.src.startsWith("data:") ? "" : look.src });
-    if (st.looks.length > 30) st.looks.length = 30;
+    const add = curOutfit().filter((x) => !isFav(x.id));
+    if (!add.length) return toast(curOutfit().length ? "目前裝備都已經收藏了" : "目前沒有穿任何點裝");
+    st.favs = [...add.map(plain), ...st.favs];
     save(); renderSaved();
-    toast("已儲存目前時裝");
+    toast(`已收藏 ${add.length} 件`);
   });
 
   // 在「解析」頁或變更點裝時，左上角變成「上一頁」回到抽獎模擬

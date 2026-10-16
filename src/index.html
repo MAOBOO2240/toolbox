@@ -359,7 +359,7 @@
             <div class="b-search">
               <input type="text" id="bName" placeholder="輸入角色名稱" />
               <button class="cbtn c-blue small solid" id="bLookup">查詢</button>
-              <button class="cbtn c-red small" id="bRestore" title="清除試穿、顏色與點裝變更，回到角色目前的造型">恢復原本造型</button>
+              <button class="cbtn c-red small" id="bRestore" title="清除試穿、顏色、膚色與點裝變更，回到角色目前的造型">恢復造型</button>
             </div>
             <p class="b-status muted" id="bStatus">輸入角色名稱可以載入目前的造型；不輸入則使用空白紙娃娃</p>
             <div class="b-stage" id="bStage">
@@ -425,9 +425,10 @@
               <div class="b-card-head">
                 <strong>收藏的時裝</strong>
                 <span class="spacer"></span>
-                <button class="cbtn c-blue small solid" id="bSaveLook">儲存目前時裝</button>
+                <button class="cbtn c-blue small solid" id="bSaveLook" title="把目前穿著的每一件點裝加入收藏">收藏目前裝備</button>
               </div>
-              <div class="b-saved-grid" id="bSaved"></div>
+              <div class="b-fav-grid" id="bSaved"></div>
+              <p class="b-fav-hint muted">把點裝拖到這裡、或按右鍵選「收藏」加入；拖到角色或目前裝備就能穿上</p>
             </div>
           </div>
         </div>
@@ -455,6 +456,36 @@
       </section>
     </main>
   </div>
+
+  <!-- 美容美髮：時裝染色 -->
+  <div class="b-float" id="bDyeWin" hidden>
+    <div class="b-float-head">
+      <strong id="bDyeTitle">時裝染色</strong>
+      <button class="b-x" id="bDyeClose" title="關閉">×</button>
+    </div>
+    <div class="b-dye-ranges" id="bDyeRanges"></div>
+    <label class="b-slider"><span>色相</span><input type="range" id="bDyeHue" min="0" max="359" step="1" /><b id="bDyeHueV">0</b></label>
+    <label class="b-slider"><span>飽和度</span><input type="range" id="bDyeSat" min="-99" max="99" step="1" /><b id="bDyeSatV">0</b></label>
+    <label class="b-slider"><span>亮度</span><input type="range" id="bDyeVal" min="-99" max="99" step="1" /><b id="bDyeValV">0</b></label>
+    <div class="b-float-foot">
+      <button class="cbtn c-red small" id="bDyeReset">還原顏色</button>
+      <button class="cbtn c-blue small solid" id="bDyeDone">完成</button>
+    </div>
+  </div>
+
+  <!-- 美容美髮：膚色 -->
+  <div class="b-float b-skin-win" id="bSkinWin" hidden>
+    <div class="b-float-head">
+      <strong>變更膚色</strong>
+      <button class="b-x" id="bSkinClose" title="關閉">×</button>
+    </div>
+    <div class="b-skin-list" id="bSkinList"></div>
+    <div class="b-float-foot">
+      <button class="cbtn c-teal small" id="bSkinChar">角色原本膚色</button>
+    </div>
+  </div>
+
+  <div class="b-ctx" id="bCtx" hidden></div>
 
   <div class="toast" id="toast"></div>
 
