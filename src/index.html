@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant" data-font="m">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工具箱</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 共用工具列：主題與字體大小 -->
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="字體大小">
+      <button class="seg-btn" data-font="s">小</button>
+      <button class="seg-btn" data-font="m">中</button>
+      <button class="seg-btn" data-font="l">大</button>
+    </div>
+    <button class="theme-btn" id="themeBtn" aria-label="切換深淺色模式">
+      <span class="theme-icon" id="themeIcon">☾</span>
+      <span id="themeLabel">深色</span>
+    </button>
+  </div>
+
+  <!-- 主頁面 -->
+  <section class="page active" id="page-home">
+    <header class="large-title">
+      <p class="eyebrow">Toolbox</p>
+      <h1>工具箱</h1>
+    </header>
+
+    <div class="bubble-grid">
+      <button class="bubble" data-go="serial">
+        <span class="bubble-icon blue">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+        </span>
+        <span class="bubble-text">
+          <strong>序號複製工具</strong>
+          <small>貼上文字自動擷取，Ctrl+V 後自動換下一組</small>
+        </span>
+        <span class="chev">›</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 序號複製工具 -->
+  <section class="page" id="page-serial">
+    <nav class="navbar">
+      <button class="back" data-go="home"><span class="back-chev">‹</span>主頁</button>
+      <span class="nav-title">序號複製工具</span>
+      <span class="nav-spacer"></span>
+    </nav>
+
+    <div class="scroll">
+      <div class="card">
+        <label class="card-label" for="rawInput">貼上文字</label>
+        <textarea id="rawInput" placeholder="貼上包含序號、時間、道具名稱等的任何文字…"></textarea>
+        <p class="hint">規則：15–25 碼英數字，排除純數字，自動去除重複</p>
+        <div class="row">
+          <button class="pill primary" id="extractBtn">擷取序號</button>
+          <button class="pill ghost danger" id="clearBtn">清除</button>
+        </div>
+      </div>
+
+      <div class="card status-card" id="statusCard">
+        <div class="status-top">
+          <div>
+            <p class="card-label">目前序號</p>
+            <p class="progress-text" id="progressText">0 / 0</p>
+          </div>
+          <label class="switch-wrap">
+            <span id="activeLabel">自動切換</span>
+            <span class="switch">
+              <input type="checkbox" id="activeToggle" />
+              <span class="slider"></span>
+            </span>
+          </label>
+        </div>
+        <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+        <button class="current" id="currentSerial" title="點擊複製">—</button>
+        <p class="done-banner" id="doneBanner">🎉 已全部使用完畢</p>
+        <div class="row">
+          <button class="pill ghost" id="prevBtn">‹ 上一組</button>
+          <button class="pill ghost" id="nextBtn">下一組 ›</button>
+        </div>
+        <p class="hint" id="activeHint">開啟「自動切換」後，在其他程式按 Ctrl+V 貼上，剪貼簿會自動換成下一組。</p>
+      </div>
+
+      <div class="list-head">
+        <span>序號清單</span>
+        <span id="countText">0 組</span>
+      </div>
+      <ol class="list" id="serialList"></ol>
+      <p class="empty" id="emptyText">尚未擷取任何序號</p>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

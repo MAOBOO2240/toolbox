@@ -1,0 +1,63 @@
+name: Build & Release
+
+# 推送到 main 或手動觸發時，在 Windows 上編譯並覆蓋發布 v1.0.0
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Tauri CLI
+        run: npm install
+
+      - name: Run tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build exe
+        run: npm run build
+
+      - name: Prepare asset
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item src-tauri/target/release/toolbox.exe dist/Toolbox.exe
+          Get-Item dist/Toolbox.exe | Select-Object Name, Length
+
+      - name: Replace v1.0.0 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete v1.0.0 --cleanup-tag --yes || true
+          git push origin :refs/tags/v1.0.0 || true
+          gh release create v1.0.0 dist/Toolbox.exe \
+            --target "$GITHUB_SHA" \
+            --title "工具箱 v1.0.0" \
+            --notes "Windows 10/11 免安裝版，下載 Toolbox.exe 直接執行。
+
+          最後更新：$(date -u '+%Y-%m-%d %H:%M UTC')（commit ${GITHUB_SHA::7}）
+
+          首次執行若出現 SmartScreen「Windows 已保護您的電腦」，請點「其他資訊」→「仍要執行」。"
