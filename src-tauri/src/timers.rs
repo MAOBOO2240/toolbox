@@ -493,8 +493,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 // 有計時器正在倒數或超時才顯示浮動視窗
                 let any_running = snaps.iter().any(|s| s.active && matches!(s.phase, "running" | "over"));
                 let o = &prefs.overlay;
-                // 只在新楓之谷時：離開遊戲就隱藏；但未鎖定且正在本程式中調整時仍顯示，方便擺放位置
-                let in_place = !game_only || game_fg || (!o.locked && info.is_self);
+                // 只在新楓之谷時：遊戲或本程式在前景才顯示，其他程式在前景就隱藏
+                let in_place = !game_only || game_fg || info.is_self;
                 let want = OvApplied { visible: o.show && master && any_running && in_place, locked: o.locked };
                 let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_millis(800) {
                     e.dirty = false;

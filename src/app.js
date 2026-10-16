@@ -148,6 +148,7 @@ document.addEventListener("click", (e) => {
 /* ---------- 分類與導覽 ---------- */
 const ICONS = {
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>',
+  apple: '<svg viewBox="0 0 24 24"><path d="M12 7c-1.5-1.3-3.8-1.6-5.4-.4C4.3 8.3 4.6 12.6 6.5 16c1.2 2.2 2.7 4 4.3 3.6.6-.1.9-.4 1.2-.4s.6.3 1.2.4c1.6.4 3.1-1.4 4.3-3.6 1.9-3.4 2.2-7.7-.1-9.4C15.8 5.4 13.5 5.7 12 7z"/><path d="M12 7c0-2 1-3.5 3-4"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
 };
 
@@ -155,7 +156,10 @@ const CATS = {
   maple: {
     title: "楓之谷工具",
     eyebrow: "MapleStory",
-    tools: [{ id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" }],
+    tools: [
+      { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
+      { id: "gacha", name: "黃金蘋果轉蛋模擬器", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple" },
+    ],
   },
   tools: {
     title: "工具箱",
@@ -211,6 +215,7 @@ function openTool(id) {
   $("#app").classList.add("collapsed");
   showView(id);
   if (id === "timer" && window.Timers) window.Timers.onShow();
+  if (id === "gacha" && window.Gacha) window.Gacha.onShow();
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));

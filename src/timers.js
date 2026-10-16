@@ -408,11 +408,13 @@
     $("#prefFileRow").hidden = p.sound !== "file";
     $("#prefFileName").textContent = p.sound_file ? p.sound_file.split(/[\\/]/).pop() : "尚未選擇";
     $("#prefVolume").value = p.volume;
-    $("#prefVolumeVal").textContent = `${p.volume}%`;
+    if (document.activeElement !== $("#prefVolumeVal")) $("#prefVolumeVal").value = p.volume;
     $("#prefOvShow").checked = p.overlay.show;
     $("#prefOvLock").checked = p.overlay.locked;
-    $("#prefOvBg").value = Math.round(p.overlay.bg * 100);
-    $("#prefOvBgVal").textContent = `${Math.round(p.overlay.bg * 100)}%`;
+    // 介面顯示「透明度」= 100% − 底色濃度
+    const trans = Math.round((1 - p.overlay.bg) * 100);
+    $("#prefOvTrans").value = trans;
+    if (document.activeElement !== $("#prefOvTransVal")) $("#prefOvTransVal").value = trans;
   }
   const setPref = (fn) => { fn(file.prefs); renderPrefs(); savePrefs(); };
 
@@ -422,11 +424,22 @@
     const f = await tapi.pickFile();
     if (f) setPref((p) => (p.sound_file = f));
   }));
+  const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
   $("#prefVolume").addEventListener("input", (e) => setPref((p) => (p.volume = Number(e.target.value))));
+  $("#prefVolumeVal").addEventListener("input", (e) => {
+    if (e.target.value === "") return;
+    setPref((p) => (p.volume = clampNum(e.target.value, 0, 200)));
+  });
+  $("#prefVolumeVal").addEventListener("blur", (e) => (e.target.value = file.prefs.volume));
   $("#prefPreview").addEventListener("click", () => run(() => tapi.preview(file.prefs, file.timers[0]?.name || "計時器")));
   $("#prefOvShow").addEventListener("change", (e) => setPref((p) => (p.overlay.show = e.target.checked)));
   $("#prefOvLock").addEventListener("change", (e) => setPref((p) => (p.overlay.locked = e.target.checked)));
-  $("#prefOvBg").addEventListener("input", (e) => setPref((p) => (p.overlay.bg = Number(e.target.value) / 100)));
+  $("#prefOvTrans").addEventListener("input", (e) => setPref((p) => (p.overlay.bg = 1 - Number(e.target.value) / 100)));
+  $("#prefOvTransVal").addEventListener("input", (e) => {
+    if (e.target.value === "") return;
+    setPref((p) => (p.overlay.bg = 1 - clampNum(e.target.value, 0, 100) / 100));
+  });
+  $("#prefOvTransVal").addEventListener("blur", (e) => (e.target.value = Math.round((1 - file.prefs.overlay.bg) * 100)));
   $("#prefOvReset").addEventListener("click", () => run(() => tapi.resetOverlay()));
 
   /* ---------- 上方與左下控制 ---------- */

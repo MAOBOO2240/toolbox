@@ -31,28 +31,28 @@
     /* 每一列的高度依計時器數量平均分配，但不會過高 */
     .row {
       flex: none;
-      height: min(calc(100cqh / var(--n, 1)), 30cqw);
+      height: calc(100cqh / var(--n, 1));
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6%;
+      gap: 18cqh;
       container-type: size;
     }
+    /* 文字不截斷，太長時由視窗自動加寬 */
     .name {
-      min-width: 0;
+      flex: none;
       font-size: 36cqh;
-      font-weight: 800;
+      font-weight: 500;
       color: #fff;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.6);
     }
     .time {
       --heat: 0;
       flex: none;
       font-size: 68cqh;
-      font-weight: 900;
+      font-weight: 500;
+      white-space: nowrap;
       font-variant-numeric: tabular-nums;
       line-height: 1;
       /* 倒數中：粗體白色填滿＋陰影，越接近結束越紅 */
@@ -62,7 +62,7 @@
     /* 超時：紅色外框、不填滿 */
     .time.over {
       color: transparent;
-      -webkit-text-stroke: max(1.5px, 0.045em) #ff3b30;
+      -webkit-text-stroke: max(1.2px, 0.035em) #ff3b30;
       text-shadow: none;
       filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
     }
@@ -139,7 +139,25 @@
         }
         r.time.style.setProperty("--heat", heat.toFixed(3));
       });
+      fitWidth();
     });
+
+    // 文字放不下時加寬視窗，並把最小寬度設成剛好放得下的大小
+    const LogicalSize = (T.window && T.window.LogicalSize) || (T.dpi && T.dpi.LogicalSize);
+    let minW = 0;
+    function fitWidth() {
+      if (!LogicalSize || rows.size === 0) return;
+      let need = 0;
+      for (const r of rows.values()) need = Math.max(need, r.el.scrollWidth);
+      need = Math.ceil(need + 22); // 左右內距
+      if (Math.abs(need - minW) > 2) {
+        minW = need;
+        win.setMinSize(new LogicalSize(minW, 50)).catch(() => {});
+      }
+      if (window.innerWidth + 1 < need) {
+        win.setSize(new LogicalSize(need, window.innerHeight)).catch(() => {});
+      }
+    }
 
     // 未鎖定時：拖曳移動、右下角縮放
     ov.addEventListener("mousedown", (e) => {

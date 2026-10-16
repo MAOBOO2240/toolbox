@@ -6,6 +6,7 @@
   <title>工具箱</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="timers.css" />
+  <link rel="stylesheet" href="gacha.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -173,7 +174,7 @@
             <div class="inline"><button class="pill ghost small" id="prefPick">選擇檔案</button><small class="muted" id="prefFileName"></small></div>
           </div>
           <div class="field"><span class="lbl">音量</span>
-            <div class="inline"><input type="range" class="range" id="prefVolume" min="0" max="200" step="1" /><span class="muted val" id="prefVolumeVal"></span></div>
+            <div class="inline"><input type="range" class="range" id="prefVolume" min="0" max="200" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefVolumeVal" min="0" max="200" />%</label></div>
           </div>
           <p class="sub">浮動視窗</p>
           <div class="field"><span class="lbl">顯示</span>
@@ -182,11 +183,104 @@
           <div class="field"><span class="lbl" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。">鎖定 <i class="info">i</i></span>
             <label class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></label>
           </div>
-          <div class="field"><span class="lbl" data-tip="只調整浮動視窗的底色，文字永遠不透明。0% = 沒有底色。">底色濃度 <i class="info">i</i></span>
-            <div class="inline"><input type="range" class="range" id="prefOvBg" min="0" max="100" step="1" /><span class="muted val" id="prefOvBgVal"></span></div>
+          <div class="field"><span class="lbl" data-tip="只調整浮動視窗底色的透明度，文字永遠不透明。100% = 完全沒有底色。">透明度 <i class="info">i</i></span>
+            <div class="inline"><input type="range" class="range" id="prefOvTrans" min="0" max="100" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefOvTransVal" min="0" max="100" />%</label></div>
           </div>
           <div class="field"><span class="lbl"></span>
             <div class="inline"><button class="pill ghost small" id="prefOvReset">重設位置</button></div>
+          </div>
+        </div>
+      </section>
+      <!-- 黃金蘋果轉蛋模擬器 -->
+      <section class="view" id="view-gacha">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">黃金蘋果轉蛋模擬器</span>
+          <span></span>
+        </nav>
+        <div class="gacha-layout">
+          <!-- 左側：獎池 -->
+          <div class="g-left">
+            <div class="card g-controls">
+              <div class="g-paste-row">
+                <textarea id="gPaste" rows="3" placeholder="貼上獎池文字（可同時包含黃金蘋果、幸運的銀色箱子、幸運的金色箱子），會自動分割解析…"></textarea>
+                <button class="pill primary small" id="gParse">解析</button>
+              </div>
+              <div class="g-ctrl-row">
+                <label class="g-cost">每抽花費<input type="text" inputmode="decimal" id="gCost" placeholder="0" /></label>
+                <button class="pill ghost small" id="gAutoPrice" data-tip="依機率估算基準價值：機率越低價值越高（非線性），整體期望值以每抽花費為基準；機率 > 30% 與垃圾道具留空。">自動帶入價格</button>
+                <button class="pill ghost small" id="gJunkBtn">垃圾道具清單 <span id="gJunkCount"></span></button>
+                <span class="spacer"></span>
+                <button class="link-btn danger-link" id="gClearValues">清空價值</button>
+              </div>
+              <div class="g-junk" id="gJunkBox" hidden>
+                <textarea id="gJunk" rows="3" placeholder="一行一個關鍵字，道具名稱包含該關鍵字就視為垃圾道具（自動帶入時留空、計算為 0 元）&#10;例如：&#10;祕藥&#10;背包"></textarea>
+              </div>
+            </div>
+
+            <div class="card g-pool">
+              <div class="g-tabs" id="gTabs">
+                <button data-pool="apple">黃金蘋果<small></small></button>
+                <button data-pool="silver">幸運的銀色箱子<small></small></button>
+                <button data-pool="gold">幸運的金色箱子<small></small></button>
+              </div>
+              <p class="g-warn" id="gWarn" hidden></p>
+              <div class="g-table-head">
+                <span>抽</span><span>名稱</span><span class="r">機率</span><span class="r">價值</span><span></span>
+              </div>
+              <div class="g-table" id="gTable"></div>
+            </div>
+          </div>
+
+          <!-- 右側：統計與操作 -->
+          <div class="g-right">
+            <div class="g-stats" id="gStats">
+              <div class="stat"><span>累積總花費</span><b id="sSpent">0</b></div>
+              <div class="stat"><span>累積總價值</span><b id="sValue">0</b></div>
+              <div class="stat"><span>損益</span><b id="sProfit">0</b></div>
+              <div class="stat"><span>總抽數</span><b id="sDraws">0</b></div>
+              <div class="stat"><span>黃金蘋果碎片</span><b id="sFrags">0</b></div>
+            </div>
+
+            <div class="g-mid">
+            <div class="card g-results">
+              <div class="g-res-head"><strong>獲得道具</strong><span class="muted" id="gResCount"></span></div>
+              <div class="g-res-scroll">
+                <div class="g-batch" id="gBatchBox" hidden>
+                  <p class="g-batch-title">本次中獎</p>
+                  <div id="gBatch"></div>
+                </div>
+                <div id="gHistory"></div>
+                <p class="empty" id="gResEmpty">還沒有抽到任何道具</p>
+              </div>
+            </div>
+            <div class="card g-analysis">
+              <div class="g-an-head"><strong id="gAnTitle">期望值分析</strong></div>
+              <div class="g-metrics" id="gMetrics"></div>
+              <div class="g-ai">
+                <span class="g-ai-badge">AI 評語</span>
+                <div id="gAi"></div>
+              </div>
+            </div>
+
+            </div>
+
+            <div class="card g-ops">
+              <div class="g-draws">
+                <button class="pill primary" data-draw="1">1 抽</button>
+                <button class="pill primary" data-draw="10">10 抽</button>
+                <button class="pill primary" data-draw="100">100 抽</button>
+                <button class="pill primary" data-draw="1000">1000 抽</button>
+              </div>
+              <div class="g-boxes">
+                <button class="pill box-btn silver" id="gOpenSilver">開啟幸運銀箱<small>消耗 30 碎片</small></button>
+                <button class="pill box-btn gold" id="gOpenGold">開啟幸運金箱<small>消耗 100 碎片</small></button>
+              </div>
+              <div class="g-ops-foot">
+                <span class="muted">每抽必得 1 個黃金蘋果碎片</span>
+                <button class="link-btn danger-link" id="gReset">重置統計</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -209,5 +303,6 @@
 
   <script src="app.js"></script>
   <script src="timers.js"></script>
+  <script src="gacha.js"></script>
 </body>
 </html>
