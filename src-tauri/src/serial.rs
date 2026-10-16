@@ -45,11 +45,14 @@ pub struct Settings {
     pub theme: String,
     /// "s" | "m" | "l"
     pub font: String,
+    /// 使用者調整過的主視窗大小（實際像素）
+    pub win_w: Option<u32>,
+    pub win_h: Option<u32>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: "system".into(), font: "m".into() }
+        Self { theme: "system".into(), font: "m".into(), win_w: None, win_h: None }
     }
 }
 

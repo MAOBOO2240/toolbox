@@ -3,24 +3,20 @@
 /* ---------- 後端橋接 ---------- */
 // 在 Tauri 中呼叫 Rust 指令；直接用瀏覽器開啟時使用模擬後端，方便預覽介面。
 const TAURI = window.__TAURI__;
-const api = TAURI ? createTauriApi() : createMockApi();
+const invoke = TAURI ? TAURI.core.invoke : null;
+const listen = TAURI ? TAURI.event.listen : () => {};
 
-function createTauriApi() {
-  const invoke = TAURI.core.invoke;
-  return {
-    getState: () => invoke("get_state"),
-    extract: (raw) => invoke("extract", { raw }),
-    setIndex: (index) => invoke("set_index", { index }),
-    setActive: (active) => invoke("set_active", { active }),
-    copy: (text) => invoke("copy_text", { text }),
-    clear: () => invoke("clear_list"),
-    saveSettings: (settings) => invoke("save_settings", { settings }),
-    onChange: (cb) => TAURI.event.listen("state-changed", (e) => cb(e.payload)),
-    setWindowTheme: (t) => {
-      try { TAURI.window.getCurrentWindow().setTheme(t); } catch (_) {}
-    },
-  };
-}
+const api = TAURI ? {
+  getState: () => invoke("get_state"),
+  extract: (raw) => invoke("extract", { raw }),
+  setIndex: (index) => invoke("set_index", { index }),
+  setActive: (active) => invoke("set_active", { active }),
+  copy: (text) => invoke("copy_text", { text }),
+  clear: () => invoke("clear_list"),
+  saveSettings: (settings) => invoke("save_settings", { settings }),
+  onChange: (cb) => listen("state-changed", (e) => cb(e.payload)),
+  setWindowTheme: (t) => { try { TAURI.window.getCurrentWindow().setTheme(t); } catch (_) {} },
+} : createMockApi();
 
 function createMockApi() {
   const KEY = "toolbox-mock";
@@ -37,7 +33,7 @@ function createMockApi() {
   };
   return {
     getState: async () => ({ ...st }),
-    extract: async (raw) => { st.raw = raw; st.serials = extract(raw); st.index = 0; if (!st.serials.length) st.active = false; return save(); },
+    extract: async (raw) => { st.raw = raw; st.serials = extract(raw); st.index = 0; st.active = st.serials.length > 0; return save(); },
     setIndex: async (i) => { st.index = Math.min(i, st.serials.length); return save(); },
     setActive: async (a) => { st.active = a && st.serials.length > 0; return save(); },
     copy: async (t) => { await navigator.clipboard?.writeText(t); },
@@ -48,12 +44,11 @@ function createMockApi() {
   };
 }
 
-/* ---------- 工具 ---------- */
-const $ = (sel) => document.querySelector(sel);
+/* ---------- 共用工具 ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const root = document.documentElement;
 const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-let state = { raw: "", serials: [], index: 0, active: false, settings: { theme: "system", font: "m" } };
 
 let toastTimer;
 function toast(msg) {
@@ -61,7 +56,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
 }
 
 async function run(fn) {
@@ -72,9 +67,16 @@ async function run(fn) {
   }
 }
 
-/* ---------- 外觀設定 ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} },
+};
+
+/* ---------- 外觀設定（齒輪） ---------- */
+let settings = { theme: "system", font: "m" };
+
 function effectiveTheme() {
-  const t = state.settings.theme;
+  const t = settings.theme;
   if (t === "light" || t === "dark") return t;
   return darkQuery.matches ? "dark" : "light";
 }
@@ -82,41 +84,92 @@ function effectiveTheme() {
 function applySettings() {
   const theme = effectiveTheme();
   root.dataset.theme = theme;
-  root.dataset.font = state.settings.font;
-  $("#themeIcon").textContent = theme === "dark" ? "☾" : "☀";
-  $("#themeLabel").textContent = theme === "dark" ? "深色" : "淺色";
-  document.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("on", b.dataset.font === state.settings.font));
+  root.dataset.font = settings.font;
+  $$("#fontSeg button").forEach((b) => b.classList.toggle("on", b.dataset.font === settings.font));
+  $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === theme));
   api.setWindowTheme(theme);
 }
 
 function saveSettings() {
   applySettings();
-  api.saveSettings(state.settings);
+  api.saveSettings({ theme: settings.theme, font: settings.font });
 }
 
-$("#themeBtn").addEventListener("click", () => {
-  state.settings.theme = effectiveTheme() === "dark" ? "light" : "dark";
-  saveSettings();
+$$("#fontSeg button").forEach((b) => b.addEventListener("click", () => { settings.font = b.dataset.font; saveSettings(); }));
+$$("#themeSeg button").forEach((b) => b.addEventListener("click", () => { settings.theme = b.dataset.theme; saveSettings(); }));
+darkQuery.addEventListener("change", () => { if (settings.theme === "system") applySettings(); });
+
+const pop = $("#settingsPop");
+$("#gearBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  pop.classList.toggle("show");
+  $("#gearBtn").classList.toggle("on", pop.classList.contains("show"));
+});
+document.addEventListener("click", (e) => {
+  if (!pop.contains(e.target)) { pop.classList.remove("show"); $("#gearBtn").classList.remove("on"); }
 });
 
-document.querySelectorAll(".seg-btn").forEach((btn) =>
-  btn.addEventListener("click", () => {
-    state.settings.font = btn.dataset.font;
-    saveSettings();
-  })
-);
+/* ---------- 分類與導覽 ---------- */
+const ICONS = {
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>',
+  copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+};
 
-darkQuery.addEventListener("change", () => {
-  if (state.settings.theme === "system") applySettings();
-});
+const CATS = {
+  maple: {
+    title: "楓之谷工具",
+    eyebrow: "MapleStory",
+    tools: [{ id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" }],
+  },
+  tools: {
+    title: "工具箱",
+    eyebrow: "Toolbox",
+    tools: [{ id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" }],
+  },
+};
 
-/* ---------- 頁面導覽 ---------- */
-function go(page) {
-  document.querySelectorAll(".page").forEach((p) => p.classList.toggle("active", p.id === `page-${page}`));
+let currentCat = store.get("toolbox-cat", "maple");
+if (!CATS[currentCat]) currentCat = "maple";
+
+function showCat(cat) {
+  currentCat = cat;
+  store.set("toolbox-cat", cat);
+  const c = CATS[cat];
+  $$(".cat").forEach((b) => b.classList.toggle("on", b.dataset.cat === cat));
+  $("#catTitle").textContent = c.title;
+  $("#catEyebrow").textContent = c.eyebrow;
+  const tiles = $("#tiles");
+  tiles.innerHTML = "";
+  for (const t of c.tools) {
+    const btn = document.createElement("button");
+    btn.className = "tile";
+    btn.innerHTML = `<span class="cat-icon ${t.color}">${ICONS[t.icon]}</span><strong></strong><small></small>`;
+    btn.querySelector("strong").textContent = t.name;
+    btn.querySelector("small").textContent = t.desc;
+    btn.addEventListener("click", () => openTool(t.id));
+    tiles.appendChild(btn);
+  }
+  showView("cat");
+  $("#app").classList.remove("collapsed");
 }
-document.querySelectorAll("[data-go]").forEach((el) => el.addEventListener("click", () => go(el.dataset.go)));
 
-/* ---------- 序號工具畫面 ---------- */
+function showView(name) {
+  $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
+}
+
+function openTool(id) {
+  $$(".back-label").forEach((el) => (el.textContent = CATS[currentCat].title));
+  $("#app").classList.add("collapsed");
+  showView(id);
+  if (id === "timer" && window.Timers) window.Timers.onShow();
+}
+
+$$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));
+$$("[data-back]").forEach((b) => b.addEventListener("click", () => showCat(currentCat)));
+
+/* ---------- 序號複製 ---------- */
+let state = { raw: "", serials: [], index: 0, active: false };
+
 function render(prev) {
   const { serials, index, active } = state;
   const total = serials.length;
@@ -154,12 +207,12 @@ function render(prev) {
       const li = document.createElement("li");
       li.className = "item";
       li.dataset.i = i;
-      li.innerHTML = `<span class="num">${i + 1}</span><span class="code"></span><span class="tag"></span>`;
+      li.innerHTML = `<span class="num"></span><span class="code"></span><span class="tag"></span>`;
       li.querySelector(".code").textContent = s;
       list.appendChild(li);
     });
   }
-  list.querySelectorAll(".item").forEach((li) => {
+  $$(".item", list).forEach((li) => {
     const i = Number(li.dataset.i);
     li.classList.toggle("used", i < index);
     li.classList.toggle("cur", i === index);
@@ -167,23 +220,27 @@ function render(prev) {
     li.querySelector(".tag").textContent = i === index ? "目前" : "";
   });
 
-  const curItem = list.querySelector(".item.cur");
-  if (curItem && prev && prev.index !== index) curItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  // 只捲動清單本身，不帶動整個視窗
+  const curItem = $(".item.cur", list);
+  if (curItem && prev && prev.index !== index) {
+    const box = $(".list-scroll");
+    const top = curItem.offsetTop - box.clientHeight / 2 + curItem.clientHeight / 2;
+    box.scrollTo({ top, behavior: "smooth" });
+  }
 }
 
 function update(next) {
   if (!next) return;
   const prev = state;
-  state = { ...next, settings: state.settings };
+  state = next;
   render(prev);
 }
 
 $("#extractBtn").addEventListener("click", () =>
   run(async () => {
-    const raw = $("#rawInput").value;
-    const next = await api.extract(raw);
+    const next = await api.extract($("#rawInput").value);
     update(next);
-    toast(next.serials.length ? `已擷取 ${next.serials.length} 組序號` : "沒有找到符合規則的序號");
+    toast(next.serials.length ? `已擷取 ${next.serials.length} 組序號，自動切換已開啟` : "沒有找到符合規則的序號");
   })
 );
 
@@ -226,14 +283,17 @@ $("#currentSerial").addEventListener("click", () =>
 /* ---------- 啟動 ---------- */
 (async () => {
   const st = await api.getState();
-  state = st;
-  state.settings = { theme: "system", font: "m", ...(st.settings || {}) };
-  $("#rawInput").value = st.raw || "";
+  settings = { theme: "system", font: "m", ...(st.settings || {}) };
   applySettings();
+  state = st;
+  $("#rawInput").value = st.raw || "";
   render();
+  showCat(currentCat);
   api.onChange((next) => {
     const wasDone = state.index >= state.serials.length;
     update(next);
     if (!wasDone && state.index >= state.serials.length) toast("已全部使用完畢");
   });
 })();
+
+window.App = { invoke, listen, toast, run, store, $, $$, TAURI };
