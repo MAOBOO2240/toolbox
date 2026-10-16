@@ -15,8 +15,18 @@
 /* ---------- 左：獎池 ---------- */
 .g-pool { display: flex; flex-direction: column; min-height: 0; padding: 0.9rem 0 0; overflow: hidden; }
 .g-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 0 0.9rem; }
-.g-tabs .cbtn { flex-direction: column; gap: 0.05rem; padding: 0.45rem 0.4rem; }
-.g-tabs .cbtn small { font-size: 0.68rem; font-weight: 600; opacity: 0.8; }
+/* 獎池按鈕：文字放大填滿整個框、微粗體，項數放在同一行 */
+.g-tabs .cbtn {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-height: 3rem;
+  padding: 0.55rem 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.g-tabs .cbtn small { font-size: 0.78rem; font-weight: 600; opacity: 0.75; letter-spacing: 0; }
 
 .g-toolbar { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 0.9rem 0.6rem; flex-wrap: wrap; }
 .g-cost { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--text-2); }
@@ -145,17 +155,8 @@
 }
 .g-comment b { color: var(--blue); margin-right: 0.35rem; }
 
-.g-results { flex: 1; min-height: 7rem; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-.g-res-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 0.4rem; }
-.g-res-head {
-  position: sticky; top: 0; z-index: 1;
-  display: flex; justify-content: space-between; align-items: baseline;
-  padding: 0.65rem 0.9rem 0.45rem;
-  background: var(--card);
-  font-size: 0.88rem;
-}
-.g-res-head .muted { font-size: 0.72rem; }
-.g-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.9rem 0.5rem; }
+/* 保管箱：獨立的框 */
+/* 本次獲得：獨立的框，內容多時自己捲動 */
 .g-chip {
   display: inline-flex; align-items: center; gap: 0.4rem;
   padding: 0.28rem 0.35rem 0.28rem 0.6rem;
@@ -164,8 +165,9 @@
   font-size: 0.8rem;
 }
 .g-chip b { padding: 0.05rem 0.4rem; border-radius: 0.4rem; background: var(--blue); color: #fff; font-size: 0.72rem; }
-.g-chip.rare { background: rgba(255, 179, 64, 0.18); color: var(--orange); font-weight: 700; }
-.g-chip.rare b { background: var(--orange); color: #2a1a00; }
+.g-chip.rare { background: rgba(255, 196, 0, 0.18); color: #b98000; font-weight: 800; box-shadow: inset 0 0 0 1px rgba(255, 196, 0, 0.55); }
+:root[data-theme="dark"] .g-chip.rare { color: #ffc94a; }
+.g-chip.rare b { background: #f5b301; color: #2a1a00; }
 .g-chip .src { font-size: 0.68rem; font-weight: 700; color: var(--text-2); }
 .g-chip-empty { color: var(--text-2); font-size: 0.8rem; padding: 0.2rem 0 0.4rem; }
 
@@ -231,3 +233,38 @@
 .c-red { --c: #ef4444; }
 .c-green { --c: #22b45e; }
 .c-teal { --c: #12a594; }
+
+.g-marker { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.2rem; }
+.g-marker input { flex: 0 1 18rem; }
+.g-sep { height: 0.5px; background: var(--sep); margin: 0.9rem 0; }
+#view-gacha .g-row.jackpot .g-name { color: #c88a00; font-weight: 700; }
+:root[data-theme="dark"] #view-gacha .g-row.jackpot .g-name { color: #ffc94a; }
+
+/* ---------- 本次獲得、保管箱：同一張卡片，各自一個框與底色 ---------- */
+.g-results { flex: 1; min-height: 9rem; display: flex; flex-direction: column; gap: 0.55rem; padding: 0.55rem; overflow: hidden; }
+.g-sec { display: flex; flex-direction: column; min-height: 0; border-radius: 0.85rem; overflow: hidden; }
+.g-sec-batch {
+  flex: none;
+  max-height: 46%;
+  background: color-mix(in srgb, #f5b301 10%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #f5b301 40%, transparent);
+}
+.g-sec-vault {
+  flex: 1;
+  background: color-mix(in srgb, var(--blue) 7%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 28%, transparent);
+}
+.g-res-head {
+  flex: none;
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 0.55rem 0.8rem 0.4rem;
+  font-size: 0.88rem;
+}
+.g-res-head .muted { font-size: 0.72rem; }
+.g-sec-batch .g-res-head strong { color: #b98000; }
+:root[data-theme="dark"] .g-sec-batch .g-res-head strong { color: #ffc94a; }
+.g-sec-vault .g-res-head strong { color: var(--blue); }
+.g-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.8rem 0.65rem; overflow-y: auto; min-height: 0; }
+.g-vault-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 0.4rem; }
+.g-sec .g-chip { background: var(--card); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.g-sec .g-chip.rare { background: color-mix(in srgb, #f5b301 22%, var(--card)); }

@@ -87,7 +87,15 @@ const GachaCore = (() => {
     return rare / total;
   }
 
-  function analyze(state, pool) {
+  /** 大獎貢獻的期望值占比 */
+  function jackpotShare(items, values, jackpot) {
+    const total = ev(items, values);
+    if (total <= 0) return 0;
+    const t = Math.max(100, sum(items));
+    return items.filter((it) => jackpot.has(it.name)).reduce((a, it) => a + (it.prob / t) * valueOf(values, it.name), 0) / total;
+  }
+
+  function analyze(state, pool, jackpot = null) {
     const { pools, values, cost } = state;
     const frag = fragmentValue(pools, values);
     const items = pools[pool];
@@ -105,7 +113,7 @@ const GachaCore = (() => {
         cp: cost > 0 ? combined / cost : null,
         win,
         fragShare: combined > 0 ? frag.value / combined : 0,
-        rare: rareShare(items, values, RARE_LIMIT.apple),
+        rare: jackpot ? jackpotShare(items, values, jackpot) : rareShare(items, values, RARE_LIMIT.apple),
       };
     }
     const boxEv = ev(items, values);
@@ -117,7 +125,7 @@ const GachaCore = (() => {
       perFrag: boxEv / BOX_COST[pool],
       frag,
       aboveAvg,
-      rare: rareShare(items, values, RARE_LIMIT[pool]),
+      rare: jackpot ? jackpotShare(items, values, jackpot) : rareShare(items, values, RARE_LIMIT[pool]),
     };
   }
 
@@ -141,28 +149,49 @@ const GachaCore = (() => {
     return Math.max(1, Math.round(n / mag) * mag);
   }
 
+  /** 大獎：黃金蘋果獎池中，分界道具（含）以上的道具；找不到分界道具時回傳 null */
+  const DEFAULT_JACKPOT_MARKER = "漆黑的BOSS飾品碎片";
+  function jackpotSet(pools, marker) {
+    const m = String(marker || "").trim();
+    if (!m) return null;
+    const idx = pools.apple.findIndex((it) => it.name === m);
+    if (idx < 0) return null;
+    return new Set(pools.apple.slice(0, idx + 1).map((it) => it.name));
+  }
+  const CHEAP_VALUE = 10; // 非大獎、非垃圾的道具：幾乎沒有價值
+
   /**
    * 自動帶入價格：
    * - 垃圾道具、任何獎池中機率 > 30% 的常見道具 → 留空
    * - 其餘：基準權重 = (1 / 每抽獲得機率)^0.8（非線性，越稀有越高）
    * - 整體縮放成「單抽綜合期望值 ≈ 每抽花費」，當作中性的基準起點
    */
-  function autoPrice(pools, cost, junk) {
+  function autoPrice(pools, cost, junk, jackpot = null) {
     const names = new Set();
     for (const p of POOLS) for (const it of pools[p]) names.add(it.name);
-    const weight = {};
+    const weight = {}; // 會依成本縮放的權重（大獎）
+    const fixed = {};  // 固定價值（非大獎 = 10；垃圾、常見 = 留空）
     for (const name of names) {
       const common = POOLS.some((p) => pools[p].some((it) => it.name === name && it.prob > 30));
-      if (isJunk(name, junk) || common) { weight[name] = null; continue; }
+      if (isJunk(name, junk) || common) { fixed[name] = null; continue; }
+      if (jackpot && !jackpot.has(name)) { fixed[name] = CHEAP_VALUE; continue; }
       const pe = effectiveProb(pools, name);
-      weight[name] = pe > 0 ? Math.pow(1 / pe, 0.8) : null;
+      if (pe > 0) weight[name] = Math.pow(1 / pe, 0.8);
+      else fixed[name] = null;
     }
-    const w = {};
-    for (const k in weight) if (weight[k] !== null) w[k] = weight[k];
-    const base = ev(pools.apple, w) + fragmentValue(pools, w).value;
-    const k = base > 0 ? cost / base : 0;
+    // 縮放大獎價值，讓「單抽綜合期望值 ≈ 每抽花費」
+    const total = (k) => {
+      const v = {};
+      for (const n in fixed) if (fixed[n] !== null) v[n] = fixed[n];
+      for (const n in weight) v[n] = weight[n] * k;
+      return ev(pools.apple, v) + fragmentValue(pools, v).value;
+    };
+    const a = total(0);
+    const b = total(1) - a;
+    let k = b > 0 ? (cost - a) / b : 0;
+    if (b > 0 && k <= 0) k = (cost * 0.5) / b; // 成本比便宜道具還低時，大獎仍保留合理價值
     const values = {};
-    for (const name of names) values[name] = weight[name] === null ? null : nice(weight[name] * k);
+    for (const name of names) values[name] = name in weight ? nice(weight[name] * k) : fixed[name];
     return values;
   }
 
@@ -270,7 +299,7 @@ const GachaCore = (() => {
     return lines;
   }
 
-  return { POOLS, POOL_NAME, BOX_COST, FILLER, parse, withFiller, sampler, ev, fragmentValue, analyze, autoPrice, comment, sum, isJunk };
+  return { POOLS, POOL_NAME, BOX_COST, FILLER, DEFAULT_JACKPOT_MARKER, CHEAP_VALUE, jackpotSet, parse, withFiller, sampler, ev, fragmentValue, analyze, autoPrice, comment, sum, isJunk };
 })();
 
 if (typeof module !== "undefined") module.exports = GachaCore;
@@ -387,7 +416,7 @@ if (typeof document !== "undefined") (() => {
   const blankStats = () => ({ spent: 0, value: 0, draws: 0, frags: 0 });
   function defaults() {
     return {
-      pools: C.parse(DEFAULT_TEXT), values: {}, cost: 0, junk: DEFAULT_JUNK, tab: "apple", page: "sim",
+      pools: C.parse(DEFAULT_TEXT), values: {}, cost: 0, junk: DEFAULT_JUNK, jackpotMarker: C.DEFAULT_JACKPOT_MARKER, tab: "apple", page: "sim",
       stats: blankStats(), batch: {}, batchDraws: zeroPools(), hist: {}, histDraws: zeroPools(),
     };
   }
@@ -410,6 +439,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   const junkList = () => st.junk.split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  const jackpot = () => C.jackpotSet(st.pools, st.jackpotMarker);
 
   /* ---------- 數字 ---------- */
   const intFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 });
@@ -466,9 +496,10 @@ if (typeof document !== "undefined") (() => {
       box.innerHTML = '<div class="g-empty">這個獎池還沒有道具，可以到「解析/垃圾」貼上文字，或在上方新增。</div>';
       return;
     }
+    const jp = jackpot();
     C.withFiller(items).forEach((it, idx) => {
       const row = document.createElement("div");
-      row.className = "g-row" + (it.filler ? " filler" : "");
+      row.className = "g-row" + (it.filler ? " filler" : "") + (jp && jp.has(it.name) ? " jackpot" : "");
       const drawBtn = document.createElement("button");
       drawBtn.className = "g-draw";
       drawBtn.textContent = "抽";
@@ -555,7 +586,7 @@ if (typeof document !== "undefined") (() => {
   const metric = (label, value, cls = "") => `<div class="g-metric"><span>${label}</span><b class="${cls}">${value}</b></div>`;
 
   function renderAnalysis() {
-    const a = C.analyze(st, st.tab);
+    const a = C.analyze(st, st.tab, jackpot());
     let html = "";
     if (st.tab === "apple") {
       html += metric("每抽期望值", a.hasValues ? big(a.combined) : "—");
@@ -566,7 +597,7 @@ if (typeof document !== "undefined") (() => {
       html += metric("每箱期望值", a.hasValues ? big(a.boxEv) : "—");
       html += metric("每碎片價值", a.hasValues ? big(a.perFrag) : "—");
       html += metric("高於平均機率", a.hasValues ? `${(a.aboveAvg * 100).toFixed(1)}%` : "—");
-      html += metric("稀有道具占比", a.hasValues ? `${(a.rare * 100).toFixed(0)}%` : "—");
+      html += metric("大獎價值占比", a.hasValues ? `${(a.rare * 100).toFixed(0)}%` : "—");
     }
     $("#gMetrics").innerHTML = html;
     // 評語只取最重要的兩句，保持簡潔
@@ -584,7 +615,12 @@ if (typeof document !== "undefined") (() => {
     const rank = (k) => order[k] ?? C.POOLS.indexOf(splitKey(k)[0]) * 10000 + 9999;
     return Object.keys(obj).sort((a, b) => rank(a) - rank(b));
   }
-  const isRare = (pool, name) => st.pools[pool].some((it) => it.name === name && (pool === "apple" ? it.prob < 1 : it.prob <= 5));
+  // 金色字：只有大獎（分界道具以上）才顯示；找不到分界道具時改用機率判斷
+  const isRare = (pool, name) => {
+    const jp = jackpot();
+    if (jp) return jp.has(name);
+    return st.pools[pool].some((it) => it.name === name && (pool === "apple" ? it.prob < 1 : it.prob <= 5));
+  };
 
   function renderBatch() {
     const box = $("#gBatch");
@@ -664,7 +700,13 @@ if (typeof document !== "undefined") (() => {
   /* ---------- 第二頁：解析與垃圾清單 ---------- */
   function renderImport() {
     if (document.activeElement !== $("#gJunk")) $("#gJunk").value = st.junk;
+    if (document.activeElement !== $("#gMarker")) $("#gMarker").value = st.jackpotMarker;
+    renderMarkerInfo();
     renderJunkMatch();
+  }
+  function renderMarkerInfo() {
+    const jp = jackpot();
+    $("#gMarkerInfo").textContent = jp ? `大獎 ${jp.size} 項：${[...jp].join("、")}` : "黃金蘋果獎池中找不到這個道具，改用機率判斷";
   }
   function renderJunkMatch() {
     const junk = junkList();
@@ -798,7 +840,7 @@ if (typeof document !== "undefined") (() => {
       return;
     }
     if (!(st.cost > 0)) return toast("請先輸入每抽成本，自動價格以它為基準");
-    st.values = C.autoPrice(st.pools, st.cost, junkList());
+    st.values = C.autoPrice(st.pools, st.cost, junkList(), jackpot());
     save();
     renderAll();
     toast("已帶入基準價格，可再依實際行情調整");
@@ -860,6 +902,7 @@ if (typeof document !== "undefined") (() => {
     toast(`已套用：${msg}`);
   });
   $("#gJunk").addEventListener("input", (e) => { st.junk = e.target.value; save(); renderJunkMatch(); });
+  $("#gMarker").addEventListener("input", (e) => { st.jackpotMarker = e.target.value.trim(); save(); renderMarkerInfo(); renderPool(); renderRight(); });
   $("#gJunkReset").addEventListener("click", async () => {
     if (!(await confirmBox("確定要把垃圾道具清單恢復成預設內容嗎？"))) return;
     st.junk = DEFAULT_JUNK;

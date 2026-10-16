@@ -223,12 +223,17 @@ input, select { font: inherit; color: inherit; }
 }
 .back {
   justify-self: start;
-  display: flex; align-items: center; gap: 0.1rem;
-  padding: 0.3rem 0.4rem;
-  border-radius: 0.6rem;
+  display: flex; align-items: center; gap: 0.15rem;
+  padding: 0.32rem 0.85rem 0.32rem 0.55rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+  background: var(--blue-soft);
   color: var(--blue);
+  font-weight: 700;
+  transition: background 0.15s, transform 0.1s;
 }
-.back:active { opacity: 0.5; }
+.back:hover { background: color-mix(in srgb, var(--blue) 26%, transparent); }
+.back:active { transform: scale(0.96); }
 .back-chev { font-size: 1.7rem; line-height: 0.8; margin-top: -0.15rem; }
 .nav-title { font-weight: 600; font-size: 1.05rem; }
 
