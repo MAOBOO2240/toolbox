@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="gacha.css" />
   <link rel="stylesheet" href="beauty.css" />
   <link rel="stylesheet" href="comet.css" />
+  <link rel="stylesheet" href="watch.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -54,6 +55,18 @@
               <button data-theme="dark">深色</button>
             </div>
           </div>
+          <div class="pop-sep"></div>
+          <p class="pop-title">更新</p>
+          <div class="pop-row"><span>目前版本</span><span class="muted" id="verText">—</span></div>
+          <div class="pop-col">
+            <span>GitHub 權杖</span>
+            <div class="pop-token">
+              <input type="password" id="updToken" placeholder="貼上權杖" autocomplete="off" spellcheck="false" />
+              <button class="cbtn c-blue small solid" id="updSave">儲存</button>
+            </div>
+          </div>
+          <div class="pop-row"><span>自動更新</span><label class="switch sm"><input type="checkbox" id="updAuto" /><span class="slider"></span></label></div>
+          <div class="pop-row"><button class="cbtn c-teal small" id="updCheck">檢查更新</button><span class="muted pop-status" id="updStatus"></span></div>
         </div>
       </div>
     </aside>
@@ -533,6 +546,40 @@
           </div>
         </div>
       </section>
+      <!-- 斷線通知 -->
+      <section class="view" id="view-watch">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">斷線通知</span>
+          <span></span>
+        </nav>
+        <div class="w-page">
+          <div class="card w-status" id="wStatus">
+            <div class="w-dot"></div>
+            <div class="w-text">
+              <strong id="wState">讀取中…</strong>
+              <span class="muted" id="wDetail"></span>
+            </div>
+            <button class="cbtn c-blue small solid" id="wTest">測試通知</button>
+          </div>
+          <div class="w-cols">
+            <div class="card w-set">
+              <h3>通知設定</h3>
+              <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束（斷線後關閉或當機）</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>播放音效</span><span class="switch sm"><input type="checkbox" id="wSound" /><span class="slider"></span></span></label>
+              <div class="w-row"><span>中斷多久算斷線<small class="muted">換頻道、進出商城時連線會短暫切換</small></span>
+                <span class="w-th"><input type="range" class="range" id="wTh" min="5" max="120" step="5" /><b id="wThV">20 秒</b></span>
+              </div>
+              <p class="hint">通知會出現在螢幕右下角，遊戲是視窗化或無邊框全螢幕時看得到；獨佔全螢幕時會被遊戲蓋住。</p>
+            </div>
+            <div class="card w-log">
+              <div class="w-log-head"><h3>紀錄</h3><button class="cbtn c-red small" id="wClear">清除</button></div>
+              <div class="w-log-list" id="wLog"></div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
   <!-- 閃亮彗星：自動分解 -->
@@ -595,6 +642,18 @@
 
   <div class="b-ctx" id="bCtx" hidden></div>
 
+  <!-- 發現新版本 -->
+  <div class="alert-backdrop" id="updBackdrop">
+    <div class="alert upd-box" role="alertdialog" aria-modal="true">
+      <h3 class="alert-msg" id="updMsg">發現新版本</h3>
+      <p class="upd-sub muted" id="updSub"></p>
+      <div class="alert-actions">
+        <button id="updNow" class="btn-yes">立即更新</button>
+        <button id="updLater" class="btn-no">稍後</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <!-- 確認對話框（倉儲管理器樣式） -->
@@ -613,5 +672,6 @@
   <script src="gacha.js"></script>
   <script src="beauty.js"></script>
   <script src="comet.js"></script>
+  <script src="watch.js"></script>
 </body>
 </html>

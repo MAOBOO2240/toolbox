@@ -110,6 +110,7 @@ input, select { font: inherit; color: inherit; }
 .cat-icon.gold { background: linear-gradient(135deg, #ffd60a, #ff9500); }
 .cat-icon.pink { background: linear-gradient(135deg, #ff6fb1, #bf5af2); }
 .cat-icon.comet { background: linear-gradient(135deg, #64d2ff, #5e5ce6); }
+.cat-icon.red { background: linear-gradient(135deg, #ff7a7a, #e5484d); }
 
 .side-foot { margin-top: auto; position: relative; }
 .gear {
@@ -128,7 +129,7 @@ input, select { font: inherit; color: inherit; }
   position: fixed;
   left: 0.9rem;
   bottom: 4rem;
-  width: 17rem;
+  width: 19rem;
   padding: 0.9rem;
   background: var(--card);
   border-radius: 1.1rem;
@@ -505,3 +506,15 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .tile .cat-icon.item img { width: 3rem; height: 3rem; object-fit: contain; image-rendering: pixelated; }
+
+/* 設定：更新 */
+.pop-sep { height: 0.5px; background: var(--sep); margin: 0.6rem 0; }
+.pop-col { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.35rem 0; font-size: 0.85rem; }
+.pop-token { display: flex; gap: 0.4rem; }
+.pop-token input {
+  flex: 1; min-width: 0; padding: 0.4rem 0.6rem; border: 0; border-radius: 0.55rem;
+  background: var(--card-2); color: var(--text); font: inherit; font-size: 0.82rem; outline: none; user-select: text;
+}
+.pop-token input:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
+.pop-status { font-size: 0.75rem; text-align: right; max-width: 12rem; }
+.upd-sub { margin: -0.3rem 0 1rem; font-size: 0.9rem; text-align: center; }

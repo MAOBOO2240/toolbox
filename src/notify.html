@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>工具箱通知</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+      font-family: "Segoe UI Variable Display", "Segoe UI", "Microsoft JhengHei UI", sans-serif;
+    }
+    .card {
+      position: absolute;
+      inset: 6px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      box-sizing: border-box;
+      border-radius: 18px;
+      background: rgba(30, 34, 43, 0.96);
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      color: #f2f4f8;
+      cursor: pointer;
+      transform: translateY(18px);
+      opacity: 0;
+      transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1.1), opacity 0.2s;
+    }
+    .card.show { transform: none; opacity: 1; }
+    .icon {
+      width: 46px; height: 46px; border-radius: 14px;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, #ff6b6b, #e5484d);
+      box-shadow: 0 6px 16px rgba(229, 72, 77, 0.45);
+    }
+    .card.info .icon { background: linear-gradient(135deg, #64d2ff, #4c8dff); box-shadow: 0 6px 16px rgba(76, 141, 255, 0.45); }
+    .icon svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .text { min-width: 0; }
+    .title { font-size: 16px; font-weight: 800; margin-bottom: 3px; }
+    .body { font-size: 13px; color: #c5ccd8; line-height: 1.4; }
+    .close {
+      align-self: start;
+      width: 26px; height: 26px; border: 0; border-radius: 8px; padding: 0;
+      background: rgba(255, 255, 255, 0.08); color: #c5ccd8; font-size: 16px; cursor: pointer;
+    }
+    .close:hover { background: #e5484d; color: #fff; }
+    /* 剩餘顯示時間 */
+    .bar { position: absolute; left: 18px; right: 18px; bottom: 6px; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 100%; background: rgba(255, 255, 255, 0.45); transform-origin: left; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="icon" id="icon"></div>
+    <div class="text"><div class="title" id="title"></div><div class="body" id="body"></div></div>
+    <button class="close" id="close" title="關閉">×</button>
+    <div class="bar"><i id="bar"></i></div>
+  </div>
+  <script>
+    "use strict";
+    const T = window.__TAURI__;
+    const card = document.getElementById("card");
+    const bar = document.getElementById("bar");
+    const ICON = {
+      warn: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg>',
+      info: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>',
+    };
+    const SHOW_MS = 12000;
+    let lastId = 0, timer = null;
+
+    function hide() {
+      clearTimeout(timer);
+      card.classList.remove("show");
+      setTimeout(() => T.core.invoke("notify_hide").catch(() => {}), 250);
+    }
+    function show(n) {
+      if (!n || n.id === lastId) return;
+      lastId = n.id;
+      card.className = "card " + (n.kind || "warn");
+      document.getElementById("icon").innerHTML = ICON[n.kind] || ICON.warn;
+      document.getElementById("title").textContent = n.title;
+      document.getElementById("body").textContent = n.body;
+      requestAnimationFrame(() => card.classList.add("show"));
+      bar.style.transition = "none";
+      bar.style.transform = "scaleX(1)";
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        bar.style.transition = `transform ${SHOW_MS}ms linear`;
+        bar.style.transform = "scaleX(0)";
+      }));
+      clearTimeout(timer);
+      timer = setTimeout(hide, SHOW_MS);
+    }
+
+    T.event.listen("notify", (e) => show(e.payload));
+    T.core.invoke("notify_pending").then(show).catch(() => {});
+    document.getElementById("close").addEventListener("click", (e) => { e.stopPropagation(); hide(); });
+    card.addEventListener("click", () => { clearTimeout(timer); card.classList.remove("show"); T.core.invoke("notify_open").catch(() => {}); });
+    document.addEventListener("contextmenu", (e) => e.preventDefault());
+  </script>
+</body>
+</html>

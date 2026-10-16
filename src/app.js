@@ -236,11 +236,12 @@ const ICONS = {
   scissors: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/></svg>',
   apple: '<svg viewBox="0 0 24 24"><path d="M12 7c-1.5-1.3-3.8-1.6-5.4-.4C4.3 8.3 4.6 12.6 6.5 16c1.2 2.2 2.7 4 4.3 3.6.6-.1.9-.4 1.2-.4s.6.3 1.2.4c1.6.4 3.1-1.4 4.3-3.6 1.9-3.4 2.2-7.7-.1-9.4C15.8 5.4 13.5 5.7 12 7z"/><path d="M12 7c0-2 1-3.5 3-4"/></svg>',
   comet: '<svg viewBox="0 0 24 24"><path d="M16.5 4.5l1.2 2.6 2.8.4-2 2 .5 2.8-2.5-1.3-2.5 1.3.5-2.8-2-2 2.8-.4z"/><path d="M11 10.5 4 17.5M13 13.5 7.5 19M8.5 9 3.5 14"/></svg>',
+  plug: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16.2a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1"/><path d="M3 3l18 18"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
 };
 
 // 滑過磁磚時的光暈顏色（與圖示漸層同色系）
-const TILE_ACCENT = { purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f" };
+const TILE_ACCENT = { red: "#ff5a5f", purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f" };
 
 const CATS = {
   maple: {
@@ -251,6 +252,7 @@ const CATS = {
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
+      { id: "watch", name: "斷線通知", desc: "遊戲斷線或關閉時跳出通知", color: "red", icon: "plug" },
     ],
   },
   tools: {
@@ -336,6 +338,7 @@ function openTool(id) {
   if (id === "gacha" && window.Gacha) window.Gacha.onShow();
   if (id === "beauty" && window.Beauty) window.Beauty.onShow();
   if (id === "comet" && window.Comet) window.Comet.onShow();
+  if (id === "watch" && window.Watch) window.Watch.onShow();
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));
@@ -478,3 +481,77 @@ $("#currentSerial").addEventListener("click", () =>
 })();
 
 window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
+
+/* ---------- 自動更新 ---------- */
+(() => {
+  if (!TAURI) { $("#verText").textContent = "預覽模式"; return; }
+  let info = null, prompted = false, countdown = null;
+  const status = (t) => { $("#updStatus").textContent = t || ""; };
+
+  async function refresh() {
+    try { info = await invoke("update_info"); } catch (_) { return; }
+    $("#verText").textContent = info.current ? `#${info.run}（${info.current}）` : "自行編譯版";
+    $("#updToken").value = "";
+    $("#updToken").placeholder = info.token_set ? "已設定（貼上新的可取代）" : "貼上權杖";
+    $("#updAuto").checked = info.auto;
+  }
+
+  function closeDialog() {
+    clearInterval(countdown);
+    countdown = null;
+    $("#updBackdrop").classList.remove("show");
+  }
+
+  async function install() {
+    closeDialog();
+    status("下載新版本中…");
+    toast("正在下載新版本，完成後會自動重新開啟");
+    try { await invoke("update_install"); }
+    catch (e) { status(String(e)); toast(String(e)); }
+  }
+
+  /** 發現新版本：右下角通知 + 程式內對話框；開啟自動更新時倒數後自動更新 */
+  function offer(r) {
+    if (prompted) return;
+    prompted = true;
+    invoke("notify_show", { title: "發現新版本", body: `工具箱有新版本（${r.latest}），${info.auto ? "即將自動更新" : "可以到程式裡更新"}。`, kind: "info" }).catch(() => {});
+    $("#updMsg").textContent = "發現新版本";
+    let left = 10;
+    const sub = () => { $("#updSub").textContent = info.auto ? `${left} 秒後自動更新，程式會重新開啟。` : `目前 ${r.current}，最新 ${r.latest}。更新後程式會重新開啟。`; };
+    sub();
+    $("#updBackdrop").classList.add("show");
+    if (info.auto) {
+      countdown = setInterval(() => { left -= 1; sub(); if (left <= 0) install(); }, 1000);
+    }
+  }
+
+  async function check(manual) {
+    if (!info) await refresh();
+    if (!info?.token_set) { if (manual) status("請先填入 GitHub 權杖"); return; }
+    if (manual) status("檢查中…");
+    try {
+      const r = await invoke("update_check");
+      if (r.has_update) { status(`有新版本（${r.latest}）`); if (manual) prompted = false; offer(r); }
+      else status(manual ? (r.current ? "已經是最新版本" : "自行編譯版不檢查更新") : "");
+    } catch (e) { status(String(e)); }
+  }
+
+  $("#updSave").addEventListener("click", async () => {
+    const t = $("#updToken").value.trim();
+    if (!t) return status("請貼上權杖");
+    await invoke("update_set", { token: t });
+    await refresh();
+    status("已儲存");
+    check(true);
+  });
+  $("#updToken").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#updSave").click(); });
+  $("#updAuto").addEventListener("change", async (e) => { await invoke("update_set", { auto: e.target.checked }); await refresh(); });
+  $("#updCheck").addEventListener("click", () => check(true));
+  $("#updNow").addEventListener("click", install);
+  $("#updLater").addEventListener("click", closeDialog);
+
+  refresh();
+  setTimeout(() => check(false), 8000);
+  // 每 30 分鐘檢查一次；按過「稍後」的，下次檢查時再提醒
+  setInterval(() => { prompted = false; check(false); }, 30 * 60 * 1000);
+})();

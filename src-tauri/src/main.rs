@@ -6,6 +6,9 @@ mod avatar;
 mod fg;
 mod input;
 mod maple_api;
+mod notify;
+mod update;
+mod watch;
 #[allow(dead_code)]
 mod wz;
 mod serial;
@@ -210,6 +213,8 @@ fn main() {
             audio::init();
             maple_api::init(dir.join("maple_cache.json"));
             timers::init(app.handle(), dir.join("timers.json"));
+            update::init(dir.join("update.json"));
+            watch::init(app.handle(), dir.join("watch.json"));
 
             let (tx, rx) = mpsc::channel();
             input::start(app.handle().clone(), tx);
@@ -280,7 +285,19 @@ fn main() {
             avatar::beauty_icons,
             avatar::beauty_skins,
             avatar::beauty_styles,
-            avatar::item_icons
+            avatar::item_icons,
+            notify::notify_pending,
+            notify::notify_hide,
+            notify::notify_open,
+            notify::notify_test,
+            notify::notify_show,
+            watch::watch_get,
+            watch::watch_set,
+            watch::watch_clear_log,
+            update::update_info,
+            update::update_set,
+            update::update_check,
+            update::update_install
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

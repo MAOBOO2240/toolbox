@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "主視窗與計時器浮動視窗權限",
-  "windows": ["main", "overlay"],
+  "windows": ["main", "overlay", "notify"],
   "permissions": [
     "core:default",
     "core:window:allow-set-theme",
