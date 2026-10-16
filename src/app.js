@@ -174,6 +174,7 @@ const ItemIcons = (() => {
   const cache = new Map(); // 名稱 → data URL 或 null
   const want = new Set();
   const live = new Set(); // 等待圖示的元素
+  const waiters = new Map(); // 名稱 → 等待結果的 Promise resolve
   let timer = null, busy = false;
   const gameDir = () => { try { return JSON.parse(localStorage.getItem("beauty-v1"))?.gamePath || null; } catch (_) { return null; } };
 
@@ -198,6 +199,7 @@ const ItemIcons = (() => {
       names.forEach((n, i) => cache.set(n, pngs[i] || null));
     } catch (_) { names.forEach((n) => cache.set(n, null)); }
     busy = false;
+    for (const n of names) { for (const r of waiters.get(n) || []) r(cache.get(n)); waiters.delete(n); }
     for (const el of [...live]) if (!el.isConnected || fill(el)) live.delete(el);
     if (want.size) flush();
   }
@@ -213,7 +215,18 @@ const ItemIcons = (() => {
     }
     return span;
   }
-  return { el };
+  /** 取得圖示的 data URL（沒有遊戲資料或找不到時為 null） */
+  function get(name) {
+    if (cache.has(name)) return Promise.resolve(cache.get(name));
+    if (!TAURI) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      if (!waiters.has(name)) waiters.set(name, []);
+      waiters.get(name).push(resolve);
+      want.add(name);
+      if (!timer) timer = setTimeout(flush, 30);
+    });
+  }
+  return { el, get };
 })();
 window.ItemIcons = ItemIcons;
 
@@ -235,9 +248,9 @@ const CATS = {
     eyebrow: "MapleStory",
     tools: [
       { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
-      { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors" },
-      { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple" },
-      { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet" },
+      { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
+      { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
+      { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
     ],
   },
   tools: {
@@ -268,6 +281,18 @@ function showCat(cat) {
     btn.querySelector("small").textContent = t.desc;
     btn.addEventListener("click", () => openTool(t.id));
     tiles.appendChild(btn);
+    // 有對應的遊戲道具時，改用遊戲裡的道具圖示（讀不到就保留原本的圖示）
+    if (t.item) ItemIcons.get(t.item).then((png) => {
+      if (!png) return;
+      const box = btn.querySelector(".cat-icon");
+      box.classList.add("item");
+      box.innerHTML = "";
+      const img = new Image();
+      img.src = png;
+      img.alt = "";
+      img.draggable = false;
+      box.append(img);
+    });
   }
   showView("cat");
   $("#app").classList.remove("collapsed");

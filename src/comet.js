@@ -305,14 +305,14 @@ B	愛心守護者短杖	1.30%`;
       batch: {}, batchSplit: {}, batchDraws: zeroPools(), // 本次：抽到的、其中被自動分解的
       hist: {}, histDraws: zeroPools(), // 累計抽到的（算實際機率）
       owned: {}, // 保管箱裡現有的（分解後會減少）
-      auto: { grades: {}, items: {} },
+      auto: { grades: {}, items: {}, keep: {} },
     };
   }
   let st = (() => {
     const d = defaults();
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.pools) return { ...d, ...s, stats: { ...blankStats(), ...s.stats }, batchDraws: { ...zeroPools(), ...s.batchDraws }, histDraws: { ...zeroPools(), ...s.histDraws }, auto: { grades: {}, items: {}, ...s.auto } };
+      if (s && s.pools) return { ...d, ...s, stats: { ...blankStats(), ...s.stats }, batchDraws: { ...zeroPools(), ...s.batchDraws }, histDraws: { ...zeroPools(), ...s.histDraws }, auto: { grades: {}, items: {}, keep: {}, ...s.auto } };
     } catch (_) {}
     return d;
   })();
@@ -339,7 +339,12 @@ B	愛心守護者短杖	1.30%`;
   const itemOf = (pool, name) => st.pools[pool].find((it) => it.name === name);
   const gradeOf = (pool, name) => itemOf(pool, name)?.grade || "C";
   const topGrade = (pool) => (pool === "shiny" ? "A" : "S");
-  const isAuto = (pool, it) => !!(st.auto.grades[it.grade] || st.auto.items[key(pool, it.name)]);
+  /** 是否自動分解：個別指定的一定分解；整個等級設定時，個別取消（保留）的不分解 */
+  const isAuto = (pool, it) => {
+    const k = key(pool, it.name);
+    if (st.auto.items[k]) return true;
+    return !!(st.auto.grades[it.grade] && !st.auto.keep[k]);
+  };
 
   /* ---------- 分頁 ---------- */
   function renderPage() {
@@ -441,7 +446,10 @@ B	愛心守護者短杖	1.30%`;
     }
     const ag = C.GRADES.filter((g) => st.auto.grades[g]);
     const ai = Object.keys(st.auto.items).filter((k) => st.auto.items[k]).length;
-    $("#cAutoInfo").textContent = ag.length || ai ? `自動分解：${[ag.length ? ag.join("、") + " 級" : "", ai ? `指定 ${ai} 件` : ""].filter(Boolean).join("＋")}` : "自動分解：未設定";
+    const ak = Object.keys(st.auto.keep).filter((k) => st.auto.keep[k] && st.auto.grades[gradeOf(...splitKey(k))]).length;
+    $("#cAutoInfo").textContent = ag.length || ai
+      ? `自動分解：${[ag.length ? ag.join("、") + " 級" : "", ai ? `指定 ${ai} 件` : ""].filter(Boolean).join("＋")}${ak ? `（保留 ${ak} 件）` : ""}`
+      : "自動分解：未設定";
   }
 
   const metric = (label, value, cls = "") => `<div class="g-metric"><span>${label}</span><b class="${cls}">${value}</b></div>`;
@@ -722,10 +730,11 @@ B	愛心守護者短杖	1.30%`;
       for (const it of st.pools[pool]) {
         const k = key(pool, it.name);
         const byGrade = !!st.auto.grades[it.grade];
-        const on = byGrade || !!st.auto.items[k];
+        const kept = byGrade && !!st.auto.keep[k] && !st.auto.items[k];
+        const on = isAuto(pool, it);
         const card = document.createElement("button");
-        card.className = "c-auto-item" + (on ? " on" : "") + (byGrade ? " by-grade" : "");
-        card.title = byGrade ? `${it.grade} 級已設定全部自動分解` : on ? "點一下取消自動分解" : "點一下設定自動分解";
+        card.className = "c-auto-item" + (on ? " on" : "") + (kept ? " kept" : "");
+        card.title = on ? "點一下取消這件的自動分解" : kept ? `點一下恢復分解（${it.grade} 級全部分解）` : "點一下設定自動分解";
         const nm = document.createElement("span");
         nm.className = "t";
         nm.textContent = it.name;
@@ -733,8 +742,12 @@ B	愛心守護者短杖	1.30%`;
         fr.textContent = `${C.FRAG[it.grade]} 碎片`;
         card.append(gradeBadge(it.grade), ItemIcons.el(it.name), nm, fr);
         card.addEventListener("click", () => {
-          if (byGrade) return toast(`${it.grade} 級已全部自動分解，先取消上方的 ${it.grade} 級`);
-          if (st.auto.items[k]) delete st.auto.items[k]; else st.auto.items[k] = true;
+          if (byGrade) {
+            // 整個等級分解中：點一下改成保留這件，再點一次恢復分解
+            delete st.auto.items[k];
+            if (st.auto.keep[k]) delete st.auto.keep[k]; else st.auto.keep[k] = true;
+          } else if (st.auto.items[k]) delete st.auto.items[k];
+          else st.auto.items[k] = true;
           save(); renderAutoWin(); renderPool(); renderStats();
         });
         grid.append(card);
@@ -798,7 +811,7 @@ B	愛心守護者短杖	1.30%`;
     save(); renderAutoWin(); renderPool(); renderStats();
   }));
   $("#cAutoNone").addEventListener("click", () => {
-    st.auto = { grades: {}, items: {} };
+    st.auto = { grades: {}, items: {}, keep: {} };
     save(); renderAutoWin(); renderPool(); renderStats();
   });
   // 立刻把保管箱裡符合自動分解的道具分解掉

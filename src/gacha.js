@@ -650,7 +650,7 @@ if (typeof document !== "undefined") (() => {
         src.textContent = SHORT[pool];
         chip.append(src);
       }
-      chip.append(document.createTextNode(name));
+      chip.append(ItemIcons.el(name), document.createTextNode(name));
       const n = document.createElement("b");
       n.textContent = `×${st.batch[k]}`;
       chip.append(n);

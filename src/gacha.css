@@ -270,3 +270,6 @@
 .g-vault-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-bottom: 0.5rem; }
 .g-sec .g-chip { background: var(--card); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 .g-sec .g-chip.rare { background: color-mix(in srgb, #f5b301 22%, var(--card)); }
+
+/* 本次獲得：道具圖示 */
+.g-chip .item-ic { width: 1.35rem; height: 1.35rem; background: transparent; }

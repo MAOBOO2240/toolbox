@@ -345,6 +345,13 @@
       wireCard(el, t);
       paint(el, t, snaps[t.id]);
     }
+    // 最後一格：新增計時器
+    const add = document.createElement("button");
+    add.className = "tcard tadd";
+    add.title = "新增計時器";
+    add.innerHTML = '<span class="tadd-circle"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="tadd-label">新增計時器</span>';
+    add.addEventListener("click", () => addTimer());
+    grid.appendChild(add);
     $("#gameOnly").checked = file.game_only;
     renderMaster();
     renderPrefs();
@@ -393,13 +400,7 @@
     $("#keyChip").textContent = `最後按鍵：${p.last_key ? keyLabel(p.last_key) : "—"}`;
   }
 
-  /* ---------- 全局設定面板 ---------- */
-  const sheet = $("#timerSheet");
-  const backdrop = $("#sheetBackdrop");
-  const openSheet = (on) => { sheet.classList.toggle("show", on); backdrop.classList.toggle("show", on); };
-  $("#timerSettingsBtn").addEventListener("click", (e) => { e.stopPropagation(); openSheet(true); });
-  $("#sheetClose").addEventListener("click", () => openSheet(false));
-  backdrop.addEventListener("click", () => openSheet(false));
+  /* ---------- 全局設定（上方：通知；左下：浮動視窗） ---------- */
 
   function renderPrefs() {
     const p = file.prefs;
@@ -457,14 +458,14 @@
     file.game_only = e.target.checked;
     await tapi.gameOnly(e.target.checked);
   }));
-  $("#addTimerBtn").addEventListener("click", () => run(async () => {
+  const addTimer = () => run(async () => {
     const t = await tapi.add();
     file.timers.push(t);
     renderAll();
     const el = card(t.id);
     el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     el?.querySelector(".f-name").select();
-  }));
+  });
 
   async function load() {
     file = await tapi.get();

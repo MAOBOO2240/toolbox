@@ -135,61 +135,39 @@
           <span class="fg-chip" id="fgChip"><i></i><span>偵測中…</span></span>
           <span class="key-chip" id="keyChip">最後按鍵：—</span>
           <span class="spacer"></span>
-          <button class="pill ghost small" id="addTimerBtn">＋ 新增計時器</button>
-          <button class="pill ghost small icon-pill" id="timerSettingsBtn">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-            設定
-          </button>
-        </div>
-        <div class="timer-scroll">
-          <div class="timer-grid" id="timerGrid"></div>
-        </div>
-        <button class="master-btn" id="masterBtn"><i></i><span>全部關閉</span></button>
-
-        <!-- 計時器全局設定 -->
-        <div class="sheet-backdrop" id="sheetBackdrop"></div>
-        <div class="sheet" id="timerSheet">
-          <div class="sheet-head">
-            <strong>計時器設定</strong>
-            <button class="link-btn" id="sheetClose">完成</button>
-          </div>
-          <p class="sub">通知</p>
-          <div class="field"><span class="lbl">通知方式</span>
+          <!-- 通知設定（原本在設定面板裡） -->
+          <div class="tb-group"><span class="tb-lbl">通知方式</span>
             <div class="seg" id="prefNotify">
               <button data-v="short" data-tip="短：時間到只通知一次。">短</button>
               <button data-v="long" data-tip="長：每 3 秒重複通知，直到重新計時；計時器沒有指派按鍵時只通知一聲。">長</button>
             </div>
           </div>
-          <div class="field"><span class="lbl">音效</span>
-            <div class="inline">
-              <select class="sel" id="prefSound">
-                <option value="beep1">柔和木琴</option>
-                <option value="beep2">柔和鐘聲</option>
-                <option value="beep3">溫和雙音</option>
-                <option value="tts">語音唸出計時器名稱</option>
-                <option value="file">自訂音效檔…</option>
-              </select>
-              <button class="link-btn" id="prefPreview">試聽</button>
-            </div>
+          <div class="tb-group"><span class="tb-lbl">音效</span>
+            <select class="sel" id="prefSound">
+              <option value="beep1">柔和木琴</option>
+              <option value="beep2">柔和鐘聲</option>
+              <option value="beep3">溫和雙音</option>
+              <option value="tts">語音唸出計時器名稱</option>
+              <option value="file">自訂音效檔…</option>
+            </select>
+            <span class="tb-file" id="prefFileRow"><button class="pill ghost small" id="prefPick">選擇檔案</button><small class="muted" id="prefFileName"></small></span>
+            <button class="link-btn" id="prefPreview">試聽</button>
           </div>
-          <div class="field" id="prefFileRow"><span class="lbl">音效檔</span>
-            <div class="inline"><button class="pill ghost small" id="prefPick">選擇檔案</button><small class="muted" id="prefFileName"></small></div>
+          <div class="tb-group"><span class="tb-lbl">音量</span>
+            <input type="range" class="range tb-range" id="prefVolume" min="0" max="200" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefVolumeVal" min="0" max="200" />%</label>
           </div>
-          <div class="field"><span class="lbl">音量</span>
-            <div class="inline"><input type="range" class="range" id="prefVolume" min="0" max="200" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefVolumeVal" min="0" max="200" />%</label></div>
-          </div>
-          <p class="sub">浮動視窗</p>
-          <div class="field"><span class="lbl">顯示</span>
-            <label class="switch sm"><input type="checkbox" id="prefOvShow" /><span class="slider"></span></label>
-          </div>
-          <div class="field"><span class="lbl" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。">鎖定 <i class="info">i</i></span>
-            <label class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></label>
-          </div>
-          <div class="field"><span class="lbl" data-tip="只調整浮動視窗底色的透明度，文字永遠不透明。100% = 完全沒有底色。">透明度 <i class="info">i</i></span>
-            <div class="inline"><input type="range" class="range" id="prefOvTrans" min="0" max="100" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefOvTransVal" min="0" max="100" />%</label></div>
-          </div>
-          <div class="field"><span class="lbl"></span>
-            <div class="inline"><button class="pill ghost small" id="prefOvReset">重設位置</button></div>
+        </div>
+        <div class="timer-scroll">
+          <div class="timer-grid" id="timerGrid"></div>
+        </div>
+        <!-- 左下：總開關與浮動視窗設定 -->
+        <div class="timer-foot">
+          <button class="master-btn" id="masterBtn"><i></i><span>全部關閉</span></button>
+          <div class="ov-bar">
+            <label class="ov-item" data-tip="顯示浮動視窗：有計時器在倒數或超時時才會出現。"><span>浮動視窗</span><span class="switch sm"><input type="checkbox" id="prefOvShow" /><span class="slider"></span></span></label>
+            <label class="ov-item" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。"><span>鎖定</span><span class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></span></label>
+            <div class="ov-item" data-tip="只調整浮動視窗底色的透明度，文字永遠不透明。100% = 完全沒有底色。"><span>透明度</span><input type="range" class="range ov-range" id="prefOvTrans" min="0" max="100" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefOvTransVal" min="0" max="100" />%</label></div>
+            <button class="link-btn ov-reset" id="prefOvReset" title="把浮動視窗移回預設位置與大小">重設位置</button>
           </div>
         </div>
       </section>
@@ -573,7 +551,7 @@
         <button class="cbtn c-green small solid" id="cAutoNow" title="把保管箱裡符合設定的道具現在就分解">立即分解保管箱</button>
         <button class="b-x" id="cAutoClose" title="關閉">×</button>
       </div>
-      <p class="muted c-auto-hint">選等級會自動分解該等級的全部道具；也可以點下面的道具個別指定。之後抽到的道具會直接變成彗星碎片，不進保管箱。</p>
+      <p class="muted c-auto-hint">選等級會自動分解該等級的全部道具，再點其中某件可以單獨取消（保留）；沒選等級時點道具可以個別指定。之後抽到要分解的道具會直接變成彗星碎片，不進保管箱。</p>
       <div class="c-auto-list" id="cAutoList"></div>
     </div>
   </div>
