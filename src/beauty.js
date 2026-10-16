@@ -140,7 +140,7 @@ if (typeof document !== "undefined") (() => {
       pools: C.parse(DEFAULT_TEXT), kind: "hair", gender: "F", page: "sim", cost: DEFAULT_COST, costV2: true, gamePath: "",
       stats: blankStats(), batch: {}, batchDraws: zero(), hist: {}, histDraws: zero(),
       charName: "", tryHair: null, tryFace: null,
-      dress: false, outfit: null, favs: [], pickSlot: "All", pickG: "", pickCash: true, skinId: null,
+      dress: false, outfit: null, favs: [], styleFavs: {}, styleSize: "m", styleFavOnly: false, pickSlot: "All", pickG: "", pickCash: true, skinId: null,
     };
   }
   let st = (() => {
@@ -165,6 +165,7 @@ if (typeof document !== "undefined") (() => {
     delete st.looks;
   }
   if (!Array.isArray(st.favs)) st.favs = [];
+  if (!st.styleFavs || typeof st.styleFavs !== "object") st.styleFavs = {};
   let saveTimer;
   const save = () => {
     clearTimeout(saveTimer);
@@ -387,19 +388,18 @@ if (typeof document !== "undefined") (() => {
   });
 
   const pan = { x: 0, y: 0 };
-  /** 紙娃娃用整數倍放大，保持像素清楚；放大鏡切換大小 */
+  const DOLL_SCALE = 3, DOLL_MIN = 1, DOLL_MAX = 12;
+  const dollScale = () => Math.min(DOLL_MAX, Math.max(DOLL_MIN, Number(st.dollScale) || DOLL_SCALE));
+  /** 紙娃娃放大倍率：滑鼠在角色框裡用滾輪調整 */
   function sizeLook() {
     const look = $("#bLook");
     const base = Number(look.dataset.w) || 0;
     const w = base || look.naturalWidth || 0;
     if (!w) return;
-    const scale = base ? (st.zoom ? 5 : 3) : (st.zoom ? 3 : 1.6);
+    // 官方角色圖本身比較大，倍率打折
+    const scale = base ? dollScale() : dollScale() * 0.55;
     look.style.width = `${Math.round(w * scale)}px`;
-    if (!st.zoom) pan.x = pan.y = 0;
     look.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
-    $("#bStage").classList.toggle("pannable", !!st.zoom);
-    $("#bZoom").classList.toggle("on", !!st.zoom);
-    $("#bZoomPlus").setAttribute("d", st.zoom ? "M7.5 10.5h6" : "M10.5 7.5v6M7.5 10.5h6");
   }
 
   function renderSwatches() {
@@ -645,12 +645,28 @@ if (typeof document !== "undefined") (() => {
     closeFloat();
     save(); renderSwatches(); renderDoll(); renderRight(); renderPick();
   });
-  // 放大後可以按住左鍵拖曳移動角色
+  // 角色框：滾輪放大縮小（以游標為中心）、按住左鍵拖曳移動、按兩下回到預設
   (() => {
     const stage = $("#bStage");
     let drag = null;
+    stage.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.deltaY === 0) return;
+      const old = dollScale();
+      const next = Math.min(DOLL_MAX, Math.max(DOLL_MIN, old * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      if (next === old) return;
+      const r = stage.getBoundingClientRect();
+      const cx = e.clientX - (r.left + r.width / 2);
+      const cy = e.clientY - (r.top + r.height / 2);
+      pan.x = cx - (cx - pan.x) * (next / old);
+      pan.y = cy - (cy - pan.y) * (next / old);
+      st.dollScale = Math.round(next * 1000) / 1000;
+      save();
+      sizeLook();
+    }, { passive: false });
     stage.addEventListener("pointerdown", (e) => {
-      if (!st.zoom || e.button !== 0 || e.target.closest("button")) return;
+      if (e.button !== 0 || e.target.closest("button")) return;
       drag = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       stage.setPointerCapture(e.pointerId);
       stage.classList.add("dragging");
@@ -665,8 +681,8 @@ if (typeof document !== "undefined") (() => {
     const end = () => { drag = null; stage.classList.remove("dragging"); };
     stage.addEventListener("pointerup", end);
     stage.addEventListener("pointercancel", end);
+    stage.addEventListener("dblclick", () => { pan.x = pan.y = 0; st.dollScale = DOLL_SCALE; save(); sizeLook(); });
   })();
-  $("#bZoom").addEventListener("click", () => { st.zoom = !st.zoom; pan.x = pan.y = 0; save(); sizeLook(); });
   $("#bLook").addEventListener("load", sizeLook);
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
@@ -862,17 +878,20 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 右鍵選單 ---------- */
   function openCtx(x, y, item) {
-    const m = $("#bCtx");
-    m.innerHTML = "";
     const worn = curOutfit().some((o) => o.id === item.id);
     const opts = [
       [isFav(item.id) ? "取消收藏" : "收藏", () => (isFav(item.id) ? removeFav(item) : addFav(item))],
       [worn ? "脫下" : "穿上", () => wear(item, true)],
     ];
     if (worn) opts.push(["染色", () => openDye(item.id)]);
+    showMenu(x, y, item.name, opts);
+  }
+  function showMenu(x, y, name, opts) {
+    const m = $("#bCtx");
+    m.innerHTML = "";
     const title = document.createElement("div");
     title.className = "b-ctx-title";
-    title.textContent = item.name;
+    title.textContent = name;
     m.append(title);
     for (const [label, fn] of opts) {
       const b = document.createElement("button");
@@ -915,6 +934,13 @@ if (typeof document !== "undefined") (() => {
     );
   }
 
+  function pickIcon(it) {
+    const el = iconEl(it);
+    el.addEventListener("mouseenter", () => { $("#bPickHover").textContent = `${it.name}・${SLOT_NAME[it.slot] || ""}（${it.id}）`; });
+    el.addEventListener("click", () => wear(it));
+    return el;
+  }
+
   async function renderPick() {
     if (!st.dress) return;
     const slots = $("#bSlots");
@@ -947,21 +973,33 @@ if (typeof document !== "undefined") (() => {
     $("#bPickCount").textContent = `${list.length} 件`;
     if (!list.length) { box.innerHTML = '<div class="g-empty">沒有符合的道具</div>'; return; }
     const frag = document.createDocumentFragment();
-    for (const it of list.slice(0, shown)) {
-      const el = iconEl(it);
-      el.addEventListener("mouseenter", () => { $("#bPickHover").textContent = `${it.name}・${SLOT_NAME[it.slot] || ""}（${it.id}）`; });
-      el.addEventListener("click", () => wear(it));
-      frag.appendChild(el);
-    }
-    if (list.length > shown) {
-      const more = document.createElement("button");
-      more.className = "cbtn c-silver small b-more";
-      more.textContent = `顯示更多（還有 ${list.length - shown} 件）`;
-      more.addEventListener("click", () => { shown += PAGE * 2; renderPick(); });
-      frag.appendChild(more);
-    }
+    for (const it of list.slice(0, shown)) frag.appendChild(pickIcon(it));
     box.appendChild(frag);
+    pickMore(box, list);
     markIcons();
+  }
+
+  /** 捲到最下面自動載入更多（接在後面，不重畫已經顯示的） */
+  let pickSentinelIO = null;
+  function pickMore(box, list) {
+    pickSentinelIO?.disconnect();
+    if (list.length <= shown) return;
+    const more = document.createElement("div");
+    more.className = "b-more muted";
+    more.textContent = `往下捲動載入更多（還有 ${list.length - shown} 件）`;
+    box.appendChild(more);
+    pickSentinelIO = new IntersectionObserver((ents) => {
+      if (!ents.some((e) => e.isIntersecting)) return;
+      pickSentinelIO.disconnect();
+      more.remove();
+      const frag = document.createDocumentFragment();
+      for (const it of list.slice(shown, shown + PAGE)) frag.appendChild(pickIcon(it));
+      shown += PAGE;
+      box.appendChild(frag);
+      markIcons();
+      pickMore(box, list);
+    }, { root: box, rootMargin: "300px" });
+    pickSentinelIO.observe(more);
   }
 
   const PALETTE_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3Z"/><circle cx="7.5" cy="11" r="1.3"/><circle cx="10" cy="7.3" r="1.3"/><circle cx="14.5" cy="7.3" r="1.3"/><circle cx="17" cy="11" r="1.3"/></svg>';
@@ -1092,10 +1130,38 @@ if (typeof document !== "undefined") (() => {
   }
   function closeStyle() { $("#bStyleWin").hidden = true; styleKind = null; styleGen++; thumbWant.length = 0; }
 
+  /* 髮型／臉型／膚色的收藏（依造型系列記，不分顏色） */
+  const styleFavs = (kind) => (st.styleFavs[kind] ||= []);
+  const isStyleFav = (kind, id) => styleFavs(kind).includes(famOf(kind, id));
+  function toggleStyleFav(kind, it) {
+    const fam = famOf(kind, it.id);
+    const list = styleFavs(kind);
+    const i = list.indexOf(fam);
+    if (i >= 0) list.splice(i, 1); else list.unshift(fam);
+    save();
+    toast(i >= 0 ? `已取消收藏「${it.name}」` : `已收藏「${it.name}」`);
+    $$("#bStyleGrid .b-style-card").forEach((c) => c.classList.toggle("fav", isStyleFav(kind, Number(c.dataset.id))));
+    if (st.styleFavOnly) renderStyles();
+  }
+
   function styleItems() {
     const list = styleKind === "skin" ? skins || [] : styleLists[styleKind] || [];
     const q = $("#bStyleSearch").value.trim();
-    return q ? list.filter((x) => x.name.includes(q) || String(x.id).includes(q)) : list;
+    let out = q ? list.filter((x) => x.name.includes(q) || String(x.id).includes(q)) : list;
+    if (st.styleFavOnly) out = out.filter((x) => isStyleFav(styleKind, x.id));
+    else if (styleFavs(styleKind).length) {
+      // 收藏的排在最前面
+      out = [...out.filter((x) => isStyleFav(styleKind, x.id)), ...out.filter((x) => !isStyleFav(styleKind, x.id))];
+    }
+    return out;
+  }
+  const THUMB_SCALE = { l: 2, m: 1.5, s: 1 };
+  function applyStyleSize() {
+    const size = st.styleSize || "m";
+    $("#bStyleGrid").className = `b-style-grid size-${size}`;
+    $$("#bStyleSize button").forEach((b) => b.classList.toggle("on", b.dataset.size === size));
+    $("#bStyleFavOnly").classList.toggle("on", !!st.styleFavOnly);
+    $$("#bStyleGrid .b-style-pic img").forEach((img) => { if (img.naturalWidth) img.style.width = `${img.naturalWidth * THUMB_SCALE[size]}px`; });
   }
   function currentStyleId() {
     if (styleKind === "skin") return st.skinId || lastSkinId;
@@ -1141,7 +1207,7 @@ if (typeof document !== "undefined") (() => {
   function putThumb(card, png) {
     const box = card.querySelector(".b-style-pic");
     box.innerHTML = "";
-    if (png) { const img = new Image(); img.src = png; img.alt = ""; img.onload = () => { img.style.width = `${img.naturalWidth * 2}px`; }; box.append(img); }
+    if (png) { const img = new Image(); img.src = png; img.alt = ""; img.onload = () => { img.style.width = `${img.naturalWidth * THUMB_SCALE[st.styleSize || "m"]}px`; }; box.append(img); }
     else box.innerHTML = '<span class="muted">無法顯示</span>';
   }
 
@@ -1149,15 +1215,16 @@ if (typeof document !== "undefined") (() => {
     const grid = $("#bStyleGrid");
     grid.innerHTML = "";
     thumbWant.length = 0;
+    applyStyleSize();
     const list = styleItems();
     $("#bStyleCount").textContent = `${list.length} 種`;
-    if (!list.length) { grid.innerHTML = '<div class="g-empty">沒有符合的項目</div>'; return; }
+    if (!list.length) { grid.innerHTML = `<div class="g-empty">${st.styleFavOnly ? "還沒有收藏，按卡片右上角的愛心或右鍵選「收藏」" : "沒有符合的項目"}</div>`; return; }
     const cur = currentStyleId();
     const kind = styleKind;
     const frag = document.createDocumentFragment();
     for (const it of list.slice(0, styleShown)) {
       const card = document.createElement("button");
-      card.className = "b-style-card" + (cur && famOf(kind, cur) === famOf(kind, it.id) ? " on" : "");
+      card.className = "b-style-card" + (cur && famOf(kind, cur) === famOf(kind, it.id) ? " on" : "") + (isStyleFav(kind, it.id) ? " fav" : "");
       card.title = `${it.name}（${it.id}）`;
       card.dataset.id = it.id;
       const req = thumbReq(kind, it);
@@ -1168,7 +1235,19 @@ if (typeof document !== "undefined") (() => {
       const nm = document.createElement("span");
       nm.className = "b-style-name";
       nm.textContent = it.name;
-      card.append(pic, nm);
+      const heart = document.createElement("span");
+      heart.className = "b-heart";
+      heart.title = "收藏／取消收藏";
+      heart.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2Z"/></svg>';
+      heart.addEventListener("click", (e) => { e.stopPropagation(); toggleStyleFav(kind, it); });
+      card.append(pic, nm, heart);
+      card.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showMenu(e.clientX, e.clientY, it.name, [
+          [isStyleFav(kind, it.id) ? "取消收藏" : "收藏", () => toggleStyleFav(kind, it)],
+          ["套用", () => pickStyle(kind, it)],
+        ]);
+      });
       const cached = thumbCache.get(card.dataset.req);
       if (cached !== undefined) putThumb(card, cached); else thumbIO?.observe(card);
       card.addEventListener("click", () => pickStyle(kind, it));
@@ -1202,13 +1281,8 @@ if (typeof document !== "undefined") (() => {
   $("#bStyleSearch").addEventListener("input", () => { clearTimeout(styleSearchTimer); styleSearchTimer = setTimeout(() => { styleShown = STYLE_PAGE; renderStyles(); }, 200); });
   $("#bStyleClose").addEventListener("click", closeStyle);
   $("#bStyleWin").addEventListener("pointerdown", (e) => { if (e.target === $("#bStyleWin")) closeStyle(); });
-  $("#bStyleChar").addEventListener("click", () => {
-    if (styleKind === "skin") st.skinId = null;
-    else if (styleKind === "hair") st.tryHair = null;
-    else if (styleKind === "face") st.tryFace = null;
-    save(); renderDoll(); renderRight();
-    closeStyle();
-  });
+  $$("#bStyleSize button").forEach((b) => b.addEventListener("click", () => { st.styleSize = b.dataset.size; save(); applyStyleSize(); }));
+  $("#bStyleFavOnly").addEventListener("click", () => { st.styleFavOnly = !st.styleFavOnly; styleShown = STYLE_PAGE; save(); renderStyles(); });
 
   $("#bDress").addEventListener("click", () => {
     st.dress = !st.dress;

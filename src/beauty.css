@@ -132,7 +132,7 @@
 .b-row .b-name { align-self: stretch; }
 
 /* 拖曳放大後的角色 */
-.b-stage.pannable { cursor: grab; touch-action: none; }
+.b-stage { cursor: grab; touch-action: none; }
 .b-stage.dragging { cursor: grabbing; }
 .b-stage img { will-change: transform; user-select: none; -webkit-user-drag: none; }
 
@@ -248,14 +248,19 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 
 /* 目前裝備的染色按鈕 */
 .b-eq-row { grid-template-columns: 2.6rem minmax(0, 1fr) 1.9rem 1.9rem; }
+/* 染色按鈕：實心紫底、白色顏料盤 */
 .b-dye-btn {
   width: 1.9rem; height: 1.9rem; display: grid; place-items: center;
   border: 0; border-radius: 0.55rem; cursor: pointer;
-  background: color-mix(in srgb, #8b5cf6 16%, transparent); color: #8b5cf6;
+  background: #8b6cf6; color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: filter 0.15s, transform 0.1s;
 }
 .b-dye-btn svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .b-dye-btn svg circle { fill: currentColor; stroke: none; }
-.b-dye-btn:hover, .b-dye-btn.on { background: #8b5cf6; color: #fff; }
+.b-dye-btn:hover { filter: brightness(1.12); }
+.b-dye-btn:active { transform: scale(0.94); }
+.b-dye-btn.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px #8b6cf6; }
 
 /* 浮動視窗（染色、膚色）：放在右邊，不擋住中間的角色 */
 .b-float {
@@ -370,3 +375,28 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 @keyframes b-spin { to { transform: rotate(360deg); } }
 .b-style-name { font-size: 0.85rem; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .b-style-more { grid-column: 1 / -1; text-align: center; padding: 0.8rem; font-size: 0.85rem; }
+
+/* 選擇點裝：捲到底自動載入 */
+.b-icons .b-more { grid-column: 1 / -1; text-align: center; padding: 0.6rem; font-size: 0.78rem; }
+
+/* 大視窗：大中小、收藏 */
+.b-style-size { display: flex; gap: 0.3rem; }
+.b-style-size .cbtn { min-width: 2.4rem; }
+.b-style-card { position: relative; }
+.b-heart {
+  position: absolute; top: 0.85rem; right: 0.85rem;
+  width: 1.9rem; height: 1.9rem; display: grid; place-items: center;
+  border-radius: 50%; background: color-mix(in srgb, var(--card) 85%, transparent);
+  color: var(--text-2); opacity: 0; transition: opacity 0.15s;
+}
+.b-heart svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 2; }
+.b-style-card:hover .b-heart { opacity: 1; }
+.b-heart:hover { color: #ff4d7d; }
+.b-style-card.fav .b-heart { opacity: 1; color: #ff4d7d; }
+.b-style-card.fav .b-heart svg { fill: currentColor; }
+.b-style-grid.size-m { grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.55rem; }
+.b-style-grid.size-m .b-style-pic { height: 9rem; }
+.b-style-grid.size-s { grid-template-columns: repeat(auto-fill, minmax(5.8rem, 1fr)); gap: 0.45rem; }
+.b-style-grid.size-s .b-style-pic { height: 6.2rem; }
+.b-style-grid.size-s .b-style-name { font-size: 0.75rem; }
+.b-style-grid.size-s .b-heart { top: 0.6rem; right: 0.6rem; width: 1.5rem; height: 1.5rem; }

@@ -181,6 +181,9 @@
           <div class="field"><span class="lbl">顯示</span>
             <label class="switch sm"><input type="checkbox" id="prefOvShow" /><span class="slider"></span></label>
           </div>
+          <div class="field"><span class="lbl" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。">鎖定 <i class="info">i</i></span>
+            <label class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></label>
+          </div>
           <div class="field"><span class="lbl" data-tip="只調整浮動視窗底色的透明度，文字永遠不透明。100% = 完全沒有底色。">透明度 <i class="info">i</i></span>
             <div class="inline"><input type="range" class="range" id="prefOvTrans" min="0" max="100" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefOvTransVal" min="0" max="100" />%</label></div>
           </div>
@@ -359,12 +362,9 @@
               <button class="cbtn c-red small" id="bRestore" title="清除試穿、顏色、膚色與點裝變更，回到角色目前的造型">恢復造型</button>
             </div>
             <p class="b-status muted" id="bStatus">輸入角色名稱可以載入目前的造型；不輸入則使用空白紙娃娃</p>
-            <div class="b-stage" id="bStage">
+            <div class="b-stage" id="bStage" title="滾輪放大縮小・按住拖曳移動・按兩下回到預設">
               <img id="bLook" alt="" hidden />
               <canvas id="bCanvas" width="300" height="300" hidden></canvas>
-              <button class="b-zoom" id="bZoom" title="放大／縮小">
-                <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path id="bZoomPlus" d="M10.5 7.5v6M7.5 10.5h6"/></svg>
-              </button>
               <div class="b-empty" id="bEmpty">
                 <svg viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>
                 <span>空白紙娃娃</span>
@@ -477,7 +477,12 @@
         <input type="text" id="bStyleSearch" placeholder="搜尋名稱或編號" />
         <span class="muted" id="bStyleCount"></span>
         <span class="spacer"></span>
-        <button class="cbtn c-teal small" id="bStyleChar">角色原本的</button>
+        <button class="cbtn c-pink small" id="bStyleFavOnly" title="只顯示收藏的">只看收藏</button>
+        <div class="b-style-size" id="bStyleSize">
+          <button class="cbtn c-blue small" data-size="l">大</button>
+          <button class="cbtn c-blue small" data-size="m">中</button>
+          <button class="cbtn c-blue small" data-size="s">小</button>
+        </div>
         <button class="b-x" id="bStyleClose" title="關閉">×</button>
       </div>
       <div class="b-style-grid" id="bStyleGrid"></div>

@@ -270,7 +270,6 @@ fn main() {
             timers::set_master,
             timers::set_game_only,
             timers::reset_overlay,
-            timers::overlay_toggle_lock,
             timers::preview_sound,
             timers::pick_sound_file,
             maple_api::maple_lookup,

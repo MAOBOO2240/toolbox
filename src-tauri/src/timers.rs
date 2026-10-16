@@ -366,33 +366,7 @@ impl Engine {
 #[derive(Clone, PartialEq, Default)]
 struct OvApplied {
     visible: bool,
-    /// 滑鼠穿透：鎖定時為 true，但游標移到右上角圖釘上時暫時關閉，讓圖釘可以點
-    pass: bool,
-}
-
-/// 浮動視窗右上角圖釘的大小（邏輯像素，與 overlay.html 的 .pin 一致）
-const PIN_HIT: f64 = 34.0;
-
-/// 游標是否在浮動視窗右上角的圖釘範圍內
-fn cursor_on_pin(win: &WebviewWindow, o: &Overlay) -> bool {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::Foundation::POINT;
-        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
-        let mut pt = POINT { x: 0, y: 0 };
-        if unsafe { GetCursorPos(&mut pt) } == 0 {
-            return false;
-        }
-        let scale = win.scale_factor().unwrap_or(1.0);
-        let hit = (PIN_HIT * scale) as i32;
-        let right = o.x + o.w as i32;
-        return pt.x >= right - hit && pt.x <= right && pt.y >= o.y && pt.y <= o.y + hit;
-    }
-    #[allow(unreachable_code)]
-    {
-        let _ = (win, o);
-        false
-    }
+    locked: bool,
 }
 
 /// 顯示（不搶走遊戲的焦點）或隱藏浮動視窗。
@@ -444,13 +418,9 @@ fn sync_overlay(app: &AppHandle, applied: &mut Option<OvApplied>, want: OvApplie
         },
         None => return,
     };
-    let mut want = want;
-    if want.pass && want.visible && cursor_on_pin(&win, o) {
-        want.pass = false;
-    }
     let prev = applied.clone();
-    if prev.as_ref().map(|p| p.pass) != Some(want.pass) {
-        let _ = win.set_ignore_cursor_events(want.pass);
+    if prev.as_ref().map(|p| p.locked) != Some(want.locked) {
+        let _ = win.set_ignore_cursor_events(want.locked);
     }
     if prev.as_ref().map(|p| p.visible) != Some(want.visible) {
         set_overlay_visible(&win, want.visible);
@@ -525,7 +495,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 let o = &prefs.overlay;
                 // 只在新楓之谷時：遊戲或本程式在前景才顯示，其他程式在前景就隱藏
                 let in_place = !game_only || game_fg || info.is_self;
-                let want = OvApplied { visible: o.show && master && any_running && in_place, pass: o.locked };
+                let want = OvApplied { visible: o.show && master && any_running && in_place, locked: o.locked };
                 let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_millis(800) {
                     e.dirty = false;
                     last_save = now;
@@ -592,25 +562,11 @@ pub fn update_prefs(prefs: Prefs) {
     let mut e = eng();
     let o = &e.file.prefs.overlay;
     let geom = (o.x, o.y, o.w, o.h);
-    let locked = o.locked;
     e.file.prefs = Prefs { volume: prefs.volume.min(200), ..prefs };
     let o = &mut e.file.prefs.overlay;
     (o.x, o.y, o.w, o.h) = geom;
-    // 鎖定改由浮動視窗右上角的圖釘切換
-    o.locked = locked;
     o.bg = o.bg.clamp(0.0, 1.0);
     e.dirty = true;
-}
-
-/// 浮動視窗右上角的圖釘：切換鎖定
-#[tauri::command]
-pub fn overlay_toggle_lock() -> bool {
-    let mut e = eng();
-    let o = &mut e.file.prefs.overlay;
-    o.locked = !o.locked;
-    let v = o.locked;
-    e.dirty = true;
-    v
 }
 
 #[tauri::command]

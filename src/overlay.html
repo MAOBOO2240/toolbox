@@ -19,30 +19,27 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 4px 32px 4px 10px; /* 右邊留給圖釘 */
+      padding: 4px 10px;
       box-sizing: border-box;
       border-radius: 14px;
-      container-type: size;
       /* 只有底色有透明度，文字永遠不透明 */
       background: rgba(18, 18, 20, var(--bg));
     }
     /* 未鎖定：可拖曳，右下角顯示縮放把手（不顯示邊框） */
     .ov.unlocked { cursor: move; }
-    /* 每一列的高度依計時器數量平均分配，但不會過高 */
+    /* 文字固定大小，不隨視窗大小改變；視窗太小時會自動加大到放得下 */
     .row {
       flex: none;
-      height: calc(100cqh / var(--n, 1));
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: min(18cqh, 14px);
-      container-type: size;
+      gap: 14px;
+      padding: 2px 0;
     }
     /* 文字不截斷，太長時由視窗自動加寬 */
     .name {
       flex: none;
-      /* 依高度縮放，但有上限，視窗拉很大時字也不會太大 */
-      font-size: min(36cqh, 20px);
+      font-size: 18px;
       font-weight: 500;
       color: #fff;
       white-space: nowrap;
@@ -51,7 +48,7 @@
     .time {
       --heat: 0;
       flex: none;
-      font-size: min(68cqh, 38px);
+      font-size: 34px;
       font-weight: 500;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
@@ -79,45 +76,16 @@
       background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.85) 50%, rgba(255,255,255,.85) 60%, transparent 60%, transparent 72%, rgba(255,255,255,.85) 72%, rgba(255,255,255,.85) 82%, transparent 82%);
     }
     .ov.unlocked .grip { display: block; }
-    /* 右上角圖釘：鎖定／解除鎖定 */
-    .pin {
-      position: absolute;
-      top: 3px;
-      right: 3px;
-      width: 24px;
-      height: 24px;
-      display: grid;
-      place-items: center;
-      border: 0;
-      border-radius: 7px;
-      padding: 0;
-      cursor: pointer;
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
-      opacity: 0.45;
-      transition: opacity 0.15s, background 0.15s;
-    }
-    .pin:hover { opacity: 1; background: rgba(255, 255, 255, 0.28); }
-    .pin svg { width: 15px; height: 15px; fill: currentColor; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)); }
-    /* 解除鎖定時：圖釘拔起來（傾斜、藍色） */
-    .ov.unlocked .pin { opacity: 1; background: #4c8dff; }
-    .ov.unlocked .pin svg { transform: rotate(40deg); }
   </style>
 </head>
 <body>
-  <div class="ov" id="ov">
-    <button class="pin" id="pin" title="鎖定／解除鎖定（解除後可拖曳移動、拉右下角調整大小）">
-      <svg viewBox="0 0 24 24"><path d="M15.5 2.5 21.5 8.5 19.4 9.3 15.9 12.8 16.5 17.6 14.8 19.3 10.6 15.1 4.6 21.1 2.9 21.1 2.9 19.4 8.9 13.4 4.7 9.2 6.4 7.5 11.2 8.1 14.7 4.6Z"/></svg>
-    </button>
-    <div class="grip" id="grip"></div>
-  </div>
+  <div class="ov" id="ov"><div class="grip" id="grip"></div></div>
   <script>
     "use strict";
     const T = window.__TAURI__;
     const win = T.window.getCurrentWindow();
     const ov = document.getElementById("ov");
     const grip = document.getElementById("grip");
-    const pin = document.getElementById("pin");
     const rows = new Map();
 
     const pad = (n) => String(n).padStart(2, "0");
@@ -153,7 +121,7 @@
       for (const [id, r] of rows) if (!keep.has(id)) { r.el.remove(); rows.delete(id); }
       list.forEach((s, i) => {
         const r = rowFor(s.id);
-        if (ov.children[i] !== r.el) ov.insertBefore(r.el, ov.children[i] || pin);
+        if (ov.children[i] !== r.el) ov.insertBefore(r.el, ov.children[i] || grip);
         if (r.name.textContent !== s.name) r.name.textContent = s.name;
         let text;
         if (s.phase === "over") text = "+" + fmt(Math.floor(s.over_ms / 1000));
@@ -175,33 +143,31 @@
     // 文字放不下時加寬視窗，並把最小寬度設成剛好放得下的大小
     const LogicalSize = (T.window && T.window.LogicalSize) || (T.dpi && T.dpi.LogicalSize);
     let minW = 0;
+    let minH = 0;
     function fitWidth() {
       if (!LogicalSize || rows.size === 0) return;
-      // 只量文字本身的寬度（scrollWidth 不會小於目前寬度，用它會讓視窗越變越寬）
-      let need = 0;
+      // 只量文字本身的寬高（scrollWidth 不會小於目前寬度，用它會讓視窗越變越寬）
+      let need = 0, needH = 0;
       for (const r of rows.values()) {
         const gap = parseFloat(getComputedStyle(r.el).columnGap) || 0;
         need = Math.max(need, r.name.offsetWidth + gap + r.time.offsetWidth);
+        needH += r.el.offsetHeight;
       }
-      need = Math.ceil(need + 46); // 左右內距 + 圖釘
-      if (Math.abs(need - minW) > 2) {
+      need = Math.ceil(need + 22); // 左右內距
+      needH = Math.ceil(needH + 10); // 上下內距
+      if (Math.abs(need - minW) > 2 || Math.abs(needH - minH) > 2) {
         minW = need;
-        win.setMinSize(new LogicalSize(minW, 50)).catch(() => {});
+        minH = needH;
+        win.setMinSize(new LogicalSize(minW, Math.max(50, minH))).catch(() => {});
       }
-      if (window.innerWidth + 1 < need) {
-        win.setSize(new LogicalSize(need, window.innerHeight)).catch(() => {});
+      if (window.innerWidth + 1 < need || window.innerHeight + 1 < needH) {
+        win.setSize(new LogicalSize(Math.max(need, window.innerWidth), Math.max(needH, window.innerHeight))).catch(() => {});
       }
     }
 
     // 未鎖定時：拖曳移動、右下角縮放
-    pin.addEventListener("mousedown", (e) => e.stopPropagation());
-    pin.addEventListener("click", async () => {
-      locked = !locked;
-      ov.classList.toggle("unlocked", !locked);
-      try { await T.core.invoke("overlay_toggle_lock"); } catch (_) {}
-    });
     ov.addEventListener("mousedown", (e) => {
-      if (locked || e.button !== 0 || e.target.closest(".pin")) return;
+      if (locked || e.button !== 0) return;
       if (e.target === grip) win.startResizeDragging("SouthEast");
       else win.startDragging();
     });
