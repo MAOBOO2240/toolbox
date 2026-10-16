@@ -346,11 +346,10 @@
       paint(el, t, snaps[t.id]);
     }
     // 最後一格：新增計時器
-    const add = document.createElement("button");
+    const add = document.createElement("div");
     add.className = "tcard tadd";
-    add.title = "新增計時器";
-    add.innerHTML = '<span class="tadd-circle"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="tadd-label">新增計時器</span>';
-    add.addEventListener("click", () => addTimer());
+    add.innerHTML = '<button class="tadd-circle" title="新增計時器"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="tadd-label">新增計時器</span>';
+    add.querySelector("button").addEventListener("click", () => addTimer());
     grid.appendChild(add);
     $("#gameOnly").checked = file.game_only;
     renderMaster();

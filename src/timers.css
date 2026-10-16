@@ -262,28 +262,31 @@
 .ov-range { width: 6.5rem; }
 .ov-reset { font-size: 0.78rem; }
 
-/* ---------- 新增計時器（格子裡的最後一張） ---------- */
+/* ---------- 新增計時器（格子裡的下一個位置，只有圓形按鈕） ---------- */
 .tcard.tadd {
   align-self: stretch;
-  min-height: 14rem;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.7rem;
-  background: transparent;
-  box-shadow: inset 0 0 0 2px var(--sep);
+  min-height: 12rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem;
+  padding: 0;
+  background: none;
+  box-shadow: none;
   border: 0;
   color: var(--text-2);
-  cursor: pointer;
-  transition: box-shadow 0.2s, color 0.2s, background 0.2s;
+  cursor: default;
 }
-.tcard.tadd:hover { color: var(--blue); background: color-mix(in srgb, var(--blue) 6%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 55%, transparent); }
 .tadd-circle {
-  width: 3.6rem; height: 3.6rem; display: grid; place-items: center;
+  width: 4.2rem; height: 4.2rem; display: grid; place-items: center;
   border-radius: 50%;
-  border: 2.5px solid currentColor;
-  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1.3);
+  background: var(--card);
+  color: var(--blue);
+  box-shadow: var(--shadow), inset 0 0 0 2px color-mix(in srgb, var(--blue) 35%, transparent);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1.3), background 0.2s, color 0.2s, box-shadow 0.2s;
 }
-.tcard.tadd:hover .tadd-circle { transform: scale(1.1) rotate(90deg); }
-.tadd-circle svg { width: 1.7rem; height: 1.7rem; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
-.tadd-label { font-size: 0.85rem; font-weight: 700; }
+.tadd-circle:hover { transform: scale(1.1) rotate(90deg); background: var(--blue); color: #fff; box-shadow: 0 8px 22px color-mix(in srgb, var(--blue) 40%, transparent); }
+.tadd-circle:active { transform: scale(0.95) rotate(90deg); }
+.tadd-circle svg { width: 1.9rem; height: 1.9rem; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+.tadd-label { font-size: 0.82rem; font-weight: 700; }
 
 /* 分段按鈕不要撐滿整欄 */
 .field > .seg { justify-self: start; }
