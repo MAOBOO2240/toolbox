@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="timers.css" />
   <link rel="stylesheet" href="gacha.css" />
+  <link rel="stylesheet" href="beauty.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -300,6 +301,114 @@
           </div>
         </div>
       </section>
+      <!-- 美容美髮模擬器 -->
+      <section class="view" id="view-beauty">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">美容美髮模擬器</span>
+          <div class="g-pages" id="bPages">
+            <button class="cbtn c-pink" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析</button>
+          </div>
+        </nav>
+
+        <div class="g-page b-sim" id="bPageSim">
+          <!-- 左：獎池 -->
+          <div class="card g-pool b-pool">
+            <div class="b-tabs" id="bTabs">
+              <button class="cbtn c-blue" data-pool="hairM">美髮（男）</button>
+              <button class="cbtn c-pink" data-pool="hairF">美髮（女）</button>
+              <button class="cbtn c-teal" data-pool="faceM">整形（男）</button>
+              <button class="cbtn c-orange" data-pool="faceF">整形（女）</button>
+            </div>
+            <div class="g-toolbar">
+              <label class="g-cost">每張券價格<input type="text" inputmode="decimal" id="bCost" placeholder="0" /></label>
+              <span class="spacer"></span>
+              <button class="cbtn c-red small" id="bClearItems">清除獎池</button>
+            </div>
+            <div class="g-thead b-thead"><span>抽</span><span>造型</span><span class="r">機率</span></div>
+            <div class="g-table" id="bTable"></div>
+          </div>
+
+          <!-- 中：紙娃娃 -->
+          <div class="card b-doll-card">
+            <div class="b-search">
+              <input type="text" id="bName" placeholder="輸入角色名稱" />
+              <button class="cbtn c-blue small solid" id="bLookup">查詢</button>
+              <button class="cbtn c-teal small" id="bRefresh" title="重新向 Nexon 取得最新資料（會使用 API 次數）">重新整理</button>
+            </div>
+            <p class="b-status muted" id="bStatus">輸入角色名稱可以載入目前的造型；不輸入則使用空白紙娃娃</p>
+            <div class="b-stage" id="bStage">
+              <img id="bLook" alt="" hidden />
+              <canvas id="bCanvas" width="300" height="300" hidden></canvas>
+              <div class="b-empty" id="bEmpty">
+                <svg viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>
+                <span>空白紙娃娃</span>
+              </div>
+            </div>
+            <div class="b-wear" id="bWear"></div>
+            <div class="b-try" id="bTry" hidden>
+              <span id="bTryText"></span>
+              <button class="cbtn c-red small" id="bTryReset">恢復原本造型</button>
+            </div>
+          </div>
+
+          <!-- 右：抽獎 -->
+          <div class="b-side">
+            <div class="g-stats b-stats">
+              <div class="g-stat"><span>總花費</span><b id="bSpent">0</b></div>
+              <div class="g-stat"><span>總抽數</span><b id="bDraws">0</b></div>
+              <div class="g-stat"><span>主打次數</span><b id="bHits">0</b></div>
+            </div>
+            <div class="card g-actions">
+              <div class="g-draw-row">
+                <button class="pill primary" data-bdraw="1">單抽</button>
+                <button class="pill primary" data-bdraw="10">10 抽</button>
+                <button class="pill primary" data-bdraw="100">100 抽</button>
+              </div>
+              <div class="g-actions-foot">
+                <span class="muted" id="bOdds"></span>
+                <button class="cbtn c-red small solid" id="bReset">重置統計</button>
+              </div>
+            </div>
+            <div class="card b-last" id="bLast">
+              <span class="muted">最後抽到</span>
+              <strong id="bLastName">—</strong>
+            </div>
+            <div class="card g-results">
+              <section class="g-sec g-sec-batch">
+                <div class="g-res-head"><strong>本次獲得</strong><span class="muted" id="bBatchBadge"></span></div>
+                <div class="g-chips" id="bBatch"></div>
+              </section>
+              <section class="g-sec g-sec-vault">
+                <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量・實際機率</span></div>
+                <div class="g-vault-scroll" id="bHistory"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-page g-import" id="bPageImport" hidden>
+          <div class="card g-imp">
+            <h3>獎池解析</h3>
+            <p class="hint">貼上官網的機率文字。最前面沒有標題的部分視為「皇家美髮（男）」，之後依「皇家美髮／皇家整形」與「(男)／(女)」標題分到四個獎池，並取代原本的內容。每個獎池機率最低的造型就是主打。</p>
+            <textarea id="bPaste"></textarea>
+            <div class="g-imp-foot">
+              <span class="muted" id="bParseResult"></span>
+              <button class="cbtn c-blue small solid" id="bParse">解析並套用</button>
+            </div>
+          </div>
+          <div class="card g-imp">
+            <h3>紙娃娃資料</h3>
+            <p class="hint">新髮型、新臉型的圖片從新楓之谷安裝資料夾的 WZ 檔讀取。</p>
+            <div class="b-wz">
+              <input type="text" id="bGamePath" placeholder="C:\Program Files\gamania Games\MapleStory" />
+              <button class="cbtn c-purple small" id="bPickGame">選擇資料夾</button>
+            </div>
+            <p class="muted" id="bWzStatus"></p>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -319,5 +428,6 @@
   <script src="app.js"></script>
   <script src="timers.js"></script>
   <script src="gacha.js"></script>
+  <script src="beauty.js"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@
 mod audio;
 mod fg;
 mod input;
+mod maple_api;
 mod serial;
 mod timers;
 
@@ -204,6 +205,7 @@ fn main() {
             app.manage(shared.clone());
 
             audio::init();
+            maple_api::init(dir.join("maple_cache.json"));
             timers::init(app.handle(), dir.join("timers.json"));
 
             let (tx, rx) = mpsc::channel();
@@ -266,7 +268,8 @@ fn main() {
             timers::set_game_only,
             timers::reset_overlay,
             timers::preview_sound,
-            timers::pick_sound_file
+            timers::pick_sound_file,
+            maple_api::maple_lookup
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

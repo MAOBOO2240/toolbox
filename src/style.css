@@ -108,6 +108,7 @@ input, select { font: inherit; color: inherit; }
 .cat-icon.purple { background: linear-gradient(135deg, #bf5af2, #5e5ce6); }
 .cat-icon.green { background: linear-gradient(135deg, #30d158, #0a84ff); }
 .cat-icon.gold { background: linear-gradient(135deg, #ffd60a, #ff9500); }
+.cat-icon.pink { background: linear-gradient(135deg, #ff6fb1, #bf5af2); }
 
 .side-foot { margin-top: auto; position: relative; }
 .gear {

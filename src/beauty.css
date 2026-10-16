@@ -1,0 +1,92 @@
+/* ---------- 美容美髮模擬器 ---------- */
+.b-sim {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+}
+.b-sim[hidden] { display: none !important; }
+
+.b-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin: 0 0.9rem; }
+.b-tabs .cbtn { padding: 0.5rem 0.4rem; font-size: 1rem; font-weight: 600; }
+
+.b-thead, .b-row { grid-template-columns: 2rem minmax(0, 1fr) 4.2rem; }
+.b-name { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; cursor: pointer; min-width: 0; }
+.b-name:hover { color: var(--blue); }
+.b-row.jackpot .b-name { color: #c88a00; font-weight: 700; }
+:root[data-theme="dark"] .b-row.jackpot .b-name { color: #ffc94a; }
+.b-tag {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.4rem;
+  background: #f5b301;
+  color: #2a1a00;
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 800;
+}
+.b-prob { color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+
+/* 紙娃娃 */
+.b-doll-card { display: flex; flex-direction: column; min-height: 0; padding: 0.9rem; gap: 0.6rem; overflow-y: auto; }
+.b-search { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.45rem; }
+#view-beauty input[type="text"], #view-beauty textarea {
+  border: 0;
+  border-radius: 0.6rem;
+  background: var(--card-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  user-select: text;
+}
+#view-beauty input[type="text"] { padding: 0.45rem 0.65rem; min-width: 0; }
+#view-beauty input:focus, #view-beauty textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
+.b-status { margin: 0; font-size: 0.75rem; line-height: 1.5; min-height: 1.1rem; }
+
+.b-stage {
+  flex: 1;
+  min-height: 15rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--blue) 12%, transparent), transparent 60%),
+    var(--card-2);
+  box-shadow: inset 0 0 0 1px var(--sep);
+  overflow: hidden;
+}
+.b-stage img, .b-stage canvas { image-rendering: pixelated; width: auto; height: auto; max-width: 100%; transform: scale(1.6); transform-origin: center; }
+.b-stage img[hidden], .b-stage canvas[hidden] { display: none; }
+.b-empty { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: var(--text-2); font-size: 0.8rem; }
+.b-empty[hidden] { display: none; }
+.b-empty svg { width: 4.5rem; height: 6.5rem; fill: none; stroke: currentColor; stroke-width: 2; opacity: 0.55; stroke-dasharray: 4 3; }
+
+.b-wear { display: flex; flex-direction: column; gap: 0.15rem; }
+.b-wear-row { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: baseline; font-size: 0.85rem; padding: 0.15rem 0; }
+.b-wear-row small { font-size: 0.72rem; }
+.b-cash { margin-top: 0.3rem; font-size: 0.82rem; }
+.b-cash summary { cursor: pointer; color: var(--blue); font-weight: 700; padding: 0.2rem 0; }
+.b-try {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, #e8489a 12%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e8489a 35%, transparent);
+  font-size: 0.8rem;
+}
+.b-try[hidden] { display: none; }
+
+/* 右側 */
+.b-side { display: flex; flex-direction: column; gap: 0.8rem; min-height: 0; }
+.b-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.b-last { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; padding: 0.7rem 0.9rem; }
+.b-last strong { font-size: 1.15rem; }
+.b-last.feat { background: color-mix(in srgb, #f5b301 16%, var(--card)); box-shadow: inset 0 0 0 1px rgba(245, 179, 1, 0.6), var(--shadow); }
+.b-last.feat strong { color: #c88a00; }
+:root[data-theme="dark"] .b-last.feat strong { color: #ffc94a; }
+.b-hrow { grid-template-columns: minmax(0, 1fr) 3.6rem 5.4rem; }
+.b-hrow.feat > span:first-child { color: #c88a00; font-weight: 700; }
+:root[data-theme="dark"] .b-hrow.feat > span:first-child { color: #ffc94a; }
+
+.b-wz { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; margin-bottom: 0.5rem; }
