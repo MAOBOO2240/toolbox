@@ -149,14 +149,14 @@ const GachaCore = (() => {
     return Math.max(1, Math.round(n / mag) * mag);
   }
 
-  /** 大獎：黃金蘋果獎池中，分界道具（含）以上的道具；找不到分界道具時回傳 null */
+  /** 大獎：黃金蘋果獎池中，分界道具「上面」的道具（不含分界道具本身）；找不到分界道具時回傳 null */
   const DEFAULT_JACKPOT_MARKER = "漆黑的BOSS飾品碎片";
   function jackpotSet(pools, marker) {
     const m = String(marker || "").trim();
     if (!m) return null;
     const idx = pools.apple.findIndex((it) => it.name === m);
     if (idx < 0) return null;
-    return new Set(pools.apple.slice(0, idx + 1).map((it) => it.name));
+    return new Set(pools.apple.slice(0, idx).map((it) => it.name));
   }
   const CHEAP_VALUE = 10; // 非大獎、非垃圾的道具：幾乎沒有價值
 
@@ -468,7 +468,6 @@ if (typeof document !== "undefined") (() => {
     $$("#gTabs button").forEach((b) => {
       const p = b.dataset.pool;
       b.classList.toggle("on", p === st.tab);
-      b.querySelector("small").textContent = `${st.pools[p].length} 項`;
     });
   }
 

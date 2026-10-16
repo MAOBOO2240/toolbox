@@ -264,7 +264,8 @@
 .g-sec-batch .g-res-head strong { color: #b98000; }
 :root[data-theme="dark"] .g-sec-batch .g-res-head strong { color: #ffc94a; }
 .g-sec-vault .g-res-head strong { color: var(--blue); }
-.g-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.8rem 0.65rem; overflow-y: auto; min-height: 0; }
-.g-vault-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 0.4rem; }
+/* 捲動區的裁切邊在 padding 外緣，所以用 margin 留出與外框的距離，道具不會被框線切到 */
+.g-chips { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.4rem; margin: 0 0.8rem 0.7rem; padding: 0; overflow-y: auto; min-height: 0; }
+.g-vault-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-bottom: 0.5rem; }
 .g-sec .g-chip { background: var(--card); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 .g-sec .g-chip.rare { background: color-mix(in srgb, #f5b301 22%, var(--card)); }
