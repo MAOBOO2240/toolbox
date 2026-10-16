@@ -279,7 +279,8 @@ fn main() {
             avatar::beauty_items,
             avatar::beauty_icons,
             avatar::beauty_skins,
-            avatar::beauty_styles
+            avatar::beauty_styles,
+            avatar::item_icons
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

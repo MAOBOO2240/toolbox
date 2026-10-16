@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="timers.css" />
   <link rel="stylesheet" href="gacha.css" />
   <link rel="stylesheet" href="beauty.css" />
+  <link rel="stylesheet" href="comet.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -450,7 +451,132 @@
           </div>
         </div>
       </section>
+      <!-- 閃亮彗星 -->
+      <section class="view" id="view-comet">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">閃亮彗星</span>
+          <div class="g-pages" id="cPages">
+            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析</button>
+          </div>
+        </nav>
+
+        <div class="g-page" id="cPageSim">
+          <div class="card g-pool">
+            <div class="g-tabs c-tabs" id="cTabs">
+              <button class="cbtn c-teal" data-pool="shiny">閃亮彗星</button>
+              <button class="cbtn c-purple" data-pool="bright">璀璨彗星</button>
+            </div>
+            <div class="g-toolbar">
+              <label class="g-cost">閃亮彗星每顆價格<input type="text" inputmode="decimal" id="cCost" placeholder="0" /></label>
+              <span class="spacer"></span>
+              <button class="cbtn c-red small" id="cClearItems">清除道具</button>
+            </div>
+            <div class="g-add c-add">
+              <select id="cNewGrade" title="等級"><option>S</option><option selected>A</option><option>B</option><option>C</option></select>
+              <input type="text" id="cNewName" placeholder="新增道具名稱" />
+              <input type="text" inputmode="decimal" id="cNewProb" placeholder="機率 %" />
+              <input type="text" inputmode="decimal" id="cNewValue" placeholder="價值" />
+              <button class="cbtn c-green small solid" id="cAdd">新增</button>
+            </div>
+            <p class="g-warn" id="cWarn" hidden></p>
+            <div class="g-thead c-thead"><span>抽</span><span>名稱</span><span class="r">機率</span><span class="r">價值</span><span></span></div>
+            <div class="g-table" id="cTable"></div>
+          </div>
+
+          <div class="g-side">
+            <div class="g-stats">
+              <div class="g-stat"><span>總花費</span><b id="cSpent">0</b></div>
+              <div class="g-stat"><span>總價值</span><b id="cValue">0</b></div>
+              <div class="g-stat"><span>損益</span><b id="cProfit">0</b></div>
+              <div class="g-stat"><span>閃亮＋璀璨</span><b id="cDraws">0</b></div>
+              <div class="g-stat"><span>彗星碎片</span><b id="cFrags">0</b></div>
+            </div>
+
+            <div class="card g-actions">
+              <div class="g-draw-row">
+                <button class="pill primary" data-cdraw="1">單抽</button>
+                <button class="pill primary" data-cdraw="10">10 抽</button>
+                <button class="pill primary" data-cdraw="100">100 抽</button>
+              </div>
+              <div class="g-box-row">
+                <button class="g-box c-ex-shiny" id="cExShiny"><span>碎片換閃亮彗星</span><small>消耗 20 碎片</small></button>
+                <button class="g-box c-ex-bright" id="cExBright"><span>開啟璀璨彗星</span><small>消耗 80 碎片</small></button>
+              </div>
+              <div class="g-actions-foot">
+                <button class="cbtn c-amber small solid" id="cAutoBtn">自動分解</button>
+                <span class="muted c-auto-info" id="cAutoInfo"></span>
+                <button class="cbtn c-red small solid" id="cReset">重置統計</button>
+              </div>
+            </div>
+
+            <div class="card g-analysis">
+              <div class="g-metrics" id="cMetrics"></div>
+              <p class="g-comment" id="cComment"></p>
+            </div>
+
+            <div class="card g-results">
+              <section class="g-sec g-sec-batch">
+                <div class="g-res-head"><strong>本次獲得</strong><span class="muted" id="cBatchBadge"></span></div>
+                <div class="g-chips" id="cBatch"></div>
+              </section>
+              <section class="g-sec g-sec-vault">
+                <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量（點擊分解）・總價值・實際機率</span></div>
+                <div class="g-vault-scroll" id="cHistory"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-page g-import" id="cPageImport" hidden>
+          <div class="card g-imp">
+            <h3>獎池解析</h3>
+            <p class="hint">貼上官網的機率表（每行「等級 名稱 機率%」）。遇到「璀璨彗星」標題後的道具放進璀璨彗星獎池，並取代原本的道具。兩件共用一個機率的，兩件各自都是這個機率。</p>
+            <textarea id="cPaste" placeholder="例如：&#10;A	白熊老闆帽	1.10%&#10;B	橡樹果實松鼠帽子	1.60%&#10;璀璨彗星&#10;S	深海月亮蝴蝶結	1.80%"></textarea>
+            <div class="g-imp-foot">
+              <span class="muted" id="cParseResult"></span>
+              <button class="cbtn c-blue small solid" id="cParse">解析並套用</button>
+            </div>
+          </div>
+          <div class="card g-imp">
+            <h3>規則</h3>
+            <div class="c-rules">
+              <div><span class="c-grade gS">S</span>分解得 10 個彗星碎片</div>
+              <div><span class="c-grade gA">A</span>分解得 5 個彗星碎片</div>
+              <div><span class="c-grade gB">B</span>分解得 3 個彗星碎片</div>
+              <div><span class="c-grade gC">C</span>分解得 1 個彗星碎片</div>
+              <div class="c-rule-sep"></div>
+              <div>20 個彗星碎片換 1 顆閃亮彗星</div>
+              <div>80 個彗星碎片換 1 顆璀璨彗星（只能用碎片換）</div>
+              <div class="c-rule-sep"></div>
+              <div class="muted">期望值計算時，每件道具取「留著的價值」與「分解成碎片的價值」較高者；1 個碎片的價值取「換閃亮彗星」與「換璀璨彗星」中較划算的。</div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
+
+  <!-- 閃亮彗星：自動分解 -->
+  <div class="b-modal" id="cAutoWin" hidden>
+    <div class="b-modal-box c-auto-box">
+      <div class="b-modal-head">
+        <strong>自動分解</strong>
+        <div class="c-auto-grades" id="cAutoGrades">
+          <button class="cbtn c-amber small" data-g="S">S 級</button>
+          <button class="cbtn c-purple small" data-g="A">A 級</button>
+          <button class="cbtn c-blue small" data-g="B">B 級</button>
+          <button class="cbtn c-silver small" data-g="C">C 級</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="cbtn c-red small" id="cAutoNone">全部取消</button>
+        <button class="cbtn c-green small solid" id="cAutoNow" title="把保管箱裡符合設定的道具現在就分解">立即分解保管箱</button>
+        <button class="b-x" id="cAutoClose" title="關閉">×</button>
+      </div>
+      <p class="muted c-auto-hint">選等級會自動分解該等級的全部道具；也可以點下面的道具個別指定。之後抽到的道具會直接變成彗星碎片，不進保管箱。</p>
+      <div class="c-auto-list" id="cAutoList"></div>
+    </div>
+  </div>
   </div>
 
   <!-- 美容美髮：時裝染色 -->
@@ -508,5 +634,6 @@
   <script src="timers.js"></script>
   <script src="gacha.js"></script>
   <script src="beauty.js"></script>
+  <script src="comet.js"></script>
 </body>
 </html>

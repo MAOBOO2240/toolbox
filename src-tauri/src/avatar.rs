@@ -26,6 +26,10 @@ struct Ctx {
     lists: HashMap<String, Vec<ItemOut>>,
     /// 髮型／臉型清單快取（每個造型一筆，不分顏色）
     styles: HashMap<String, Vec<StyleOut>>,
+    /// 所有道具名稱 → (資料夾, 編號)；第一次查道具圖示時才建立
+    item_names: Option<HashMap<String, Vec<(&'static str, u32)>>>,
+    /// 依名稱查到的道具圖示
+    name_icons: HashMap<String, Option<String>>,
 }
 
 /// 點裝欄位：飾品依編號再細分成臉飾、眼飾、耳環
@@ -257,6 +261,8 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
         icons: HashMap::new(),
         lists: HashMap::new(),
         styles: HashMap::new(),
+        item_names: None,
+        name_icons: HashMap::new(),
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -520,7 +526,8 @@ impl Ctx {
 }
 
 /// 依錨點（navel、neck、brow…）擺放並依 zmap 疊圖，回傳裁切後的 RGBA
-fn compose(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<(u32, u32, Vec<u8>)> {
+/// 回傳 (寬, 高, 像素, 起始錨點在圖中的 x, y)
+fn compose(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
     let mut anchors: HashMap<String, (i32, i32)> = start.iter().map(|(k, v)| (k.to_string(), *v)).collect();
     let mut placed: Vec<(i32, usize, i32, i32, &Layer)> = Vec::new();
     for (i, l) in parts.iter().enumerate() {
@@ -568,7 +575,7 @@ fn compose(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<(u32, u32, V
             }
         }
     }
-    Some((w, h, out))
+    Some((w, h, out, -x0, -y0))
 }
 
 fn png_data_url(w: u32, h: u32, px: &[u8]) -> Result<String, String> {
@@ -642,6 +649,9 @@ pub struct RenderOut {
     pub hair_id: Option<u32>,
     pub face_id: Option<u32>,
     pub warnings: Vec<String>,
+    /// 角色中心在圖中的位置
+    pub cx: i32,
+    pub cy: i32,
     /// 實際穿上的點裝
     pub equips: Vec<ItemOut>,
 }
@@ -873,8 +883,10 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         } else {
             &[("brow", (0, 0))]
         };
-        let (w, h, px) = compose(&parts, start).ok_or("沒有可以顯示的圖片")?;
-        Ok(RenderOut { png: png_data_url(w, h, &px)?, w, h, hair_id, face_id, warnings, equips: equip_out })
+        let (w, h, px, ax, ay) = compose(&parts, start).ok_or("沒有可以顯示的圖片")?;
+        // 角色中心（全身時以肚臍往上一點為準），前端用來把角色擺在正中間，不受大型武器影響
+        let (cx, cy) = if start[0].0 == "navel" { (ax, ay - 12) } else { (ax, ay) };
+        Ok(RenderOut { png: png_data_url(w, h, &px)?, w, h, cx, cy, hair_id, face_id, warnings, equips: equip_out })
     })
 }
 
@@ -937,6 +949,145 @@ fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
     }
     ctx.lists.insert(slot, list.clone());
     Ok(list)
+}
+
+/* ---------------- 依名稱找道具圖示（黃金蘋果、閃亮彗星的獎池） ---------------- */
+
+/// 名稱比對用：去掉空白，「祕」當成「秘」
+fn norm_name(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).map(|c| if c == '祕' { '秘' } else { c }).collect()
+}
+
+/// String 裡 Eqp 的分類 → Character 底下的資料夾
+fn eqp_folder(cat: &str) -> Option<&'static str> {
+    Some(match cat {
+        "Cap" => "Character/Cap",
+        "Cape" => "Character/Cape",
+        "Coat" => "Character/Coat",
+        "Glove" => "Character/Glove",
+        "Longcoat" => "Character/Longcoat",
+        "Pants" => "Character/Pants",
+        "Shield" => "Character/Shield",
+        "Shoes" => "Character/Shoes",
+        "Weapon" => "Character/Weapon",
+        "Ring" => "Character/Ring",
+        "Accessory" => "Character/Accessory",
+        "Android" => "Character/Android",
+        "PetEquip" => "Character/PetEquip",
+        "Taming" => "Character/TamingMob",
+        "Dragon" => "Character/Dragon",
+        "Mechanic" => "Character/Mechanic",
+        "Bits" => "Character/Bits",
+        "ArcaneForce" => "Character/ArcaneForce",
+        "AuthenticForce" => "Character/AuthenticForce",
+        "Jewel" => "Character/Jewel",
+        _ => return None,
+    })
+}
+
+fn build_item_names(ctx: &mut Ctx) -> HashMap<String, Vec<(&'static str, u32)>> {
+    let mut map: HashMap<String, Vec<(&'static str, u32)>> = HashMap::new();
+    let mut add = |name: &str, folder: &'static str, id: u32| {
+        let k = norm_name(name);
+        if !k.is_empty() {
+            map.entry(k).or_default().push((folder, id));
+        }
+    };
+    for (img, sub, folder) in [
+        ("Consume.img", "", "Item/Consume"),
+        ("Etc.img", "Etc", "Item/Etc"),
+        ("Ins.img", "", "Item/Install"),
+        ("Cash.img", "", "Item/Cash"),
+        ("Pet.img", "", "Item/Pet"),
+    ] {
+        if let Ok(root) = ctx.data.img("String", img) {
+            let node = if sub.is_empty() { Some(root.as_ref()) } else { root.get(sub) };
+            for (id, item) in node.map(|n| n.children()).unwrap_or(&[]) {
+                if let (Ok(id), Some(name)) = (id.parse::<u32>(), item.get("name").and_then(|v| v.as_str())) {
+                    add(name, folder, id);
+                }
+            }
+        }
+    }
+    if let Ok(eqp) = ctx.data.img("String", "Eqp.img") {
+        if let Some(e) = eqp.get("Eqp") {
+            for (cat, items) in e.children() {
+                let Some(folder) = eqp_folder(cat) else { continue };
+                for (id, item) in items.children() {
+                    if let (Ok(id), Some(name)) = (id.parse::<u32>(), item.get("name").and_then(|v| v.as_str())) {
+                        add(name, folder, id);
+                    }
+                }
+            }
+        }
+    }
+    map
+}
+
+impl Ctx {
+    /// 某個道具的圖示：裝備在 Character/分類/編號.img/info/icon；
+    /// 其他道具在 Item/種類/前四碼.img/編號/info/icon（寵物是一隻一個 img）
+    fn item_icon(&mut self, folder: &str, id: u32) -> Option<String> {
+        let node = if folder.starts_with("Character/") {
+            let img = format!("{id:08}.img");
+            let info = self.data.img_child(folder, &img, "info").ok()??;
+            let icon = ["icon", "iconRaw"].iter().find_map(|k| info.get(k).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
+            let (w, h, px) = self.data.pixels_of(folder, &img, &icon).ok()?;
+            return (w > 1 || h > 1).then(|| png_data_url(w, h, &px).ok()).flatten();
+        } else if folder == "Item/Pet" {
+            let img = format!("{id}.img");
+            let info = self.data.img_child(folder, &img, "info").ok()??;
+            let icon = ["icon", "iconRaw"].iter().find_map(|k| info.get(k).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
+            (img, icon)
+        } else {
+            let img = format!("{:04}.img", id / 10000);
+            let root = self.data.img(folder, &img).ok()?;
+            let icon = ["info/icon", "info/iconRaw"]
+                .iter()
+                .find_map(|k| resolve(&root, &format!("{id:08}/{k}"), 0).filter(|n| matches!(n, Node::Canvas(..))))?
+                .clone();
+            (img, icon)
+        };
+        let (img, icon) = node;
+        let (w, h, px) = self.data.pixels_of(folder, &img, &icon).ok()?;
+        (w > 1 || h > 1).then(|| png_data_url(w, h, &px).ok()).flatten()
+    }
+
+    fn icon_by_name(&mut self, name: &str) -> Option<String> {
+        let key = norm_name(name);
+        if let Some(v) = self.name_icons.get(&key) {
+            return v.clone();
+        }
+        if self.item_names.is_none() {
+            let m = build_item_names(self);
+            self.item_names = Some(m);
+        }
+        let mut cands = self.item_names.as_ref().and_then(|m| m.get(&key)).cloned().unwrap_or_default();
+        if cands.is_empty() {
+            // 名稱後面多了「(30天)」「100%」之類的說明時，去掉再找一次
+            let short: String = key.split(['(', '（']).next().unwrap_or("").to_string();
+            if short != key && !short.is_empty() {
+                cands = self.item_names.as_ref().and_then(|m| m.get(&short)).cloned().unwrap_or_default();
+            }
+        }
+        let mut found = None;
+        for (folder, id) in cands.into_iter().take(12) {
+            if let Some(png) = self.item_icon(folder, id) {
+                found = Some(png);
+                break;
+            }
+        }
+        self.name_icons.insert(key, found.clone());
+        found
+    }
+}
+
+/// 依道具名稱取得圖示（PNG data URL），找不到的回傳 null
+#[tauri::command]
+pub async fn item_icons(game_dir: Option<String>, names: Vec<String>) -> Result<Vec<Option<String>>, String> {
+    tauri::async_runtime::spawn_blocking(move || with_ctx(game_dir.as_deref(), |ctx| Ok(names.iter().map(|n| ctx.icon_by_name(n)).collect())))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[derive(Serialize, Clone)]

@@ -19,9 +19,11 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 4px 10px;
+      padding: 6px 16px;
       box-sizing: border-box;
-      border-radius: 14px;
+      border-radius: 22px;
+      /* 細邊框，跟底色一起透明 */
+      border: 1.5px solid rgba(255, 255, 255, calc(var(--bg) * 0.45));
       /* 只有底色有透明度，文字永遠不透明 */
       background: rgba(18, 18, 20, var(--bg));
     }
@@ -39,8 +41,8 @@
     /* 文字不截斷，太長時由視窗自動加寬 */
     .name {
       flex: none;
-      font-size: 18px;
-      font-weight: 500;
+      font-size: 34px;
+      font-weight: 700;
       color: #fff;
       white-space: nowrap;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.6);
@@ -49,7 +51,7 @@
       --heat: 0;
       flex: none;
       font-size: 34px;
-      font-weight: 500;
+      font-weight: 700;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
       line-height: 1;
@@ -153,7 +155,7 @@
         need = Math.max(need, r.name.offsetWidth + gap + r.time.offsetWidth);
         needH += r.el.offsetHeight;
       }
-      need = Math.ceil(need + 22); // 左右內距
+      need = Math.ceil(need + 36); // 左右內距 + 邊框
       needH = Math.ceil(needH + 10); // 上下內距
       if (Math.abs(need - minW) > 2 || Math.abs(needH - minH) > 2) {
         minW = need;

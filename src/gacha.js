@@ -507,7 +507,12 @@ if (typeof document !== "undefined") (() => {
       const prob = textInput("g-prob", it.filler ? `${decFmt.format(it.prob)}%` : `${it.prob}%`, { decimal: true, disabled: it.filler });
       const v = st.values[it.name];
       const val = textInput("g-val", it.filler ? "0" : typeof v === "number" ? intFmt.format(v) : "", { decimal: true, placeholder: "—", disabled: it.filler });
-      row.append(drawBtn, name, prob, val);
+      // 名稱左邊顯示道具圖示
+      const nameCell = document.createElement("div");
+      nameCell.className = "g-namecell";
+      if (!it.filler) nameCell.append(ItemIcons.el(it.name));
+      nameCell.append(name);
+      row.append(drawBtn, nameCell, prob, val);
       if (it.filler) {
         drawBtn.disabled = true;
         row.append(document.createElement("span"));
@@ -680,7 +685,11 @@ if (typeof document !== "undefined") (() => {
       const row = document.createElement("div");
       row.className = "g-hrow";
       const nameEl = document.createElement("span");
-      nameEl.textContent = name;
+      nameEl.className = "g-hname";
+      const txt = document.createElement("span");
+      txt.className = "t";
+      txt.textContent = name;
+      nameEl.append(ItemIcons.el(name), txt);
       nameEl.title = name;
       row.append(nameEl);
       row.insertAdjacentHTML("beforeend",

@@ -359,6 +359,9 @@ if (typeof document !== "undefined") (() => {
       if (!st.tryFace) lastFaceId = out.face_id || null;
       if (st.dress) renderEquipped();
       look.dataset.w = out.w;
+      look.dataset.h = out.h;
+      look.dataset.cx = out.cx ?? out.w / 2;
+      look.dataset.cy = out.cy ?? out.h / 2;
       look.src = out.png;
       look.hidden = false;
       sizeLook();
@@ -370,6 +373,7 @@ if (typeof document !== "undefined") (() => {
     const img = ch?.basic?.character_image;
     if (img && !(st.tryHair || st.tryFace)) {
       delete look.dataset.w;
+      delete look.dataset.h;
       look.src = img;
       look.hidden = false;
       empty.hidden = true;
@@ -390,6 +394,18 @@ if (typeof document !== "undefined") (() => {
   const pan = { x: 0, y: 0 };
   const DOLL_SCALE = 3, DOLL_MIN = 1, DOLL_MAX = 12;
   const dollScale = () => Math.min(DOLL_MAX, Math.max(DOLL_MIN, Number(st.dollScale) || DOLL_SCALE));
+  /** 讓角色本身（不是整張圖）位在框的正中間：大型武器不會把角色擠到旁邊 */
+  function basePan(scale) {
+    const look = $("#bLook");
+    const w = Number(look.dataset.w), h = Number(look.dataset.h);
+    if (!w || !h) return { x: 0, y: 0 };
+    return { x: (w / 2 - Number(look.dataset.cx)) * scale, y: (h / 2 - Number(look.dataset.cy)) * scale };
+  }
+  const lookScale = () => (Number($("#bLook").dataset.w) ? dollScale() : dollScale() * 0.55);
+  function placeLook() {
+    const b = basePan(lookScale());
+    $("#bLook").style.transform = `translate(${b.x + pan.x}px, ${b.y + pan.y}px)`;
+  }
   /** 紙娃娃放大倍率：滑鼠在角色框裡用滾輪調整 */
   function sizeLook() {
     const look = $("#bLook");
@@ -397,9 +413,8 @@ if (typeof document !== "undefined") (() => {
     const w = base || look.naturalWidth || 0;
     if (!w) return;
     // 官方角色圖本身比較大，倍率打折
-    const scale = base ? dollScale() : dollScale() * 0.55;
-    look.style.width = `${Math.round(w * scale)}px`;
-    look.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
+    look.style.width = `${Math.round(w * lookScale())}px`;
+    placeLook();
   }
 
   function renderSwatches() {
@@ -656,11 +671,13 @@ if (typeof document !== "undefined") (() => {
       const old = dollScale();
       const next = Math.min(DOLL_MAX, Math.max(DOLL_MIN, old * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
       if (next === old) return;
+      // 以游標為中心縮放：pan 是使用者的位移，角色置中的部分另外依倍率計算
       const r = stage.getBoundingClientRect();
       const cx = e.clientX - (r.left + r.width / 2);
       const cy = e.clientY - (r.top + r.height / 2);
-      pan.x = cx - (cx - pan.x) * (next / old);
-      pan.y = cy - (cy - pan.y) * (next / old);
+      const k = next / old;
+      pan.x = cx * (1 - k) + pan.x * k;
+      pan.y = cy * (1 - k) + pan.y * k;
       st.dollScale = Math.round(next * 1000) / 1000;
       save();
       sizeLook();
@@ -676,7 +693,7 @@ if (typeof document !== "undefined") (() => {
       if (!drag) return;
       pan.x = e.clientX - drag.x;
       pan.y = e.clientY - drag.y;
-      $("#bLook").style.transform = `translate(${pan.x}px, ${pan.y}px)`;
+      placeLook();
     });
     const end = () => { drag = null; stage.classList.remove("dragging"); };
     stage.addEventListener("pointerup", end);

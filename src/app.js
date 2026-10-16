@@ -163,13 +163,71 @@ document.addEventListener("click", (e) => {
   if (!pop.contains(e.target)) { pop.classList.remove("show"); $("#gearBtn").classList.remove("on"); }
 });
 
+/* 主內容區不應該被捲動（切換頁面的滑入動畫中點擊或聚焦輸入框時，瀏覽器會把它捲過去，造成整頁偏移） */
+{
+  const main = document.querySelector("main.content");
+  if (main) main.addEventListener("scroll", () => { if (main.scrollLeft || main.scrollTop) main.scrollLeft = main.scrollTop = 0; });
+}
+
+/* ---------- 道具圖示（依名稱從遊戲檔找，黃金蘋果、閃亮彗星共用） ---------- */
+const ItemIcons = (() => {
+  const cache = new Map(); // 名稱 → data URL 或 null
+  const want = new Set();
+  const live = new Set(); // 等待圖示的元素
+  let timer = null, busy = false;
+  const gameDir = () => { try { return JSON.parse(localStorage.getItem("beauty-v1"))?.gamePath || null; } catch (_) { return null; } };
+
+  function fill(el) {
+    const name = el.dataset.name;
+    if (!cache.has(name)) return false;
+    const png = cache.get(name);
+    el.innerHTML = "";
+    if (png) { const img = new Image(); img.src = png; img.alt = ""; img.draggable = false; el.append(img); el.classList.remove("none"); }
+    else el.classList.add("none");
+    return true;
+  }
+  async function flush() {
+    timer = null;
+    if (busy || !TAURI) return;
+    const names = [...want].filter((n) => !cache.has(n)).slice(0, 60);
+    names.forEach((n) => want.delete(n));
+    if (!names.length) return;
+    busy = true;
+    try {
+      const pngs = await invoke("item_icons", { gameDir: gameDir(), names });
+      names.forEach((n, i) => cache.set(n, pngs[i] || null));
+    } catch (_) { names.forEach((n) => cache.set(n, null)); }
+    busy = false;
+    for (const el of [...live]) if (!el.isConnected || fill(el)) live.delete(el);
+    if (want.size) flush();
+  }
+  /** 回傳一個圖示格子，圖示讀到後自動填入 */
+  function el(name) {
+    const span = document.createElement("span");
+    span.className = "item-ic";
+    span.dataset.name = name;
+    if (!fill(span)) {
+      live.add(span);
+      want.add(name);
+      if (!timer) timer = setTimeout(flush, 30);
+    }
+    return span;
+  }
+  return { el };
+})();
+window.ItemIcons = ItemIcons;
+
 /* ---------- 分類與導覽 ---------- */
 const ICONS = {
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>',
   scissors: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/></svg>',
   apple: '<svg viewBox="0 0 24 24"><path d="M12 7c-1.5-1.3-3.8-1.6-5.4-.4C4.3 8.3 4.6 12.6 6.5 16c1.2 2.2 2.7 4 4.3 3.6.6-.1.9-.4 1.2-.4s.6.3 1.2.4c1.6.4 3.1-1.4 4.3-3.6 1.9-3.4 2.2-7.7-.1-9.4C15.8 5.4 13.5 5.7 12 7z"/><path d="M12 7c0-2 1-3.5 3-4"/></svg>',
+  comet: '<svg viewBox="0 0 24 24"><path d="M16.5 4.5l1.2 2.6 2.8.4-2 2 .5 2.8-2.5-1.3-2.5 1.3.5-2.8-2-2 2.8-.4z"/><path d="M11 10.5 4 17.5M13 13.5 7.5 19M8.5 9 3.5 14"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
 };
+
+// 滑過磁磚時的光暈顏色（與圖示漸層同色系）
+const TILE_ACCENT = { purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f" };
 
 const CATS = {
   maple: {
@@ -177,8 +235,9 @@ const CATS = {
     eyebrow: "MapleStory",
     tools: [
       { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
-      { id: "beauty", name: "美容美髮模擬器", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors" },
-      { id: "gacha", name: "黃金蘋果轉蛋模擬器", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple" },
+      { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors" },
+      { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple" },
+      { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet" },
     ],
   },
   tools: {
@@ -203,6 +262,7 @@ function showCat(cat) {
   for (const t of c.tools) {
     const btn = document.createElement("button");
     btn.className = "tile";
+    btn.style.setProperty("--accent", TILE_ACCENT[t.color] || "#4c8dff");
     btn.innerHTML = `<span class="cat-icon ${t.color}">${ICONS[t.icon]}</span><strong></strong><small></small>`;
     btn.querySelector("strong").textContent = t.name;
     btn.querySelector("small").textContent = t.desc;
@@ -250,6 +310,7 @@ function openTool(id) {
   if (id === "timer" && window.Timers) window.Timers.onShow();
   if (id === "gacha" && window.Gacha) window.Gacha.onShow();
   if (id === "beauty" && window.Beauty) window.Beauty.onShow();
+  if (id === "comet" && window.Comet) window.Comet.onShow();
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));
