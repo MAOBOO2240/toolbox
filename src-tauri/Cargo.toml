@@ -16,6 +16,10 @@ arboard = "3"
 rodio = "0.20"
 rfd = "0.15"
 ureq = { version = "2", features = ["json"] }
+memmap2 = "0.9"
+flate2 = "1"
+png = "0.17"
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

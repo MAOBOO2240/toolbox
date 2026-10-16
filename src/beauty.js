@@ -136,7 +136,7 @@ if (typeof document !== "undefined") (() => {
   const blankStats = () => ({ draws: 0, spent: 0, hits: 0 });
   function defaults() {
     return {
-      pools: C.parse(DEFAULT_TEXT), tab: "hairM", page: "sim", cost: 0, gamePath: "",
+      pools: C.parse(DEFAULT_TEXT), kind: "hair", gender: "F", page: "sim", cost: 0, gamePath: "",
       stats: blankStats(), batch: {}, batchDraws: zero(), hist: {}, histDraws: zero(),
       charName: "", tryHair: null, tryFace: null,
     };
@@ -161,6 +161,10 @@ if (typeof document !== "undefined") (() => {
   const decFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 });
   const parseNum = (s) => { const n = parseFloat(String(s).replace(/[,\s%]/g, "")); return isFinite(n) ? n : null; };
   const isHair = (pool) => pool.startsWith("hair");
+  /** 角色載入後依角色性別；否則用使用者選的性別（預設女） */
+  const charGender = () => (ch?.basic?.character_gender === "男" ? "M" : ch?.basic?.character_gender === "女" ? "F" : null);
+  const gender = () => charGender() || st.gender || "F";
+  const curPool = () => `${st.kind || "hair"}${gender()}`;
 
   /* ---------- 分頁 ---------- */
   function renderPage() {
@@ -171,8 +175,16 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 獎池 ---------- */
   function renderPool() {
-    $$("#bTabs button").forEach((b) => b.classList.toggle("on", b.dataset.pool === st.tab));
-    const items = st.pools[st.tab];
+    $$("#bKind button").forEach((b) => b.classList.toggle("on", b.dataset.kind === st.kind));
+    const locked = !!charGender();
+    $$("#bGender button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.g === gender());
+      b.disabled = locked;
+    });
+    $("#bGLock").hidden = !locked;
+    $("#bGLock").textContent = locked ? `已依角色性別鎖定為「${gender() === "F" ? "女" : "男"}」，只會抽到${gender() === "F" ? "女" : "男"}性造型` : "";
+    const pool = curPool();
+    const items = st.pools[pool];
     const feat = C.featured(items);
     const box = $("#bTable");
     box.innerHTML = "";
@@ -197,7 +209,7 @@ if (typeof document !== "undefined") (() => {
         name.appendChild(tag);
       }
       name.title = "點一下直接試穿";
-      name.addEventListener("click", () => tryOn(st.tab, it.name));
+      name.addEventListener("click", () => tryOn(pool, it.name));
       const prob = document.createElement("span");
       prob.className = "r b-prob";
       prob.textContent = `${decFmt.format(it.prob)}%`;
@@ -296,6 +308,7 @@ if (typeof document !== "undefined") (() => {
       ch = null;
       st.charName = "";
       save();
+      renderPool();
       $("#bStatus").textContent = "輸入角色名稱可以載入目前的造型；不輸入則使用空白紙娃娃";
       renderDoll();
       return;
@@ -307,9 +320,6 @@ if (typeof document !== "undefined") (() => {
     try {
       ch = await invoke("maple_lookup", { name, force: !!force });
       st.charName = ch.name;
-      // 依角色性別切換獎池
-      const g = ch.basic?.character_gender === "女" ? "F" : "M";
-      if (!st.tab.endsWith(g)) st.tab = (isHair(st.tab) ? "hair" : "face") + g;
       save();
       const t = new Date(ch.fetched_at * 1000);
       const when = `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
@@ -337,7 +347,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   function drawer() {
-    const pool = st.tab;
+    const pool = curPool();
     const pick = C.sampler(st.pools[pool]);
     const feat = C.featured(st.pools[pool]);
     return () => {
@@ -361,7 +371,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   function drawN(n) {
-    if (!st.pools[st.tab].length) { toast("這個獎池是空的"); return false; }
+    if (!st.pools[curPool()].length) { toast("這個獎池是空的"); return false; }
     beginBatch();
     const d = drawer();
     for (let i = 0; i < n; i++) d();
@@ -369,7 +379,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   function drawUntil(name) {
-    if (!st.pools[st.tab].length) return;
+    if (!st.pools[curPool()].length) return;
     beginBatch();
     const d = drawer();
     for (let i = 0; i < DRAW_CAP; i++) {
@@ -462,7 +472,14 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 事件 ---------- */
   $$("#bPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderPage(); }));
-  $$("#bTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); }));
+  $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); }));
+  $$("#bGender button").forEach((b) => b.addEventListener("click", () => {
+    if (charGender()) return;
+    st.gender = b.dataset.g;
+    // 換性別時，原本試穿的造型不一定適用，清掉
+    st.tryHair = st.tryFace = null;
+    save(); renderPool(); renderDoll();
+  }));
   $("#bLookup").addEventListener("click", () => lookup(false));
   $("#bRefresh").addEventListener("click", () => lookup(true));
   $("#bName").addEventListener("keydown", (e) => { if (e.key === "Enter") lookup(false); });
@@ -471,7 +488,7 @@ if (typeof document !== "undefined") (() => {
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
   $("#bCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
 
-  $$("[data-bdraw]").forEach((b) => holdable(b, () => drawN(Number(b.dataset.bdraw))));
+  holdable($("#bDraw"), () => drawN(1));
   $("#bReset").addEventListener("click", async () => {
     if (!(await confirmBox("確定要重置花費、抽數與保管箱嗎？"))) return;
     st.stats = blankStats(); st.batch = {}; st.hist = {}; st.batchDraws = zero(); st.histDraws = zero(); st.last = null;
@@ -488,7 +505,6 @@ if (typeof document !== "undefined") (() => {
     const got = C.POOLS.filter((p) => parsed[p].length);
     if (!got.length) { $("#bParseResult").textContent = "沒有解析到任何「名稱 + 機率%」的造型"; return; }
     for (const p of got) st.pools[p] = parsed[p];
-    if (!got.includes(st.tab)) st.tab = got[0];
     save(); renderAll();
     const msg = got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
     $("#bParseResult").textContent = `已套用：${msg}`;

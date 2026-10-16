@@ -315,12 +315,17 @@
         <div class="g-page b-sim" id="bPageSim">
           <!-- 左：獎池 -->
           <div class="card g-pool b-pool">
-            <div class="b-tabs" id="bTabs">
-              <button class="cbtn c-blue" data-pool="hairM">美髮（男）</button>
-              <button class="cbtn c-pink" data-pool="hairF">美髮（女）</button>
-              <button class="cbtn c-teal" data-pool="faceM">整形（男）</button>
-              <button class="cbtn c-orange" data-pool="faceF">整形（女）</button>
+            <div class="b-tabs">
+              <div class="b-kind" id="bKind">
+                <button class="cbtn c-pink" data-kind="hair">皇家美髮</button>
+                <button class="cbtn c-teal" data-kind="face">皇家整形</button>
+              </div>
+              <div class="b-gender" id="bGender">
+                <button class="cbtn c-red" data-g="F">女</button>
+                <button class="cbtn c-blue" data-g="M">男</button>
+              </div>
             </div>
+            <p class="b-glock muted" id="bGLock" hidden></p>
             <div class="g-toolbar">
               <label class="g-cost">每張券價格<input type="text" inputmode="decimal" id="bCost" placeholder="0" /></label>
               <span class="spacer"></span>
@@ -361,10 +366,8 @@
               <div class="g-stat"><span>主打次數</span><b id="bHits">0</b></div>
             </div>
             <div class="card g-actions">
-              <div class="g-draw-row">
-                <button class="pill primary" data-bdraw="1">單抽</button>
-                <button class="pill primary" data-bdraw="10">10 抽</button>
-                <button class="pill primary" data-bdraw="100">100 抽</button>
+              <div class="b-draw-row">
+                <button class="pill primary" id="bDraw">單抽</button>
               </div>
               <div class="g-actions-foot">
                 <span class="muted" id="bOdds"></span>

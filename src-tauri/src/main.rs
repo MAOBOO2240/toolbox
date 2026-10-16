@@ -5,6 +5,8 @@ mod audio;
 mod fg;
 mod input;
 mod maple_api;
+#[allow(dead_code)]
+mod wz;
 mod serial;
 mod timers;
 

@@ -7,8 +7,16 @@
 }
 .b-sim[hidden] { display: none !important; }
 
-.b-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin: 0 0.9rem; }
-.b-tabs .cbtn { padding: 0.5rem 0.4rem; font-size: 1rem; font-weight: 600; }
+.b-tabs { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; margin: 0 0.9rem; }
+.b-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.b-gender { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+.b-kind .cbtn { padding: 0.55rem 0.4rem; font-size: 1.1rem; font-weight: 600; }
+.b-gender .cbtn { min-width: 3rem; padding: 0.55rem 0.6rem; font-size: 1.05rem; font-weight: 600; }
+.b-gender .cbtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.b-gender .cbtn.on:disabled { opacity: 1; }
+.b-glock { margin: 0.45rem 0.9rem 0; font-size: 0.75rem; }
+.b-draw-row { display: grid; }
+.b-draw-row .pill { padding: 0.75rem; font-size: 1.1rem; }
 
 .b-thead, .b-row { grid-template-columns: 2rem minmax(0, 1fr) 4.2rem; }
 .b-name { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; cursor: pointer; min-width: 0; }
