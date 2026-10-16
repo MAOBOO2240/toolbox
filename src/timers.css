@@ -53,7 +53,7 @@
   box-shadow: var(--shadow);
   transition: opacity 0.2s;
 }
-.tcard.disabled .tc-clock, .tcard.disabled .tc-actions { opacity: 0.4; }
+.tcard.disabled .tc-clock { opacity: 0.4; }
 
 .tc-head { display: flex; align-items: center; gap: 0.5rem; }
 .tc-name {
@@ -75,8 +75,9 @@
 .icon-btn:hover { background: rgba(255, 59, 48, 0.12); color: var(--red); }
 .icon-btn svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
-.tc-clock { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.6rem; margin: 0.4rem 0 0.6rem; }
-.tc-time-wrap { position: relative; padding-bottom: 1.15rem; }
+.tc-clock { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.4rem 0 0.7rem; }
+/* 時間與 CD 並排，CD 在時間右下角 */
+.tc-time-wrap { display: flex; align-items: flex-end; gap: 0.45rem; min-width: 0; }
 
 .tc-time {
   --heat: 0;
@@ -122,18 +123,17 @@
 .tc-edit input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .tc-edit span { font-size: 2.4rem; font-weight: 800; color: var(--text-2); }
 
-/* 冷卻時間：數字左下角淡灰色 */
+/* 冷卻時間：時間右下角淡灰色 */
 .tc-cd {
-  position: absolute;
-  left: 0;
-  bottom: 0;
   display: inline-flex;
   align-items: baseline;
   gap: 0.15rem;
-  font-size: 0.75rem;
+  padding-bottom: 0.45rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-2);
-  opacity: 0.75;
+  opacity: 0.8;
+  white-space: nowrap;
   cursor: text;
 }
 .tc-cd input {
@@ -153,10 +153,9 @@
 .tc-cd input:hover, .tc-cd input:focus { background: var(--card-2); }
 .tc-cd.cooling { color: var(--orange); opacity: 1; }
 
-.tc-status { font-size: 0.8rem; font-weight: 600; color: var(--text-2); text-align: right; padding-bottom: 1.3rem; }
-
-.tc-actions { display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.6rem; border-bottom: 0.5px solid var(--sep); }
-.tc-opts { padding-top: 0.3rem; }
+.tc-actions { flex: none; display: flex; flex-direction: column; gap: 0.4rem; }
+.tc-actions .pill { min-width: 5.2rem; }
+.tc-opts { padding-top: 0.3rem; border-top: 0.5px solid var(--sep); }
 
 .link-btn { padding: 0.35rem 0.5rem; border-radius: 0.5rem; color: var(--blue); font-size: 0.85rem; font-weight: 600; }
 .link-btn:hover { background: var(--blue-soft); }

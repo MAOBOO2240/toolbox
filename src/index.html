@@ -160,9 +160,9 @@
           <div class="field"><span class="lbl">音效</span>
             <div class="inline">
               <select class="sel" id="prefSound">
-                <option value="beep1">提示音 1（叮咚）</option>
-                <option value="beep2">提示音 2（三短嗶）</option>
-                <option value="beep3">提示音 3（琶音）</option>
+                <option value="beep1">柔和木琴</option>
+                <option value="beep2">柔和鐘聲</option>
+                <option value="beep3">溫和雙音</option>
                 <option value="tts">語音唸出計時器名稱</option>
                 <option value="file">自訂音效檔…</option>
               </select>
@@ -173,7 +173,7 @@
             <div class="inline"><button class="pill ghost small" id="prefPick">選擇檔案</button><small class="muted" id="prefFileName"></small></div>
           </div>
           <div class="field"><span class="lbl">音量</span>
-            <div class="inline"><input type="range" class="range" id="prefVolume" min="0" max="200" step="5" /><span class="muted val" id="prefVolumeVal"></span></div>
+            <div class="inline"><input type="range" class="range" id="prefVolume" min="0" max="200" step="1" /><span class="muted val" id="prefVolumeVal"></span></div>
           </div>
           <p class="sub">浮動視窗</p>
           <div class="field"><span class="lbl">顯示</span>
@@ -182,8 +182,8 @@
           <div class="field"><span class="lbl" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。">鎖定 <i class="info">i</i></span>
             <label class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></label>
           </div>
-          <div class="field"><span class="lbl">透明度</span>
-            <div class="inline"><input type="range" class="range" id="prefOvOpacity" min="20" max="100" /><span class="muted val" id="prefOvOpacityVal"></span></div>
+          <div class="field"><span class="lbl" data-tip="只調整浮動視窗的底色，文字永遠不透明。0% = 沒有底色。">底色濃度 <i class="info">i</i></span>
+            <div class="inline"><input type="range" class="range" id="prefOvBg" min="0" max="100" step="1" /><span class="muted val" id="prefOvBgVal"></span></div>
           </div>
           <div class="field"><span class="lbl"></span>
             <div class="inline"><button class="pill ghost small" id="prefOvReset">重設位置</button></div>
@@ -194,6 +194,18 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- 確認對話框 -->
+  <div class="alert-backdrop" id="alertBackdrop">
+    <div class="alert" role="alertdialog" aria-modal="true">
+      <p class="alert-title" id="alertTitle">確認</p>
+      <p class="alert-msg" id="alertMsg"></p>
+      <div class="alert-actions">
+        <button id="alertCancel">取消</button>
+        <button id="alertOk" class="strong">確定</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
   <script src="timers.js"></script>

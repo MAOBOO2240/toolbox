@@ -100,11 +100,10 @@
           </div>
           <label class="tc-cd" title="冷卻時間：重新計時後的這段時間內按鍵無效">CD<input type="number" class="f-cd" min="0" max="3600" />s</label>
         </div>
-        <span class="tc-status">待命</span>
-      </div>
-      <div class="tc-actions">
-        <button class="pill primary small f-start">開始</button>
-        <button class="pill ghost danger small f-stop">結束</button>
+        <div class="tc-actions">
+          <button class="pill primary small f-start">開始</button>
+          <button class="pill ghost danger small f-stop">結束</button>
+        </div>
       </div>
       <div class="tc-opts">
         <div class="field"><span class="lbl">重新計時</span>
@@ -116,7 +115,7 @@
         </div>
         <div class="field r-repeat"><span class="lbl">次數</span>
           <div class="inline"><input type="number" class="num-in f-repeat" min="0" max="9999" /><span>次</span><small class="muted">0 = 無限重複</small></div></div>
-        <div class="field"><span class="lbl">指派按鍵</span><div class="keys f-keys"></div></div>
+        <div class="field r-keys"><span class="lbl">指派按鍵</span><div class="keys f-keys"></div></div>
         <div class="field r-comp"><span class="lbl" data-tip="${COMP_TIP}">超逾回補 <i class="info">i</i></span>${sw("f-comp")}</div>
       </div>`;
   }
@@ -133,6 +132,7 @@
     q(".f-comp").checked = t.overflow_comp;
     el.querySelectorAll(".f-mode button").forEach((b) => b.classList.toggle("on", b.dataset.v === t.mode));
     q(".r-repeat").hidden = t.mode !== "count";
+    q(".r-keys").hidden = t.mode === "count";
     q(".r-comp").hidden = t.mode !== "key";
     el.classList.toggle("disabled", !t.enabled);
     el.classList.toggle("editing", editing === t.id);
@@ -319,7 +319,7 @@
     el.querySelectorAll(".f-mode button").forEach((b) => b.addEventListener("click", () => setNow(() => (t.mode = b.dataset.v))));
     q(".f-comp").addEventListener("change", (e) => setNow(() => (t.overflow_comp = e.target.checked)));
     q(".f-del")?.addEventListener("click", () => run(async () => {
-      if (!confirm(`確定要刪除「${t.name}」嗎？`)) return;
+      if (!(await confirmBox(`確定要刪除「${t.name}」嗎？`, { ok: "刪除", danger: true }))) return;
       await tapi.del(t.id);
       file.timers = file.timers.filter((x) => x.id !== t.id);
       renderAll();
@@ -358,21 +358,6 @@
   }
 
   /* ---------- 即時顯示 ---------- */
-  function statusText(t, s) {
-    if (!file.master_on) return "總開關已關閉";
-    if (!t.enabled) return "已停用";
-    const cd = s.cooldown_left_ms > 0 ? ` · 冷卻 ${Math.ceil(s.cooldown_left_ms / 1000)} 秒` : "";
-    switch (s.phase) {
-      case "running": {
-        const round = t.mode === "count" ? ` · 第 ${s.round}${t.repeat ? ` / ${t.repeat}` : ""} 輪` : "";
-        return `倒數中${round}${cd}`;
-      }
-      case "done": return "已結束";
-      case "over": return `超時${cd}`;
-      default: return "待命";
-    }
-  }
-
   function paint(el, t, s) {
     if (!el) return;
     s = s || { phase: "idle", remain_ms: t.duration_ms, over_ms: 0, total_ms: t.duration_ms, cooldown_left_ms: 0, round: 0 };
@@ -385,7 +370,6 @@
     if (time.textContent !== text) time.textContent = text;
     time.className = `tc-time f-time ${s.phase}`;
     time.style.setProperty("--heat", heat(s).toFixed(3));
-    el.querySelector(".tc-status").textContent = statusText(t, s);
     const startBtn = el.querySelector(".f-start");
     const label = s.phase === "running" || s.phase === "over" ? "重新計時" : "開始";
     if (startBtn.textContent !== label) startBtn.textContent = label;
@@ -427,8 +411,8 @@
     $("#prefVolumeVal").textContent = `${p.volume}%`;
     $("#prefOvShow").checked = p.overlay.show;
     $("#prefOvLock").checked = p.overlay.locked;
-    $("#prefOvOpacity").value = Math.round(p.overlay.opacity * 100);
-    $("#prefOvOpacityVal").textContent = `${Math.round(p.overlay.opacity * 100)}%`;
+    $("#prefOvBg").value = Math.round(p.overlay.bg * 100);
+    $("#prefOvBgVal").textContent = `${Math.round(p.overlay.bg * 100)}%`;
   }
   const setPref = (fn) => { fn(file.prefs); renderPrefs(); savePrefs(); };
 
@@ -442,7 +426,7 @@
   $("#prefPreview").addEventListener("click", () => run(() => tapi.preview(file.prefs, file.timers[0]?.name || "計時器")));
   $("#prefOvShow").addEventListener("change", (e) => setPref((p) => (p.overlay.show = e.target.checked)));
   $("#prefOvLock").addEventListener("change", (e) => setPref((p) => (p.overlay.locked = e.target.checked)));
-  $("#prefOvOpacity").addEventListener("input", (e) => setPref((p) => (p.overlay.opacity = Number(e.target.value) / 100)));
+  $("#prefOvBg").addEventListener("input", (e) => setPref((p) => (p.overlay.bg = Number(e.target.value) / 100)));
   $("#prefOvReset").addEventListener("click", () => run(() => tapi.resetOverlay()));
 
   /* ---------- 上方與左下控制 ---------- */
@@ -450,7 +434,9 @@
     const on = !file.master_on;
     await tapi.setMaster(on);
     file.master_on = on;
+    file.prefs.overlay.show = on; // 總開關連動浮動視窗顯示
     renderMaster();
+    renderPrefs();
     file.timers.forEach((t) => fillCard(card(t.id), t));
     toast(on ? "已開啟（只恢復原本有啟用的計時器）" : "已關閉所有計時器");
   }));
@@ -485,7 +471,7 @@
     const base = { cooldown_ms: 0, mode: "key", repeat: 0, keys: [], overflow_comp: false, enabled: true };
     const f = {
       game_only: true, master_on: true, next_id: 4,
-      prefs: { notify: "short", sound: "beep1", sound_file: "", volume: 100, overlay: { show: true, locked: false, opacity: 0.9, x: 120, y: 160, w: 340, h: 180 } },
+      prefs: { notify: "short", sound: "beep1", sound_file: "", volume: 100, overlay: { show: true, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 } },
       timers: [
         { ...base, id: "t1", name: "輪迴碑石", builtin: true, duration_ms: 590000, keys: ["S", "Left", "Right"] },
         { ...base, id: "t2", name: "燃燒戒指", builtin: true, duration_ms: 905000, keys: ["Ctrl+F1"] },
@@ -499,7 +485,7 @@
       tickCb({
         fg: { exe: "MapleStory.exe", is_game: true, is_self: false, is_main: false },
         listening: true, last_key: "Ctrl+S", master_on: f.master_on,
-        overlay: { opacity: f.prefs.overlay.opacity, locked: f.prefs.overlay.locked },
+        overlay: { bg: f.prefs.overlay.bg, locked: f.prefs.overlay.locked },
         timers: f.timers.map((t) => {
           const r = rt[t.id];
           const base = { id: t.id, name: t.name, active: f.master_on && t.enabled, round: 1 };
@@ -521,7 +507,7 @@
       del: async (id) => { f.timers = f.timers.filter((t) => t.id !== id); },
       start: async (id) => { const t = f.timers.find((x) => x.id === id); t.enabled = true; f.master_on = true; rt[id] = { start: Date.now(), total: t.duration_ms }; },
       stop: async (id) => { delete rt[id]; },
-      setMaster: async (on) => { f.master_on = on; },
+      setMaster: async (on) => { f.master_on = on; f.prefs.overlay.show = on; },
       gameOnly: async (on) => { f.game_only = on; },
       resetOverlay: async () => {}, preview: async () => {}, pickFile: async () => null,
       onTick: (cb) => { tickCb = cb; },

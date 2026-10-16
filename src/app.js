@@ -23,6 +23,7 @@ function createMockApi() {
   let st;
   try { st = JSON.parse(localStorage.getItem(KEY)); } catch (_) {}
   st = st || { raw: "", serials: [], index: 0, active: false, settings: { theme: "system", font: "m" } };
+  st.active = false;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} return { ...st }; };
   const extract = (text) => {
     const out = [];
@@ -65,6 +66,36 @@ async function run(fn) {
   } catch (e) {
     toast(String(e));
   }
+}
+
+/** 同色系確認對話框，回傳 Promise<boolean> */
+function confirmBox(message, { title = "確認", ok = "確定", cancel = "取消", danger = false } = {}) {
+  const back = $("#alertBackdrop");
+  $("#alertTitle").textContent = title;
+  $("#alertMsg").textContent = message;
+  const okBtn = $("#alertOk");
+  const cancelBtn = $("#alertCancel");
+  okBtn.textContent = ok;
+  cancelBtn.textContent = cancel;
+  okBtn.classList.toggle("danger", danger);
+  back.classList.add("show");
+  return new Promise((resolve) => {
+    const done = (v) => {
+      back.classList.remove("show");
+      okBtn.onclick = cancelBtn.onclick = back.onclick = null;
+      document.removeEventListener("keydown", onKey, true);
+      resolve(v);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); done(false); }
+      if (e.key === "Enter") { e.preventDefault(); done(true); }
+    };
+    okBtn.onclick = () => done(true);
+    cancelBtn.onclick = () => done(false);
+    back.onclick = (e) => { if (e.target === back) done(false); };
+    document.addEventListener("keydown", onKey, true);
+    setTimeout(() => okBtn.focus(), 30);
+  });
 }
 
 const store = {
@@ -158,7 +189,13 @@ function showCat(cat) {
   $("#app").classList.remove("collapsed");
 }
 
+let currentView = "cat";
 function showView(name) {
+  // 離開序號複製功能時，關閉自動切換
+  if (currentView === "serial" && name !== "serial" && state.active) {
+    run(async () => update(await api.setActive(false)));
+  }
+  currentView = name;
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
 }
 
@@ -251,7 +288,7 @@ $("#extractBtn").addEventListener("click", () =>
 
 $("#clearBtn").addEventListener("click", () =>
   run(async () => {
-    if (state.serials.length && !confirm("確定要清除序號清單與進度嗎？")) return;
+    if (state.serials.length && !(await confirmBox("確定要清除序號清單與目前進度嗎？", { title: "清除序號", ok: "清除", danger: true }))) return;
     $("#rawInput").value = "";
     update(await api.clear());
   })
@@ -301,4 +338,4 @@ $("#currentSerial").addEventListener("click", () =>
   });
 })();
 
-window.App = { invoke, listen, toast, run, store, $, $$, TAURI };
+window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };

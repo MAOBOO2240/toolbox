@@ -13,6 +13,7 @@
       font-family: "Segoe UI Variable Display", "Segoe UI", "Microsoft JhengHei UI", sans-serif;
     }
     .ov {
+      --bg: 0.35;
       position: absolute;
       inset: 0;
       display: flex;
@@ -22,12 +23,13 @@
       box-sizing: border-box;
       border-radius: 14px;
       container-type: size;
-      transition: background 0.2s, box-shadow 0.2s;
+      /* 只有底色有透明度，文字永遠不透明 */
+      background: rgba(18, 18, 20, var(--bg));
+      transition: box-shadow 0.2s;
     }
-    /* 未鎖定：顯示底色與邊框，可拖曳、可縮放 */
+    /* 未鎖定：顯示邊框與縮放把手，可拖曳 */
     .ov.unlocked {
-      background: rgba(0, 0, 0, 0.4);
-      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
       cursor: move;
     }
     /* 每一列的高度依計時器數量平均分配，但不會過高 */
@@ -114,7 +116,7 @@
     let locked = true;
     T.event.listen("timer-tick", (e) => {
       const p = e.payload;
-      ov.style.opacity = p.overlay.opacity;
+      ov.style.setProperty("--bg", p.overlay.bg);
       locked = p.overlay.locked;
       ov.classList.toggle("unlocked", !locked);
 

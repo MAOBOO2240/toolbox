@@ -194,10 +194,10 @@ fn main() {
         .setup(|app| {
             let dir = app.path().app_data_dir().expect("無法取得資料夾");
             let path = dir.join("state.json");
-            let st = AppState::load(&path);
-            input::PASTE_ACTIVE.store(st.active, Ordering::SeqCst);
-            // 重啟後還原：若上次是啟用中，把目前序號放回剪貼簿
-            let _ = sync_clipboard(&st);
+            let mut st = AppState::load(&path);
+            // 程式開啟時停在主頁，序號複製尚未打開 → 自動切換一律關閉
+            st.active = false;
+            input::PASTE_ACTIVE.store(false, Ordering::SeqCst);
             setup_main_window(app, &st);
 
             let shared = Arc::new(Shared { state: Mutex::new(st), path });

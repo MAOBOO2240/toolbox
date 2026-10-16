@@ -23,8 +23,8 @@ pub const OVERLAY_LABEL: &str = "overlay";
 pub struct Overlay {
     pub show: bool,
     pub locked: bool,
-    /// 0.2 ~ 1.0
-    pub opacity: f64,
+    /// 底色不透明度 0.0 ~ 1.0（文字永遠不透明）
+    pub bg: f64,
     pub x: i32,
     pub y: i32,
     pub w: u32,
@@ -33,7 +33,7 @@ pub struct Overlay {
 
 impl Default for Overlay {
     fn default() -> Self {
-        Self { show: true, locked: false, opacity: 0.9, x: 120, y: 160, w: 340, h: 180 }
+        Self { show: true, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 }
     }
 }
 
@@ -170,7 +170,7 @@ pub struct Snap {
 
 #[derive(Serialize, Clone)]
 pub struct OverlayState {
-    opacity: f64,
+    bg: f64,
     locked: bool,
 }
 
@@ -516,7 +516,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                     listening,
                     last_key: input::last_key(),
                     master_on: master,
-                    overlay: OverlayState { opacity: prefs.overlay.opacity.clamp(0.2, 1.0), locked: prefs.overlay.locked },
+                    overlay: OverlayState { bg: prefs.overlay.bg.clamp(0.0, 1.0), locked: prefs.overlay.locked },
                     timers: snaps,
                 },
             );
@@ -563,7 +563,7 @@ pub fn update_prefs(prefs: Prefs) {
     e.file.prefs = Prefs { volume: prefs.volume.min(200), ..prefs };
     let o = &mut e.file.prefs.overlay;
     (o.x, o.y, o.w, o.h) = geom;
-    o.opacity = o.opacity.clamp(0.2, 1.0);
+    o.bg = o.bg.clamp(0.0, 1.0);
     e.dirty = true;
 }
 
@@ -608,11 +608,12 @@ pub fn timer_stop(id: String) {
     }
 }
 
-/// 總開關：只影響原本有開啟的計時器（各自的啟用狀態不變）
+/// 總開關：只影響原本有開啟的計時器（各自的啟用狀態不變），並連動浮動視窗的顯示開關
 #[tauri::command]
 pub fn set_master(on: bool) {
     let mut e = eng();
     e.file.master_on = on;
+    e.file.prefs.overlay.show = on;
     if !on {
         e.rt.clear();
     }

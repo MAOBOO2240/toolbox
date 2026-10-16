@@ -414,3 +414,36 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 }
 :root[data-theme="dark"] .toast { background: rgba(90, 90, 94, 0.95); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- 確認對話框（iOS 風格） ---------- */
+.alert-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s;
+  z-index: 100;
+}
+.alert-backdrop.show { opacity: 1; pointer-events: auto; }
+.alert {
+  width: min(18rem, calc(100% - 2rem));
+  overflow: hidden;
+  background: var(--card);
+  border-radius: 1.1rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 0.5px var(--sep);
+  text-align: center;
+  transform: scale(1.06);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.alert-backdrop.show .alert { transform: none; }
+.alert-title { margin: 1.1rem 1rem 0.3rem; font-weight: 700; font-size: 1rem; }
+.alert-msg { margin: 0 1.1rem 1.1rem; font-size: 0.85rem; color: var(--text-2); line-height: 1.45; }
+.alert-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 0.5px solid var(--sep); }
+.alert-actions button { padding: 0.75rem; color: var(--blue); font-size: 0.95rem; outline: none; }
+.alert-actions button + button { border-left: 0.5px solid var(--sep); }
+.alert-actions button:hover, .alert-actions button:focus-visible { background: var(--card-2); }
+.alert-actions .strong { font-weight: 700; }
+.alert-actions .danger { color: var(--red); }
