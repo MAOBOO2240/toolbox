@@ -325,7 +325,6 @@
                 <button class="cbtn c-blue" data-g="M">男</button>
               </div>
             </div>
-            <p class="b-glock muted" id="bGLock" hidden></p>
             <div class="g-toolbar">
               <label class="g-cost">每張券價格<input type="text" inputmode="decimal" id="bCost" placeholder="0" /></label>
               <span class="spacer"></span>
@@ -352,6 +351,7 @@
               </div>
             </div>
             <div class="b-wear" id="bWear"></div>
+            <p class="b-note muted" id="bDollNote"></p>
             <div class="b-try" id="bTry" hidden>
               <span id="bTryText"></span>
               <button class="cbtn c-red small" id="bTryReset">恢復原本造型</button>
@@ -375,8 +375,8 @@
               </div>
             </div>
             <div class="card b-last" id="bLast">
-              <span class="muted">最後抽到</span>
-              <strong id="bLastName">—</strong>
+              <img id="bLastPic" alt="" hidden />
+              <strong id="bLastName"></strong>
             </div>
             <div class="card g-results">
               <section class="g-sec g-sec-batch">
@@ -403,9 +403,9 @@
           </div>
           <div class="card g-imp">
             <h3>紙娃娃資料</h3>
-            <p class="hint">新髮型、新臉型的圖片從新楓之谷安裝資料夾的 WZ 檔讀取。</p>
+            <p class="hint">紙娃娃的圖片直接從新楓之谷安裝資料夾的 WZ 檔讀取，遊戲更新後新造型也會自動出現。留空會自動尋找常見的安裝位置。</p>
             <div class="b-wz">
-              <input type="text" id="bGamePath" placeholder="C:\Program Files\gamania Games\MapleStory" />
+              <input type="text" id="bGamePath" placeholder="自動尋找（C:\Program Files\gamania Games\MapleStory）" />
               <button class="cbtn c-purple small" id="bPickGame">選擇資料夾</button>
             </div>
             <p class="muted" id="bWzStatus"></p>

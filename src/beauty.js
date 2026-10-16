@@ -76,6 +76,7 @@ if (typeof document !== "undefined") (() => {
   const C = BeautyCore;
   const KEY = "beauty-v1";
   const DRAW_CAP = 1_000_000;
+  const DEFAULT_COST = 44;
 
   const DEFAULT_TEXT = `黑色餘韻髮型	1.50%
 黑色層次髮型	1.50%
@@ -136,7 +137,7 @@ if (typeof document !== "undefined") (() => {
   const blankStats = () => ({ draws: 0, spent: 0, hits: 0 });
   function defaults() {
     return {
-      pools: C.parse(DEFAULT_TEXT), kind: "hair", gender: "F", page: "sim", cost: 0, gamePath: "",
+      pools: C.parse(DEFAULT_TEXT), kind: "hair", gender: "F", page: "sim", cost: DEFAULT_COST, costV2: true, gamePath: "",
       stats: blankStats(), batch: {}, batchDraws: zero(), hist: {}, histDraws: zero(),
       charName: "", tryHair: null, tryFace: null,
     };
@@ -149,6 +150,12 @@ if (typeof document !== "undefined") (() => {
     } catch (_) {}
     return d;
   })();
+  // 舊版預設價格是 0，改成每張 44
+  if (!st.costV2) { if (!st.cost) st.cost = DEFAULT_COST; st.costV2 = true; }
+  // 舊版試穿只存名稱
+  const fixTry = (t, kind) => (typeof t === "string" ? { pool: kind + (st.gender || "F"), name: t } : t || null);
+  st.tryHair = fixTry(st.tryHair, "hair");
+  st.tryFace = fixTry(st.tryFace, "face");
   let saveTimer;
   const save = () => {
     clearTimeout(saveTimer);
@@ -161,9 +168,9 @@ if (typeof document !== "undefined") (() => {
   const decFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 });
   const parseNum = (s) => { const n = parseFloat(String(s).replace(/[,\s%]/g, "")); return isFinite(n) ? n : null; };
   const isHair = (pool) => pool.startsWith("hair");
-  /** 角色載入後依角色性別；否則用使用者選的性別（預設女） */
+  /** 角色性別只用來決定預設要抽男生還是女生的造型，使用者仍可自由切換 */
   const charGender = () => (ch?.basic?.character_gender === "男" ? "M" : ch?.basic?.character_gender === "女" ? "F" : null);
-  const gender = () => charGender() || st.gender || "F";
+  const gender = () => st.gender || "F";
   const curPool = () => `${st.kind || "hair"}${gender()}`;
 
   /* ---------- 分頁 ---------- */
@@ -176,13 +183,7 @@ if (typeof document !== "undefined") (() => {
   /* ---------- 獎池 ---------- */
   function renderPool() {
     $$("#bKind button").forEach((b) => b.classList.toggle("on", b.dataset.kind === st.kind));
-    const locked = !!charGender();
-    $$("#bGender button").forEach((b) => {
-      b.classList.toggle("on", b.dataset.g === gender());
-      b.disabled = locked;
-    });
-    $("#bGLock").hidden = !locked;
-    $("#bGLock").textContent = locked ? `已依角色性別鎖定為「${gender() === "F" ? "女" : "男"}」，只會抽到${gender() === "F" ? "女" : "男"}性造型` : "";
+    $$("#bGender button").forEach((b) => b.classList.toggle("on", b.dataset.g === gender()));
     const pool = curPool();
     const items = st.pools[pool];
     const feat = C.featured(items);
@@ -252,28 +253,99 @@ if (typeof document !== "undefined") (() => {
     return f ? { name: f.face_name, color: f.base_color, mix: f.mix_color, rate: Number(f.mix_rate) || 0 } : null;
   }
 
-  function renderDoll() {
-    const look = $("#bLook");
-    const empty = $("#bEmpty");
+  /* ---------- 從遊戲資料畫紙娃娃 ---------- */
+  const poolGender = (pool) => (pool.endsWith("F") ? "F" : "M");
+  const renderCache = new Map();
+  /** 同一時間只送一個請求；請求進行中又有新的，只畫最新的那個 */
+  function renderQueue(apply) {
+    let gen = 0, busy = false, pending = null;
+    async function pump() {
+      if (busy || !pending) return;
+      const { req, my } = pending;
+      pending = null;
+      busy = true;
+      const k = JSON.stringify(req);
+      let out = renderCache.get(k) || null, err = null;
+      if (!out) {
+        try {
+          out = await invoke("beauty_render", { req });
+          renderCache.set(k, out);
+          if (renderCache.size > 80) renderCache.delete(renderCache.keys().next().value);
+        } catch (e) { err = String(e); }
+      }
+      busy = false;
+      if (my === gen) apply(out, err);
+      pump();
+    }
+    return (req) => {
+      const my = ++gen;
+      if (!req) { pending = null; apply(null, null); return; }
+      pending = { req, my };
+      pump();
+    };
+  }
+
+  /** 組出要畫的造型：角色原本的造型，加上試穿（換造型時保留角色原本的顏色與混染） */
+  function lookReq(tryH, tryF, mode) {
+    const h = currentHair(), f = currentFace();
+    const g = charGender() || gender();
+    const part = (cur, tried) => {
+      if (tried) return { name: tried.name, color: cur?.color || null, mix: cur?.mix || null, rate: cur ? cur.rate : null, gender: poolGender(tried.pool) };
+      if (cur) return { name: cur.name, color: cur.color || null, mix: cur.mix || null, rate: cur.rate, gender: g };
+      return null;
+    };
+    return {
+      game_dir: st.gamePath || null,
+      skin: ch?.beauty?.character_skin?.skin_name || null,
+      gender: g,
+      hair: part(h, tryH),
+      face: part(f, tryF),
+      mode,
+    };
+  }
+
+  const showDoll = renderQueue((out, err) => {
+    const look = $("#bLook"), empty = $("#bEmpty"), note = $("#bDollNote");
+    note.textContent = "";
+    if (out) {
+      look.src = out.png;
+      look.hidden = false;
+      empty.hidden = true;
+      if (out.warnings?.length) note.textContent = out.warnings.join("；");
+      return;
+    }
+    // 讀不到遊戲資料：有角色就先顯示官方角色圖
     const img = ch?.basic?.character_image;
-    if (img) {
-      if (look.src !== img) look.src = img;
+    if (img && !(st.tryHair || st.tryFace)) {
+      look.src = img;
       look.hidden = false;
       empty.hidden = true;
     } else {
       look.hidden = true;
       empty.hidden = false;
     }
+    if (err) note.textContent = err;
+  });
+
+  const showLast = renderQueue((out) => {
+    const pic = $("#bLastPic");
+    if (out) { pic.src = out.png; pic.hidden = false; } else { pic.hidden = true; }
+  });
+
+  function renderDoll() {
+    const tryH = st.tryHair, tryF = st.tryFace;
+    if (!TAURI || (!ch && !tryH && !tryF)) showDoll(null);
+    else showDoll(lookReq(tryH, tryF, "full"));
 
     const wear = $("#bWear");
     wear.innerHTML = "";
     const h = currentHair(), f = currentFace();
     const skin = ch?.beauty?.character_skin?.skin_name;
-    const tryH = st.tryHair, tryF = st.tryFace;
-    const hairText = tryH ? `${h ? h.color : "黑色"}${C.stripColor(tryH)}` : h ? `${h.color}${h.name}` : "—";
-    const faceText = tryF ? `${tryF}` : f ? `${f.name}（${f.color}）` : "—";
-    wear.append(wearLine("髮型", hairText, !tryH && h && h.mix ? `混染 ${h.mix} ${h.rate}%` : tryH ? "試穿中" : ""));
-    wear.append(wearLine("臉型", faceText, !tryF && f && f.mix ? `混染 ${f.mix} ${f.rate}%` : tryF ? "試穿中" : ""));
+    const hairText = tryH ? (h ? `${h.color}${C.stripColor(tryH.name)}` : tryH.name) : h ? `${h.color}${h.name}` : "—";
+    const faceText = tryF ? (f ? `${tryF.name}（${f.color}）` : tryF.name) : f ? `${f.name}（${f.color}）` : "—";
+    const mixText = (x) => (x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
+    wear.append(wearLine("髮型", hairText, tryH ? "試穿中" : mixText(h)));
+    wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f)));
     if (skin) wear.append(wearLine("膚色", skin));
     if (ch?.cash) {
       const list = ch.cash[`cash_item_equipment_preset_${ch.cash.preset_no}`]?.length
@@ -293,11 +365,11 @@ if (typeof document !== "undefined") (() => {
 
     const tryBox = $("#bTry");
     tryBox.hidden = !(tryH || tryF);
-    $("#bTryText").textContent = [tryH && `髮型：${C.stripColor(tryH)}`, tryF && `臉型：${tryF}`].filter(Boolean).join("　") + "（預覽需要讀取遊戲資料）";
+    $("#bTryText").textContent = [tryH && `髮型：${C.stripColor(tryH.name)}`, tryF && `臉型：${tryF.name}`].filter(Boolean).join("　");
   }
 
   function tryOn(pool, name) {
-    if (isHair(pool)) st.tryHair = name; else st.tryFace = name;
+    if (isHair(pool)) st.tryHair = { pool, name }; else st.tryFace = { pool, name };
     save();
     renderDoll();
   }
@@ -320,12 +392,14 @@ if (typeof document !== "undefined") (() => {
     try {
       ch = await invoke("maple_lookup", { name, force: !!force });
       st.charName = ch.name;
+      // 換了角色才依角色性別切換預設（之後使用者自己切換的會保留）
+      if (st.genderFor !== ch.name && charGender()) { st.gender = charGender(); st.genderFor = ch.name; }
       save();
       const t = new Date(ch.fetched_at * 1000);
       const when = `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
       $("#bStatus").textContent =
         `${ch.basic?.world_name || ""}・${ch.basic?.character_class || ""}・Lv.${ch.basic?.character_level || "?"}　資料時間 ${when}` +
-        (ch.from_cache ? "（快取，未使用 API 次數）" : "") + `　本機今天已用 ${ch.calls_today} 次`;
+        (ch.from_cache ? "（快取）" : "");
       renderPool();
       renderDoll();
     } catch (e) {
@@ -411,8 +485,13 @@ if (typeof document !== "undefined") (() => {
     $("#bDraws").textContent = intFmt.format(st.stats.draws);
     $("#bHits").textContent = intFmt.format(st.stats.hits);
     const last = $("#bLastName");
-    last.textContent = st.last ? st.last.name : "—";
+    last.textContent = st.last ? st.last.name : "按下單抽開始";
     $("#bLast").classList.toggle("feat", !!st.last?.feat);
+    $("#bLast").classList.toggle("empty", !st.last);
+    if (st.last && TAURI) {
+      const L = { pool: st.last.pool, name: st.last.name };
+      showLast(lookReq(isHair(L.pool) ? L : null, isHair(L.pool) ? null : L, "head"));
+    } else showLast(null);
 
     const box = $("#bBatch");
     box.innerHTML = "";
@@ -471,14 +550,14 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 事件 ---------- */
-  $$("#bPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderPage(); }));
+  $$("#bPages button").forEach((b) => b.addEventListener("click", () => {
+    st.page = b.dataset.page; save(); renderPage();
+    if (st.page === "import") checkWz();
+  }));
   $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); }));
   $$("#bGender button").forEach((b) => b.addEventListener("click", () => {
-    if (charGender()) return;
     st.gender = b.dataset.g;
-    // 換性別時，原本試穿的造型不一定適用，清掉
-    st.tryHair = st.tryFace = null;
-    save(); renderPool(); renderDoll();
+    save(); renderPool();
   }));
   $("#bLookup").addEventListener("click", () => lookup(false));
   $("#bRefresh").addEventListener("click", () => lookup(true));
@@ -510,7 +589,31 @@ if (typeof document !== "undefined") (() => {
     $("#bParseResult").textContent = `已套用：${msg}`;
     toast(`已套用：${msg}`);
   });
-  $("#bGamePath").addEventListener("input", (e) => { st.gamePath = e.target.value.trim(); save(); });
+  async function checkWz() {
+    if (!TAURI) return;
+    const box = $("#bWzStatus");
+    box.textContent = "讀取遊戲資料中…";
+    const r = await invoke("beauty_wz_status", { gameDir: st.gamePath || null });
+    box.textContent = r.ok ? `${r.message}（${r.path}）` : r.message;
+    box.classList.toggle("bad", !r.ok);
+    if (r.ok) { renderCache.clear(); renderDoll(); renderRight(); }
+  }
+  let wzTimer;
+  $("#bGamePath").addEventListener("input", (e) => {
+    st.gamePath = e.target.value.trim();
+    save();
+    clearTimeout(wzTimer);
+    wzTimer = setTimeout(checkWz, 600);
+  });
+  $("#bPickGame").addEventListener("click", async () => {
+    if (!TAURI) return;
+    const dir = await invoke("pick_game_dir");
+    if (!dir) return;
+    st.gamePath = dir;
+    $("#bGamePath").value = dir;
+    save();
+    checkWz();
+  });
 
   renderAll();
   // 重新開啟時，若之前有查過角色，從本機快取取回（不會用掉 API 次數，除非快取已過期）

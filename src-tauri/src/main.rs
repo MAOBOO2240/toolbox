@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod avatar;
 mod fg;
 mod input;
 mod maple_api;
@@ -271,7 +272,10 @@ fn main() {
             timers::reset_overlay,
             timers::preview_sound,
             timers::pick_sound_file,
-            maple_api::maple_lookup
+            maple_api::maple_lookup,
+            avatar::beauty_render,
+            avatar::beauty_wz_status,
+            avatar::pick_game_dir
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

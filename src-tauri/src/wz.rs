@@ -580,6 +580,21 @@ impl Data {
         Err(format!("{rel}/{img}/{inner} 不是圖片"))
     }
 
+    /// 已取得的圖片節點（屬於 `rel/img`）轉成像素
+    pub fn pixels_of(&mut self, rel: &str, img: &str, node: &Node) -> Result<(u32, u32, Vec<u8>), String> {
+        let Node::Canvas(c, props) = node else { return Err("不是圖片".into()) };
+        let prop = |k: &str| props.iter().find(|(n, _)| n == k).and_then(|(_, v)| v.as_str()).map(str::to_string);
+        if let Some(link) = prop("_outlink") {
+            return self.outlink_rgba(&link);
+        }
+        if let Some(link) = prop("_inlink") {
+            return self.canvas_pixels(rel, img, &link);
+        }
+        let pkg = self.package(rel)?;
+        let file = pkg.file_of(img).ok_or("找不到圖片檔")?;
+        Ok((c.w, c.h, canvas_rgba(file, c)?))
+    }
+
     /// 解析 `_outlink`，例如 "Character/Hair/_Canvas/00030000.img/default/hair"，回傳像素
     pub fn outlink_rgba(&mut self, link: &str) -> Result<(u32, u32, Vec<u8>), String> {
         let idx = link.find(".img/").ok_or("outlink 格式錯誤")? + 4;
