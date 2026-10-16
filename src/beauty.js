@@ -330,7 +330,7 @@ if (typeof document !== "undefined") (() => {
       const color = pick || cur?.color || null;
       const mix = pick ? null : cur?.mix || null;
       const rate = pick ? null : cur ? cur.rate : null;
-      if (tried) return { name: tried.name, color, mix, rate, gender: poolGender(tried.pool) };
+      if (tried) return { name: tried.name, id: tried.id || null, color, mix, rate, gender: poolGender(tried.pool) };
       if (cur) return { name: cur.name, color, mix, rate, gender: g };
       if (pick) return { name: "", color, gender: g };
       return null;
@@ -354,6 +354,8 @@ if (typeof document !== "undefined") (() => {
     note.textContent = "";
     if (out) {
       lastEquips = out.equips || [];
+      if (!st.tryHair) lastHairId = out.hair_id || null;
+      if (!st.tryFace) lastFaceId = out.face_id || null;
       if (st.dress) renderEquipped();
       look.dataset.w = out.w;
       look.src = out.png;
@@ -377,7 +379,8 @@ if (typeof document !== "undefined") (() => {
     if (err) note.textContent = err;
   });
 
-  let lastEquips = []; // 紙娃娃最後一次實際穿上的點裝（角色原本的套組解析後的結果）
+  let lastEquips = [];
+  let lastHairId = null, lastFaceId = null, lastSkinId = null; // 紙娃娃最後一次實際穿上的點裝（角色原本的套組解析後的結果）
   const showLast = renderQueue((out) => {
     const pic = $("#bLastPic");
     if (out) { pic.src = out.png; pic.hidden = false; } else { pic.hidden = true; }
@@ -425,22 +428,23 @@ if (typeof document !== "undefined") (() => {
     const h = currentHair(), f = currentFace();
     const skin = ch?.beauty?.character_skin?.skin_name;
     const hc = st.hairColor || h?.color || "", fc = st.faceColor || f?.color || "";
-    const hairText = tryH ? (hc ? `${hc}${C.stripColor(tryH.name)}` : tryH.name) : h ? `${hc}${h.name}` : "—";
-    const faceText = tryF ? (fc ? `${tryF.name}（${fc}）` : tryF.name) : f ? `${f.name}（${fc}）` : "—";
+    const hairText = tryH ? (hc ? `${hc}${C.stripColor(tryH.name)}` : tryH.name) : h ? `${hc}${h.name}` : "預設髮型";
+    const faceText = tryF ? (fc ? `${tryF.name}（${fc}）` : tryF.name) : f ? `${f.name}（${fc}）` : "預設臉型";
     const mixText = (x, pick) => (!pick && x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
-    wear.append(wearLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor)));
-    wear.append(wearLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor)));
-    {
-      const row = wearLine("膚色", "");
+    // 髮型、臉型、膚色都是藍字，點了開大視窗挑選
+    const linkLine = (label, text, extra, kind) => {
+      const row = wearLine(label, "", extra);
       const link = document.createElement("button");
       link.className = "b-link";
-      link.textContent = curSkinName();
-      link.title = "點一下變更膚色";
-      link.addEventListener("click", openSkin);
+      link.textContent = text;
+      link.title = `點一下${{ skin: "變更膚色", hair: "變更髮型", face: "變更臉型" }[kind]}`;
+      link.addEventListener("click", () => openStyle(kind));
       row.children[1].replaceWith(link);
-      if (st.skinId) { const e = document.createElement("small"); e.className = "muted"; e.textContent = "試穿中"; row.append(e); }
-      wear.append(row);
-    }
+      return row;
+    };
+    wear.append(linkLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor), "hair"));
+    wear.append(linkLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor), "face"));
+    wear.append(linkLine("膚色", curSkinName(), st.skinId ? "試穿中" : "", "skin"));
   }
 
   function curSkinName() {
@@ -800,7 +804,7 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 拖曳：拖到收藏 = 收藏；拖到角色或目前裝備 = 穿上 ---------- */
   let suppressClick = false;
-  function draggable(el, item) {
+  function draggable(el, item, from) {
     el.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       const sx = e.clientX, sy = e.clientY;
@@ -808,7 +812,8 @@ if (typeof document !== "undefined") (() => {
       const zoneOf = (x, y) => {
         const t = document.elementFromPoint(x, y);
         if (!t) return null;
-        if (t.closest(".b-saved")) return "fav";
+        if (t.closest(".b-saved")) return from === "fav" ? null : "fav";
+        if (from === "fav" && t.closest("#bPick")) return "unfav";
         if (t.closest(".b-equipped") || t.closest("#bStage")) return "wear";
         return null;
       };
@@ -816,6 +821,7 @@ if (typeof document !== "undefined") (() => {
         if (z === over) return;
         over = z;
         $(".b-saved")?.classList.toggle("drop", z === "fav");
+        $("#bPick")?.classList.toggle("drop-del", z === "unfav");
         $(".b-equipped")?.classList.toggle("drop", z === "wear");
         $("#bStage").classList.toggle("drop", z === "wear");
       };
@@ -844,6 +850,7 @@ if (typeof document !== "undefined") (() => {
         suppressClick = true;
         setTimeout(() => (suppressClick = false), 0);
         if (z === "fav") addFav(item);
+        else if (z === "unfav") { removeFav(item); toast(`已移除收藏「${item.name}」`); }
         else if (z === "wear") wear(item, false);
       };
       window.addEventListener("pointermove", move);
@@ -883,13 +890,13 @@ if (typeof document !== "undefined") (() => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCtx(); closeFloat(); } });
   window.addEventListener("blur", closeCtx);
 
-  function iconEl(item, tag = "button") {
+  function iconEl(item, tag = "button", from = "") {
     const el = document.createElement(tag);
     el.className = "b-icon";
     el.dataset.id = item.id;
     el.title = item.name;
     if (iconCache.has(item.id)) fillIcon(el); else io?.observe(el);
-    draggable(el, item);
+    draggable(el, item, from);
     return el;
   }
 
@@ -995,7 +1002,7 @@ if (typeof document !== "undefined") (() => {
     box.innerHTML = "";
     if (!st.favs.length) { box.innerHTML = '<div class="g-empty">還沒有收藏的時裝</div>'; return; }
     for (const it of st.favs) {
-      const el = iconEl(it);
+      const el = iconEl(it, "button", "fav");
       el.addEventListener("click", () => wear(it));
       box.appendChild(el);
     }
@@ -1003,7 +1010,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 浮動視窗：染色、膚色 ---------- */
-  function closeFloat() { $("#bDyeWin").hidden = true; $("#bSkinWin").hidden = true; dyeId = null; }
+  function closeFloat() { $("#bDyeWin").hidden = true; if (styleKind) closeStyle(); dyeId = null; }
 
   const RANGES = [["全色系", "c-silver"], ["紅色系", "c-red"], ["黃色系", "c-amber"], ["綠色系", "c-green"], ["青色系", "c-teal"], ["藍色系", "c-blue"], ["紫色系", "c-purple"]];
   let dyeId = null;
@@ -1013,7 +1020,7 @@ if (typeof document !== "undefined") (() => {
     dyeId = id;
     const it = dyeItem();
     if (!it) return;
-    $("#bSkinWin").hidden = true;
+    if (styleKind) closeStyle();
     $("#bDyeTitle").textContent = `染色：${it.name}`;
     const box = $("#bDyeRanges");
     if (!box.childElementCount) {
@@ -1057,35 +1064,151 @@ if (typeof document !== "undefined") (() => {
   $("#bDyeDone").addEventListener("click", closeFloat);
   $("#bDyeClose").addEventListener("click", closeFloat);
 
+  /* ---------- 膚色／髮型／臉型 大視窗 ---------- */
   let skins = null;
-  async function openSkin() {
+  const styleLists = {}; // hair / face → 清單
+  const thumbCache = new Map();
+  let styleKind = null, styleGen = 0, styleShown = 0;
+  const STYLE_PAGE = 120;
+  const STYLE_TITLE = { skin: "變更膚色", hair: "變更髮型", face: "變更臉型" };
+  const famOf = (kind, id) => (kind === "hair" ? Math.floor(id / 10) * 10 : kind === "face" ? id - (Math.floor(id / 100) % 10) * 100 : id);
+
+  async function openStyle(kind) {
+    closeCtx();
     $("#bDyeWin").hidden = true;
-    $("#bSkinWin").hidden = false;
-    const box = $("#bSkinList");
-    if (!TAURI) { box.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
-    if (!skins) {
-      box.innerHTML = '<div class="g-empty">讀取中…</div>';
-      try { skins = await invoke("beauty_skins", { gameDir: st.gamePath || null }); }
-      catch (e) { box.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
-    }
-    renderSkins();
+    styleKind = kind;
+    styleShown = STYLE_PAGE;
+    $("#bStyleTitle").textContent = STYLE_TITLE[kind];
+    $("#bStyleSearch").value = "";
+    $("#bStyleWin").hidden = false;
+    const grid = $("#bStyleGrid");
+    if (!TAURI) { grid.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
+    const my = ++styleGen;
+    try {
+      if (kind === "skin" && !skins) { grid.innerHTML = '<div class="g-empty">讀取中…</div>'; skins = await invoke("beauty_skins", { gameDir: st.gamePath || null }); }
+      if (kind !== "skin" && !styleLists[kind]) { grid.innerHTML = '<div class="g-empty">讀取中…</div>'; styleLists[kind] = await invoke("beauty_styles", { gameDir: st.gamePath || null, kind }); }
+    } catch (e) { grid.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
+    if (my === styleGen) renderStyles();
   }
-  function renderSkins() {
-    const box = $("#bSkinList");
+  function closeStyle() { $("#bStyleWin").hidden = true; styleKind = null; styleGen++; thumbWant.length = 0; }
+
+  function styleItems() {
+    const list = styleKind === "skin" ? skins || [] : styleLists[styleKind] || [];
+    const q = $("#bStyleSearch").value.trim();
+    return q ? list.filter((x) => x.name.includes(q) || String(x.id).includes(q)) : list;
+  }
+  function currentStyleId() {
+    if (styleKind === "skin") return st.skinId || lastSkinId;
+    if (styleKind === "hair") return st.tryHair?.id || lastHairId;
+    return st.tryFace?.id || lastFaceId;
+  }
+
+  /** 預覽圖：不穿點裝的全身，只換這一項 */
+  function thumbReq(kind, item) {
+    const req = lookReq(st.tryHair, st.tryFace, "full");
+    req.items = [];
+    if (kind === "skin") req.skin_id = item.id;
+    else if (req[kind]) req[kind] = { ...req[kind], id: item.id, name: item.name, gender: req.gender };
+    else req[kind] = { id: item.id, name: item.name, gender: req.gender };
+    return req;
+  }
+
+  const thumbWant = [];
+  let thumbBusy = false;
+  const thumbIO = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver((ents) => {
+    for (const e of ents) if (e.isIntersecting) { thumbWant.push(e.target); thumbIO.unobserve(e.target); }
+    pumpThumbs();
+  }, { root: null, rootMargin: "200px" }) : null;
+
+  async function pumpThumbs() {
+    if (thumbBusy) return;
+    thumbBusy = true;
+    while (thumbWant.length) {
+      const card = thumbWant.shift();
+      if (!card.isConnected || styleKind == null) continue;
+      const req = JSON.parse(card.dataset.req);
+      const k = card.dataset.req;
+      let png = thumbCache.get(k);
+      if (png === undefined) {
+        try { png = (await invoke("beauty_render", { req })).png; } catch (_) { png = null; }
+        thumbCache.set(k, png);
+        if (thumbCache.size > 600) thumbCache.delete(thumbCache.keys().next().value);
+      }
+      putThumb(card, png);
+    }
+    thumbBusy = false;
+  }
+  function putThumb(card, png) {
+    const box = card.querySelector(".b-style-pic");
     box.innerHTML = "";
-    const cur = curSkinName();
-    for (const sk of skins || []) {
-      const b = document.createElement("button");
-      b.className = "b-skin" + (sk.name === cur ? " on" : "");
-      b.innerHTML = `<i></i><span></span>`;
-      b.firstChild.style.background = sk.color || "var(--card-2)";
-      b.lastChild.textContent = sk.name;
-      b.addEventListener("click", () => { st.skinId = sk.id; save(); renderDoll(); renderRight(); renderSkins(); });
-      box.appendChild(b);
-    }
+    if (png) { const img = new Image(); img.src = png; img.alt = ""; img.onload = () => { img.style.width = `${img.naturalWidth * 2}px`; }; box.append(img); }
+    else box.innerHTML = '<span class="muted">無法顯示</span>';
   }
-  $("#bSkinClose").addEventListener("click", closeFloat);
-  $("#bSkinChar").addEventListener("click", () => { st.skinId = null; save(); renderDoll(); renderRight(); if (skins) renderSkins(); });
+
+  function renderStyles() {
+    const grid = $("#bStyleGrid");
+    grid.innerHTML = "";
+    thumbWant.length = 0;
+    const list = styleItems();
+    $("#bStyleCount").textContent = `${list.length} 種`;
+    if (!list.length) { grid.innerHTML = '<div class="g-empty">沒有符合的項目</div>'; return; }
+    const cur = currentStyleId();
+    const kind = styleKind;
+    const frag = document.createDocumentFragment();
+    for (const it of list.slice(0, styleShown)) {
+      const card = document.createElement("button");
+      card.className = "b-style-card" + (cur && famOf(kind, cur) === famOf(kind, it.id) ? " on" : "");
+      card.title = `${it.name}（${it.id}）`;
+      card.dataset.id = it.id;
+      const req = thumbReq(kind, it);
+      card.dataset.req = JSON.stringify(req);
+      const pic = document.createElement("div");
+      pic.className = "b-style-pic";
+      if (kind === "skin" && it.color) pic.style.setProperty("--skin", it.color);
+      const nm = document.createElement("span");
+      nm.className = "b-style-name";
+      nm.textContent = it.name;
+      card.append(pic, nm);
+      const cached = thumbCache.get(card.dataset.req);
+      if (cached !== undefined) putThumb(card, cached); else thumbIO?.observe(card);
+      card.addEventListener("click", () => pickStyle(kind, it));
+      frag.append(card);
+    }
+    if (list.length > styleShown) {
+      const more = document.createElement("div");
+      more.className = "b-style-more muted";
+      more.textContent = "往下捲動載入更多…";
+      frag.append(more);
+      const sentinel = new IntersectionObserver((ents) => {
+        if (ents.some((e) => e.isIntersecting)) { sentinel.disconnect(); styleShown += STYLE_PAGE; renderStyles(); }
+      });
+      setTimeout(() => sentinel.observe(more), 50);
+    }
+    grid.append(frag);
+  }
+
+  function pickStyle(kind, it) {
+    if (kind === "skin") st.skinId = it.id;
+    else if (kind === "hair") st.tryHair = { pool: "hair" + gender(), name: it.name, id: it.id };
+    else st.tryFace = { pool: "face" + gender(), name: it.name, id: it.id };
+    save();
+    renderDoll();
+    renderRight();
+    const cur = famOf(kind, it.id);
+    $$("#bStyleGrid .b-style-card").forEach((c) => c.classList.toggle("on", famOf(kind, Number(c.dataset.id)) === cur));
+  }
+
+  let styleSearchTimer;
+  $("#bStyleSearch").addEventListener("input", () => { clearTimeout(styleSearchTimer); styleSearchTimer = setTimeout(() => { styleShown = STYLE_PAGE; renderStyles(); }, 200); });
+  $("#bStyleClose").addEventListener("click", closeStyle);
+  $("#bStyleWin").addEventListener("pointerdown", (e) => { if (e.target === $("#bStyleWin")) closeStyle(); });
+  $("#bStyleChar").addEventListener("click", () => {
+    if (styleKind === "skin") st.skinId = null;
+    else if (styleKind === "hair") st.tryHair = null;
+    else if (styleKind === "face") st.tryFace = null;
+    save(); renderDoll(); renderRight();
+    closeStyle();
+  });
 
   $("#bDress").addEventListener("click", () => {
     st.dress = !st.dress;
@@ -1096,7 +1219,6 @@ if (typeof document !== "undefined") (() => {
   $("#bPickCash").addEventListener("click", () => { st.pickCash = !st.pickCash; shown = PAGE; save(); renderPick(); });
   let searchTimer;
   $("#bPickSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { shown = PAGE; renderPick(); }, 200); });
-  $("#bOutfitChar").addEventListener("click", () => { st.outfit = null; closeFloat(); save(); renderDoll(); renderEquipped(); markIcons(); });
   $("#bOutfitClear").addEventListener("click", () => { closeFloat(); setOutfit([]); });
   $("#bSaveLook").addEventListener("click", () => {
     const add = curOutfit().filter((x) => !isFav(x.id));

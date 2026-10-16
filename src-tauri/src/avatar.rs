@@ -24,6 +24,8 @@ struct Ctx {
     icons: HashMap<u32, Option<String>>,
     /// 各欄位的道具清單快取
     lists: HashMap<String, Vec<ItemOut>>,
+    /// 髮型／臉型清單快取（每個造型一筆，不分顏色）
+    styles: HashMap<String, Vec<StyleOut>>,
 }
 
 /// 點裝欄位：飾品依編號再細分成臉飾、眼飾、耳環
@@ -254,6 +256,7 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
         smap,
         icons: HashMap::new(),
         lists: HashMap::new(),
+        styles: HashMap::new(),
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -585,7 +588,11 @@ fn png_data_url(w: u32, h: u32, px: &[u8]) -> Result<String, String> {
 
 #[derive(Deserialize, Clone, Default)]
 pub struct PartReq {
+    #[serde(default)]
     pub name: String,
+    /// 直接指定編號（髮型／臉型視窗選的），有值時不用名稱找
+    #[serde(default)]
+    pub id: Option<u32>,
     #[serde(default)]
     pub color: Option<String>,
     #[serde(default)]
@@ -676,7 +683,9 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         let hreq = req.hair.clone();
         if let Some(h) = &hreq {
             let fem = h.gender.as_deref().map(|g| g == "F").unwrap_or(female);
-            let found = if h.name.trim().is_empty() {
+            let found = if let Some(id) = h.id.filter(|&id| ctx.has("Character/Hair", id)) {
+                Some((id / 10 * 10, id))
+            } else if h.name.trim().is_empty() {
                 // 沒指定造型、只指定顏色：用預設髮型
                 [if fem { 31000 } else { 30000 }, 30000].into_iter().find(|&id| ctx.has("Character/Hair", id)).map(|id| (id, id))
             } else {
@@ -708,7 +717,9 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         let freq = req.face.clone();
         if let Some(f) = &freq {
             let fem = f.gender.as_deref().map(|g| g == "F").unwrap_or(female);
-            let found = if f.name.trim().is_empty() {
+            let found = if let Some(id) = f.id.filter(|&id| ctx.has("Character/Face", id)) {
+                Some((face_fam(id), id))
+            } else if f.name.trim().is_empty() {
                 [if fem { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id)).map(|id| (id, id))
             } else {
                 pick_family(&ctx.face, &f.name, face_fam, fem, false)
@@ -926,6 +937,44 @@ fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
     }
     ctx.lists.insert(slot, list.clone());
     Ok(list)
+}
+
+#[derive(Serialize, Clone)]
+pub struct StyleOut {
+    pub id: u32,
+    pub name: String,
+}
+
+/// 遊戲資料裡所有的髮型或臉型（同一個造型的不同顏色只列一筆），新的在前面
+#[tauri::command]
+pub async fn beauty_styles(game_dir: Option<String>, kind: String) -> Result<Vec<StyleOut>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_ctx(game_dir.as_deref(), |ctx| {
+            if let Some(v) = ctx.styles.get(&kind) {
+                return Ok(v.clone());
+            }
+            let hair = kind == "hair";
+            let rel = if hair { "Character/Hair" } else { "Character/Face" };
+            let list = if hair { ctx.hair.clone() } else { ctx.face.clone() };
+            let pkg = ctx.data.package(rel)?;
+            let mut seen = std::collections::HashSet::new();
+            let mut out = Vec::new();
+            for (id, name) in list {
+                let fam = if hair { id / 10 * 10 } else { id - (id / 100 % 10) * 100 };
+                if seen.contains(&fam) || !pkg.imgs.contains_key(&format!("{id:08}.img")) {
+                    continue;
+                }
+                seen.insert(fam);
+                let name = if hair { strip_hair_color(&name).to_string() } else { name };
+                out.push(StyleOut { id, name });
+            }
+            out.sort_by(|a, b| b.id.cmp(&a.id));
+            ctx.styles.insert(kind.clone(), out.clone());
+            Ok(out)
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[derive(Serialize)]

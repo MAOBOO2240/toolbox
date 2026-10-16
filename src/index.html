@@ -181,9 +181,6 @@
           <div class="field"><span class="lbl">顯示</span>
             <label class="switch sm"><input type="checkbox" id="prefOvShow" /><span class="slider"></span></label>
           </div>
-          <div class="field"><span class="lbl" data-tip="鎖定後滑鼠會穿透浮動視窗，不會擋到遊戲；解除鎖定可拖曳移動、拉右下角調整大小。">鎖定 <i class="info">i</i></span>
-            <label class="switch sm"><input type="checkbox" id="prefOvLock" /><span class="slider"></span></label>
-          </div>
           <div class="field"><span class="lbl" data-tip="只調整浮動視窗底色的透明度，文字永遠不透明。100% = 完全沒有底色。">透明度 <i class="info">i</i></span>
             <div class="inline"><input type="range" class="range" id="prefOvTrans" min="0" max="100" step="1" /><label class="val-box"><input type="number" class="val-in" id="prefOvTransVal" min="0" max="100" />%</label></div>
           </div>
@@ -416,7 +413,6 @@
               <div class="b-card-head">
                 <strong>目前裝備</strong>
                 <span class="spacer"></span>
-                <button class="cbtn c-teal small" id="bOutfitChar" title="換回角色目前外觀套組的點裝">角色點裝</button>
                 <button class="cbtn c-red small" id="bOutfitClear">全部脫下</button>
               </div>
               <div class="b-eq-list" id="bEqList"></div>
@@ -473,15 +469,18 @@
     </div>
   </div>
 
-  <!-- 美容美髮：膚色 -->
-  <div class="b-float b-skin-win" id="bSkinWin" hidden>
-    <div class="b-float-head">
-      <strong>變更膚色</strong>
-      <button class="b-x" id="bSkinClose" title="關閉">×</button>
-    </div>
-    <div class="b-skin-list" id="bSkinList"></div>
-    <div class="b-float-foot">
-      <button class="cbtn c-teal small" id="bSkinChar">角色原本膚色</button>
+  <!-- 美容美髮：膚色／髮型／臉型（大視窗，置中） -->
+  <div class="b-modal" id="bStyleWin" hidden>
+    <div class="b-modal-box">
+      <div class="b-modal-head">
+        <strong id="bStyleTitle">變更膚色</strong>
+        <input type="text" id="bStyleSearch" placeholder="搜尋名稱或編號" />
+        <span class="muted" id="bStyleCount"></span>
+        <span class="spacer"></span>
+        <button class="cbtn c-teal small" id="bStyleChar">角色原本的</button>
+        <button class="b-x" id="bStyleClose" title="關閉">×</button>
+      </div>
+      <div class="b-style-grid" id="bStyleGrid"></div>
     </div>
   </div>
 

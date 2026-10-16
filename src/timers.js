@@ -410,7 +410,6 @@
     $("#prefVolume").value = p.volume;
     if (document.activeElement !== $("#prefVolumeVal")) $("#prefVolumeVal").value = p.volume;
     $("#prefOvShow").checked = p.overlay.show;
-    $("#prefOvLock").checked = p.overlay.locked;
     // 介面顯示「透明度」= 100% − 底色濃度
     const trans = Math.round((1 - p.overlay.bg) * 100);
     $("#prefOvTrans").value = trans;
@@ -433,7 +432,6 @@
   $("#prefVolumeVal").addEventListener("blur", (e) => (e.target.value = file.prefs.volume));
   $("#prefPreview").addEventListener("click", () => run(() => tapi.preview(file.prefs, file.timers[0]?.name || "計時器")));
   $("#prefOvShow").addEventListener("change", (e) => setPref((p) => (p.overlay.show = e.target.checked)));
-  $("#prefOvLock").addEventListener("change", (e) => setPref((p) => (p.overlay.locked = e.target.checked)));
   $("#prefOvTrans").addEventListener("input", (e) => setPref((p) => (p.overlay.bg = 1 - Number(e.target.value) / 100)));
   $("#prefOvTransVal").addEventListener("input", (e) => {
     if (e.target.value === "") return;

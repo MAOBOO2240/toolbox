@@ -270,6 +270,7 @@ fn main() {
             timers::set_master,
             timers::set_game_only,
             timers::reset_overlay,
+            timers::overlay_toggle_lock,
             timers::preview_sound,
             timers::pick_sound_file,
             maple_api::maple_lookup,
@@ -278,7 +279,8 @@ fn main() {
             avatar::pick_game_dir,
             avatar::beauty_items,
             avatar::beauty_icons,
-            avatar::beauty_skins
+            avatar::beauty_skins,
+            avatar::beauty_styles
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");
