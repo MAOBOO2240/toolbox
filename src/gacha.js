@@ -463,7 +463,7 @@ if (typeof document !== "undefined") (() => {
     const box = $("#gTable");
     box.innerHTML = "";
     if (!items.length) {
-      box.innerHTML = '<div class="g-empty">這個獎池還沒有道具，可以到「文字解析與垃圾清單」貼上文字，或在下方新增。</div>';
+      box.innerHTML = '<div class="g-empty">這個獎池還沒有道具，可以到「解析/垃圾」貼上文字，或在上方新增。</div>';
       return;
     }
     C.withFiller(items).forEach((it, idx) => {
@@ -510,16 +510,27 @@ if (typeof document !== "undefined") (() => {
       val.addEventListener("focus", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? String(x) : ""; val.select(); });
       val.addEventListener("input", () => {
         st.values[it.name] = val.value.trim() === "" ? null : parseNum(val.value);
-        save(); renderRight();
+        save(); renderRight(); renderPriceBtn();
       });
       val.addEventListener("blur", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? intFmt.format(x) : ""; });
       box.appendChild(row);
     });
   }
 
+  const hasAnyValue = () => Object.values(st.values).some((v) => typeof v === "number" && isFinite(v));
+  function renderPriceBtn() {
+    const btn = $("#gAutoPrice");
+    const any = hasAnyValue();
+    btn.textContent = any ? "移除全部價格" : "自動帶入價格";
+    btn.classList.toggle("c-teal", !any);
+    btn.classList.toggle("c-red", any);
+    btn.title = any ? "清空所有道具的價值" : "依機率估算基準價值：越稀有越高；垃圾道具與機率超過 30% 的道具會留空";
+  }
+
   function renderPool() {
     renderTabs();
     renderTable();
+    renderPriceBtn();
   }
 
   /* ---------- 統計、分析、結果 ---------- */
@@ -756,7 +767,7 @@ if (typeof document !== "undefined") (() => {
     commit(`碎片用完了，開了 ${n} 箱仍未開到「${name}」`);
   }
 
-  /** 按住按鈕可連續執行；同一次按住的結果算在同一個「本次獲得」 */
+  /** 按住按鈕可連續執行；每一次都算獨立的一次，上一次的結果會進保管箱 */
   function holdable(btn, fn) {
     let t1 = null, t2 = null;
     const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
@@ -764,7 +775,7 @@ if (typeof document !== "undefined") (() => {
       if (e.button !== 0 || btn.disabled) return;
       if (fn(true) === false) return;
       t1 = setTimeout(() => {
-        t2 = setInterval(() => { if (btn.disabled || fn(false) === false) stop(); }, 90);
+        t2 = setInterval(() => { if (btn.disabled || fn(true) === false) stop(); }, 110);
       }, 380);
     });
     ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => btn.addEventListener(ev, stop));
@@ -778,7 +789,14 @@ if (typeof document !== "undefined") (() => {
   $("#gCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderAnalysis(); });
   $("#gCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
 
-  $("#gAutoPrice").addEventListener("click", () => {
+  $("#gAutoPrice").addEventListener("click", async () => {
+    if (hasAnyValue()) {
+      if (!(await confirmBox("確定要移除所有道具的價格嗎？"))) return;
+      st.values = {};
+      save();
+      renderAll();
+      return;
+    }
     if (!(st.cost > 0)) return toast("請先輸入每抽成本，自動價格以它為基準");
     st.values = C.autoPrice(st.pools, st.cost, junkList());
     save();

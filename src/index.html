@@ -196,35 +196,35 @@
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">黃金蘋果轉蛋模擬器</span>
-          <div class="seg g-pages" id="gPages">
-            <button data-page="sim">模擬</button>
-            <button data-page="import">文字解析與垃圾清單</button>
+          <div class="g-pages" id="gPages">
+            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析/垃圾</button>
           </div>
         </nav>
 
         <!-- 第一頁：模擬 -->
         <div class="g-page" id="gPageSim">
           <div class="card g-pool">
-            <div class="seg g-tabs" id="gTabs">
-              <button data-pool="apple">黃金蘋果<small></small></button>
-              <button data-pool="silver">銀色箱子<small></small></button>
-              <button data-pool="gold">金色箱子<small></small></button>
+            <div class="g-tabs" id="gTabs">
+              <button class="cbtn c-amber" data-pool="apple">黃金蘋果<small></small></button>
+              <button class="cbtn c-silver" data-pool="silver">銀色箱子<small></small></button>
+              <button class="cbtn c-orange" data-pool="gold">金色箱子<small></small></button>
             </div>
             <div class="g-toolbar">
               <label class="g-cost">每抽成本<input type="text" inputmode="decimal" id="gCost" placeholder="0" /></label>
-              <button class="pill ghost small" id="gAutoPrice" data-tip="依機率估算基準價值：越稀有越高。垃圾道具與機率超過 30% 的道具會留空。">自動帶入價格</button>
+              <button class="cbtn c-teal small" id="gAutoPrice">自動帶入價格</button>
               <span class="spacer"></span>
-              <button class="pill ghost danger small" id="gClearItems">清除道具</button>
+              <button class="cbtn c-red small" id="gClearItems">清除道具</button>
             </div>
-            <p class="g-warn" id="gWarn" hidden></p>
-            <div class="g-thead"><span>抽</span><span>名稱</span><span class="r">機率</span><span class="r">價值</span><span></span></div>
-            <div class="g-table" id="gTable"></div>
             <div class="g-add">
               <input type="text" id="gNewName" placeholder="新增道具名稱" />
               <input type="text" inputmode="decimal" id="gNewProb" placeholder="機率 %" />
               <input type="text" inputmode="decimal" id="gNewValue" placeholder="價值" />
-              <button class="pill primary small" id="gAdd">新增</button>
+              <button class="cbtn c-green small solid" id="gAdd">新增</button>
             </div>
+            <p class="g-warn" id="gWarn" hidden></p>
+            <div class="g-thead"><span>抽</span><span>名稱</span><span class="r">機率</span><span class="r">價值</span><span></span></div>
+            <div class="g-table" id="gTable"></div>
           </div>
 
           <div class="g-side">
@@ -248,7 +248,7 @@
               </div>
               <div class="g-actions-foot">
                 <span class="muted">按住按鈕可連續抽取・每抽獲得 1 個碎片</span>
-                <button class="link-btn danger-link" id="gReset">重置統計</button>
+                <button class="cbtn c-red small solid" id="gReset">重置統計</button>
               </div>
             </div>
 
@@ -276,7 +276,7 @@
             <textarea id="gPaste" placeholder="例如：&#10;靈魂赫卡忒：使魔造型交換券	0.60%&#10;漆黑的BOSS飾品碎片	3.00%&#10;幸運的銀色箱子&#10;睿智葫蘆	6.00%"></textarea>
             <div class="g-imp-foot">
               <span class="muted" id="gParseResult"></span>
-              <button class="pill primary small" id="gParse">解析並套用</button>
+              <button class="cbtn c-blue small solid" id="gParse">解析並套用</button>
             </div>
           </div>
           <div class="card g-imp">
@@ -285,7 +285,7 @@
             <textarea id="gJunk"></textarea>
             <div class="g-imp-foot">
               <span class="muted" id="gJunkCount"></span>
-              <button class="pill ghost small" id="gJunkReset">恢復預設清單</button>
+              <button class="cbtn c-purple small" id="gJunkReset">恢復預設清單</button>
             </div>
             <div class="g-junk-match" id="gJunkMatch"></div>
           </div>

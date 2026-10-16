@@ -1,6 +1,5 @@
 /* ---------- 黃金蘋果轉蛋模擬器 ---------- */
-.g-pages { justify-self: end; }
-.g-pages button { font-size: 0.82rem; }
+.g-pages { justify-self: end; display: flex; gap: 0.45rem; }
 
 .g-page { flex: 1; min-height: 0; }
 .g-page[hidden] { display: none !important; }
@@ -15,9 +14,9 @@
 
 /* ---------- 左：獎池 ---------- */
 .g-pool { display: flex; flex-direction: column; min-height: 0; padding: 0.9rem 0 0; overflow: hidden; }
-.g-tabs { display: flex; margin: 0 0.9rem; }
-.g-tabs button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.05rem; padding: 0.45rem 0.4rem; }
-.g-tabs button small { font-size: 0.68rem; font-weight: 600; opacity: 0.75; }
+.g-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 0 0.9rem; }
+.g-tabs .cbtn { flex-direction: column; gap: 0.05rem; padding: 0.45rem 0.4rem; }
+.g-tabs .cbtn small { font-size: 0.68rem; font-weight: 600; opacity: 0.8; }
 
 .g-toolbar { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 0.9rem 0.6rem; flex-wrap: wrap; }
 .g-cost { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--text-2); }
@@ -87,9 +86,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 4.8rem 6rem auto;
   gap: 0.5rem;
-  padding: 0.6rem 0.9rem;
-  border-top: 0.5px solid var(--sep);
-  background: var(--card);
+  padding: 0 0.9rem 0.75rem;
 }
 .g-empty { text-align: center; padding: 2rem 0; color: var(--text-2); font-size: 0.85rem; }
 
@@ -195,3 +192,42 @@
 .g-imp-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.7rem; }
 .g-junk-match { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; max-height: 8.5rem; overflow-y: auto; }
 .g-junk-match span { padding: 0.2rem 0.5rem; border-radius: 0.45rem; background: var(--card-2); color: var(--text-2); font-size: 0.75rem; }
+
+/* ---------- 各自顏色的按鈕 ---------- */
+.cbtn {
+  --c: #3b82f6;
+  --ink: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  color: color-mix(in srgb, var(--c) 78%, #000);
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+:root[data-theme="dark"] .cbtn { color: color-mix(in srgb, var(--c) 72%, #fff); }
+.cbtn:hover { background: color-mix(in srgb, var(--c) 24%, transparent); }
+.cbtn:active { transform: scale(0.97); }
+.cbtn.small { padding: 0.38rem 0.75rem; font-size: 0.82rem; }
+.cbtn.on, .cbtn.solid {
+  background: var(--c);
+  border-color: var(--c);
+  color: var(--ink);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.cbtn.solid:hover { filter: brightness(1.06); }
+:root[data-theme="dark"] .cbtn.on, :root[data-theme="dark"] .cbtn.solid { color: var(--ink); }
+.c-blue { --c: #3b82f6; }
+.c-purple { --c: #8b5cf6; }
+.c-amber { --c: #f5a30b; --ink: #3b2600; }
+.c-silver { --c: #7d8ca3; }
+.c-orange { --c: #f2711c; }
+.c-red { --c: #ef4444; }
+.c-green { --c: #22b45e; }
+.c-teal { --c: #12a594; }
