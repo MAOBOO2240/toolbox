@@ -505,7 +505,9 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 30%, var(--card-2)), var(--card-2) 75%);
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.tile .cat-icon.item img { width: 3rem; height: 3rem; object-fit: contain; image-rendering: pixelated; }
+.tile .cat-icon.item { overflow: hidden; }
+/* 圖示已裁掉透明邊，放大後置中，不會超出方框 */
+.tile .cat-icon.item img { width: 76%; height: 76%; object-fit: contain; image-rendering: pixelated; display: block; }
 
 /* 設定：更新 */
 .pop-sep { height: 0.5px; background: var(--sep); margin: 0.6rem 0; }

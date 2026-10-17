@@ -252,13 +252,15 @@ const CATS = {
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
-      { id: "watch", name: "斷線通知", desc: "遊戲斷線或關閉時跳出通知", color: "red", icon: "plug" },
     ],
   },
   tools: {
     title: "工具箱",
     eyebrow: "Toolbox",
-    tools: [{ id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" }],
+    tools: [
+      { id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" },
+      { id: "watch", name: "斷線通知", desc: "新楓之谷斷線或關閉時跳出通知", color: "red", icon: "plug" },
+    ],
   },
 };
 

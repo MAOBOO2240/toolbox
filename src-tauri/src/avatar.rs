@@ -466,10 +466,7 @@ impl Ctx {
             let info = self.data.img_child(&rel, &img, "info").ok()??;
             let node = ["icon", "iconRaw"].iter().find_map(|k| info.get(k).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
             let (w, h, px) = self.data.pixels_of(&rel, &img, &node).ok()?;
-            if w <= 1 && h <= 1 {
-                return None;
-            }
-            png_data_url(w, h, &px).ok()
+            icon_png(w, h, &px)
         })();
         self.icons.insert(id, v.clone());
         v
@@ -951,6 +948,34 @@ fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
     Ok(list)
 }
 
+/// 裁掉圖示四周的透明邊（遊戲圖示的圖案常常偏在畫布一邊），再輸出 PNG
+fn icon_png(w: u32, h: u32, px: &[u8]) -> Option<String> {
+    if w <= 1 && h <= 1 {
+        return None;
+    }
+    let (w, h) = (w as usize, h as usize);
+    let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0usize, 0usize);
+    for y in 0..h {
+        for x in 0..w {
+            if px[(y * w + x) * 4 + 3] > 8 {
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x + 1);
+                y1 = y1.max(y + 1);
+            }
+        }
+    }
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
+    let (cw, ch) = (x1 - x0, y1 - y0);
+    let mut out = Vec::with_capacity(cw * ch * 4);
+    for y in y0..y1 {
+        out.extend_from_slice(&px[(y * w + x0) * 4..(y * w + x1) * 4]);
+    }
+    png_data_url(cw as u32, ch as u32, &out).ok()
+}
+
 /* ---------------- 依名稱找道具圖示（黃金蘋果、閃亮彗星的獎池） ---------------- */
 
 /// 名稱比對用：去掉空白，「祕」當成「秘」
@@ -1033,7 +1058,7 @@ impl Ctx {
             let info = self.data.img_child(folder, &img, "info").ok()??;
             let icon = ["icon", "iconRaw"].iter().find_map(|k| info.get(k).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
             let (w, h, px) = self.data.pixels_of(folder, &img, &icon).ok()?;
-            return (w > 1 || h > 1).then(|| png_data_url(w, h, &px).ok()).flatten();
+            return icon_png(w, h, &px);
         } else if folder == "Item/Pet" {
             let img = format!("{id}.img");
             let info = self.data.img_child(folder, &img, "info").ok()??;
@@ -1050,7 +1075,7 @@ impl Ctx {
         };
         let (img, icon) = node;
         let (w, h, px) = self.data.pixels_of(folder, &img, &icon).ok()?;
-        (w > 1 || h > 1).then(|| png_data_url(w, h, &px).ok()).flatten()
+        icon_png(w, h, &px)
     }
 
     fn icon_by_name(&mut self, name: &str) -> Option<String> {
@@ -1242,6 +1267,15 @@ mod tests {
         apply_dye(&mut px, &Dye { range: 1, hue: 120, sat: 0, val: 0 });
         assert_eq!(&px[0..3], &[0, 255, 0]);
         assert_eq!(&px[4..7], &[0, 0, 255]);
+    }
+
+    #[test]
+    fn icon_trim() {
+        // 4x2，只有右下角一個點不透明 → 裁成 1x1
+        let mut px = vec![0u8; 4 * 2 * 4];
+        px[(1 * 4 + 3) * 4 + 3] = 255;
+        assert!(icon_png(4, 2, &px).is_some());
+        assert!(icon_png(4, 2, &vec![0u8; 32]).is_none());
     }
 
     #[test]
