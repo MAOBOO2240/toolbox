@@ -11,6 +11,7 @@
 
 const BossCore = (() => {
   const CHAR_CAP = 12;
+  const MAX_CHARS = 8;
   const WORLD_CAP = 90;
   /**
    * [類型, BOSS, [[難度, 價格], …]]；價格是一顆強烈的力量結晶賣給收藏家的楓幣（一個人打）。
@@ -63,6 +64,9 @@ const BossCore = (() => {
 
     ["month", "黑魔法師", [["困難", 990841916], ["終極", 3000000000]]],
   ].map(([type, name, diffs]) => ({ type, name, key: `${type}:${name}`, diffs }));
+  // 結晶價格高的排在前面（難的在上面）
+  const top = (b) => Math.max(...b.diffs.map((d) => d[1]));
+  LIST.sort((a, b) => top(b) - top(a));
   const BY_KEY = Object.fromEntries(LIST.map((b) => [b.key, b]));
 
   /** 一顆結晶分給每個人的價值（組隊平分，無條件捨去） */
@@ -115,7 +119,15 @@ const BossCore = (() => {
     };
   }
 
-  return { CHAR_CAP, WORLD_CAP, LIST, BY_KEY, share, crystals, sell, summary };
+  /** BOSS 圖示在 assets/boss.webp 裡的位置 */
+  const ICON = {
+    黑魔法師: 0, 瑪麗西亞: 1, 咖凌: 2, 尤比太: 3, 最初的敵對者: 4, 監視者卡洛斯: 5, 巴德利斯: 6, 燦爛的凶星: 7, 林波: 8, 受選的賽蓮: 9,
+    "真·希拉": 10, 威爾: 11, 守護天使綠水靈: 12, 頓凱爾: 13, 戴斯克: 14, 露希妲: 15, 史烏: 16, 戴米安: 17, 拉圖斯: 18, 濃姬: 19,
+    貝倫: 20, 梅格耐斯: 21, 西格諾斯: 22, 斑斑: 23, 血腥皇后: 24, 粉豆: 25, 比艾樂: 26, 炎魔: 27, 希拉: 28, 森蘭丸: 29,
+    阿卡伊農: 30, 凡雷恩: 31, 闇黑龍王: 32, 卡翁: 33,
+  };
+
+  return { CHAR_CAP, MAX_CHARS, WORLD_CAP, ICON, LIST, BY_KEY, share, crystals, sell, summary };
 })();
 
 if (typeof module !== "undefined") module.exports = BossCore;
@@ -200,6 +212,12 @@ if (typeof document !== "undefined") (() => {
       row.append(text, del);
       box.appendChild(row);
     });
+    // 超過 4 隻時，角色清單固定 4 隻的高度，用捲動的
+    const rows = box.children;
+    box.style.maxHeight = rows.length > 4 ? `${rows[4].offsetTop - rows[0].offsetTop - 6}px` : "";
+    box.querySelector(".on")?.scrollIntoView({ block: "nearest" });
+    $("#bsAdd").disabled = st.chars.length >= C.MAX_CHARS;
+    $("#bsAdd").title = st.chars.length >= C.MAX_CHARS ? `最多 ${C.MAX_CHARS} 隻角色` : "";
   }
 
   /* ---------- BOSS 列表 ---------- */
@@ -238,13 +256,17 @@ if (typeof document !== "undefined") (() => {
       const s = ch.sel[b.key];
       const row = document.createElement("div");
       row.className = "bs-row" + (s ? " on" : "") + (over.has(b.key) ? " over" : "");
+      const ic = document.createElement("span");
+      ic.className = "bs-ic";
+      if (C.ICON[b.name] != null) ic.style.setProperty("--i", C.ICON[b.name]);
       const name = document.createElement("div");
       name.className = "bs-name";
       name.innerHTML = `<span></span><small class="muted"></small>`;
       name.children[0].textContent = b.name;
       const diffs = document.createElement("div");
       diffs.className = "bs-diffs";
-      b.diffs.forEach(([d, price], i) => {
+      // 難的（結晶價格高的）在左邊
+      b.diffs.map((x, i) => [x, i]).reverse().forEach(([[d, price], i]) => {
         const btn = document.createElement("button");
         btn.className = `cbtn small ${DIFF_COLOR[d] || "c-silver"}` + (s && s.d === i ? " on" : "");
         btn.textContent = d;
@@ -271,7 +293,7 @@ if (typeof document !== "undefined") (() => {
       } else {
         name.children[1].textContent = zh(Math.max(...b.diffs.map((d) => d[1])));
       }
-      row.append(name, diffs, right);
+      row.append(ic, name, diffs, right);
       box.appendChild(row);
     }
   }
@@ -309,6 +331,7 @@ if (typeof document !== "undefined") (() => {
   /* ---------- 事件 ---------- */
   $$("#bsPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); render(); }));
   $("#bsAdd").addEventListener("click", () => {
+    if (st.chars.length >= C.MAX_CHARS) { toast(`最多 ${C.MAX_CHARS} 隻角色`); return; }
     const c = newChar(st.chars.length + 1);
     st.chars.push(c);
     st.cur = c.id;

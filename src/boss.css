@@ -15,7 +15,8 @@
 .bs-list-head small { margin-left: 0.4rem; font-size: 0.75rem; }
 
 /* 角色 */
-.bs-chars { display: flex; flex-direction: column; gap: 0.4rem; }
+.bs-chars { display: flex; flex-direction: column; gap: 0.4rem; overflow-y: auto; margin: -0.2rem; padding: 0.2rem; }
+.bs-card .cbtn:disabled { opacity: 0.45; cursor: default; }
 .bs-char {
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.45rem 0.5rem 0.45rem 0.7rem; border-radius: 0.75rem; cursor: pointer;
@@ -43,12 +44,20 @@
 /* BOSS 列表 */
 .bs-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem; margin: 0 -0.3rem; padding: 0 0.3rem; }
 .bs-row {
-  display: grid; grid-template-columns: minmax(7.5rem, 1fr) auto minmax(11rem, auto); align-items: center; gap: 0.8rem;
+  display: grid; grid-template-columns: 2.6rem minmax(7rem, 1fr) auto minmax(11rem, auto); align-items: center; gap: 0.75rem;
   padding: 0.5rem 0.7rem; border-radius: 0.75rem;
   background: var(--card-2); box-shadow: inset 0 0 0 1px var(--sep);
 }
 .bs-row.on { background: color-mix(in srgb, #7c5cff 9%, var(--card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, #7c5cff 45%, transparent); }
 .bs-row.over { opacity: 0.55; }
+/* BOSS 圖示：assets/boss.webp 裡一格 56×56 */
+.bs-ic {
+  width: 2.6rem; height: 2.6rem; border-radius: 0.6rem; flex: none;
+  background: var(--card) url(assets/boss.webp) no-repeat;
+  background-size: calc(2.6rem * 34) 2.6rem;
+  background-position: calc(var(--i, 0) * -2.6rem) 0;
+  box-shadow: 0 0 0 1px var(--sep);
+}
 .bs-name { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
 .bs-name span { font-weight: 700; font-size: 0.95rem; }
 .bs-name small { font-size: 0.74rem; font-variant-numeric: tabular-nums; }
@@ -63,24 +72,6 @@
 }
 .bs-step input { width: 1.6rem; padding: 0; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 0.9rem; font-weight: 700; text-align: center; }
 .bs-val { min-width: 6.5rem; text-align: right; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
-
-/* ---------- 經驗值計算 ---------- */
-.x-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
-.x-name-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; }
-.x-grid .f-field > label { white-space: nowrap; }
-.x-diff { font-size: 0.82rem; font-weight: 700; color: var(--text-2); }
-.x-diff.up { color: #16a34a; }
-.x-diff.down { color: #e5484d; }
-.x-side { display: flex; flex-direction: column; gap: 1rem; }
-.x-row {
-  display: grid; grid-template-columns: 3.6rem minmax(0, 1.3fr) 3.2rem minmax(0, 1fr) minmax(0, 1fr) 4.6rem; gap: 0.4rem;
-  padding: 0.35rem 0.2rem; border-top: 0.5px solid var(--sep); font-size: 0.82rem; font-variant-numeric: tabular-nums;
-}
-.x-row span:not(:first-child) { text-align: right; }
-.x-head { border-top: 0; font-size: 0.74rem; font-weight: 700; color: var(--text-2); }
-.x-rows { max-height: 22rem; overflow-y: auto; }
-.x-row .up { color: #16a34a; font-weight: 700; }
-.x-row .down { color: #e5484d; font-weight: 700; }
 
 /* ---------- 經驗追蹤 ---------- */
 .tk-page { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
@@ -102,6 +93,6 @@
 .tk-cell.up { color: #16a34a; }
 .tk-lv { font-size: 1.05rem; }
 .tk-eta { color: #5865f2; }
-:root[data-theme="dark"] .tk-cell.up, :root[data-theme="dark"] .x-row .up, :root[data-theme="dark"] .x-diff.up { color: #4ade80; }
+:root[data-theme="dark"] .tk-cell.up { color: #4ade80; }
 :root[data-theme="dark"] .tk-eta { color: #a5b4fc; }
 .tk-empty { text-align: center; padding: 2rem; }

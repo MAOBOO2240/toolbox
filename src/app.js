@@ -337,7 +337,6 @@ const ICONS = {
   gift: '<svg viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v7.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12M12 8v12.5M12 8c-1.5-3.5-6-4-6-1.5S10 8 12 8zm0 0c1.5-3.5 6-4 6-1.5S14 8 12 8z"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
   crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
-  calc: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8 7.5h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/></svg>',
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
 };
 
@@ -354,7 +353,6 @@ const CATS = {
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
       { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", item: "強烈的力量結晶" },
-      { id: "exp", name: "經驗值計算", desc: "依等級與練功地圖的怪物，算出升級還要練多久", color: "teal", icon: "calc" },
     ],
   },
   tools: {
@@ -1005,7 +1003,6 @@ function openTool(id) {
   if (id === "gift" && window.Gift) window.Gift.onShow();
   if (id === "watch" && window.Watch) window.Watch.onShow();
   if (id === "boss" && window.Boss) window.Boss.onShow();
-  if (id === "exp" && window.ExpCalc) window.ExpCalc.onShow();
   if (id === "track" && window.Track) window.Track.onShow();
 }
 

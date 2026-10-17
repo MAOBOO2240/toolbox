@@ -38,8 +38,6 @@ struct Ctx {
     rings: Option<Vec<(u32, String)>>,
     /// 戒指的名牌編號、對話框編號、是否為點裝
     ring_info: HashMap<u32, (Option<i64>, Option<i64>, bool)>,
-    /// 各等級怪物的經驗值（經驗值計算用）
-    mob_levels: Option<Vec<MobLv>>,
 }
 
 /// 點裝欄位：飾品依編號再細分成臉飾、眼飾、耳環
@@ -312,7 +310,6 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
         eff_nodes: HashMap::new(),
         rings: None,
         ring_info: HashMap::new(),
-        mob_levels: None,
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -1966,97 +1963,6 @@ pub async fn pick_game_dir() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
-/* ---------------- 怪物經驗值（經驗值計算） ---------------- */
-
-/// 某個等級的怪物經驗值：一般怪物（不含 BOSS）裡經驗值最高的那隻
-#[derive(Serialize, Clone)]
-pub struct MobLv {
-    pub level: u32,
-    pub exp: u64,
-    pub name: String,
-    pub id: u32,
-    /// 這個等級有幾種怪物
-    pub count: u32,
-    /// 這個等級經驗值最低的怪物
-    pub min: u64,
-}
-
-/// 每隻怪物：等級、經驗值、編號
-fn read_mobs(ctx: &mut Ctx) -> Vec<(u32, u64, u32)> {
-    let mut out = Vec::new();
-    for rel in ["Mob", "Mob2"] {
-        let Ok(pkg) = ctx.data.package(rel) else { continue };
-        let mut names: Vec<String> = pkg.imgs.keys().cloned().collect();
-        names.sort();
-        for img in names {
-            let Some(id) = img.strip_suffix(".img").and_then(|s| s.parse::<u32>().ok()) else { continue };
-            let Ok(Some(info)) = ctx.data.img_child(rel, &img, "info") else { continue };
-            let int = |k: &str| info.get(k).and_then(|v| v.as_int()).unwrap_or(0);
-            let (level, exp) = (int("level"), int("exp"));
-            // 不含 BOSS、不給經驗值的召喚物
-            if int("boss") == 1 || level <= 0 || exp <= 0 {
-                continue;
-            }
-            out.push((level as u32, exp as u64, id));
-        }
-    }
-    out
-}
-
-/// 依等級分組；排除明顯異常的（比同等級中位數高 3 倍以上，例如活動怪），取經驗值最高的
-fn group_mobs(mobs: &[(u32, u64, u32)], names: &HashMap<u32, String>) -> Vec<MobLv> {
-    let mut by: std::collections::BTreeMap<u32, Vec<(u64, u32)>> = std::collections::BTreeMap::new();
-    for &(lv, exp, id) in mobs {
-        by.entry(lv).or_default().push((exp, id));
-    }
-    let mut out = Vec::new();
-    for (level, mut list) in by {
-        list.sort();
-        let median = list[list.len() / 2].0;
-        let best = list.iter().rev().find(|(e, _)| *e <= median.saturating_mul(3)).copied().unwrap_or(list[list.len() - 1]);
-        out.push(MobLv {
-            level,
-            exp: best.0,
-            name: names.get(&best.1).cloned().unwrap_or_default(),
-            id: best.1,
-            count: list.len() as u32,
-            min: list[0].0,
-        });
-    }
-    out
-}
-
-/// 各等級怪物的經驗值（第一次讀取需要一點時間，之後會快取）
-#[tauri::command]
-pub async fn exp_mobs(game_dir: Option<String>) -> Result<Vec<MobLv>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        with_ctx(game_dir.as_deref(), |ctx| {
-            if let Some(v) = &ctx.mob_levels {
-                return Ok(v.clone());
-            }
-            let mobs = read_mobs(ctx);
-            if mobs.is_empty() {
-                return Err("遊戲資料裡讀不到怪物資料（Data\\Mob）".into());
-            }
-            let names: HashMap<u32, String> = ctx
-                .data
-                .img("String", "Mob.img")
-                .map(|r| {
-                    r.children()
-                        .iter()
-                        .filter_map(|(k, n)| Some((k.parse::<u32>().ok()?, n.get("name")?.as_str()?.trim().to_string())))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let out = group_mobs(&mobs, &names);
-            ctx.mob_levels = Some(out.clone());
-            Ok(out)
-        })
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2167,18 +2073,6 @@ mod tests {
         assert_eq!(attack_prefs(Some(40))[0], "swingT1");
         assert_eq!(attack_prefs(Some(45))[0], "shoot1");
         assert_eq!(attack_prefs(None)[0], "swingO1");
-    }
-
-    #[test]
-    fn mob_groups() {
-        let mobs = vec![(260, 100, 1), (260, 120, 2), (260, 110, 3), (260, 5000, 4), (261, 130, 5)];
-        let names: HashMap<u32, String> = [(2, "甲".to_string())].into_iter().collect();
-        let g = group_mobs(&mobs, &names);
-        assert_eq!(g.len(), 2);
-        // 5000 是異常值，取 120
-        assert_eq!((g[0].level, g[0].exp, g[0].id, g[0].count, g[0].min), (260, 120, 2, 4, 100));
-        assert_eq!(g[0].name, "甲");
-        assert_eq!((g[1].level, g[1].exp), (261, 130));
     }
 
     #[test]

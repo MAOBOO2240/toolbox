@@ -56,6 +56,8 @@ struct Cache {
     track_now: HashMap<String, (u64, Snap)>,
     /// 經驗追蹤：OCID → 日期 → 那天的資料（None = 那天查不到，例如角色還沒建立）
     track_hist: HashMap<String, HashMap<String, Option<Snap>>>,
+    /// 經驗追蹤：OCID → (日期, 當天第一次查到的資料)；昨天的資料還沒出來時當作今天的起點
+    track_first: HashMap<String, (String, Snap)>,
 }
 
 /// 經驗追蹤用的角色資料
@@ -155,6 +157,8 @@ fn save(store: &Store) {
 #[derive(Debug)]
 enum ApiErr {
     NotFound,
+    /// OPENAPI00009：Nexon 那邊的資料還在準備（例如凌晨還查不到昨天的資料）
+    Preparing,
     Other(String),
 }
 
@@ -193,8 +197,11 @@ fn get(path: &str, query: &[(&str, &str)]) -> Result<Value, ApiErr> {
             let body: Value = resp.into_json().unwrap_or(Value::Null);
             let name = body["error"]["name"].as_str().unwrap_or("").to_string();
             // OPENAPI00004：參數錯誤（多半是角色名稱不存在）
-            if code == 400 && (name == "OPENAPI00004" || name == "OPENAPI00009") {
+            if code == 400 && name == "OPENAPI00004" {
                 return Err(ApiErr::NotFound);
+            }
+            if name == "OPENAPI00009" {
+                return Err(ApiErr::Preparing);
             }
             let msg = match name.as_str() {
                 "OPENAPI00007" => "今天的 API 次數已用完，明天再試".to_string(),
@@ -212,6 +219,7 @@ fn fetch_ocid(name: &str) -> Result<String, String> {
     match get("/id", &[("character_name", name)]) {
         Ok(v) => v["ocid"].as_str().map(str::to_string).ok_or_else(|| "找不到 OCID".into()),
         Err(ApiErr::NotFound) => Err(format!("找不到角色「{name}」")),
+        Err(ApiErr::Preparing) => Err("Nexon 的資料還在準備中，請稍後再試".into()),
         Err(ApiErr::Other(m)) => Err(m),
     }
 }
@@ -270,9 +278,11 @@ fn lookup_blocking(name: String, force: bool) -> Result<Lookup, String> {
             ocid = fetch_ocid(&name)?;
             fetch_char(&ocid).map_err(|e| match e {
                 ApiErr::NotFound => format!("找不到角色「{name}」的資料"),
+                ApiErr::Preparing => "Nexon 的資料還在準備中，請稍後再試".into(),
                 ApiErr::Other(m) => m,
             })?
         }
+        Err(ApiErr::Preparing) => return Err("Nexon 的資料還在準備中，請稍後再試".into()),
         Err(ApiErr::Other(m)) => return Err(m),
     };
 
@@ -306,25 +316,53 @@ pub struct TrackOut {
     now: Option<Snap>,
     /// 昨天的資料（今天練了多少的基準）
     yesterday: Option<Snap>,
+    /// 今天第一次查到的資料（昨天的資料還沒出來時當作基準）
+    first_today: Option<Snap>,
     /// 幾天前的資料（算平均成長速度）
     past: Option<Snap>,
     past_days: u32,
     error: Option<String>,
 }
 
-/// 某天的資料：查過就記住（歷史資料不會變）
+/// 最近幾天查不到時，30 分鐘內不再重查（只記在記憶體）
+static TRACK_MISS: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
+
+/// 某天的資料：查過就記住（歷史資料不會變）。
+/// 昨天、前天的資料凌晨可能還沒準備好，查不到時不記住，過一段時間再查
 fn hist_snap(ocid: &str, days_ago: u64) -> Option<Snap> {
     let store = STORE.get()?;
     let date = date_tw(days_ago);
     if let Some(v) = store.lock().unwrap().cache.track_hist.get(ocid).and_then(|m| m.get(&date)) {
-        return v.clone();
+        // 舊版會把「最近幾天查不到」也記住，這種要重查
+        if v.is_some() || days_ago > 2 {
+            return v.clone();
+        }
     }
+    let miss_key = format!("{ocid}|{date}");
+    {
+        let miss = TRACK_MISS.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = miss.as_ref().and_then(|m| m.get(&miss_key)) {
+            if now().saturating_sub(*t) < 30 * 60 {
+                return None;
+            }
+        }
+    }
+    let remember_miss = || {
+        TRACK_MISS.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).insert(miss_key.clone(), now());
+    };
     let v = match get("/character/basic", &[("ocid", ocid), ("date", &date)]) {
         Ok(v) => snap_of(&v),
-        Err(ApiErr::NotFound) => None,
-        // 連線失敗、次數用完：不記住，下次再試
-        Err(ApiErr::Other(_)) => return None,
+        Err(ApiErr::NotFound) if days_ago > 2 => None,
+        // 最近的資料還沒準備好、連線失敗、次數用完：不記住，晚點再試
+        Err(_) => {
+            remember_miss();
+            return None;
+        }
     };
+    if v.is_none() && days_ago <= 2 {
+        remember_miss();
+        return None;
+    }
     store.lock().unwrap().cache.track_hist.entry(ocid.to_string()).or_default().insert(date, v.clone());
     v
 }
@@ -367,6 +405,16 @@ fn track_one(name: &str, force: bool) -> Result<TrackOut, String> {
         }
     };
 
+    // 今天第一次查到的資料
+    let today = today_tw();
+    let first_today = {
+        let mut s = store.lock().unwrap();
+        let e = s.cache.track_first.entry(ocid.clone()).or_insert_with(|| (today.clone(), cur.clone()));
+        if e.0 != today {
+            *e = (today.clone(), cur.clone());
+        }
+        Some(e.1.clone())
+    };
     let yesterday = hist_snap(&ocid, 1);
     // 平均成長：優先用 30 天前；角色太新查不到就用比較近的日子
     let mut past = None;
@@ -384,7 +432,7 @@ fn track_one(name: &str, force: bool) -> Result<TrackOut, String> {
             past_days = 1;
         }
     }
-    Ok(TrackOut { name: name.to_string(), fetched_at, now: Some(cur), yesterday, past, past_days, error: None })
+    Ok(TrackOut { name: name.to_string(), fetched_at, now: Some(cur), yesterday, first_today, past, past_days, error: None })
 }
 
 /// 經驗追蹤：每隻角色的最新等級與經驗、昨天與 30 天前的資料
@@ -400,6 +448,7 @@ pub async fn exp_track(names: Vec<String>, force: bool) -> Vec<TrackOut> {
                     fetched_at: 0,
                     now: None,
                     yesterday: None,
+                    first_today: None,
                     past: None,
                     past_days: 0,
                     error: Some(e),

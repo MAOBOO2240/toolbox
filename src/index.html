@@ -737,9 +737,9 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">BOSS 結晶</span>
           <div class="g-pages" id="bsPages">
+            <button class="cbtn c-purple" data-page="month">每月王</button>
             <button class="cbtn c-pink" data-page="week">每週王</button>
             <button class="cbtn c-blue" data-page="day">每日王</button>
-            <button class="cbtn c-purple" data-page="month">每月王</button>
           </div>
         </nav>
         <div class="bs-page">
@@ -753,54 +753,6 @@
           <div class="card bs-card bs-main">
             <div class="bs-card-head"><div class="bs-list-head" id="bsListHead"></div><button class="cbtn c-red small" id="bsClear">清除</button></div>
             <div class="bs-list" id="bsList"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="view-exp">
-        <nav class="navbar">
-          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
-          <span class="nav-title">經驗值計算</span>
-          <span></span>
-        </nav>
-        <div class="f-page x-page">
-          <div class="card f-card">
-            <div class="f-field">
-              <label for="xName">角色名稱<small class="muted">可以帶入目前等級與經驗（使用 API）</small></label>
-              <div class="x-name-row">
-                <div class="f-input"><input type="text" id="xName" placeholder="角色名稱" autocomplete="off" spellcheck="false" /></div>
-                <button class="cbtn c-blue" id="xFill">帶入</button>
-              </div>
-              <small class="f-hint" id="xFillStatus"></small>
-            </div>
-            <div class="f-grid3 x-grid">
-              <div class="f-field"><label for="xLevel">目前等級</label><div class="f-input"><input type="text" id="xLevel" inputmode="numeric" autocomplete="off" /><span>級</span></div></div>
-              <div class="f-field"><label for="xPct">目前經驗</label><div class="f-input"><input type="text" id="xPct" inputmode="decimal" autocomplete="off" /><span>%</span></div></div>
-              <div class="f-field"><label for="xTarget">目標等級</label><div class="f-input"><input type="text" id="xTarget" inputmode="numeric" autocomplete="off" /><span>級</span></div></div>
-            </div>
-            <div class="f-field">
-              <label for="xMobLevel">練功地圖的怪物等級<small class="muted">取同等級經驗值最高的怪物</small></label>
-              <div class="f-input"><input type="text" id="xMobLevel" inputmode="numeric" autocomplete="off" /><span>級</span></div>
-              <small class="x-diff" id="xDiff"></small>
-            </div>
-            <div class="f-field">
-              <label for="xMobExp">每隻怪的經驗值<small class="muted">空白就用遊戲資料</small></label>
-              <div class="f-input"><input type="text" id="xMobExp" inputmode="numeric" autocomplete="off" /></div>
-              <small class="f-hint" id="xMobHint"></small>
-            </div>
-            <div class="f-grid3 x-grid">
-              <div class="f-field"><label for="xKills">每小時打幾隻</label><div class="f-input"><input type="text" id="xKills" inputmode="numeric" autocomplete="off" /><span>隻</span></div></div>
-              <div class="f-field"><label for="xBonus">經驗加成</label><div class="f-input"><input type="text" id="xBonus" inputmode="decimal" autocomplete="off" /><span>%</span></div></div>
-              <div class="f-field"><label for="xHours">每天練</label><div class="f-input"><input type="text" id="xHours" inputmode="decimal" autocomplete="off" /><span>小時</span></div></div>
-            </div>
-            <small class="f-hint">所有數字欄位都可以用滾輪調整</small>
-          </div>
-          <div class="x-side">
-            <div class="card f-card f-out" id="xOut"></div>
-            <div class="card f-card" id="xRowsCard" hidden>
-              <div class="x-row x-head"><span>等級</span><span>需要經驗</span><span>等差</span><span>每小時</span><span>時間</span><span>累計天數</span></div>
-              <div class="x-rows" id="xRows"></div>
-            </div>
           </div>
         </div>
       </section>
@@ -1083,7 +1035,6 @@
   <script src="starlight.js"></script>
   <script src="gift.js"></script>
   <script src="boss.js"></script>
-  <script src="exp.js"></script>
   <script src="track.js"></script>
   <script src="watch.js"></script>
 </body>

@@ -390,7 +390,6 @@ fn main() {
             avatar::beauty_skins,
             avatar::beauty_styles,
             avatar::item_icons,
-            avatar::exp_mobs,
             notify::notify_pending,
             notify::notify_hide,
             notify::notify_open,
