@@ -63,9 +63,16 @@ const BossCore = (() => {
 
     ["month", "黑魔法師", [["困難", 990841916], ["終極", 3000000000]]],
   ].map(([type, name, diffs]) => ({ type, name, key: `${type}:${name}`, diffs }));
-  // 結晶價格高的排在前面（難的在上面）
+  // 每週王的順序和遊戲裡的 BOSS 清單相同；每日王依結晶價格高到低；每月王放最前面
+  const WEEK_ORDER = [
+    "尤比太", "巴德利斯", "林波", "燦爛的凶星", "咖凌", "最初的敵對者", "監視者卡洛斯", "受選的賽蓮", "頓凱爾", "真·希拉",
+    "戴斯克", "威爾", "露希妲", "守護天使綠水靈", "戴米安", "史烏", "瑪麗西亞", "濃姬", "拉圖斯", "西格諾斯",
+    "粉豆", "梅格耐斯", "貝倫", "血腥皇后", "斑斑", "比艾樂", "希拉", "炎魔",
+  ];
   const top = (b) => Math.max(...b.diffs.map((d) => d[1]));
-  LIST.sort((a, b) => top(b) - top(a));
+  const TYPE_RANK = { month: 0, week: 1, day: 2 };
+  const rank = (b) => (b.type === "week" ? WEEK_ORDER.indexOf(b.name) : -1);
+  LIST.sort((a, b) => TYPE_RANK[a.type] - TYPE_RANK[b.type] || (a.type === "week" ? rank(a) - rank(b) : top(b) - top(a)));
   const BY_KEY = Object.fromEntries(LIST.map((b) => [b.key, b]));
 
   /**
