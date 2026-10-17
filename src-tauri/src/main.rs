@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod autostart;
 mod avatar;
 mod fg;
 mod input;
@@ -193,8 +194,11 @@ fn setup_main_window(app: &tauri::App, st: &AppState) {
     };
     let _ = win.set_size(PhysicalSize::new(size.0, size.1));
     let _ = win.center();
-    let _ = win.show();
-    let _ = win.set_focus();
+    // 開機自動啟動時只放在右下角，不打開主視窗
+    if !autostart::launched_at_boot() {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
 }
 
 /// Windows 11：設定標題列與邊框顏色，和程式內容的底色區分開（Windows 10 會忽略）
@@ -299,6 +303,7 @@ fn main() {
             if let Err(e) = setup_tray(app) {
                 eprintln!("無法建立右下角圖示：{e}");
             }
+            std::thread::spawn(autostart::refresh);
 
             let (tx, rx) = mpsc::channel();
             input::start(app.handle().clone(), tx);
@@ -375,6 +380,7 @@ fn main() {
             timers::preview_sound,
             timers::pick_sound_file,
             maple_api::maple_lookup,
+            maple_api::exp_track,
             avatar::beauty_render,
             avatar::beauty_tags,
             avatar::beauty_wz_status,
@@ -384,6 +390,7 @@ fn main() {
             avatar::beauty_skins,
             avatar::beauty_styles,
             avatar::item_icons,
+            avatar::exp_mobs,
             notify::notify_pending,
             notify::notify_hide,
             notify::notify_open,
@@ -399,7 +406,9 @@ fn main() {
             toast::open_notify_settings,
             update::update_info,
             update::update_check,
-            update::update_install
+            update::update_install,
+            autostart::autostart_get,
+            autostart::autostart_set
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

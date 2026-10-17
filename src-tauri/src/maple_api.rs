@@ -52,6 +52,37 @@ struct Cache {
     /// 本機今天已使用的呼叫次數（日期 YYYY-MM-DD）
     calls_day: String,
     calls: u32,
+    /// 經驗追蹤：OCID → (查詢時間, 最新資料)
+    track_now: HashMap<String, (u64, Snap)>,
+    /// 經驗追蹤：OCID → 日期 → 那天的資料（None = 那天查不到，例如角色還沒建立）
+    track_hist: HashMap<String, HashMap<String, Option<Snap>>>,
+}
+
+/// 經驗追蹤用的角色資料
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Snap {
+    level: u32,
+    exp: i64,
+    rate: f64,
+    class: String,
+    image: String,
+    world: String,
+}
+
+fn snap_of(v: &Value) -> Option<Snap> {
+    let level = v["character_level"].as_u64().or_else(|| v["character_level"].as_str()?.parse().ok())? as u32;
+    if level == 0 {
+        return None;
+    }
+    let exp = v["character_exp"].as_i64().or_else(|| v["character_exp"].as_str()?.parse().ok()).unwrap_or(0);
+    let rate = v["character_exp_rate"]
+        .as_str()
+        .and_then(|s| s.trim().trim_end_matches('%').parse().ok())
+        .or_else(|| v["character_exp_rate"].as_f64())
+        .unwrap_or(0.0);
+    let text = |k: &str| v[k].as_str().unwrap_or("").to_string();
+    Some(Snap { level, exp, rate, class: text("character_class"), image: text("character_image"), world: text("world_name") })
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -83,7 +114,12 @@ fn now() -> u64 {
 
 /// 台灣時間的日期字串（用來每天歸零呼叫次數）
 fn today_tw() -> String {
-    let days = (now() + 8 * 3600) / 86400;
+    date_tw(0)
+}
+
+/// 台灣時間幾天前的日期字串（YYYY-MM-DD）
+fn date_tw(days_ago: u64) -> String {
+    let days = (now() + 8 * 3600) / 86400 - days_ago;
     // 1970-01-01 起算的天數 → 年月日
     let (mut y, mut d) = (1970i64, days as i64);
     loop {
@@ -123,6 +159,19 @@ enum ApiErr {
 }
 
 fn get(path: &str, query: &[(&str, &str)]) -> Result<Value, ApiErr> {
+    // 每秒最多 5 次：兩次呼叫之間至少隔 0.22 秒
+    {
+        static LAST: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = *last {
+            let gap = Duration::from_millis(220);
+            let since = t.elapsed();
+            if since < gap {
+                std::thread::sleep(gap - since);
+            }
+        }
+        *last = Some(std::time::Instant::now());
+    }
     {
         let mut s = STORE.get().unwrap().lock().unwrap();
         let today = today_tw();
@@ -245,9 +294,151 @@ pub async fn maple_lookup(name: String, force: bool) -> Result<Lookup, String> {
         .map_err(|e| e.to_string())?
 }
 
+/* ---------------- 經驗追蹤 ---------------- */
+
+const TRACK_TTL_SECS: u64 = 10 * 60;
+
+#[derive(Serialize)]
+pub struct TrackOut {
+    name: String,
+    /// 最新資料的查詢時間
+    fetched_at: u64,
+    now: Option<Snap>,
+    /// 昨天的資料（今天練了多少的基準）
+    yesterday: Option<Snap>,
+    /// 幾天前的資料（算平均成長速度）
+    past: Option<Snap>,
+    past_days: u32,
+    error: Option<String>,
+}
+
+/// 某天的資料：查過就記住（歷史資料不會變）
+fn hist_snap(ocid: &str, days_ago: u64) -> Option<Snap> {
+    let store = STORE.get()?;
+    let date = date_tw(days_ago);
+    if let Some(v) = store.lock().unwrap().cache.track_hist.get(ocid).and_then(|m| m.get(&date)) {
+        return v.clone();
+    }
+    let v = match get("/character/basic", &[("ocid", ocid), ("date", &date)]) {
+        Ok(v) => snap_of(&v),
+        Err(ApiErr::NotFound) => None,
+        // 連線失敗、次數用完：不記住，下次再試
+        Err(ApiErr::Other(_)) => return None,
+    };
+    store.lock().unwrap().cache.track_hist.entry(ocid.to_string()).or_default().insert(date, v.clone());
+    v
+}
+
+fn track_one(name: &str, force: bool) -> Result<TrackOut, String> {
+    let name = name.trim();
+    let store = STORE.get().ok_or("尚未初始化")?;
+    let cached_ocid = store.lock().unwrap().cache.ocid.get(name).cloned();
+    let mut ocid = match cached_ocid {
+        Some(o) => o,
+        None => fetch_ocid(name)?,
+    };
+    store.lock().unwrap().cache.ocid.insert(name.to_string(), ocid.clone());
+
+    // 最新資料：10 分鐘內查過就不再查（按重新整理時 1 分鐘）
+    let cached = store.lock().unwrap().cache.track_now.get(&ocid).cloned();
+    let ttl = if force { 60 } else { TRACK_TTL_SECS };
+    let (fetched_at, cur) = match cached {
+        Some((t, c)) if now().saturating_sub(t) < ttl => (t, c),
+        _ => {
+            let r = match get("/character/basic", &[("ocid", &ocid)]) {
+                Err(ApiErr::NotFound) => {
+                    // OCID 失效：重查一次
+                    ocid = fetch_ocid(name)?;
+                    store.lock().unwrap().cache.ocid.insert(name.to_string(), ocid.clone());
+                    get("/character/basic", &[("ocid", &ocid)])
+                }
+                r => r,
+            };
+            match r.ok().and_then(|v| snap_of(&v)) {
+                Some(c) => {
+                    store.lock().unwrap().cache.track_now.insert(ocid.clone(), (now(), c.clone()));
+                    (now(), c)
+                }
+                None => match cached {
+                    Some((t, c)) => (t, c),
+                    None => return Err(format!("讀不到「{name}」的資料")),
+                },
+            }
+        }
+    };
+
+    let yesterday = hist_snap(&ocid, 1);
+    // 平均成長：優先用 30 天前；角色太新查不到就用比較近的日子
+    let mut past = None;
+    let mut past_days = 0;
+    for d in [30u64, 14, 7, 3] {
+        if let Some(s) = hist_snap(&ocid, d) {
+            past = Some(s);
+            past_days = d as u32;
+            break;
+        }
+    }
+    if past.is_none() {
+        if let Some(y) = &yesterday {
+            past = Some(y.clone());
+            past_days = 1;
+        }
+    }
+    Ok(TrackOut { name: name.to_string(), fetched_at, now: Some(cur), yesterday, past, past_days, error: None })
+}
+
+/// 經驗追蹤：每隻角色的最新等級與經驗、昨天與 30 天前的資料
+#[tauri::command]
+pub async fn exp_track(names: Vec<String>, force: bool) -> Vec<TrackOut> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let out: Vec<TrackOut> = names
+            .iter()
+            .filter(|n| !n.trim().is_empty())
+            .map(|n| {
+                track_one(n, force).unwrap_or_else(|e| TrackOut {
+                    name: n.trim().to_string(),
+                    fetched_at: 0,
+                    now: None,
+                    yesterday: None,
+                    past: None,
+                    past_days: 0,
+                    error: Some(e),
+                })
+            })
+            .collect();
+        if let Some(store) = STORE.get() {
+            let mut s = store.lock().unwrap();
+            // 只留最近 40 天的歷史資料
+            let oldest = date_tw(40);
+            for m in s.cache.track_hist.values_mut() {
+                m.retain(|d, _| *d >= oldest);
+            }
+            save(&s);
+        }
+        out
+    })
+    .await
+    .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot() {
+        let v: Value = serde_json::json!({"character_level": 271, "character_exp": 123456789, "character_exp_rate": "12.345", "character_class": "主教"});
+        let s = snap_of(&v).unwrap();
+        assert_eq!((s.level, s.exp, s.rate), (271, 123456789, 12.345));
+        assert!(snap_of(&serde_json::json!({"character_level": null})).is_none());
+    }
+
+    #[test]
+    fn dates() {
+        assert_eq!(date_tw(0), today_tw());
+        assert!(date_tw(30) < date_tw(1));
+        assert_eq!(date_tw(1).len(), 10);
+    }
 
     #[test]
     fn key_decodes() {

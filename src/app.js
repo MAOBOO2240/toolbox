@@ -234,6 +234,24 @@ darkQuery.addEventListener("change", () => { if (settings.theme === "system") ap
 
 $$("#closeSeg button").forEach((b) => b.addEventListener("click", () => { settings.close_tray = b.dataset.v === "tray"; saveSettings(); }));
 
+/* 開機自動啟動（寫在 Windows 的開機啟動清單，以實際狀態為準） */
+{
+  const box = $("#autoStart");
+  if (!TAURI) box.disabled = true;
+  else invoke("autostart_get").then((on) => (box.checked = !!on)).catch(() => {});
+  box.addEventListener("change", async () => {
+    if (!TAURI) return;
+    const want = box.checked;
+    try {
+      box.checked = await invoke("autostart_set", { on: want });
+      toast(box.checked ? "已開啟開機自動啟動" : "已關閉開機自動啟動");
+    } catch (e) {
+      box.checked = !want;
+      toast(String(e));
+    }
+  });
+}
+
 /* 設定：在右邊內容區顯示整頁 */
 $("#gearBtn").addEventListener("click", () => {
   $$(".cat").forEach((b) => b.classList.remove("on"));
@@ -318,10 +336,13 @@ const ICONS = {
   star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/><path d="M19 3v3M17.5 4.5h3"/></svg>',
   gift: '<svg viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v7.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12M12 8v12.5M12 8c-1.5-3.5-6-4-6-1.5S10 8 12 8zm0 0c1.5-3.5 6-4 6-1.5S14 8 12 8z"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+  crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
+  calc: '<svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8 7.5h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/></svg>',
+  trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
 };
 
 // 滑過磁磚時的光暈顏色（與圖示漸層同色系）
-const TILE_ACCENT = { red: "#ff5a5f", purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", star: "#a78bfa", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f" };
+const TILE_ACCENT = { red: "#ff5a5f", purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", star: "#a78bfa", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f", crystal: "#7c5cff", teal: "#14b8a6", indigo: "#5865f2" };
 
 const CATS = {
   maple: {
@@ -332,6 +353,8 @@ const CATS = {
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
+      { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", item: "強烈的力量結晶" },
+      { id: "exp", name: "經驗值計算", desc: "依等級與練功地圖的怪物，算出升級還要練多久", color: "teal", icon: "calc" },
     ],
   },
   tools: {
@@ -342,6 +365,7 @@ const CATS = {
       { id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" },
       { id: "watch", name: "斷線通知", desc: "新楓之谷斷線、回到登入畫面或關閉時通知", color: "red", icon: "plug" },
       { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
+      { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 30 天平均與預計升級日", color: "indigo", icon: "trend" },
     ],
   },
   // 我的最愛：內容由使用者收藏決定
@@ -980,6 +1004,9 @@ function openTool(id) {
   if (id === "star" && window.Starlight) window.Starlight.onShow();
   if (id === "gift" && window.Gift) window.Gift.onShow();
   if (id === "watch" && window.Watch) window.Watch.onShow();
+  if (id === "boss" && window.Boss) window.Boss.onShow();
+  if (id === "exp" && window.ExpCalc) window.ExpCalc.onShow();
+  if (id === "track" && window.Track) window.Track.onShow();
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));

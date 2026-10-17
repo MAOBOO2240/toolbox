@@ -157,6 +157,8 @@ if (typeof document !== "undefined") (() => {
   const fixTry = (t, kind) => (typeof t === "string" ? { pool: kind + (st.gender || "F"), name: t } : t || null);
   st.tryHair = fixTry(st.tryHair, "hair");
   st.tryFace = fixTry(st.tryFace, "face");
+  // 戒指欄位分成名牌戒指、聊天戒指
+  if (st.pickSlot === "Ring") st.pickSlot = "RingTag";
   // 舊版收藏的是整套，改成一件一件收藏
   if (Array.isArray(st.looks)) {
     const seen = new Set((st.favs || []).map((x) => x.id));
@@ -1005,10 +1007,11 @@ if (typeof document !== "undefined") (() => {
     ["Cap", "帽子", "c-pink"], ["Face", "臉飾", "c-purple"], ["Eye", "眼飾", "c-blue"], ["Ear", "耳環", "c-amber"],
     ["Coat", "上衣", "c-orange"], ["Longcoat", "套服", "c-red"], ["Pants", "褲裙", "c-teal"], ["Shoes", "鞋子", "c-green"],
     ["Glove", "手套", "c-silver"], ["Cape", "披風", "c-purple"], ["Shield", "輔助武器", "c-blue"], ["Weapon", "武器", "c-orange"],
-    ["Ring", "戒指", "c-indigo"],
+    ["RingTag", "名牌戒指", "c-indigo"], ["RingChat", "聊天戒指", "c-pink"],
   ];
-  // 戒指分成名牌戒指、聊天戒指兩格（可以同時戴）
-  const SLOT_NAME = { ...Object.fromEntries(SLOTS.map(([k, n]) => [k, n])), RingTag: "名牌戒指", RingChat: "聊天戒指" };
+  // 名牌戒指、聊天戒指各算一格（可以同時戴）；兩種都從同一份戒指清單分出來
+  const SLOT_NAME = Object.fromEntries(SLOTS.map(([k, n]) => [k, n]));
+  const listKey = (slot) => (/^Ring/.test(slot) ? "Ring" : slot);
   const isRing = (it) => /^Ring/.test(it?.slot || "");
   const itemLists = {}; // 欄位 → 道具清單（Rust 讀完後快取）
   const iconCache = new Map(); // 編號 → 圖示 data URL（null = 沒有圖示）
@@ -1192,7 +1195,8 @@ if (typeof document !== "undefined") (() => {
   }
 
   function filtered() {
-    const list = itemLists[st.pickSlot] || [];
+    const ring = /^Ring/.test(st.pickSlot);
+    const list = (itemLists[listKey(st.pickSlot)] || []).filter((it) => !ring || it.slot === st.pickSlot);
     const q = ($("#bPickSearch").value || "").trim();
     return list.filter((it) =>
       (!st.pickCash || it.cash) &&
@@ -1227,11 +1231,11 @@ if (typeof document !== "undefined") (() => {
     $("#bPickCash").classList.toggle("on", !!st.pickCash);
     const box = $("#bIcons");
     if (!TAURI) { box.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
-    if (!itemLists[st.pickSlot]) {
+    if (!itemLists[listKey(st.pickSlot)]) {
       box.innerHTML = `<div class="g-empty">讀取中…${st.pickSlot === "All" ? "（第一次讀取全部分類需要一點時間）" : ""}</div>`;
       $("#bPickCount").textContent = "";
-      const slot = st.pickSlot;
-      try { itemLists[slot] = await invoke("beauty_items", { gameDir: st.gamePath || null, slot }); }
+      const slot = st.pickSlot, key = listKey(slot);
+      try { itemLists[key] = await invoke("beauty_items", { gameDir: st.gamePath || null, slot: key }); }
       catch (e) { box.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
       if (slot !== st.pickSlot) return;
     }
