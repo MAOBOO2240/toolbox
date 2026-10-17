@@ -152,7 +152,9 @@ if (typeof document !== "undefined") (() => {
   /** 楓幣：主要顯示 e／w，另附中文 */
   function meso(n) {
     const e = n / 1e8;
-    const main = n >= 1e8 ? `${+e.toFixed(e >= 100 ? 1 : 2)}e` : `${+(n / 1e4).toFixed(n >= 1e6 ? 0 : 2)}w`;
+    const main = n >= 1e8
+      ? `${e >= 1000 ? intFmt.format(Math.round(e)) : +e.toFixed(e >= 100 ? 1 : 2)}e`
+      : `${n >= 1e6 ? intFmt.format(Math.round(n / 1e4)) : +(n / 1e4).toFixed(2)}w`;
     const yi = Math.floor(n / 1e8), wan = Math.round((n % 1e8) / 1e4);
     const zh = n >= 1e8 ? `${intFmt.format(yi)} 億${wan ? ` ${intFmt.format(wan)} 萬` : ""}` : `${ntFmt.format(n / 1e4)} 萬`;
     return { main, zh };
@@ -189,20 +191,59 @@ if (typeof document !== "undefined") (() => {
     return `<div class="f-line ${cls}"><span>${label}${sub ? `<small>${sub}</small>` : ""}</span><b>${value}</b></div>`;
   }
 
+  /* ---------- 圖示：樂豆點、VIP 點數、楓幣、遊戲幣（楓幣袋） ---------- */
+  const COIN_SVG = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="#f5b52e" stroke="#a86b00" stroke-width="1.5"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="#fde68a" stroke-width="1.4"/><path d="M12 8.2l1.1 2.3 2.4.3-1.8 1.6.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.6 2.4-.3z" fill="#a86b00"/></svg>';
+  const BAG_SVG = '<svg viewBox="0 0 24 24"><path d="M8.5 6.5h7l-1.4 2.2c3.4 1.2 5.6 4.4 5.6 7.7 0 3-2.4 4.6-7.7 4.6S4.3 19.4 4.3 16.4c0-3.3 2.2-6.5 5.6-7.7z" fill="#d6c49a" stroke="#6b5a3a" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 8.7h6" stroke="#6b5a3a" stroke-width="1.3"/><circle cx="12" cy="4.6" r="2.3" fill="#f5b52e" stroke="#a86b00" stroke-width="1"/><path d="M12 12.3l.9 1.7 1.8.1-1.3 1.3.4 1.9-1.8-.9-1.8.9.4-1.9-1.3-1.3 1.8-.1z" fill="#a0602a"/></svg>';
+  const ICON = {
+    bean: () => '<img class="f-ic" src="assets/bean-point.png" alt="" draggable="false" />',
+    vip: () => '<img class="f-ic" src="assets/vip-point.png" alt="" draggable="false" />',
+    meso: () => `<span class="f-ic" data-ic="@meso1">${COIN_SVG}</span>`,
+    bag: () => `<span class="f-ic" data-ic="@meso3">${BAG_SVG}</span>`,
+  };
+  /** 遊戲裡的楓幣圖示讀得到就換掉預設的圖 */
+  function fillIcons(root = document.getElementById("view-gift")) {
+    if (!window.ItemIcons) return;
+    root.querySelectorAll("[data-ic]").forEach((el) => {
+      ItemIcons.get(el.dataset.ic).then((png) => {
+        if (!png || !el.isConnected) return;
+        el.innerHTML = `<img src="${png}" alt="" draggable="false" />`;
+        el.removeAttribute("data-ic");
+      });
+    });
+  }
+
+  /** 算式的結果顯示在輸入框裡、文字後面（灰色，不能改） */
+  const measure = document.createElement("canvas").getContext("2d");
+  function ghost(input, text) {
+    const wrap = input.parentElement;
+    let g = wrap.querySelector(".f-ghost");
+    if (!g) { g = document.createElement("span"); g.className = "f-ghost"; wrap.append(g); }
+    if (!text) { g.hidden = true; return; }
+    const cs = getComputedStyle(input);
+    measure.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const w = measure.measureText(input.value).width;
+    const left = input.offsetLeft + w + 8 - input.scrollLeft;
+    g.textContent = text;
+    g.style.left = `${left}px`;
+    g.hidden = left + 20 > input.offsetLeft + input.clientWidth;
+  }
+
   function renderGift() {
     const d = G.discount(st.disc);
     $("#fDiscHint").textContent = st.disc === "" ? "" : d === null ? "看不懂這個折扣" : `${discText(d)}（${+(d * 100).toFixed(2)}%）`;
     const cd = G.discount(st.card);
     $("#fCardHint").textContent = cd === null ? "" : `每 1 點成本 ${ntFmt.format(cd)} 元`;
     const price = G.calc(st.price);
-    $("#fPriceHint").textContent = st.price && G.isFormula(st.price) ? (price === null ? "算式看不懂" : `＝ ${ntFmt.format(price)} 點`) : "";
+    const pf = st.price && G.isFormula(st.price);
+    $("#fPriceHint").textContent = pf && price === null ? "算式看不懂" : "";
+    ghost($("#fPrice"), pf && price !== null ? `= ${ntFmt.format(price)}` : "");
     const out = $("#fResult");
     if (st.mode === "buy") {
       const r = G.buy({ price, disc: st.disc });
       $("#fBigLabel").textContent = "要付多少錢";
       if (!r) { $("#fBig").textContent = "—"; out.innerHTML = '<p class="f-empty">輸入折扣與道具原價就會算出來</p>'; return; }
       $("#fBig").textContent = nt(r.pay);
-      out.innerHTML = row("道具原價", `${intFmt.format(price)} 點`) + row("折扣", discText(r.disc)) + row("比原價省下", nt(r.save), "", "pos");
+      out.innerHTML = row("道具原價", `${ICON.bean()}${intFmt.format(price)} 點`) + row("折扣", discText(r.disc)) + row("比原價省下", nt(r.save), "", "pos");
       return;
     }
     const r = G.sell({ price, disc: st.disc, pay: st.pay, card: st.card, vip: st.vip, fengPerE: num(st.fengPerE), ratio: num(st.ratio), vipPer: num(st.vipPer) });
@@ -214,12 +255,13 @@ if (typeof document !== "undefined") (() => {
     const vip = G.VIP[st.vip];
     out.innerHTML =
       row("你的成本", nt(r.cost), `${payName}・每點 ${ntFmt.format(G.pointCost(st.pay, st.card))} 元`) +
-      row("VIP 回饋點數", `${intFmt.format(r.vipPts)} 點`, `${vip.name}・送禮每 1 點拿 ${vip.gift} 點`) +
+      row("VIP 回饋點數", `${ICON.vip()}${intFmt.format(r.vipPts)} 點`, `${vip.name}・送禮每 1 點拿 ${vip.gift} 點`) +
       row("換成楓點", `${ntFmt.format(r.feng)} 楓點`, `${intFmt.format(num(st.vipPer))} VIP 點數 = 1 楓點`) +
-      row("換成楓幣", m.main, m.zh) +
-      row("回饋價值", nt(r.rebate), `${intFmt.format(num(st.ratio))} 萬楓幣 = 1 台幣`) +
+      row("換成楓幣", `${ICON.meso()}${m.main}`, m.zh) +
+      row("回饋價值", nt(r.rebate), `${intFmt.format(num(st.ratio))} 萬遊戲幣 = 1 台幣`) +
       row("淨賺", nt(r.profit), `利潤率 ${(r.margin * 100).toFixed(1)}%`, r.profit >= 0 ? "pos total" : "neg total") +
       row("最低可以賣", r.breakEven > 0 ? discText(Math.ceil(r.breakEven * 1000) / 1000) : "不收錢也不虧", "低於這個折扣就會虧");
+    fillIcons(out);
   }
 
   /* ---------- 買賣楓幣 ---------- */
@@ -232,19 +274,19 @@ if (typeof document !== "undefined") (() => {
     $("#fFxAmount").placeholder = isMeso ? "例如 10（= 10e），也可以打 5000w、3e2000w" : "例如 1000，也可以打 300*3";
     $("#fFxLabel").textContent = isMeso ? "要買賣多少楓幣" : "要買賣多少台幣";
     const v = G.calc(st.fxAmount, isMeso ? 1e8 : 1);
-    $("#fFxHint").textContent = st.fxAmount && G.isFormula(st.fxAmount)
-      ? (v === null ? "算式看不懂" : `＝ ${isMeso ? meso(v).main : nt(v)}`)
-      : "w = 萬、e = 億；可以輸入算式，例如 3e+5000w、1000*3";
+    const ff = st.fxAmount && G.isFormula(st.fxAmount);
+    $("#fFxHint").textContent = ff && v === null ? "算式看不懂" : "w = 萬、e = 億；可以輸入算式，例如 3e+5000w、1000*3";
+    ghost($("#fFxAmount"), ff && v !== null ? `= ${isMeso ? meso(v).main : ntFmt.format(v)}` : "");
     if (!(perNt > 0) || !(v > 0)) {
       out.textContent = "—";
       sub.textContent = perNt > 0 ? "" : "請先輸入目前楓幣比值";
     } else if (isMeso) {
       out.textContent = nt(v / perNt);
-      sub.textContent = `${meso(v).main}（${meso(v).zh}）楓幣`;
+      sub.innerHTML = `${ICON.meso()}${meso(v).main}（${meso(v).zh}）楓幣`;
     } else {
       const m = meso(v * perNt);
-      out.textContent = `${m.main} 楓幣`;
-      sub.textContent = `${m.zh}・${nt(v)}`;
+      out.innerHTML = `${ICON.meso()}${m.main}`;
+      sub.textContent = `${m.zh} 楓幣・${nt(v)}`;
     }
     // 常用換算
     const box = $("#fFxTable");
@@ -255,11 +297,12 @@ if (typeof document !== "undefined") (() => {
       const el = document.createElement("button");
       el.className = "f-chip";
       el.innerHTML = isMeso
-        ? `<b>${meso(x).main}</b><span>${nt(x / perNt)}</span>`
-        : `<b>${nt(x)}</b><span>${meso(x * perNt).main}</span>`;
+        ? `<b>${ICON.meso()}${meso(x).main}</b><span>${nt(x / perNt)}</span>`
+        : `<b>${nt(x)}</b><span>${ICON.meso()}${meso(x * perNt).main}</span>`;
       el.addEventListener("click", () => { st.fxAmount = isMeso ? meso(x).main : String(x); save(); syncInputs(); renderFx(); });
       box.append(el);
     }
+    fillIcons($("#fPageFx"));
   }
 
   function renderAll() {
@@ -268,6 +311,11 @@ if (typeof document !== "undefined") (() => {
     renderGift();
     renderFx();
   }
+
+  // 輸入框、選項前面的圖示（只放一次）
+  $$("[data-icon]").forEach((el) => el.insertAdjacentHTML("afterbegin", ICON[el.dataset.icon]()));
+  $$("#fVip button").forEach((b) => b.insertAdjacentHTML("afterbegin", `<img class="f-badge" src="assets/vip-${b.dataset.v}.png" alt="" draggable="false" />`));
+  fillIcons();
 
   /* ---------- 事件 ---------- */
   $$("#fPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderAll(); }));

@@ -345,7 +345,9 @@ if (typeof document !== "undefined") (() => {
   function prismToDye(p) {
     if (!p) return null;
     const r = String(p.color_range || "");
-    const range = /紅/.test(r) ? 1 : /黃/.test(r) ? 2 : /綠/.test(r) ? 3 : /青/.test(r) ? 4 : /藍/.test(r) ? 5 : /紫/.test(r) ? 6 : 0;
+    // 青綠色系要先判斷，否則會被當成綠色系
+    const range = /紅|빨간|red/i.test(r) ? 1 : /黃|노란|yellow/i.test(r) ? 2 : /青|청록|cyan/i.test(r) ? 4
+      : /綠|초록|green/i.test(r) ? 3 : /藍|파란|blue/i.test(r) ? 5 : /紫|洋紅|자주|purple|magenta/i.test(r) ? 6 : 0;
     const d = { range, hue: Number(p.hue) || 0, sat: Number(p.saturation) || 0, val: Number(p.value) || 0 };
     return d.hue || d.sat || d.val ? d : null;
   }

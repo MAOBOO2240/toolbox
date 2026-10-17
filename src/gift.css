@@ -63,3 +63,17 @@
 .f-chip:active { transform: scale(0.97); }
 .f-chip b { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 .f-chip span { font-size: 0.78rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* 圖示 */
+.f-ic { display: inline-grid; place-items: center; width: 1.25em; height: 1.25em; margin-right: 0.3em; vertical-align: -0.22em; flex: none; }
+.f-ic svg, .f-ic img, img.f-ic { width: 1.25em; height: 1.25em; object-fit: contain; image-rendering: pixelated; }
+img.f-ic { image-rendering: auto; }
+.f-lbl { display: inline-flex; align-items: center; }
+.f-badge { width: 1.5em; height: 1.5em; object-fit: contain; margin: -0.2em 0.35em -0.2em -0.2em; image-rendering: auto; }
+#fVip .cbtn { padding-left: 0.55rem; }
+.f-big .f-ic { width: 0.9em; height: 0.9em; vertical-align: -0.08em; }
+.f-big .f-ic svg, .f-big .f-ic img { width: 0.9em; height: 0.9em; }
+/* 算式結果：輸入框裡、文字後面的灰字 */
+.f-input { position: relative; }
+.f-ghost { position: absolute; top: 50%; transform: translateY(-50%); color: var(--text-2); font-weight: 600; pointer-events: none; white-space: nowrap; font-size: 0.95rem; }
+.f-ghost[hidden] { display: none; }

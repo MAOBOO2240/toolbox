@@ -129,9 +129,11 @@ document.addEventListener("wheel", (e) => {
 /* ---------- 外觀設定（齒輪） ---------- */
 let settings = { theme: "system", font: "m" };
 
+const isCharTheme = () => String(settings.theme).startsWith("char");
 function effectiveTheme() {
   const t = settings.theme;
-  if (t === "light" || t === "dark") return t;
+  if (t === "light" || t === "char-light") return "light";
+  if (t === "dark" || t === "char-dark") return "dark";
   return darkQuery.matches ? "dark" : "light";
 }
 
@@ -193,7 +195,7 @@ function dollAccent() {
 }
 /** 套用角色色彩；回傳視窗外框要用的顏色 */
 function applyTint(dark) {
-  const acc = settings.theme === "char" ? dollAccent() : null;
+  const acc = isCharTheme() ? dollAccent() : null;
   if (!acc) { TINT_VARS.forEach((v) => root.style.removeProperty(v)); return null; }
   const h = Math.round(acc[0]);
   const s = Math.min(0.85, Math.max(0.45, acc[1]));
@@ -213,7 +215,7 @@ function applySettings() {
   root.dataset.theme = theme;
   root.dataset.font = settings.font;
   $$("#fontSeg button").forEach((b) => b.classList.toggle("on", b.dataset.font === settings.font));
-  $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === (settings.theme === "char" ? "char" : theme)));
+  $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === (isCharTheme() ? settings.theme : theme)));
   $$("#closeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.v === (settings.close_tray ? "tray" : "exit")));
   api.setWindowTheme(theme);
   const tint = applyTint(theme === "dark");
@@ -228,7 +230,7 @@ function saveSettings() {
 
 $$("#fontSeg button").forEach((b) => b.addEventListener("click", () => { settings.font = b.dataset.font; saveSettings(); }));
 $$("#themeSeg button").forEach((b) => b.addEventListener("click", () => { settings.theme = b.dataset.theme; saveSettings(); }));
-darkQuery.addEventListener("change", () => { if (settings.theme === "system" || settings.theme === "char") applySettings(); });
+darkQuery.addEventListener("change", () => { if (settings.theme === "system") applySettings(); });
 
 $$("#closeSeg button").forEach((b) => b.addEventListener("click", () => { settings.close_tray = b.dataset.v === "tray"; saveSettings(); }));
 
@@ -501,13 +503,19 @@ const SideDoll = (() => {
   const saveCfg = () => store.set("side-doll", cfg);
   const img = $("#sideDollImg"), empty = $("#sideDollEmpty"), box = $("#sideDollPic"), inp = $("#sideName");
 
+  // 角色本體大約的大小（像素）：放大倍率以角色為準，大型武器超出框沒關係
+  const BODY_W = 46, BODY_H = 78;
   function fit() {
-    if (!doll || doll.official || !doll.w || img.hidden) { img.style.width = ""; img.style.transform = ""; return; }
-    const room = Math.min(box.clientWidth / doll.w, (box.clientHeight - 8) / doll.h);
-    const scale = room >= 1 ? Math.min(3, Math.floor(room)) : Math.max(0.3, room);
+    img.classList.toggle("body", !!(doll && !doll.official && doll.w));
+    if (!doll || doll.official || !doll.w || img.hidden) { img.style.width = img.style.left = img.style.top = ""; return; }
+    const bw = box.clientWidth, bh = box.clientHeight;
+    const room = Math.min((bw * 0.82) / BODY_W, (bh * 0.8) / BODY_H, 5);
+    const scale = room >= 1 ? Math.floor(room) : Math.max(0.4, room);
     img.style.width = `${Math.round(doll.w * scale)}px`;
-    // 角色本身放在正中間（大型武器不會把角色擠到旁邊）
-    img.style.transform = `translateX(${Math.round((doll.w / 2 - (doll.cx ?? doll.w / 2)) * scale)}px)`;
+    // 角色中心放在框的中間偏下
+    const cx = doll.cx ?? doll.w / 2, cy = doll.cy ?? doll.h / 2;
+    img.style.left = `${Math.round(bw / 2 - cx * scale)}px`;
+    img.style.top = `${Math.round(bh * 0.56 - cy * scale)}px`;
   }
   function show(d) {
     doll = d && d.png ? d : null;
@@ -515,13 +523,13 @@ const SideDoll = (() => {
       img.hidden = true;
       empty.removeAttribute("hidden"); // SVG 沒有 hidden 屬性，要用 attribute
       img.removeAttribute("src");
-      if (settings.theme === "char") applySettings();
+      if (isCharTheme()) applySettings();
       return;
     }
     img.classList.toggle("official", !!doll.official);
     if (!doll.official) img.style.maxWidth = img.style.maxHeight = "none";
     else img.style.maxWidth = img.style.maxHeight = "";
-    img.onload = () => { fit(); if (settings.theme === "char") applySettings(); };
+    img.onload = () => { fit(); if (isCharTheme()) applySettings(); };
     if (img.getAttribute("src") !== doll.png) img.src = doll.png;
     else img.onload();
     img.hidden = false;
@@ -898,6 +906,8 @@ $("#currentSerial").addEventListener("click", () =>
 (async () => {
   const st = await api.getState();
   settings = { theme: "system", font: "m", ...(st.settings || {}) };
+  // 舊版只有「角色色彩」：依目前 Windows 的明暗換成淺色或深色
+  if (settings.theme === "char") settings.theme = darkQuery.matches ? "char-dark" : "char-light";
   // 文字大小改版：原本的「中」變成「小」、「大」變成「中」，新增更大的「大」；預設為「中」
   if (!store.get("toolbox-font-v2", false)) {
     if (settings.font === "l") settings.font = "m";

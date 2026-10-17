@@ -123,9 +123,10 @@ fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
     let c = v * s;
-    let hp = (h.rem_euclid(360.0)) / 60.0;
-    let x = c * (1.0 - (hp.rem_euclid(2.0) - 1.0).abs());
-    let (r, g, b) = match hp as u32 {
+    let h = h.rem_euclid(360.0);
+    let hp = h / 60.0;
+    let x = c * (1.0 - (hp % 2.0 - 1.0).abs());
+    let (r, g, b) = match (h as u32) / 60 {
         0 => (c, x, 0.0),
         1 => (x, c, 0.0),
         2 => (0.0, c, x),
@@ -137,42 +138,70 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
     (r + m, g + m, b + m)
 }
 
-/// 依色系範圍調整色相、飽和度、亮度
+/// 染色稜鏡的色系範圍（色相取整數後比較；紅色系不含灰階）
+fn prism_in_range(range: u8, hue: f32, sat: f32) -> bool {
+    let h = hue as i32;
+    match range {
+        1 => !((30..=330).contains(&h) || sat == 0.0),
+        2 => (30..=90).contains(&h),
+        3 => (90..=150).contains(&h),
+        4 => (150..=210).contains(&h),
+        5 => (210..=270).contains(&h),
+        6 => (270..=330).contains(&h),
+        _ => true,
+    }
+}
+
+/// 四捨五入的方式和遊戲一致：小數部分要到 0.985 才進位
+fn prism_round(value: f32, step: f32) -> u8 {
+    let q = value / step;
+    let r = if q - q.floor() >= 0.985 { q.ceil() } else { q.floor() };
+    (r * step).clamp(0.0, 255.0) as u8
+}
+
+/// 染色稜鏡：和遊戲相同的演算法（參考 WzComparerR2 AvatarCommon/Prism.cs，MIT 授權）。
+/// API 的飽和度、亮度是 -99～99，遊戲內部以 100 為不變（1～199）。
+/// 純黑、純白、透明的點不染；4 位元色（ARGB4444）的圖，結果要對齊 17 的倍數。
 fn apply_dye(px: &mut [u8], dye: &Dye) {
-    if dye.is_noop() {
+    let hue = dye.hue.rem_euclid(360) as f32;
+    let sat = (100 + dye.sat.clamp(-99, 99)) as f32;
+    let bri = (100 + dye.val.clamp(-99, 99)) as f32;
+    if dye.range > 6 || (hue == 0.0 && sat == 100.0 && bri == 100.0) {
         return;
     }
-    let (lo, hi) = match dye.range {
-        1 => (330.0, 30.0),
-        2 => (30.0, 90.0),
-        3 => (90.0, 150.0),
-        4 => (150.0, 210.0),
-        5 => (210.0, 270.0),
-        6 => (270.0, 330.0),
-        _ => (0.0, 360.0),
-    };
-    let in_range = |h: f32| if dye.range == 0 { true } else if lo > hi { h >= lo || h < hi } else { h >= lo && h < hi };
-    let ds = dye.sat.clamp(-100, 100) as f32 / 100.0;
-    let dv = dye.val.clamp(-100, 100) as f32 / 100.0;
+    let step = if px.chunks_exact(4).any(|p| p[0] % 17 != 0 || p[1] % 17 != 0 || p[2] % 17 != 0) { 1.0 } else { 17.0 };
     for p in px.chunks_exact_mut(4) {
-        if p[3] == 0 {
+        let (r8, g8, b8, a) = (p[0], p[1], p[2], p[3]);
+        if a == 0 || (r8 == 0 && g8 == 0 && b8 == 0) || (r8 == 255 && g8 == 255 && b8 == 255) {
             continue;
         }
-        let (h, s, v) = rgb_to_hsv(p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0);
-        // 灰階（黑線、白色）沒有色相，只在全色系時調整亮度
-        if s < 0.04 && dye.range != 0 {
+        let (h, s, v) = rgb_to_hsv(r8 as f32 / 255.0, g8 as f32 / 255.0, b8 as f32 / 255.0);
+        let h = if r8 == g8 && g8 == b8 { 0.0 } else { h };
+        if !prism_in_range(dye.range, h, s) {
             continue;
         }
-        if !in_range(h) {
-            continue;
-        }
-        let h2 = h + dye.hue as f32;
-        let s2 = if ds >= 0.0 { s + (1.0 - s) * ds } else { s * (1.0 + ds) };
-        let v2 = if dv >= 0.0 { v + (1.0 - v) * dv } else { v * (1.0 + dv) };
-        let (r, g, b) = hsv_to_rgb(h2, s2.clamp(0.0, 1.0), v2.clamp(0.0, 1.0));
-        p[0] = (r * 255.0).round() as u8;
-        p[1] = (g * 255.0).round() as u8;
-        p[2] = (b * 255.0).round() as u8;
+        // 色相
+        let h2 = (h + hue) % 360.0;
+        // 飽和度（也會影響亮度）
+        let k = (sat - 100.0) / 100.0;
+        let (ds, dv) = if sat < 100.0 {
+            (k * s, k * s * v / 2.0)
+        } else if s > 0.0 && v < 1.0 {
+            (k * (2.0 - s) * (1.0 - v), k * (1.0 - s) * v)
+        } else {
+            (0.0, 0.0)
+        };
+        let ts = (s + ds).clamp(0.0, 1.0);
+        let tv = (v + dv).clamp(0.0, 1.0);
+        // 亮度（也會影響飽和度）
+        let kb = (bri - 100.0) / 100.0;
+        let (ds2, dv2) = if bri < 100.0 { (0.0, kb * s * tv) } else { (kb * -ts, kb * (15.0 - 12.0 * s) / 15.0 * (1.0 - tv)) };
+        let s2 = (ts + ds2).clamp(0.0, 1.0);
+        let v2 = (tv + dv2).clamp(0.0, 1.0);
+        let (r, g, b) = hsv_to_rgb(h2, s2, v2);
+        p[0] = prism_round(r * 255.0, step);
+        p[1] = prism_round(g * 255.0, step);
+        p[2] = prism_round(b * 255.0, step);
     }
 }
 
@@ -1078,10 +1107,29 @@ impl Ctx {
         icon_png(w, h, &px)
     }
 
+    /// 楓幣圖示：Item/Special/0900.img 的 09000000（銅幣）～09000003（楓幣袋）
+    fn meso_icon(&mut self, id: u32) -> Option<String> {
+        let folder = "Item/Special";
+        let img = "0900.img";
+        let root = self.data.img(folder, img).ok()?;
+        let icon = ["iconRaw/0", "iconRaw", "icon/0", "icon", "info/iconRaw", "info/icon"]
+            .iter()
+            .find_map(|k| resolve(&root, &format!("{id:08}/{k}"), 0).filter(|n| matches!(n, Node::Canvas(..))))?
+            .clone();
+        let (w, h, px) = self.data.pixels_of(folder, img, &icon).ok()?;
+        icon_png(w, h, &px)
+    }
+
     fn icon_by_name(&mut self, name: &str) -> Option<String> {
         let key = norm_name(name);
         if let Some(v) = self.name_icons.get(&key) {
             return v.clone();
+        }
+        // 特殊名稱：@meso0～@meso3 是楓幣圖示
+        if let Some(n) = key.strip_prefix("@meso").and_then(|n| n.parse::<u32>().ok()) {
+            let found = self.meso_icon(9_000_000 + n.min(3));
+            self.name_icons.insert(key, found.clone());
+            return found;
         }
         if self.item_names.is_none() {
             let m = build_item_names(self);
@@ -1267,6 +1315,14 @@ mod tests {
         apply_dye(&mut px, &Dye { range: 1, hue: 120, sat: 0, val: 0 });
         assert_eq!(&px[0..3], &[0, 255, 0]);
         assert_eq!(&px[4..7], &[0, 0, 255]);
+        // 純黑、純白不染；飽和度 -99 幾乎變灰
+        let mut px = vec![0, 0, 0, 255, 255, 255, 255, 255, 204, 51, 51, 255];
+        apply_dye(&mut px, &Dye { range: 0, hue: 0, sat: -99, val: 0 });
+        assert_eq!(&px[0..3], &[0, 0, 0]);
+        assert_eq!(&px[4..7], &[255, 255, 255]);
+        assert!(px[8].abs_diff(px[9]) <= 17 && px[9].abs_diff(px[10]) <= 17);
+        // 4 位元色的圖，結果仍是 17 的倍數
+        assert!(px[8] % 17 == 0 && px[9] % 17 == 0 && px[10] % 17 == 0);
     }
 
     #[test]
