@@ -53,7 +53,7 @@ if (typeof document !== "undefined") (() => {
 
   function renderCfg() {
     $("#wOnDisc").checked = cfg.on_disconnect;
-    $("#wOnClose").checked = cfg.on_close;
+    $("#wOnClose").checked = !cfg.on_close; // 開關是「遊戲關閉時不通知」
     $("#wOnLogin").checked = cfg.on_login;
     if (document.activeElement !== $("#wDcUrl")) $("#wDcUrl").value = cfg.discord_url;
     if (document.activeElement !== $("#wDcUser")) $("#wDcUser").value = cfg.discord_user;
@@ -92,7 +92,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   $("#wOnDisc").addEventListener("change", (e) => { cfg.on_disconnect = e.target.checked; saveCfg(); checkToast(false); });
-  $("#wOnClose").addEventListener("change", (e) => { cfg.on_close = e.target.checked; saveCfg(); checkToast(false); });
+  $("#wOnClose").addEventListener("change", (e) => { cfg.on_close = !e.target.checked; saveCfg(); checkToast(false); });
   $("#wOnLogin").addEventListener("change", (e) => { cfg.on_login = e.target.checked; saveCfg(); checkToast(false); });
   $$("#wQuiet button").forEach((b) => b.addEventListener("click", () => {
     const h = Number(b.dataset.h);

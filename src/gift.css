@@ -1,0 +1,65 @@
+/* ---------- 送禮買賣 ---------- */
+.f-page {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1rem;
+  padding: 1rem; overflow-y: auto; align-items: start;
+}
+.f-page[hidden] { display: none !important; }
+.f-card { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.f-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.f-seg .cbtn { min-height: 2.8rem; font-size: 1rem; }
+.f-field { display: flex; flex-direction: column; gap: 0.35rem; }
+.f-field[hidden], .f-sell-only[hidden] { display: none; }
+.f-sell-only { display: flex; flex-direction: column; gap: 0.9rem; }
+.f-field > label { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; font-size: 0.9rem; font-weight: 700; }
+.f-field > label small { font-size: 0.74rem; font-weight: 500; }
+.f-input {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0 0.75rem; border-radius: 0.7rem;
+  background: var(--card-2); box-shadow: inset 0 0 0 1px var(--sep);
+  transition: box-shadow 0.15s;
+}
+.f-input:focus-within { box-shadow: inset 0 0 0 1px var(--blue), 0 0 0 3px var(--blue-soft); }
+.f-input input {
+  flex: 1; min-width: 0; padding: 0.55rem 0; border: 0; outline: none; background: transparent;
+  color: var(--text); font: inherit; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.f-input span { flex: none; color: var(--text-2); font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.f-hint { color: var(--text-2); font-size: 0.75rem; line-height: 1.45; min-height: 1em; }
+.f-opts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.f-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+.f-grid3 .f-input input { font-size: 0.92rem; }
+.f-foot { display: flex; justify-content: flex-end; }
+
+/* 結果 */
+.f-out { position: sticky; top: 0; }
+.f-big-label { font-size: 0.85rem; font-weight: 700; color: var(--text-2); }
+.f-big { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: -0.6rem; }
+.f-sub { color: var(--text-2); font-size: 0.85rem; margin-top: -0.6rem; }
+.f-lines { display: flex; flex-direction: column; }
+.f-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.6rem 0; border-top: 0.5px solid var(--sep);
+}
+.f-line > span { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.88rem; font-weight: 600; }
+.f-line small { font-size: 0.72rem; font-weight: 500; color: var(--text-2); }
+.f-line b { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.f-line.total { padding: 0.75rem 0.7rem; margin: 0.2rem -0.7rem; border-radius: 0.7rem; border-top: 0; }
+.f-line.total b { font-size: 1.25rem; }
+.f-line.total.pos { background: color-mix(in srgb, var(--green) 12%, transparent); }
+.f-line.total.neg { background: color-mix(in srgb, var(--red) 10%, transparent); }
+.f-empty { margin: 0.4rem 0 0; color: var(--text-2); font-size: 0.85rem; }
+
+/* 常用換算 */
+.f-table-head { font-size: 0.78rem; font-weight: 700; margin-top: 0.3rem; }
+.f-table { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; }
+.f-chip {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem;
+  padding: 0.55rem 0.7rem; border: 0; border-radius: 0.7rem; cursor: pointer;
+  background: var(--card-2); color: var(--text); font: inherit; text-align: left;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+.f-chip:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, #f5a30b 60%, transparent); }
+.f-chip:active { transform: scale(0.97); }
+.f-chip b { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.f-chip span { font-size: 0.78rem; color: var(--text-2); font-variant-numeric: tabular-nums; }

@@ -240,6 +240,7 @@ const ICONS = {
   comet: '<svg viewBox="0 0 24 24"><path d="M16.5 4.5l1.2 2.6 2.8.4-2 2 .5 2.8-2.5-1.3-2.5 1.3.5-2.8-2-2 2.8-.4z"/><path d="M11 10.5 4 17.5M13 13.5 7.5 19M8.5 9 3.5 14"/></svg>',
   plug: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16.2a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1"/><path d="M3 3l18 18"/></svg>',
   star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/><path d="M19 3v3M17.5 4.5h3"/></svg>',
+  gift: '<svg viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v7.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12M12 8v12.5M12 8c-1.5-3.5-6-4-6-1.5S10 8 12 8zm0 0c1.5-3.5 6-4 6-1.5S14 8 12 8z"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
 };
 
@@ -255,6 +256,7 @@ const CATS = {
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
+      { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
     ],
   },
   tools: {
@@ -416,6 +418,17 @@ function flip(container, mutate) {
     const dx = a.left - b.left, dy = a.top - b.top;
     if (dx || dy) k.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   }
+}
+
+/* 左上角圖示：點一下播放動畫，再點一下停止 */
+{
+  const img = $("#brandIcon");
+  let playing = false;
+  img.addEventListener("click", () => {
+    playing = !playing;
+    // 每次播放都從第一格開始
+    img.src = playing ? `assets/brand.gif?t=${Date.now()}` : "assets/brand.png";
+  });
 }
 
 /* 一排幾個：空白 = 依視窗寬度自動 */
@@ -602,6 +615,7 @@ function openTool(id) {
   if (id === "beauty" && window.Beauty) window.Beauty.onShow();
   if (id === "comet" && window.Comet) window.Comet.onShow();
   if (id === "star" && window.Starlight) window.Starlight.onShow();
+  if (id === "gift" && window.Gift) window.Gift.onShow();
   if (id === "watch" && window.Watch) window.Watch.onShow();
 }
 

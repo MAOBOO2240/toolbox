@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="beauty.css" />
   <link rel="stylesheet" href="comet.css" />
   <link rel="stylesheet" href="starlight.css" />
+  <link rel="stylesheet" href="gift.css" />
   <link rel="stylesheet" href="watch.css" />
 </head>
 <body>
@@ -17,7 +18,7 @@
     <!-- 左側分類 -->
     <aside class="sidebar">
       <div class="brand">
-        <img src="assets/icon.png" alt="" class="brand-icon" />
+        <img src="assets/brand.png" alt="" class="brand-icon" id="brandIcon" draggable="false" />
         <span>工具箱</span>
         <button class="pin-btn" id="pinBtn" aria-label="固定工具位置" data-tip="">
           <svg viewBox="0 0 24 24"><path d="M9 3.5h6l-.9 5.6 3.4 3.4H6.5l3.4-3.4z"/><path d="M12 12.5v8"/></svg>
@@ -80,9 +81,9 @@
             <div class="set-row">
               <span>文字大小</span>
               <div class="seg" id="fontSeg">
-                <button data-font="l">大</button>
-                <button data-font="m">中</button>
                 <button data-font="s">小</button>
+                <button data-font="m">中</button>
+                <button data-font="l">大</button>
               </div>
             </div>
             <div class="set-row">
@@ -694,6 +695,106 @@
           </div>
         </div>
       </section>
+      <!-- 送禮買賣 -->
+      <section class="view" id="view-gift">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">送禮買賣</span>
+          <div class="g-pages" id="fPages">
+            <button class="cbtn c-pink" data-page="gift">送禮</button>
+            <button class="cbtn c-amber" data-page="fx">買賣楓幣</button>
+          </div>
+        </nav>
+
+        <div class="f-page" id="fPageGift">
+          <div class="card f-card">
+            <div class="f-seg" id="fMode">
+              <button class="cbtn c-blue" data-v="buy">買送禮</button>
+              <button class="cbtn c-pink" data-v="sell">賣送禮</button>
+            </div>
+            <div class="f-field">
+              <label for="fDisc">折扣<small class="muted">輸入 8 = 8 折、82 = 82 折</small></label>
+              <div class="f-input"><input type="text" id="fDisc" inputmode="decimal" placeholder="例如 82" autocomplete="off" /><span>折</span></div>
+              <small class="f-hint" id="fDiscHint"></small>
+            </div>
+            <div class="f-field">
+              <label for="fPrice">道具原價<small class="muted">商城標價（樂豆點）</small></label>
+              <div class="f-input"><input type="text" id="fPrice" inputmode="decimal" placeholder="例如 1000" autocomplete="off" /><span>點</span></div>
+            </div>
+            <div class="f-sell-only">
+              <div class="f-field">
+                <label>儲值方式</label>
+                <div class="f-opts" id="fPay">
+                  <button class="cbtn c-silver small" data-v="direct">直購</button>
+                  <button class="cbtn c-teal small" data-v="reader">讀卡機</button>
+                  <button class="cbtn c-purple small" data-v="card">點數卡</button>
+                </div>
+                <small class="f-hint">直購：儲值沒有回饋；讀卡機：儲值 +5%（儲值 30000 送 1500）；點數卡：輸入買點數卡的折數</small>
+              </div>
+              <div class="f-field" id="fCardRow">
+                <label for="fCard">點數卡折數<small class="muted">例如 92 = 用 920 元買到 1000 點</small></label>
+                <div class="f-input"><input type="text" id="fCard" inputmode="decimal" placeholder="92" autocomplete="off" /><span>折</span></div>
+                <small class="f-hint" id="fCardHint"></small>
+              </div>
+              <div class="f-field">
+                <label>VIP 等級<small class="muted">送禮每 1 樂豆點可拿到的 VIP 點數不同</small></label>
+                <div class="f-opts" id="fVip">
+                  <button class="cbtn c-silver small" data-v="silver">VIP 銀牌</button>
+                  <button class="cbtn c-amber small" data-v="gold">VIP 金牌</button>
+                  <button class="cbtn c-blue small" data-v="diamond">VIP 鑽石</button>
+                  <button class="cbtn c-purple small" data-v="royal">VIP 皇家</button>
+                </div>
+              </div>
+              <div class="f-grid3">
+                <div class="f-field">
+                  <label for="fVipPer">VIP 點數換楓點</label>
+                  <div class="f-input"><input type="text" id="fVipPer" inputmode="decimal" autocomplete="off" /><span>點 = 1 楓點</span></div>
+                </div>
+                <div class="f-field">
+                  <label for="fFengPerE">購買楓幣</label>
+                  <div class="f-input"><span class="pre">1 億楓幣 =</span><input type="text" id="fFengPerE" inputmode="decimal" autocomplete="off" /><span>楓點</span></div>
+                </div>
+                <div class="f-field">
+                  <label for="fRatio">遊戲幣值比率</label>
+                  <div class="f-input"><input type="text" id="fRatio" inputmode="decimal" autocomplete="off" /><span>萬楓幣 = 1 台幣</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="f-foot"><button class="cbtn c-red small" id="fReset">恢復預設值</button></div>
+          </div>
+
+          <div class="card f-card f-out">
+            <span class="f-big-label" id="fBigLabel">要付多少錢</span>
+            <b class="f-big" id="fBig">—</b>
+            <div class="f-lines" id="fResult"></div>
+          </div>
+        </div>
+
+        <div class="f-page" id="fPageFx" hidden>
+          <div class="card f-card">
+            <div class="f-field">
+              <label for="fRatio2">目前楓幣比值</label>
+              <div class="f-input"><span class="pre">1 台幣 =</span><input type="text" id="fRatio2" inputmode="decimal" autocomplete="off" /><span>萬楓幣</span></div>
+            </div>
+            <div class="f-seg" id="fFxMode">
+              <button class="cbtn c-amber" data-v="meso">輸入楓幣</button>
+              <button class="cbtn c-green" data-v="twd">輸入台幣</button>
+            </div>
+            <div class="f-field">
+              <label for="fFxAmount" id="fFxLabel">要買賣多少楓幣</label>
+              <div class="f-input"><input type="text" id="fFxAmount" inputmode="decimal" autocomplete="off" /><span id="fFxUnit">e</span></div>
+              <small class="f-hint">w = 萬、e = 億</small>
+            </div>
+          </div>
+          <div class="card f-card f-out">
+            <span class="f-big-label">換算結果</span>
+            <b class="f-big" id="fFxBig">—</b>
+            <span class="f-sub" id="fFxSub"></span>
+            <div class="f-table-head muted">常用換算（點一下帶入）</div>
+            <div class="f-table" id="fFxTable"></div>
+          </div>
+        </div>
+      </section>
       <!-- 斷線通知 -->
       <section class="view" id="view-watch">
         <nav class="navbar">
@@ -715,7 +816,7 @@
               <h3>通知設定</h3>
               <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
               <label class="w-row"><span>回到登入畫面時通知<small class="muted">離開電腦時被送回登入畫面：照下面設定的秒數通知<br />正在操作時回到登入畫面（多半是自己登出）：待滿 5 分鐘才通知</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
-              <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束時通知；關閉前 5 分鐘內有在操作電腦，就當作是你自己關的，不通知</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>遊戲關閉時不通知<small class="muted">打開：新楓之谷關閉時一律不通知<br />關掉：關閉前 5 分鐘內都沒操作電腦才通知（有操作就當作是你自己關的）</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
               <div class="w-row"><span>週三維護不通知<small class="muted">可以複選；選到的時間前 5 分鐘到後 30 分鐘內斷線或關閉都不通知</small></span>
                 <div class="w-quiet" id="wQuiet">
                   <button class="cbtn c-purple small" data-h="0">00:00</button>
@@ -854,6 +955,7 @@
   <script src="beauty.js"></script>
   <script src="comet.js"></script>
   <script src="starlight.js"></script>
+  <script src="gift.js"></script>
   <script src="watch.js"></script>
 </body>
 </html>
