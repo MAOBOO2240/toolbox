@@ -379,6 +379,9 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
   pointer-events: none;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
+/* 下方空間不夠（例如計時器最下面那一排）時，說明改顯示在上面 */
+.timer-foot [data-tip]:not([data-tip=""]):hover::after,
+[data-tip].tip-up:not([data-tip=""]):hover::after { top: auto; bottom: calc(100% + 0.45rem); }
 
 /* ---------- 序號複製（左右分欄） ---------- */
 .serial-layout {

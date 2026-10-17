@@ -99,6 +99,12 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} },
 };
 
+// 懸停說明：靠近視窗底部時改顯示在上面，不會被切掉
+document.addEventListener("mouseover", (e) => {
+  const el = e.target.closest?.("[data-tip]");
+  if (el) el.classList.toggle("tip-up", el.getBoundingClientRect().bottom > window.innerHeight - 120);
+});
+
 // 桌面程式不需要重新整理頁面，避免誤按 F5 / Ctrl+R 讓畫面重載
 document.addEventListener("keydown", (e) => {
   if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")) e.preventDefault();
