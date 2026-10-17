@@ -45,6 +45,16 @@ const StarCore = (() => {
       else if (h.includes("璀璨星光")) pool = "bright";
       else if (h.includes("星光錦囊")) pool = "bag";
     }
+    return boxFirst(out);
+  }
+
+  /** 每一層裡，可以打開的道具（玲瓏星光、星光原石…）排在最前面 */
+  function boxFirst(pools) {
+    const out = {};
+    for (const lv of Object.keys(pools)) {
+      const list = pools[lv] || [];
+      out[lv] = [...list.filter((it) => isBox(it.name)), ...list.filter((it) => !isBox(it.name))];
+    }
     return out;
   }
 
@@ -181,7 +191,7 @@ const StarCore = (() => {
     return lines;
   }
 
-  return { LEVELS, LEVEL_NAME, SEED, SYNTH, OPENS, BOXES, FILLER, isBox, parse, sum, withFiller, sampler, valueOf, probIn, evaluate, analyze, perBag, autoPrice, comment };
+  return { LEVELS, LEVEL_NAME, SEED, SYNTH, OPENS, BOXES, FILLER, isBox, parse, boxFirst, sum, withFiller, sampler, valueOf, probIn, evaluate, analyze, perBag, autoPrice, comment };
 })();
 
 if (typeof module !== "undefined") module.exports = StarCore;
@@ -279,6 +289,8 @@ if (typeof document !== "undefined") (() => {
     return d;
   })();
   function zeroLvPools() { return { bag: [], crystal: [], ore: [], water: [], bright: [] }; }
+  // 舊資料：可以打開的道具移到最前面
+  st.pools = C.boxFirst(st.pools);
   let saveTimer;
   const save = () => {
     clearTimeout(saveTimer);
@@ -318,7 +330,7 @@ if (typeof document !== "undefined") (() => {
       const small = b.querySelector("small");
       if (lv === "bag") { small.textContent = "花錢抽"; b.classList.remove("ready", "empty"); return; }
       const n = availOf(lv);
-      small.textContent = `${intFmt.format(n)} 抽`;
+      small.textContent = `可以抽 ${intFmt.format(n)} 個`;
       b.classList.toggle("ready", n > 0);
       b.classList.toggle("empty", n === 0);
       b.title = lv === "crystal" ? `每 ${C.SYNTH} 個玲瓏星光可以抽一次星光結晶體` : `保管箱裡有 ${n} 個${C.LEVEL_NAME[lv]}`;

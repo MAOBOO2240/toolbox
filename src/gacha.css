@@ -249,8 +249,8 @@
 .g-sec { display: flex; flex-direction: column; min-height: 0; border-radius: 0.85rem; overflow: hidden; }
 .g-sec-batch {
   flex: none;
-  /* AI 評語移到左上後，空出的高度都給保管箱；本次獲得維持原本的大小 */
-  max-height: calc(46% - 2.4rem);
+  /* 分析與 AI 評語移到左上後，空出的高度都給保管箱；本次獲得維持原本的大小 */
+  max-height: calc(46% - 5rem);
   background: color-mix(in srgb, #f5b301 10%, var(--card));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #f5b301 40%, transparent);
 }
@@ -281,5 +281,6 @@
 /* 左欄：AI 評語在上、獎池在下 */
 .g-left { display: flex; flex-direction: column; gap: 0.8rem; min-height: 0; }
 .g-left .g-pool { flex: 1; }
-.g-ai { flex: none; padding: 0.55rem 0.65rem; }
-.g-ai .g-comment { margin: 0; }
+.g-ai { flex: none; padding: 0.7rem 0.75rem 0.65rem; }
+.g-ai .g-metrics { padding: 0 0.2rem; }
+.g-ai .g-comment { margin: 0.55rem 0 0; }

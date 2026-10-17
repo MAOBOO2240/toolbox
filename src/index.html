@@ -234,7 +234,10 @@
         <!-- 第一頁：模擬 -->
         <div class="g-page" id="gPageSim">
           <div class="g-left">
-          <div class="card g-ai"><p class="g-comment" id="gComment"></p></div>
+          <div class="card g-ai">
+            <div class="g-metrics" id="gMetrics"></div>
+            <p class="g-comment" id="gComment"></p>
+          </div>
           <div class="card g-pool">
             <div class="g-tabs" id="gTabs">
               <button class="cbtn c-amber" data-pool="apple">黃金蘋果</button>
@@ -282,10 +285,6 @@
                 <span class="muted">按住按鈕可連續抽取・每抽獲得 1 個碎片</span>
                 <button class="cbtn c-red small solid" id="gReset">重置統計</button>
               </div>
-            </div>
-
-            <div class="card g-analysis">
-              <div class="g-metrics" id="gMetrics"></div>
             </div>
 
             <div class="card g-results">
@@ -504,7 +503,10 @@
 
         <div class="g-page" id="cPageSim">
           <div class="g-left">
-          <div class="card g-ai"><p class="g-comment" id="cComment"></p></div>
+          <div class="card g-ai">
+            <div class="g-metrics" id="cMetrics"></div>
+            <p class="g-comment" id="cComment"></p>
+          </div>
           <div class="card g-pool">
             <div class="g-tabs c-tabs" id="cTabs">
               <button class="cbtn c-teal" data-pool="shiny">閃亮彗星</button>
@@ -553,10 +555,6 @@
                 <span class="muted c-auto-info" id="cAutoInfo"></span>
                 <button class="cbtn c-red small solid" id="cReset">重置統計</button>
               </div>
-            </div>
-
-            <div class="card g-analysis">
-              <div class="g-metrics" id="cMetrics"></div>
             </div>
 
             <div class="card g-results">
@@ -617,7 +615,10 @@
 
         <div class="g-page" id="sPageSim">
           <div class="g-left">
-          <div class="card g-ai"><p class="g-comment" id="sComment"></p></div>
+          <div class="card g-ai">
+            <div class="g-metrics" id="sMetrics"></div>
+            <p class="g-comment" id="sComment"></p>
+          </div>
           <div class="card g-pool">
             <div class="g-tabs s-tabs" id="sTabs">
               <button class="cbtn c-purple" data-lv="bag">星光錦囊<small></small></button>
@@ -665,10 +666,6 @@
                 <button class="cbtn c-purple small" id="sAutoOpen" title="開啟後，抽到的玲瓏星光、星光原石等會自動一路打開到底">抽到自動開到底</button>
                 <button class="cbtn c-red small solid" id="sReset">重置統計</button>
               </div>
-            </div>
-
-            <div class="card g-analysis">
-              <div class="g-metrics" id="sMetrics"></div>
             </div>
 
             <div class="card g-results">
