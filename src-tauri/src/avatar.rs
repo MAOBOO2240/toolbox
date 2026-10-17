@@ -777,7 +777,8 @@ struct Look {
     pose: &'static str,
     /// 帽子、套服等蓋住的欄位代碼（vslot）
     covered: Vec<String>,
-    has_cap: bool,
+    /// 帽子蓋住頭髮的程度（依帽子的 vslot，和 HeavenClient 相同）
+    cap: CapType,
 }
 
 /// 普通攻擊：依武器種類挑動作（找不到時改用武器有的其他攻擊動作）
@@ -1196,18 +1197,57 @@ fn resolve_look(ctx: &mut Ctx, req: &RenderReq, warnings: &mut Vec<String>) -> (
 
     // 帽子、套服等用 vslot 蓋住部分髮型、臉型
     let mut covered: Vec<String> = Vec::new();
-    let mut has_cap = false;
+    let mut cap = CapType::None;
     for (id, cat, _) in &equips {
         if matches!(*cat, "Cap" | "Accessory" | "Longcoat" | "Coat" | "Cape") {
             let vs = ctx.vslot(&format!("Character/{cat}"), *id);
             if *cat == "Cap" && !vs.is_empty() {
-                has_cap = true;
+                cap = cap_type(&vs);
             }
             covered.extend(vs.as_bytes().chunks(2).map(|c| String::from_utf8_lossy(c).into_owned()));
         }
     }
 
-    (Look { body_id, head_id, skin, hair_id, hair_mix, face_id, face_mix, equips, wprefix, wtype, pose, covered, has_cap }, equip_out)
+    (Look { body_id, head_id, skin, hair_id, hair_mix, face_id, face_mix, equips, wprefix, wtype, pose, covered, cap }, equip_out)
+}
+
+/// 帽子的種類：沒有、頭帶（CpH5）、蓋一半（CpH1H5）、全蓋（CpH1H5H6）
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum CapType {
+    None,
+    Headband,
+    Half,
+    Full,
+}
+
+fn cap_type(vslot: &str) -> CapType {
+    let has = |c: &str| vslot.as_bytes().chunks(2).any(|x| x == c.as_bytes());
+    if vslot.is_empty() {
+        CapType::None
+    } else if has("H1") && has("H6") {
+        CapType::Full
+    } else if has("H1") {
+        CapType::Half
+    } else if has("H5") {
+        CapType::Headband
+    } else {
+        CapType::None
+    }
+}
+
+/// 頭髮的圖層要不要畫（和 HeavenClient、WzComparerR2 相同）：
+/// - hairBelowBody（身體後面的長髮）一定畫，戴帽子也一樣
+/// - 沒帽子／頭帶：hairOverHead、backHair；蓋一半：hair、backHairBelowCap；全蓋：只剩身體後面的長髮
+/// - 沒帽子時 hair 只在沒有 hairOverHead 的髮型才畫
+fn hair_visible(name: &str, cap: CapType, has_over_head: bool) -> bool {
+    match name {
+        "hairBelowBody" => true,
+        _ if cap == CapType::Full => false,
+        "hairOverHead" | "backHair" | "backHairOverCape" => matches!(cap, CapType::None | CapType::Headband),
+        "hair" => cap != CapType::None || !has_over_head,
+        "backHairBelowCap" => cap == CapType::Half,
+        _ => true,
+    }
 }
 
 /// 某一格動作的所有圖層；回傳 (圖層, 延遲毫秒, 是否看得到臉)
@@ -1244,11 +1284,13 @@ fn frame_parts(ctx: &mut Ctx, look: &Look, action: &str, idx: usize, warnings: &
         let cands = [fpath.clone(), (if face { "stand1/0" } else { "ladder/0" }).to_string(), (if face { "default" } else { "backDefault" }).to_string()];
         if let Some(fr) = ctx.first_frame("Character/Hair", id, &cands) {
             match ctx.mixed("Character/Hair", id, look.hair_mix, &fr, look.skin) {
-                // 沒戴帽子時，背面只顯示 backHair（backHairBelowCap 是戴帽子時用的）
-                Ok(l) => parts.extend(l.into_iter().filter(|l| look.has_cap || !l.name.starts_with("backHairBelowCap")).map(|mut l| {
-                    l.owner = 2;
-                    l
-                })),
+                Ok(l) => {
+                    let over = l.iter().any(|x| x.name == "hairOverHead");
+                    parts.extend(l.into_iter().filter(|l| hair_visible(&l.name, look.cap, over)).map(|mut l| {
+                        l.owner = 2;
+                        l
+                    }))
+                }
                 Err(e) => warnings.push(format!("髮型：{e}")),
             }
         }
@@ -1280,7 +1322,8 @@ fn frame_parts(ctx: &mut Ctx, look: &Look, action: &str, idx: usize, warnings: &
     if !look.covered.is_empty() {
         let smap = &ctx.smap;
         parts.retain(|l| {
-            if l.owner != 1 && l.owner != 2 {
+            // 頭髮依帽子種類處理（上面已經挑過），這裡只處理臉
+            if l.owner != 1 {
                 return true;
             }
             let codes = smap.get(&l.zname).map(String::as_str).unwrap_or("");
@@ -1355,7 +1398,16 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
             }
             if let Some(id) = look.hair_id {
                 match ctx.mixed("Character/Hair", id, look.hair_mix, "default", look.skin) {
-                    Ok(l) => parts.extend(l.into_iter().filter(|l| l.name != "hairBelowBody")),
+                    Ok(mut l) => {
+                        // 長髮在身體後面的部分（hairBelowBody）也要畫，髮型才完整；default 沒有時用站姿的
+                        if !l.iter().any(|x| x.name == "hairBelowBody") {
+                            if let Ok(st) = ctx.mixed("Character/Hair", id, look.hair_mix, "stand1/0", look.skin) {
+                                l.extend(st.into_iter().filter(|x| x.name == "hairBelowBody"));
+                            }
+                        }
+                        let over = l.iter().any(|x| x.name == "hairOverHead");
+                        parts.extend(l.into_iter().filter(|x| hair_visible(&x.name, CapType::None, over)));
+                    }
                     Err(e) => warnings.push(format!("髮型：{e}")),
                 }
             }
@@ -2105,6 +2157,24 @@ mod tests {
         assert_eq!(argb_hex(-1), "#ffffff");
         assert_eq!(argb_hex(-16777216), "#000000");
         assert_eq!(argb_hex(0xFF33_6699u32 as i32 as i64), "#336699");
+    }
+
+    #[test]
+    fn hair_under_caps() {
+        assert_eq!(cap_type(""), CapType::None);
+        assert_eq!(cap_type("CpH5"), CapType::Headband);
+        assert_eq!(cap_type("CpH1H5"), CapType::Half);
+        assert_eq!(cap_type("CpH1H5H6"), CapType::Full);
+        // 身體後面的長髮一律要畫
+        for c in [CapType::None, CapType::Headband, CapType::Half, CapType::Full] {
+            assert!(hair_visible("hairBelowBody", c, true));
+        }
+        assert!(hair_visible("hairOverHead", CapType::None, true));
+        assert!(!hair_visible("hair", CapType::None, true));
+        assert!(hair_visible("hair", CapType::None, false));
+        assert!(hair_visible("hair", CapType::Half, true));
+        assert!(!hair_visible("hairOverHead", CapType::Half, true));
+        assert!(!hair_visible("hairShade", CapType::Full, true));
     }
 
     #[test]
