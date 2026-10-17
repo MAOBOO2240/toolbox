@@ -573,7 +573,7 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
   pointer-events: none;
   opacity: 0.92;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35) !important;
-  transition: box-shadow 0.15s, opacity 0.15s;
+  transition: box-shadow 0.15s, opacity 0.15s, scale 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .drag-ghost.fav { background: var(--card); }
 .drag-ghost.del { opacity: 0.55; box-shadow: 0 0 0 2px #e5484d, 0 18px 40px rgba(229, 72, 77, 0.35) !important; }

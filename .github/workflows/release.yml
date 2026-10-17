@@ -13,6 +13,9 @@ concurrency:
   group: release
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: never
+
 jobs:
   build:
     runs-on: windows-latest
@@ -40,9 +43,7 @@ jobs:
         run: |
           set -o pipefail
           if ! cargo test 2>&1 | tee ../test.log; then
-            # 把編譯錯誤變成註解，方便在網頁或 API 直接看到
-            msg=$(grep -E -A14 '^(error|warning: unused)' ../test.log | head -200 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
-            echo "::error title=cargo test::$msg"
+            bash ../.github/report.sh "cargo test" "$PWD/../test.log"
             exit 1
           fi
 
@@ -53,8 +54,7 @@ jobs:
         run: |
           set -o pipefail
           if ! npm run build 2>&1 | tee build.log; then
-            msg=$(grep -E -A14 '^error' build.log | head -200 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
-            echo "::error title=build::$msg"
+            bash .github/report.sh "build" "$PWD/build.log"
             exit 1
           fi
 

@@ -440,6 +440,8 @@ function dragTool(el, id, from) {
       zone = z;
       $("#favSec").classList.toggle("drop", z === "fav");
       ghost?.classList.toggle("del", z === "unfav");
+      // 拖到我的最愛上方時縮小，比較好對準
+      if (ghost) ghost.style.scale = z === "fav" ? "0.5" : "";
     };
     const move = (ev) => {
       if (!ghost) {
@@ -449,7 +451,7 @@ function dragTool(el, id, from) {
         oy = sy - r.top;
         ghost = el.cloneNode(true);
         ghost.classList.add("drag-ghost");
-        Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px` });
+        Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px`, transformOrigin: `${ox}px ${oy}px` });
         document.body.append(ghost);
         el.classList.add("drag-src");
         document.body.classList.add("tool-dragging");
