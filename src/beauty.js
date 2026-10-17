@@ -311,7 +311,8 @@ if (typeof document !== "undefined") (() => {
     if (!c?.cash) return [];
     const preset = c.cash[`cash_item_equipment_preset_${c.cash.preset_no}`];
     const list = preset?.length ? preset : c.cash.cash_item_equipment_base || [];
-    return list.filter((x) => !/戒指|EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
+    // 戒指也送去，名牌戒指、聊天戒指會改變名牌與對話框（其他戒指 Rust 會略過）
+    return list.filter((x) => !/EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
   }
   /** 戒指（名牌戒指、聊天戒指會改變名牌與對話框的樣子）；外觀套組沒有戒指時看基本點裝 */
   function ringsOf(c) {
@@ -323,12 +324,14 @@ if (typeof document !== "undefined") (() => {
   }
   /** 名牌、對話框的外觀（依戒指，從遊戲資料讀取） */
   const tagCache = new Map();
-  function fetchTags(rings) {
+  /** rings = 戒指名稱（API）、ids = 戒指編號（紙娃娃實際戴上的） */
+  function fetchTags({ rings = [], ids = null } = {}) {
     if (!TAURI) return Promise.resolve(null);
-    const k = JSON.stringify([st.gamePath || "", rings]);
-    if (!tagCache.has(k)) tagCache.set(k, invoke("beauty_tags", { gameDir: st.gamePath || null, rings }).catch(() => { tagCache.delete(k); return null; }));
+    const k = JSON.stringify([st.gamePath || "", rings, ids]);
+    if (!tagCache.has(k)) tagCache.set(k, invoke("beauty_tags", { gameDir: st.gamePath || null, rings, ids }).catch(() => { tagCache.delete(k); return null; }));
     return tagCache.get(k);
   }
+  const ringIdsOf = (list) => (list || []).filter((x) => /^Ring/.test(x.slot)).map((x) => x.id);
 
   /** 某個角色目前的樣子（不含試穿），給左邊側欄的紙娃娃用 */
   function charReq(c) {
@@ -347,13 +350,13 @@ if (typeof document !== "undefined") (() => {
   }
   async function charLook(name) {
     const c = await invoke("maple_lookup", { name, force: false });
-    const tags = await fetchTags(ringsOf(c));
     try {
       const out = await invoke("beauty_render", { req: charReq(c) });
+      const tags = await fetchTags({ ids: ringIdsOf(out.equips) });
       return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy, tags };
     } catch (e) {
       // 讀不到遊戲資料時改用官方角色圖
-      if (c?.basic?.character_image) return { name: c.name, png: c.basic.character_image, official: true, tags };
+      if (c?.basic?.character_image) return { name: c.name, png: c.basic.character_image, official: true, tags: await fetchTags({ rings: ringsOf(c) }) };
       throw e;
     }
   }
@@ -496,6 +499,7 @@ if (typeof document !== "undefined") (() => {
       if (!st.tryHair) lastHairId = out.hair_id || null;
       if (!st.tryFace) lastFaceId = out.face_id || null;
       if (st.dress) renderEquipped();
+      refreshTags();
       const notes = [...(out.warnings || []), ...(tags?.notes || [])];
       if (notes.length) note.textContent = notes.join("；");
       if (await Actor.set(animOf(out))) {
@@ -506,6 +510,7 @@ if (typeof document !== "undefined") (() => {
       return;
     }
     Actor.clear();
+    refreshTags();
     // 讀不到遊戲資料：有角色就先顯示官方角色圖
     const img = ch?.basic?.character_image;
     if (img && !(st.tryHair || st.tryFace)) {
@@ -571,13 +576,14 @@ if (typeof document !== "undefined") (() => {
     layoutBalloon();
     document.dispatchEvent(new CustomEvent("beauty-tags", { detail: t }));
   }
+  /** 名牌、對話框依紙娃娃實際戴上的戒指（讀不到遊戲資料時用 API 的戒指名稱） */
   function refreshTags() {
-    const rings = ringsOf(ch);
-    const k = JSON.stringify([st.gamePath || "", rings]);
+    const q = TAURI && (st.outfit || lastEquips.length) ? { ids: ringIdsOf(curOutfit()) } : { rings: ringsOf(ch) };
+    const k = JSON.stringify([st.gamePath || "", q]);
     applyNameTag();
     if (k === tagsFor) return;
     tagsFor = k;
-    fetchTags(rings).then((t) => { if (tagsFor === k) applyTags(t); });
+    fetchTags(q).then((t) => { if (tagsFor === k) applyTags(t); });
   }
   let sayTimer = 0;
   function say(text) {
@@ -640,7 +646,7 @@ if (typeof document !== "undefined") (() => {
 
   function renderDoll() {
     const tryH = st.tryHair, tryF = st.tryFace;
-    refreshTags();
+    applyNameTag();
     if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.skinId && !st.outfit?.length)) { showDoll(null); announceQueue(null); }
     else {
       const req = lookReq(tryH, tryF, "full");
@@ -999,8 +1005,11 @@ if (typeof document !== "undefined") (() => {
     ["Cap", "帽子", "c-pink"], ["Face", "臉飾", "c-purple"], ["Eye", "眼飾", "c-blue"], ["Ear", "耳環", "c-amber"],
     ["Coat", "上衣", "c-orange"], ["Longcoat", "套服", "c-red"], ["Pants", "褲裙", "c-teal"], ["Shoes", "鞋子", "c-green"],
     ["Glove", "手套", "c-silver"], ["Cape", "披風", "c-purple"], ["Shield", "輔助武器", "c-blue"], ["Weapon", "武器", "c-orange"],
+    ["Ring", "戒指", "c-indigo"],
   ];
-  const SLOT_NAME = Object.fromEntries(SLOTS.map(([k, n]) => [k, n]));
+  // 戒指分成名牌戒指、聊天戒指兩格（可以同時戴）
+  const SLOT_NAME = { ...Object.fromEntries(SLOTS.map(([k, n]) => [k, n])), RingTag: "名牌戒指", RingChat: "聊天戒指" };
+  const isRing = (it) => /^Ring/.test(it?.slot || "");
   const itemLists = {}; // 欄位 → 道具清單（Rust 讀完後快取）
   const iconCache = new Map(); // 編號 → 圖示 data URL（null = 沒有圖示）
   const PAGE = 240;
@@ -1141,7 +1150,7 @@ if (typeof document !== "undefined") (() => {
       [isFav(item.id) ? "取消收藏" : "收藏", () => (isFav(item.id) ? removeFav(item) : addFav(item))],
       [worn ? "脫下" : "穿上", () => wear(item, true)],
     ];
-    if (worn) opts.push(["染色", () => openDye(item.id)]);
+    if (worn && !isRing(item)) opts.push(["染色", () => openDye(item.id)]);
     showMenu(x, y, item.name, opts);
   }
   function showMenu(x, y, name, opts) {
@@ -1282,6 +1291,7 @@ if (typeof document !== "undefined") (() => {
       dye.title = "染色";
       dye.innerHTML = PALETTE_SVG;
       dye.addEventListener("click", () => openDye(it.id));
+      if (isRing(it)) dye.style.visibility = "hidden"; // 戒指不能染色
       const del = document.createElement("button");
       del.className = "b-x";
       del.title = "脫下";

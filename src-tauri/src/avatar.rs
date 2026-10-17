@@ -36,6 +36,8 @@ struct Ctx {
     eff_nodes: HashMap<u32, Option<(String, std::sync::Arc<Node>)>>,
     /// 戒指：編號、名稱
     rings: Option<Vec<(u32, String)>>,
+    /// 戒指的名牌編號、對話框編號、是否為點裝
+    ring_info: HashMap<u32, (Option<i64>, Option<i64>, bool)>,
 }
 
 /// 點裝欄位：飾品依編號再細分成臉飾、眼飾、耳環
@@ -74,6 +76,7 @@ fn slot_cat(slot: &str) -> Option<(&'static str, Option<u32>)> {
         "Cape" => ("Cape", None),
         "Shield" => ("Shield", None),
         "Weapon" => ("Weapon", None),
+        "Ring" => ("Ring", None),
         _ => return None,
     })
 }
@@ -227,7 +230,7 @@ pub struct EquipReq {
     pub dye: Option<Dye>,
 }
 
-const EQUIP_CATS: [&str; 10] = ["Cap", "Accessory", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon"];
+const EQUIP_CATS: [&str; 11] = ["Cap", "Accessory", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon", "Ring"];
 
 static CTX: Mutex<Option<Ctx>> = Mutex::new(None);
 
@@ -306,6 +309,7 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
         img_rels: HashMap::new(),
         eff_nodes: HashMap::new(),
         rings: None,
+        ring_info: HashMap::new(),
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -1159,9 +1163,14 @@ fn resolve_look(ctx: &mut Ctx, req: &RenderReq, warnings: &mut Vec<String>) -> (
     if !missing.is_empty() {
         warnings.push(format!("遊戲資料裡找不到點裝：{}", missing.join("、")));
     }
+    // 戒指只留名牌戒指、聊天戒指（其他戒指看不出外觀）
+    equips.retain(|&(id, cat, _)| cat != "Ring" || ctx.ring_slot(id) != "Ring");
     let equip_out: Vec<ItemOut> = equips
         .iter()
-        .map(|&(id, cat, dye)| ItemOut { id, name: ctx.equip_name(id), slot: slot_key(id, cat), cash: true, dye })
+        .map(|&(id, cat, dye)| {
+            let slot = if cat == "Ring" { ctx.ring_slot(id) } else { slot_key(id, cat) };
+            ItemOut { id, name: ctx.equip_name(id), slot, cash: true, dye }
+        })
         .collect();
 
     // 武器決定站姿（雙手武器用 stand2）；點裝武器依武器種類分子資料夾
@@ -1459,6 +1468,34 @@ fn argb_hex(v: i64) -> String {
 }
 
 impl Ctx {
+    /// 戒指 info：名牌編號（nameTag）、對話框編號（chatBalloon）、是否為點裝
+    fn ring_info(&mut self, id: u32) -> (Option<i64>, Option<i64>, bool) {
+        if let Some(v) = self.ring_info.get(&id) {
+            return *v;
+        }
+        let v = self
+            .data
+            .img_child("Character/Ring", &format!("{id:08}.img"), "info")
+            .ok()
+            .flatten()
+            .map(|info| {
+                let int = |k: &str| info.get(k).and_then(|v| v.as_int());
+                (int("nameTag"), int("chatBalloon"), int("cash") == Some(1))
+            })
+            .unwrap_or((None, None, false));
+        self.ring_info.insert(id, v);
+        v
+    }
+
+    /// 戒指的欄位：名牌戒指、聊天戒指各算一格（可以同時戴）；其他戒指看不出外觀
+    fn ring_slot(&mut self, id: u32) -> &'static str {
+        match self.ring_info(id) {
+            (Some(_), _, _) => "RingTag",
+            (None, Some(_), _) => "RingChat",
+            _ => "Ring",
+        }
+    }
+
     fn ring_ids(&mut self, name: &str) -> Vec<u32> {
         if self.rings.is_none() {
             let list = self.data.img("String", "Eqp.img").map(|e| names_of(&e, "Ring")).unwrap_or_default();
@@ -1508,9 +1545,18 @@ impl Ctx {
     }
 }
 
-fn tags_of(ctx: &mut Ctx, rings: &[String]) -> TagsOut {
+fn tags_of(ctx: &mut Ctx, rings: &[String], ids: &[u32]) -> TagsOut {
     let mut out = TagsOut::default();
     let (mut tag_id, mut chat_id) = (None, None);
+    for &id in ids {
+        let (t, c, _) = ctx.ring_info(id);
+        if let Some(v) = t {
+            tag_id.get_or_insert(v);
+        }
+        if let Some(v) = c {
+            chat_id.get_or_insert(v);
+        }
+    }
     for name in rings {
         for id in ctx.ring_ids(name) {
             let Ok(Some(info)) = ctx.data.img_child("Character/Ring", &format!("{id:08}.img"), "info") else { continue };
@@ -1536,10 +1582,11 @@ fn tags_of(ctx: &mut Ctx, rings: &[String]) -> TagsOut {
     out
 }
 
-/// 依戒指名稱取得名牌與對話框的外觀
+/// 依戒指（名稱或編號）取得名牌與對話框的外觀
 #[tauri::command]
-pub async fn beauty_tags(game_dir: Option<String>, rings: Vec<String>) -> Result<TagsOut, String> {
-    tauri::async_runtime::spawn_blocking(move || with_ctx(game_dir.as_deref(), |ctx| Ok(tags_of(ctx, &rings))))
+pub async fn beauty_tags(game_dir: Option<String>, rings: Vec<String>, ids: Option<Vec<u32>>) -> Result<TagsOut, String> {
+    let ids = ids.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || with_ctx(game_dir.as_deref(), |ctx| Ok(tags_of(ctx, &rings, &ids))))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -1591,6 +1638,15 @@ fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
         .collect();
     let mut list = Vec::with_capacity(cands.len());
     for (id, name, c) in cands {
+        // 戒指：只列出名牌戒指、聊天戒指
+        if c == "Ring" {
+            let (_, _, cash) = ctx.ring_info(id);
+            let slot = ctx.ring_slot(id);
+            if slot != "Ring" {
+                list.push(ItemOut { id, name, slot, cash, dye: None });
+            }
+            continue;
+        }
         let cash = ctx
             .data
             .img_child(&rel, &format!("{id:08}.img"), "info")
