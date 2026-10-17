@@ -190,8 +190,8 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">黃金蘋果轉蛋模擬器</span>
           <div class="g-pages" id="gPages">
-            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
             <button class="cbtn c-purple" data-page="import">解析/垃圾</button>
+            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
           </div>
         </nav>
 
@@ -299,8 +299,8 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">美容美髮模擬器</span>
           <div class="g-pages" id="bPages">
-            <button class="cbtn c-pink" data-page="sim">抽獎模擬</button>
             <button class="cbtn c-purple" data-page="import">解析</button>
+            <button class="cbtn c-pink" data-page="sim">抽獎模擬</button>
           </div>
         </nav>
 
@@ -448,8 +448,8 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">閃亮彗星</span>
           <div class="g-pages" id="cPages">
-            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
             <button class="cbtn c-purple" data-page="import">解析</button>
+            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
           </div>
         </nav>
 
@@ -461,6 +461,7 @@
             </div>
             <div class="g-toolbar">
               <label class="g-cost">閃亮彗星每顆價格<input type="text" inputmode="decimal" id="cCost" placeholder="0" /></label>
+              <button class="cbtn c-teal small" id="cAutoPrice">自動帶入價格</button>
               <span class="spacer"></span>
               <button class="cbtn c-red small" id="cClearItems">清除道具</button>
             </div>
@@ -496,7 +497,7 @@
                 <button class="g-box c-ex-bright" id="cExBright"><span>開啟璀璨彗星</span><small>消耗 80 碎片</small></button>
               </div>
               <div class="g-actions-foot">
-                <button class="cbtn c-amber small solid" id="cAutoBtn">自動分解</button>
+                <button class="cbtn c-amber small solid" id="cAutoBtn" title="到「解析」頁設定自動分解">自動分解設定</button>
                 <span class="muted c-auto-info" id="cAutoInfo"></span>
                 <button class="cbtn c-red small solid" id="cReset">重置統計</button>
               </div>
@@ -520,29 +521,32 @@
           </div>
         </div>
 
-        <div class="g-page g-import" id="cPageImport" hidden>
+        <div class="g-page g-import c-import" id="cPageImport" hidden>
+          <div class="card g-imp c-auto-card">
+            <div class="c-auto-head">
+              <h3>自動分解</h3>
+              <div class="c-auto-grades" id="cAutoGrades">
+                <button class="cbtn c-amber small" data-g="S">S 級</button>
+                <button class="cbtn c-purple small" data-g="A">A 級</button>
+                <button class="cbtn c-blue small" data-g="B">B 級</button>
+                <button class="cbtn c-silver small" data-g="C">C 級</button>
+              </div>
+              <span class="spacer"></span>
+              <button class="cbtn c-red small" id="cAutoNone">全部取消</button>
+              <button class="cbtn c-green small solid" id="cAutoNow" title="把保管箱裡符合設定的道具現在就分解">立即分解保管箱</button>
+            </div>
+            <p class="hint">選等級會自動分解該等級的全部道具，再點其中某件可以單獨保留；沒選等級時點道具可以個別指定。會自動分解的道具也就是垃圾道具：自動帶入價格時留空。</p>
+            <div class="c-auto-list" id="cAutoList"></div>
+          </div>
           <div class="card g-imp">
             <h3>獎池解析</h3>
-            <p class="hint">貼上官網的機率表（每行「等級 名稱 機率%」）。遇到「璀璨彗星」標題後的道具放進璀璨彗星獎池，並取代原本的道具。兩件共用一個機率的，兩件各自都是這個機率。</p>
+            <p class="hint">貼上官網的機率表（每行「等級 名稱 機率%」）。遇到「璀璨彗星」標題後的道具放進璀璨彗星獎池，並取代原本的道具。兩件共用一個機率的，兩件平分這個機率。</p>
             <textarea id="cPaste" placeholder="例如：&#10;A	白熊老闆帽	1.10%&#10;B	橡樹果實松鼠帽子	1.60%&#10;璀璨彗星&#10;S	深海月亮蝴蝶結	1.80%"></textarea>
             <div class="g-imp-foot">
               <span class="muted" id="cParseResult"></span>
               <button class="cbtn c-blue small solid" id="cParse">解析並套用</button>
             </div>
-          </div>
-          <div class="card g-imp">
-            <h3>規則</h3>
-            <div class="c-rules">
-              <div><span class="c-grade gS">S</span>分解得 10 個彗星碎片</div>
-              <div><span class="c-grade gA">A</span>分解得 5 個彗星碎片</div>
-              <div><span class="c-grade gB">B</span>分解得 3 個彗星碎片</div>
-              <div><span class="c-grade gC">C</span>分解得 1 個彗星碎片</div>
-              <div class="c-rule-sep"></div>
-              <div>20 個彗星碎片換 1 顆閃亮彗星</div>
-              <div>80 個彗星碎片換 1 顆璀璨彗星（只能用碎片換）</div>
-              <div class="c-rule-sep"></div>
-              <div class="muted">期望值計算時，每件道具取「留著的價值」與「分解成碎片的價值」較高者；1 個碎片的價值取「換閃亮彗星」與「換璀璨彗星」中較划算的。</div>
-            </div>
+            <div class="c-rule-line" id="cRuleLine"></div>
           </div>
         </div>
       </section>
@@ -567,11 +571,39 @@
               <h3>通知設定</h3>
               <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
               <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束（斷線後關閉或當機）</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
+              <div class="w-row"><span>通知方式<small class="muted">Windows 通知會留在通知中心，獨佔全螢幕也收得到</small></span>
+                <div class="seg" id="wMode">
+                  <button data-v="windows">Windows 通知</button>
+                  <button data-v="app">程式通知</button>
+                  <button data-v="both">兩者</button>
+                </div>
+              </div>
+              <div class="w-warn" id="wWarn" hidden>
+                <span id="wWarnText">Windows 已關閉這個程式的通知</span>
+                <button class="cbtn c-amber small solid" id="wOpenSettings">開啟通知設定</button>
+              </div>
               <label class="w-row"><span>播放音效</span><span class="switch sm"><input type="checkbox" id="wSound" /><span class="slider"></span></span></label>
+              <div class="w-row w-sound-row"><span>音效</span>
+                <span class="w-inline">
+                  <select class="sel" id="wSoundName">
+                    <option value="beep1">柔和木琴</option>
+                    <option value="beep2">柔和鐘聲</option>
+                    <option value="beep3">溫和雙音</option>
+                    <option value="tts">語音唸出通知</option>
+                    <option value="file">自訂音效檔…</option>
+                  </select>
+                  <button class="pill ghost small" id="wPick" hidden>選擇檔案</button>
+                  <button class="link-btn" id="wPreview">試聽</button>
+                </span>
+              </div>
+              <div class="w-row"><span>音量</span>
+                <span class="w-th"><input type="range" class="range" id="wVol" min="0" max="200" step="1" /><b id="wVolV">100%</b></span>
+              </div>
               <div class="w-row"><span>中斷多久算斷線<small class="muted">換頻道、進出商城時連線會短暫切換</small></span>
                 <span class="w-th"><input type="range" class="range" id="wTh" min="5" max="120" step="5" /><b id="wThV">20 秒</b></span>
               </div>
-              <p class="hint">通知會出現在螢幕右下角，遊戲是視窗化或無邊框全螢幕時看得到；獨佔全螢幕時會被遊戲蓋住。</p>
+              <p class="hint" id="wFileName"></p>
+              <p class="hint">「程式通知」是螢幕右下角的小視窗，遊戲是視窗化或無邊框全螢幕時看得到。Windows 開著「勿擾模式」時，Windows 通知只會進通知中心、不會跳出來。</p>
             </div>
             <div class="card w-log">
               <div class="w-log-head"><h3>紀錄</h3><button class="cbtn c-red small" id="wClear">清除</button></div>
@@ -582,26 +614,6 @@
       </section>
     </main>
 
-  <!-- 閃亮彗星：自動分解 -->
-  <div class="b-modal" id="cAutoWin" hidden>
-    <div class="b-modal-box c-auto-box">
-      <div class="b-modal-head">
-        <strong>自動分解</strong>
-        <div class="c-auto-grades" id="cAutoGrades">
-          <button class="cbtn c-amber small" data-g="S">S 級</button>
-          <button class="cbtn c-purple small" data-g="A">A 級</button>
-          <button class="cbtn c-blue small" data-g="B">B 級</button>
-          <button class="cbtn c-silver small" data-g="C">C 級</button>
-        </div>
-        <span class="spacer"></span>
-        <button class="cbtn c-red small" id="cAutoNone">全部取消</button>
-        <button class="cbtn c-green small solid" id="cAutoNow" title="把保管箱裡符合設定的道具現在就分解">立即分解保管箱</button>
-        <button class="b-x" id="cAutoClose" title="關閉">×</button>
-      </div>
-      <p class="muted c-auto-hint">選等級會自動分解該等級的全部道具，再點其中某件可以單獨取消（保留）；沒選等級時點道具可以個別指定。之後抽到要分解的道具會直接變成彗星碎片，不進保管箱。</p>
-      <div class="c-auto-list" id="cAutoList"></div>
-    </div>
-  </div>
   </div>
 
   <!-- 美容美髮：時裝染色 -->

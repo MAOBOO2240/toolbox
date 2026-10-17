@@ -4,7 +4,7 @@
 //! - 遊戲還在執行，但它對外的 TCP 連線全部中斷超過設定秒數 → 「可能斷線」
 //!   （換頻道、進出商城時連線會短暫切換，所以要持續一段時間才算）
 
-use crate::{audio, notify};
+use crate::{audio, notify, toast};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -22,11 +22,45 @@ pub struct WatchCfg {
     pub threshold: u64,
     /// 通知時播放音效
     pub sound: bool,
+    /// 音效：beep1 / beep2 / beep3 / tts / file
+    pub sound_name: String,
+    pub sound_file: String,
+    /// 音量 0–200
+    pub volume: u32,
+    /// 通知方式：app（程式右下角小視窗）/ windows（Windows 通知）/ both
+    pub mode: String,
 }
 
 impl Default for WatchCfg {
     fn default() -> Self {
-        Self { on_close: true, on_disconnect: true, threshold: 20, sound: true }
+        Self {
+            on_close: true,
+            on_disconnect: true,
+            threshold: 20,
+            sound: true,
+            sound_name: "beep2".into(),
+            sound_file: String::new(),
+            volume: 100,
+            mode: "both".into(),
+        }
+    }
+}
+
+fn play(cfg: &WatchCfg, speech: &str) {
+    if cfg.sound {
+        audio::play(&cfg.sound_name, &cfg.sound_file, speech, cfg.volume.min(200));
+    }
+}
+
+/// 依設定的通知方式發出通知；Windows 通知失敗時改用程式自己的通知
+fn deliver(app: &AppHandle, cfg: &WatchCfg, title: &str, body: &str) {
+    let win = cfg.mode == "windows" || cfg.mode == "both";
+    let mut app_popup = cfg.mode != "windows";
+    if win && toast::show(title, body).is_err() {
+        app_popup = true;
+    }
+    if app_popup {
+        notify::show(app, title, body, "warn");
     }
 }
 
@@ -149,16 +183,14 @@ fn established(_pids: &[u32]) -> u32 {
 /* ---------------- 背景執行緒 ---------------- */
 
 fn alert(app: &AppHandle, title: &str, body: &str) {
-    let sound = {
+    let cfg = {
         let mut g = inner();
         g.status.events.insert(0, WatchEvent { at: now_ms(), text: format!("{title}：{body}") });
         g.status.events.truncate(30);
-        g.cfg.sound
+        g.cfg.clone()
     };
-    if sound {
-        audio::play("beep2", "", "", 100);
-    }
-    notify::show(app, title, body, "warn");
+    play(&cfg, title);
+    deliver(app, &cfg, title, body);
 }
 
 pub fn init(app: &AppHandle, path: PathBuf) {
@@ -235,7 +267,7 @@ pub fn watch_get() -> (WatchCfg, WatchStatus) {
 #[tauri::command]
 pub fn watch_set(cfg: WatchCfg) {
     let mut g = inner();
-    g.cfg = WatchCfg { threshold: cfg.threshold.clamp(5, 600), ..cfg };
+    g.cfg = WatchCfg { threshold: cfg.threshold.clamp(5, 600), volume: cfg.volume.min(200), ..cfg };
     if let Ok(s) = serde_json::to_string_pretty(&g.cfg) {
         let _ = std::fs::write(&g.path, s);
     }
@@ -244,4 +276,18 @@ pub fn watch_set(cfg: WatchCfg) {
 #[tauri::command]
 pub fn watch_clear_log() {
     inner().status.events.clear();
+}
+
+/// 測試通知：用目前的通知方式與音效
+#[tauri::command]
+pub async fn watch_test(app: AppHandle) {
+    let cfg = inner().cfg.clone();
+    play(&cfg, "測試通知");
+    deliver(&app, &cfg, "測試通知", "斷線或遊戲關閉時，會像這樣通知你。");
+}
+
+/// 試聽音效
+#[tauri::command]
+pub fn watch_preview(cfg: WatchCfg) {
+    audio::play(&cfg.sound_name, &cfg.sound_file, "新楓之谷斷線了", cfg.volume.min(200));
 }

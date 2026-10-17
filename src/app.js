@@ -142,6 +142,8 @@ function applySettings() {
   $$("#fontSeg button").forEach((b) => b.classList.toggle("on", b.dataset.font === settings.font));
   $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === theme));
   api.setWindowTheme(theme);
+  // 視窗外框（標題列與邊框）換成和程式內容有區別的顏色
+  if (TAURI) invoke("set_frame", { dark: theme === "dark" }).catch(() => {});
 }
 
 function saveSettings() {
@@ -552,8 +554,8 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
   $("#updNow").addEventListener("click", install);
   $("#updLater").addEventListener("click", closeDialog);
 
-  refresh();
-  setTimeout(() => check(false), 8000);
+  // 程式一開啟就先檢查一次
+  refresh().then(() => check(false));
   // 每 30 分鐘檢查一次；按過「稍後」的，下次檢查時再提醒
   setInterval(() => { prompted = false; check(false); }, 30 * 60 * 1000);
 })();

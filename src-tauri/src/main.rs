@@ -13,6 +13,7 @@ mod watch;
 mod wz;
 mod serial;
 mod timers;
+mod toast;
 
 use serial::{AppState, Settings};
 use std::path::PathBuf;
@@ -196,6 +197,34 @@ fn setup_main_window(app: &tauri::App, st: &AppState) {
     let _ = win.set_focus();
 }
 
+/// Windows 11：設定標題列與邊框顏色，和程式內容的底色區分開（Windows 10 會忽略）
+#[tauri::command]
+fn set_frame(window: WebviewWindow, dark: bool) {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+        const DWMWA_BORDER_COLOR: i32 = 34;
+        const DWMWA_CAPTION_COLOR: i32 = 35;
+        const DWMWA_TEXT_COLOR: i32 = 36;
+        // COLORREF 是 0x00BBGGRR
+        let rgb = |r: u32, g: u32, b: u32| (b << 16) | (g << 8) | r;
+        let (caption, text, border) = if dark {
+            (rgb(0x0f, 0x11, 0x16), rgb(0xe8, 0xec, 0xf3), rgb(0x3d, 0x5a, 0x99))
+        } else {
+            (rgb(0xd9, 0xe1, 0xec), rgb(0x1d, 0x24, 0x33), rgb(0x8f, 0xa6, 0xc8))
+        };
+        if let Ok(h) = window.hwnd() {
+            for (attr, color) in [(DWMWA_CAPTION_COLOR, caption), (DWMWA_TEXT_COLOR, text), (DWMWA_BORDER_COLOR, border)] {
+                unsafe {
+                    DwmSetWindowAttribute(h.0 as _, attr, &color as *const u32 as _, 4);
+                }
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = (window, dark);
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -214,6 +243,7 @@ fn main() {
             maple_api::init(dir.join("maple_cache.json"));
             timers::init(app.handle(), dir.join("timers.json"));
             update::init(dir.join("update.json"));
+            toast::init(dir.clone());
             watch::init(app.handle(), dir.join("watch.json"));
 
             let (tx, rx) = mpsc::channel();
@@ -259,6 +289,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state,
+            set_frame,
             extract,
             set_index,
             set_active,
@@ -294,6 +325,10 @@ fn main() {
             watch::watch_get,
             watch::watch_set,
             watch::watch_clear_log,
+            watch::watch_test,
+            watch::watch_preview,
+            toast::toast_status,
+            toast::open_notify_settings,
             update::update_info,
             update::update_set,
             update::update_check,

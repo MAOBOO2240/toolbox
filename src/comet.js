@@ -20,7 +20,7 @@ const CometCore = (() => {
   /**
    * 解析官網的機率表。每行「等級 名稱 機率%」，以 Tab 或空白分隔。
    * 遇到含「璀璨彗星」的標題行後，之後的道具放進璀璨彗星獎池。
-   * 兩件共用一個機率（機率寫在兩件中間那一行）時，兩件各自都是這個機率。
+   * 兩件共用一個機率（機率寫在兩件中間那一行）時，兩件平分這個機率（各一半）。
    */
   function parse(text) {
     const out = { shiny: [], bright: [] };
@@ -34,9 +34,17 @@ const CometCore = (() => {
       const onlyPct = /^(\d+(?:\.\d+)?)\s*%$/.exec(line);
       if (onlyPct) {
         const p = parseFloat(onlyPct[1]);
-        for (const it of pending) push(it.grade, it.name, p);
+        if (pending.length >= 2) {
+          // 機率前面已經列出整組：平分
+          for (const it of pending) push(it.grade, it.name, +(p / pending.length).toFixed(6));
+          partnerProb = null;
+        } else {
+          // 機率夾在兩件中間：前一件拿一半，下一件拿另一半
+          const half = +(p / 2).toFixed(6);
+          for (const it of pending) push(it.grade, it.name, half);
+          partnerProb = half;
+        }
         pending = [];
-        partnerProb = p;
         continue;
       }
       const m = /^([SABC])\s+(.+?)(?:\s+(\d+(?:\.\d+)?)\s*%)?$/.exec(line);
@@ -131,6 +139,64 @@ const CometCore = (() => {
     return { pool, hasValues, ev, perFrag: ev / BRIGHT_FRAG, frag, above, rare: ev > 0 ? topEv / ev : 0, shinyEq: state.cost > 0 ? ev / state.cost : null };
   }
 
+  /** 取兩位有效數字，讓數字好讀 */
+  function nice(n) {
+    if (!(n > 0)) return 0;
+    const mag = Math.pow(10, Math.floor(Math.log10(n)) - 1);
+    return Math.max(1, Math.round(n / mag) * mag);
+  }
+
+  /**
+   * 自動帶入價格：
+   * - 會自動分解的道具 = 垃圾，留空（價值就是分解出的碎片）
+   * - 其他道具：權重 = (1 / 每抽獲得機率)^0.8 × 等級係數（越稀有、等級越高越貴）；
+   *   璀璨彗星的道具依「每抽閃亮彗星平均能換到幾顆璀璨彗星」折算機率
+   * - 整體縮放成「閃亮彗星每抽期望值 ≈ 每顆價格」
+   */
+  function autoPrice(state, isJunk) {
+    const { pools, cost } = state;
+    const tot = (p) => Math.max(100, sum(withFiller(pools[p])));
+    // 每抽平均拿到的碎片：有設定自動分解就只算那些；完全沒設定時，假設全部都會分解
+    const anyJunk = pools.shiny.some((it) => isJunk("shiny", it));
+    const fragPerDraw = pools.shiny.reduce((a, it) => a + (!anyJunk || isJunk("shiny", it) ? (it.prob / tot("shiny")) * FRAG[it.grade] : 0), 0);
+    const brightPerDraw = Math.max(fragPerDraw / BRIGHT_FRAG, 1e-4);
+    const weight = {};
+    for (const pool of POOLS) {
+      for (const it of pools[pool]) {
+        if (isJunk(pool, it)) continue;
+        const pe = (it.prob / tot(pool)) * (pool === "bright" ? brightPerDraw : 1);
+        // 等級越高越值錢：同樣稀有時 S > A > B > C
+        const tier = { S: 2, A: 1.4, B: 1, C: 0.7 }[it.grade] || 1;
+        if (pe > 0) weight[it.name] = Math.max(weight[it.name] || 0, Math.pow(1 / pe, 0.8) * tier);
+      }
+    }
+    const valuesAt = (k) => { const v = {}; for (const n in weight) v[n] = weight[n] * k; return v; };
+    const evAt = (k) => analyze({ ...state, values: valuesAt(k) }, "shiny").ev;
+    let k = 0;
+    const base = evAt(0);
+    if (cost > base) {
+      let lo = 0, hi = 1;
+      while (evAt(hi) < cost && hi < 1e15) hi *= 4;
+      for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (evAt(mid) < cost) lo = mid; else hi = mid; }
+      k = (lo + hi) / 2;
+    } else {
+      // 光是碎片就超過成本時，道具仍給一個合理的基準價值
+      let hi = 1;
+      while (evAt(hi) < base * 1.5 && hi < 1e15) hi *= 4;
+      k = hi;
+    }
+    // 留著的道具，價格至少要等於分解成碎片的價值（比這低的話直接分解就好）
+    const fragFloor = cost > 0 ? cost / SHINY_FRAG : 0;
+    const values = {};
+    for (const pool of POOLS) {
+      for (const it of pools[pool]) {
+        if (!(it.name in weight)) { values[it.name] = values[it.name] ?? null; continue; }
+        values[it.name] = Math.max(values[it.name] || 0, nice(Math.max(weight[it.name] * k, FRAG[it.grade] * fragFloor)));
+      }
+    }
+    return values;
+  }
+
   const pct = (x, d = 1) => `${(x * 100).toFixed(d)}%`;
 
   function comment(a, fmt) {
@@ -153,7 +219,7 @@ const CometCore = (() => {
     return lines;
   }
 
-  return { POOLS, POOL_NAME, GRADES, FRAG, SHINY_FRAG, BRIGHT_FRAG, FILLER, parse, sum, withFiller, sampler, valueOf, effective, poolEv, fragmentValue, analyze, comment };
+  return { POOLS, POOL_NAME, GRADES, FRAG, SHINY_FRAG, BRIGHT_FRAG, FILLER, parse, sum, withFiller, sampler, valueOf, effective, poolEv, fragmentValue, analyze, comment, autoPrice };
 })();
 
 if (typeof module !== "undefined") module.exports = CometCore;
@@ -316,6 +382,13 @@ B	愛心守護者短杖	1.30%`;
     } catch (_) {}
     return d;
   })();
+  // 成對道具改成平分機率：獎池還是預設內容時，重新解析一次
+  if (!st.pairHalf) {
+    const fresh = C.parse(DEFAULT_TEXT);
+    const names = (p) => p.map((it) => it.name).join("|");
+    if (C.POOLS.every((k) => names(st.pools[k] || []) === names(fresh[k]))) st.pools = fresh;
+    st.pairHalf = true;
+  }
   let saveTimer;
   const save = () => {
     clearTimeout(saveTimer);
@@ -406,7 +479,7 @@ B	愛心守護者短杖	1.30%`;
       const v = st.values[it.name];
       val.value = typeof v === "number" ? intFmt.format(v) : "";
       val.addEventListener("focus", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? String(x) : ""; val.select(); });
-      val.addEventListener("input", () => { st.values[it.name] = val.value.trim() === "" ? null : parseNum(val.value); save(); renderRight(); });
+      val.addEventListener("input", () => { st.values[it.name] = val.value.trim() === "" ? null : parseNum(val.value); save(); renderRight(); renderPriceBtn(); });
       val.addEventListener("blur", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? intFmt.format(x) : ""; });
       const del = document.createElement("button");
       del.className = "g-del";
@@ -617,6 +690,8 @@ B	愛心守護者短杖	1.30%`;
     renderPage();
     renderPool();
     renderRight();
+    renderPriceBtn();
+    if (st.page === "import") { renderAutoWin(); renderRuleLine(); }
     if (document.activeElement !== $("#cCost")) $("#cCost").value = st.cost ? intFmt.format(st.cost) : "";
   }
 
@@ -756,15 +831,51 @@ B	愛心守護者短杖	1.30%`;
     }
   }
 
+  /* ---------- 自動帶入價格 ---------- */
+  const hasAnyValue = () => Object.values(st.values).some((v) => typeof v === "number" && isFinite(v));
+  function renderPriceBtn() {
+    const btn = $("#cAutoPrice");
+    const any = hasAnyValue();
+    btn.textContent = any ? "移除全部價格" : "自動帶入價格";
+    btn.classList.toggle("c-teal", !any);
+    btn.classList.toggle("c-red", any);
+    btn.title = any ? "清空所有道具的價值" : "依機率估算基準價值：越稀有越高；會自動分解的道具（垃圾）留空";
+  }
+
+  /** 規則：一行小字（等級分解碎片、碎片兌換） */
+  function renderRuleLine() {
+    const box = $("#cRuleLine");
+    if (box.childElementCount) return;
+    const add = (...nodes) => { const span = document.createElement("span"); span.className = "c-rule"; span.append(...nodes); box.append(span); };
+    const txt = (t) => document.createTextNode(t);
+    for (const g of C.GRADES) add(gradeBadge(g), txt(`${C.FRAG[g]}`));
+    add(ItemIcons.el("彗星碎片"), txt("分解得到的彗星碎片"));
+    add(txt(`${C.SHINY_FRAG} 個 → `), ItemIcons.el("閃亮彗星"), txt("閃亮彗星"));
+    add(txt(`${C.BRIGHT_FRAG} 個 → `), ItemIcons.el("璀璨彗星"), txt("璀璨彗星"));
+  }
+
   /* ---------- 事件 ---------- */
   $$("#cPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderAll(); }));
   if (window.BackHooks) window.BackHooks["view-comet"] = {
     label: () => (st.page === "import" ? "上一頁" : null),
     back: () => { if (st.page !== "import") return false; st.page = "sim"; save(); renderAll(); return true; },
   };
+  $$("#cTabs button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.pool === "shiny" ? "閃亮彗星" : "璀璨彗星")));
   $$("#cTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
   $("#cCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#cCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderRight(); });
+  $("#cAutoPrice").addEventListener("click", async () => {
+    if (hasAnyValue()) {
+      if (!(await confirmBox("確定要移除所有道具的價格嗎？"))) return;
+      st.values = {};
+      save(); renderAll();
+      return;
+    }
+    if (!(st.cost > 0)) return toast("請先輸入閃亮彗星每顆價格，自動價格以它為基準");
+    st.values = C.autoPrice(st, isAuto);
+    save(); renderAll();
+    toast("已帶入基準價格（自動分解的道具留空），可再依實際行情調整");
+  });
   $("#cCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
 
   $("#cAdd").addEventListener("click", () => {
@@ -801,10 +912,7 @@ B	愛心守護者短杖	1.30%`;
   });
 
   // 自動分解視窗
-  $("#cAutoBtn").addEventListener("click", () => { renderAutoWin(); $("#cAutoWin").hidden = false; });
-  $("#cAutoClose").addEventListener("click", () => { $("#cAutoWin").hidden = true; });
-  $("#cAutoWin").addEventListener("pointerdown", (e) => { if (e.target === $("#cAutoWin")) $("#cAutoWin").hidden = true; });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#cAutoWin").hidden = true; });
+  $("#cAutoBtn").addEventListener("click", () => { st.page = "import"; save(); renderAll(); });
   $$("#cAutoGrades button").forEach((b) => b.addEventListener("click", () => {
     const g = b.dataset.g;
     st.auto.grades[g] = !st.auto.grades[g];

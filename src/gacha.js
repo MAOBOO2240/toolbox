@@ -838,6 +838,9 @@ if (typeof document !== "undefined") (() => {
     label: () => (st.page === "import" ? "上一頁" : null),
     back: () => { if (st.page !== "import") return false; st.page = "sim"; save(); renderAll(); return true; },
   };
+  // 獎池分頁加上遊戲道具圖示
+  const TAB_ITEM = { apple: "黃金蘋果", silver: "幸運的銀色箱子", gold: "幸運的金色箱子" };
+  $$("#gTabs button").forEach((b) => b.prepend(ItemIcons.el(TAB_ITEM[b.dataset.pool])));
   $$("#gTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
 
   $("#gCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });

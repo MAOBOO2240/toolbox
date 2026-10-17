@@ -520,3 +520,8 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .pop-token input:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .pop-status { font-size: 0.75rem; text-align: right; max-width: 12rem; }
 .upd-sub { margin: -0.3rem 0 1rem; font-size: 0.9rem; text-align: center; }
+
+/* 獎池分頁上的道具圖示 */
+.g-tabs .cbtn, .b-kind .cbtn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
+.g-tabs .cbtn .item-ic, .b-kind .cbtn .item-ic { width: 1.9rem; height: 1.9rem; background: transparent; }
+.g-tabs .cbtn .item-ic.none, .b-kind .cbtn .item-ic.none { display: none; }

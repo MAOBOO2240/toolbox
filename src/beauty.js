@@ -646,6 +646,7 @@ if (typeof document !== "undefined") (() => {
     save(); renderPage();
     if (st.page === "import") checkWz();
   }));
+  $$("#bKind button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.kind === "hair" ? "皇家美髮券" : "皇家整形券")));
   $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); renderRight(); }));
   $$("#bGender button").forEach((b) => b.addEventListener("click", () => {
     st.gender = b.dataset.g;
