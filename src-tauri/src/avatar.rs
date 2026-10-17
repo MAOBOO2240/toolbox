@@ -30,6 +30,12 @@ struct Ctx {
     item_names: Option<HashMap<String, Vec<(&'static str, u32)>>>,
     /// 依名稱查到的道具圖示
     name_icons: HashMap<String, Option<String>>,
+    /// 某個 img 實際所在的分類資料夾
+    img_rels: HashMap<String, Option<String>>,
+    /// 道具特效（ItemEff.img 的子項目）快取
+    eff_nodes: HashMap<u32, Option<(String, std::sync::Arc<Node>)>>,
+    /// 戒指：編號、名稱
+    rings: Option<Vec<(u32, String)>>,
 }
 
 /// 點裝欄位：飾品依編號再細分成臉飾、眼飾、耳環
@@ -163,13 +169,18 @@ fn prism_round(value: f32, step: f32) -> u8 {
 /// API 的飽和度、亮度是 -99～99，遊戲內部以 100 為不變（1～199）。
 /// 純黑、純白、透明的點不染；4 位元色（ARGB4444）的圖，結果要對齊 17 的倍數。
 fn apply_dye(px: &mut [u8], dye: &Dye) {
+    apply_dye_ex(px, dye, false)
+}
+
+/// effect = true 時（道具特效）不對齊 17 的倍數
+fn apply_dye_ex(px: &mut [u8], dye: &Dye, effect: bool) {
     let hue = dye.hue.rem_euclid(360) as f32;
     let sat = (100 + dye.sat.clamp(-99, 99)) as f32;
     let bri = (100 + dye.val.clamp(-99, 99)) as f32;
     if dye.range > 6 || (hue == 0.0 && sat == 100.0 && bri == 100.0) {
         return;
     }
-    let step = if px.chunks_exact(4).any(|p| p[0] % 17 != 0 || p[1] % 17 != 0 || p[2] % 17 != 0) { 1.0 } else { 17.0 };
+    let step = if effect || px.chunks_exact(4).any(|p| p[0] % 17 != 0 || p[1] % 17 != 0 || p[2] % 17 != 0) { 1.0 } else { 17.0 };
     for p in px.chunks_exact_mut(4) {
         let (r8, g8, b8, a) = (p[0], p[1], p[2], p[3]);
         if a == 0 || (r8 == 0 && g8 == 0 && b8 == 0) || (r8 == 255 && g8 == 255 && b8 == 255) {
@@ -292,6 +303,9 @@ fn open_ctx(dir: PathBuf) -> Result<Ctx, String> {
         styles: HashMap::new(),
         item_names: None,
         name_icons: HashMap::new(),
+        img_rels: HashMap::new(),
+        eff_nodes: HashMap::new(),
+        rings: None,
         hair: names_of(&eqp, "Hair"),
         face: names_of(&eqp, "Face"),
         skin: names_of(&eqp, "Skin"),
@@ -501,27 +515,6 @@ impl Ctx {
         v
     }
 
-    /// 裝備的畫格：一般是 stand1/0；點裝武器會依武器種類再分一層（例如 30/stand1/0）；帽子、飾品用 default
-    fn equip_frame(&mut self, rel: &str, id: u32, pose: &str) -> Option<String> {
-        let root = self.data.img(rel, &format!("{id:08}.img")).ok()?;
-        let has = |p: &str| resolve(&root, p, 0).is_some();
-        for cand in [format!("{pose}/0"), "stand1/0".to_string(), "stand2/0".to_string(), "default".to_string()] {
-            if has(&cand) {
-                return Some(cand);
-            }
-        }
-        for (k, _) in root.children() {
-            if k.chars().all(|c| c.is_ascii_digit()) {
-                for cand in [format!("{k}/{pose}/0"), format!("{k}/stand1/0"), format!("{k}/stand2/0")] {
-                    if has(&cand) {
-                        return Some(cand);
-                    }
-                }
-            }
-        }
-        None
-    }
-
     fn vslot(&mut self, rel: &str, id: u32) -> String {
         self.data
             .img(rel, &format!("{id:08}.img"))
@@ -554,6 +547,21 @@ impl Ctx {
 /// 依錨點（navel、neck、brow…）擺放並依 zmap 疊圖，回傳裁切後的 RGBA
 /// 回傳 (寬, 高, 像素, 起始錨點在圖中的 x, y)
 fn compose(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
+    compose_full(parts, start).map(|c| (c.w, c.h, c.px, -c.x0, -c.y0))
+}
+
+struct Composed {
+    w: u32,
+    h: u32,
+    px: Vec<u8>,
+    /// 圖片左上角在組合座標中的位置
+    x0: i32,
+    y0: i32,
+    /// 各錨點在組合座標中的位置；「@root」是身體圖的原點（角色腳下）
+    anchors: HashMap<String, (i32, i32)>,
+}
+
+fn compose_full(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<Composed> {
     let mut anchors: HashMap<String, (i32, i32)> = start.iter().map(|(k, v)| (k.to_string(), *v)).collect();
     let mut placed: Vec<(i32, usize, i32, i32, &Layer)> = Vec::new();
     for (i, l) in parts.iter().enumerate() {
@@ -564,6 +572,10 @@ fn compose(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<(u32, u32, V
             .unwrap_or((0, 0));
         for (k, (mx, my)) in &l.map {
             anchors.entry(k.clone()).or_insert((pos.0 + mx, pos.1 + my));
+        }
+        // 身體圖的原點就是角色站的位置，特效、殘影以這裡為準
+        if l.name == "body" {
+            anchors.entry("@root".to_string()).or_insert(pos);
         }
         placed.push((l.z, i, pos.0 - l.origin.0, pos.1 - l.origin.1, l));
     }
@@ -601,7 +613,7 @@ fn compose(parts: &[Layer], start: &[(&str, (i32, i32))]) -> Option<(u32, u32, V
             }
         }
     }
-    Some((w, h, out, -x0, -y0))
+    Some(Composed { w, h, px: out, x0, y0, anchors })
 }
 
 fn png_data_url(w: u32, h: u32, px: &[u8]) -> Result<String, String> {
@@ -665,6 +677,10 @@ pub struct RenderReq {
     /// 指定膚色編號（12000 起），優先於 skin 名稱
     #[serde(default)]
     pub skin_id: Option<u32>,
+    /// 要播放的動作："stand"、"attack"、"walk"、"ladder"、"prone"、"sit"、"jump"；
+    /// 有值時另外輸出每一格畫面（anim）
+    #[serde(default)]
+    pub action: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -678,8 +694,48 @@ pub struct RenderOut {
     /// 角色中心在圖中的位置
     pub cx: i32,
     pub cy: i32,
+    /// 角色腳下（身體原點）在圖中的位置
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fx: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fy: Option<i32>,
     /// 實際穿上的點裝
     pub equips: Vec<ItemOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anim: Option<AnimOut>,
+}
+
+/// 一格畫面；x、y 是圖片左上角相對於角色腳下（或特效的錨點）的位置
+#[derive(Serialize, Clone)]
+pub struct AnimFrame {
+    pub png: String,
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
+    pub delay: i32,
+    /// brow、neck、navel 相對於角色腳下的位置（只有角色畫面有）
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub anchors: HashMap<String, (i32, i32)>,
+}
+
+/// 道具特效（Effect/ItemEff.img）：自己循環播放，z >= 0 畫在角色前面，< 0 畫在後面
+#[derive(Serialize)]
+pub struct EffTrack {
+    pub z: i32,
+    /// 跟著哪個錨點："" = 角色腳下，或 brow、neck、navel
+    pub anchor: String,
+    pub frames: Vec<AnimFrame>,
+}
+
+#[derive(Serialize)]
+pub struct AnimOut {
+    /// 實際使用的動作名稱（例如 stand1、swingO1）
+    pub action: String,
+    pub frames: Vec<AnimFrame>,
+    pub effects: Vec<EffTrack>,
+    /// 站立時角色中心相對於腳下的位置（切換動作時畫面不會跳動）
+    pub center: (i32, i32),
 }
 
 #[derive(Serialize)]
@@ -699,153 +755,474 @@ fn with_ctx<T>(hint: Option<&str>, f: impl FnOnce(&mut Ctx) -> Result<T, String>
     f(guard.as_mut().unwrap())
 }
 
-fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
-    with_ctx(req.game_dir.as_deref(), |ctx| {
-        let mut warnings = Vec::new();
-        let female = req.gender.as_deref() == Some("F");
-        let head_only = req.mode.as_deref() == Some("head");
+/// 解析好的角色外觀，畫每一格動作時共用
+struct Look {
+    body_id: u32,
+    head_id: u32,
+    skin: u32,
+    hair_id: Option<u32>,
+    hair_mix: Option<(u32, f32)>,
+    face_id: Option<u32>,
+    face_mix: Option<(u32, f32)>,
+    equips: Vec<(u32, &'static str, Option<Dye>)>,
+    /// 點裝武器依武器種類分的子資料夾（例如 "30/"），一般武器是空字串
+    wprefix: String,
+    /// 武器種類（30 單手劍、40 雙手劍…），決定普通攻擊的動作
+    wtype: Option<u32>,
+    /// 站姿：stand1，雙手武器是 stand2
+    pose: &'static str,
+    /// 帽子、套服等蓋住的欄位代碼（vslot）
+    covered: Vec<String>,
+    has_cap: bool,
+}
 
-        // 膚色：精靈皮膚 → 12012 → 身體 2012、頭 12012
-        let skin = req
-            .skin_id
-            .map(|id| id % 1000)
-            .or_else(|| req.skin.as_deref().and_then(|s| ctx.skin.iter().find(|(_, n)| n == s.trim()).map(|(id, _)| id % 1000)))
-            .unwrap_or(0);
-        let (body_id, head_id) = if ctx.has("Character", 2000 + skin) { (2000 + skin, 12000 + skin) } else { (2000, 12000) };
+/// 普通攻擊：依武器種類挑動作（找不到時改用武器有的其他攻擊動作）
+fn attack_prefs(wtype: Option<u32>) -> &'static [&'static str] {
+    match wtype {
+        Some(40..=42) => &["swingT1", "swingT3", "swingT2", "stabT1"],
+        Some(43) => &["stabT1", "stabT2", "swingT2"],
+        Some(44) => &["swingP1", "swingP2", "stabT2"],
+        Some(45) => &["shoot1"],
+        Some(46) => &["shoot2"],
+        Some(49) => &["shootF", "shoot1"],
+        _ => &["swingO1", "stabO1", "swingO2", "swingO3"],
+    }
+}
 
-        // 髮型
-        let mut hair_id = None;
-        let mut hair_mix = None;
-        let hreq = req.hair.clone();
-        if let Some(h) = &hreq {
-            let fem = h.gender.as_deref().map(|g| g == "F").unwrap_or(female);
-            let found = if let Some(id) = h.id.filter(|&id| ctx.has("Character/Hair", id)) {
-                Some((id / 10 * 10, id))
-            } else if h.name.trim().is_empty() {
-                // 沒指定造型、只指定顏色：用預設髮型
-                [if fem { 31000 } else { 30000 }, 30000].into_iter().find(|&id| ctx.has("Character/Hair", id)).map(|id| (id, id))
-            } else {
-                pick_family(&ctx.hair, &h.name, |id| id / 10 * 10, fem, true)
+const ATTACK_ACTIONS: [&str; 19] = [
+    "swingO1", "swingO2", "swingO3", "swingOF", "swingT1", "swingT2", "swingT3", "swingTF", "swingP1", "swingP2", "swingPF", "stabO1",
+    "stabO2", "stabOF", "stabT1", "stabT2", "stabTF", "shoot1", "shoot2",
+];
+
+/// 武器沒有寫殘影名稱時（點裝武器），依武器種類猜一個
+fn afterimage_guess(wtype: Option<u32>) -> &'static [&'static str] {
+    match wtype {
+        Some(30) => &["swordOL", "swordOS"],
+        Some(31) | Some(41) => &["axe"],
+        Some(32) | Some(42) | Some(37) | Some(38) => &["mace"],
+        Some(33) => &["dagger"],
+        Some(40) => &["swordTL", "swordTS"],
+        Some(43) => &["spear"],
+        Some(44) => &["poleArm"],
+        Some(45) => &["bow"],
+        Some(46) => &["crossBow"],
+        Some(47) => &["claw"],
+        Some(48) => &["knuckle"],
+        Some(49) => &["gun"],
+        _ => &[],
+    }
+}
+
+/// 一張圖：寬、高、像素、原點
+type Pic = (u32, u32, Vec<u8>, (i32, i32));
+
+/// 把幾張各自有原點的圖合成一張；回傳 (寬, 高, 像素, 左上角相對於原點的 x, y)
+fn merge_canvases(list: &[Pic]) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
+    let x0 = list.iter().map(|(_, _, _, o)| -o.0).min()?;
+    let y0 = list.iter().map(|(_, _, _, o)| -o.1).min()?;
+    let x1 = list.iter().map(|(w, _, _, o)| -o.0 + *w as i32).max()?;
+    let y1 = list.iter().map(|(_, h, _, o)| -o.1 + *h as i32).max()?;
+    let (w, h) = ((x1 - x0).max(1) as u32, (y1 - y0).max(1) as u32);
+    if w > 2000 || h > 2000 {
+        return None;
+    }
+    let mut out = vec![0u8; (w * h * 4) as usize];
+    for (lw, lh, px, o) in list {
+        let (ox, oy) = ((-o.0 - x0) as usize, (-o.1 - y0) as usize);
+        for py in 0..*lh as usize {
+            for pxx in 0..*lw as usize {
+                let s = (py * *lw as usize + pxx) * 4;
+                let sa = px[s + 3] as f32 / 255.0;
+                if sa <= 0.0 {
+                    continue;
+                }
+                let d = ((oy + py) * w as usize + ox + pxx) * 4;
+                let da = out[d + 3] as f32 / 255.0;
+                let oa = sa + da * (1.0 - sa);
+                for c in 0..3 {
+                    out[d + c] = ((px[s + c] as f32 * sa + out[d + c] as f32 * da * (1.0 - sa)) / oa).round().clamp(0.0, 255.0) as u8;
+                }
+                out[d + 3] = (oa * 255.0).round() as u8;
+            }
+        }
+    }
+    Some((w, h, out, x0, y0))
+}
+
+fn canvas_origin(node: &Node) -> (i32, i32) {
+    node.get("origin").and_then(|v| v.as_vec()).unwrap_or((0, 0))
+}
+
+fn canvas_delay(node: &Node) -> Option<i32> {
+    node.get("delay").and_then(|v| v.as_int()).map(|d| (d as i32).abs()).filter(|d| *d > 0)
+}
+
+impl Ctx {
+    /// 第一個存在的畫格路徑
+    fn first_frame(&mut self, rel: &str, id: u32, cands: &[String]) -> Option<String> {
+        let root = self.data.img(rel, &format!("{id:08}.img")).ok()?;
+        cands.iter().find(|c| resolve(&root, c, 0).is_some()).cloned()
+    }
+
+    /// 裝備在某一格動作要用的畫格：一般是「動作/格」；點裝武器多一層武器種類；
+    /// 帽子、飾品沒有動作時用 default（背面用 backDefault）；臉飾、眼飾在背面時不顯示
+    #[allow(clippy::too_many_arguments)]
+    fn equip_frame_at(&mut self, rel: &str, id: u32, cat: &str, prefix: &str, action: &str, idx: usize, face: bool) -> Option<String> {
+        let acc = if cat == "Accessory" { id / 10000 } else { 0 };
+        if !face && (acc == 101 || acc == 102) {
+            return None;
+        }
+        let mut cands: Vec<String> = Vec::new();
+        if acc == 101 {
+            cands.push("default".into());
+        }
+        cands.push(format!("{prefix}{action}/{idx}"));
+        cands.push(format!("{prefix}{action}/0"));
+        if cat == "Cap" || cat == "Accessory" {
+            if !face {
+                cands.push("backDefault".into());
+            }
+            cands.push("default".into());
+        } else if action.starts_with("stand") {
+            cands.extend([format!("{prefix}stand1/0"), format!("{prefix}stand2/0"), "default".into()]);
+        } else {
+            cands.push("default".into());
+        }
+        self.first_frame(rel, id, &cands)
+    }
+
+    /// 某個 img 在分類資料夾或它底下一層子資料夾的位置（例如 Effect/ItemEff.img、UI/NameTag.img）
+    fn img_rel(&mut self, base: &str, img: &str) -> Option<String> {
+        let key = format!("{base}|{img}");
+        if let Some(v) = self.img_rels.get(&key) {
+            return v.clone();
+        }
+        let found = (|| {
+            let p = self.data.package(base).ok()?;
+            if p.imgs.contains_key(img) {
+                return Some(base.to_string());
+            }
+            for sd in p.subdirs.iter().filter(|s| !s.starts_with('_')) {
+                let rel = format!("{base}/{sd}");
+                if let Ok(q) = self.data.package(&rel) {
+                    if q.imgs.contains_key(img) {
+                        return Some(rel);
+                    }
+                }
+            }
+            None
+        })();
+        self.img_rels.insert(key, found.clone());
+        found
+    }
+
+    /// 只解析大 img 的其中一個子項目（ItemEff.img 很大，整個解析太慢）；_inlink 也在這個子項目裡找
+    fn child_pixels(&mut self, rel: &str, img: &str, key: &str, child: &Node, node: &Node, depth: u32) -> Option<(u32, u32, Vec<u8>)> {
+        if depth > 4 {
+            return None;
+        }
+        if let Node::Canvas(_, props) = node {
+            if let Some(link) = props.iter().find(|(k, _)| k == "_inlink").and_then(|(_, v)| v.as_str()) {
+                let rest = link.strip_prefix(&format!("{key}/"))?;
+                let target = resolve(child, rest, 0)?.clone();
+                return self.child_pixels(rel, img, key, child, &target, depth + 1);
+            }
+        }
+        self.data.pixels_of(rel, img, node).ok()
+    }
+
+    /// 道具特效（Effect/ItemEff.img/編號/effect/動作）
+    fn item_effect(&mut self, id: u32, action: &str, dye: Option<Dye>) -> Option<EffTrack> {
+        let rel = self.img_rel("Effect", "ItemEff.img")?;
+        let img = "ItemEff.img";
+        let (key, child) = match self.eff_nodes.get(&id) {
+            Some(v) => v.clone()?,
+            None => {
+                let mut got = None;
+                for key in [id.to_string(), format!("{id:08}")] {
+                    if let Ok(Some(n)) = self.data.img_child(&rel, img, &key) {
+                        got = Some((key, std::sync::Arc::new(n)));
+                        break;
+                    }
+                }
+                self.eff_nodes.insert(id, got.clone());
+                got?
+            }
+        };
+        child.get("effect")?;
+        // 依動作找；沒有就用 default；有些特效直接把畫格放在 effect 底下
+        let act_path = [format!("effect/{action}"), "effect/default".to_string(), "effect".to_string()]
+            .into_iter()
+            .find(|p| resolve(&child, &format!("{p}/0"), 0).is_some())?;
+        let act = resolve(&child, &act_path, 0)?.clone();
+        let z = act.get("z").and_then(|v| v.as_int()).unwrap_or(-2) as i32;
+        let anchor = match act.get("pos").and_then(|v| v.as_int()).unwrap_or(0) {
+            1 => "brow",
+            2 => "neck",
+            4 => "navel",
+            _ => "",
+        };
+        let mut frames = Vec::new();
+        for i in 0..90 {
+            let Some(fnode) = resolve(&child, &format!("{act_path}/{i}"), 0).cloned() else { break };
+            let mut pieces: Vec<Pic> = Vec::new();
+            let mut delay = canvas_delay(&fnode);
+            let canvases: Vec<Node> = match &fnode {
+                Node::Canvas(..) => vec![fnode.clone()],
+                Node::Props(kids) => kids
+                    .iter()
+                    .filter_map(|(k, _)| resolve(&child, &format!("{act_path}/{i}/{k}"), 0).cloned())
+                    .filter(|n| matches!(n, Node::Canvas(..)))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            for cn in canvases {
+                if delay.is_none() {
+                    delay = canvas_delay(&cn);
+                }
+                let origin = canvas_origin(&cn);
+                if let Some((w, h, mut px)) = self.child_pixels(&rel, img, &key, &child, &cn, 0) {
+                    if w <= 1 && h <= 1 {
+                        continue;
+                    }
+                    if let Some(d) = &dye {
+                        apply_dye_ex(&mut px, d, true);
+                    }
+                    pieces.push((w, h, px, origin));
+                }
+            }
+            let Some((w, h, px, x, y)) = merge_canvases(&pieces) else { continue };
+            frames.push(AnimFrame { png: png_data_url(w, h, &px).ok()?, x, y, w, h, delay: delay.unwrap_or(120), anchors: HashMap::new() });
+        }
+        if frames.is_empty() {
+            return None;
+        }
+        Some(EffTrack { z, anchor: anchor.to_string(), frames })
+    }
+
+    /// 攻擊殘影（Character/Afterimage/名稱.img/等級/動作/第幾格）：疊在對應的那一格最上層
+    fn afterimage(&mut self, look: &Look, action: &str) -> HashMap<usize, Vec<Layer>> {
+        let mut out: HashMap<usize, Vec<Layer>> = HashMap::new();
+        let Some(&(wid, _, _)) = look.equips.iter().find(|(_, c, _)| *c == "Weapon") else { return out };
+        let rel = "Character/Afterimage";
+        let Ok(pkg) = self.data.package(rel) else { return out };
+        let mut names: Vec<String> = Vec::new();
+        if let Ok(Some(info)) = self.data.img_child("Character/Weapon", &format!("{wid:08}.img"), "info") {
+            if let Some(s) = info.get("afterImage").and_then(|v| v.as_str()) {
+                names.push(s.to_string());
+            }
+        }
+        names.extend(afterimage_guess(look.wtype).iter().map(|s| s.to_string()));
+        let Some(img) = names.iter().map(|n| format!("{n}.img")).find(|n| pkg.imgs.contains_key(n)) else { return out };
+        let Ok(root) = self.data.img(rel, &img) else { return out };
+        // 依角色等級分段，取最高的一段
+        let Some(lvl) = root.children().iter().filter_map(|(k, _)| k.parse::<u32>().ok()).max() else { return out };
+        let Some(stance) = resolve(&root, &format!("{lvl}/{action}"), 0).cloned() else { return out };
+        let keys: Vec<usize> = stance.children().iter().filter_map(|(k, _)| k.parse().ok()).collect();
+        for k in keys {
+            let base = format!("{lvl}/{action}/{k}");
+            let Some(node) = resolve(&root, &base, 0).cloned() else { continue };
+            let list: Vec<(usize, Node)> = match &node {
+                Node::Canvas(..) => vec![(k, node.clone())],
+                Node::Props(kids) => kids
+                    .iter()
+                    .filter_map(|(j, _)| j.parse::<usize>().ok())
+                    .filter_map(|j| resolve(&root, &format!("{base}/{j}"), 0).cloned().map(|n| (k + j, n)))
+                    .filter(|(_, n)| matches!(n, Node::Canvas(..)))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            for (fi, cn) in list {
+                let origin = canvas_origin(&cn);
+                if let Ok((w, h, px)) = self.data.pixels_of(rel, &img, &cn) {
+                    if w <= 1 && h <= 1 {
+                        continue;
+                    }
+                    out.entry(fi).or_default().push(Layer {
+                        name: "afterimage".into(),
+                        zname: "afterimage".into(),
+                        owner: 99,
+                        z: i32::MIN / 2,
+                        origin,
+                        map: vec![("@root".into(), (0, 0))],
+                        w,
+                        h,
+                        px,
+                    });
+                }
+            }
+        }
+        out
+    }
+}
+
+/// 名稱、髮型、臉型、點裝 → 編號
+fn resolve_look(ctx: &mut Ctx, req: &RenderReq, warnings: &mut Vec<String>) -> (Look, Vec<ItemOut>) {
+    let female = req.gender.as_deref() == Some("F");
+    let head_only = req.mode.as_deref() == Some("head");
+
+    // 膚色：精靈皮膚 → 12012 → 身體 2012、頭 12012
+    let skin = req
+        .skin_id
+        .map(|id| id % 1000)
+        .or_else(|| req.skin.as_deref().and_then(|s| ctx.skin.iter().find(|(_, n)| n == s.trim()).map(|(id, _)| id % 1000)))
+        .unwrap_or(0);
+    let (body_id, head_id) = if ctx.has("Character", 2000 + skin) { (2000 + skin, 12000 + skin) } else { (2000, 12000) };
+
+    // 髮型
+    let mut hair_id = None;
+    let mut hair_mix = None;
+    if let Some(h) = &req.hair {
+        let fem = h.gender.as_deref().map(|g| g == "F").unwrap_or(female);
+        let found = if let Some(id) = h.id.filter(|&id| ctx.has("Character/Hair", id)) {
+            Some((id / 10 * 10, id))
+        } else if h.name.trim().is_empty() {
+            // 沒指定造型、只指定顏色：用預設髮型
+            [if fem { 31000 } else { 30000 }, 30000].into_iter().find(|&id| ctx.has("Character/Hair", id)).map(|id| (id, id))
+        } else {
+            pick_family(&ctx.hair, &h.name, |id| id / 10 * 10, fem, true)
+        };
+        match found {
+            Some((fam, id)) => {
+                let mut chosen = id;
+                if let Some(c) = h.color.as_deref().and_then(hair_color_idx) {
+                    if ctx.has("Character/Hair", fam + c) {
+                        chosen = fam + c;
+                    }
+                }
+                hair_id = Some(chosen);
+                if let (Some(m), Some(r)) = (h.mix.as_deref().and_then(hair_color_idx), h.rate) {
+                    hair_mix = Some((fam + m, r));
+                }
+            }
+            None => warnings.push(format!("遊戲資料裡找不到髮型「{}」", h.name)),
+        }
+    } else {
+        hair_id = [if female { 31000 } else { 30000 }, 30000].into_iter().find(|&id| ctx.has("Character/Hair", id));
+    }
+
+    // 臉型
+    let mut face_id = None;
+    let mut face_mix = None;
+    let face_fam = |id: u32| id - (id / 100 % 10) * 100;
+    if let Some(f) = &req.face {
+        let fem = f.gender.as_deref().map(|g| g == "F").unwrap_or(female);
+        let found = if let Some(id) = f.id.filter(|&id| ctx.has("Character/Face", id)) {
+            Some((face_fam(id), id))
+        } else if f.name.trim().is_empty() {
+            [if fem { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id)).map(|id| (id, id))
+        } else {
+            pick_family(&ctx.face, &f.name, face_fam, fem, false)
+        };
+        match found {
+            Some((fam, id)) => {
+                let mut chosen = id;
+                if let Some(c) = f.color.as_deref().and_then(face_color_idx) {
+                    if ctx.has("Character/Face", fam + c * 100) {
+                        chosen = fam + c * 100;
+                    }
+                }
+                face_id = Some(chosen);
+                if let (Some(m), Some(r)) = (f.mix.as_deref().and_then(face_color_idx), f.rate) {
+                    face_mix = Some((fam + m * 100, r));
+                }
+            }
+            None => warnings.push(format!("遊戲資料裡找不到臉型「{}」", f.name)),
+        }
+    } else {
+        face_id = [if female { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id));
+    }
+
+    // 點裝
+    let mut equips: Vec<(u32, &'static str, Option<Dye>)> = Vec::new();
+    let mut missing: Vec<String> = Vec::new();
+    if !head_only {
+        let reqs: Vec<EquipReq> = if let Some(items) = &req.items {
+            items.clone()
+        } else if let Some(ids) = &req.equip_ids {
+            ids.iter().map(|&id| EquipReq { id: Some(id), ..Default::default() }).collect()
+        } else {
+            req.equips.iter().map(|n| EquipReq { name: Some(n.clone()), ..Default::default() }).collect()
+        };
+        for e in reqs {
+            let found = match (e.id, e.name.as_deref()) {
+                (Some(id), _) => ctx.equip_by_id(id),
+                (None, Some(n)) => ctx.find_equip(n, female),
+                _ => None,
             };
             match found {
-                Some((fam, id)) => {
-                    let mut chosen = id;
-                    if let Some(c) = h.color.as_deref().and_then(hair_color_idx) {
-                        if ctx.has("Character/Hair", fam + c) {
-                            chosen = fam + c;
-                        }
-                    }
-                    hair_id = Some(chosen);
-                    if let (Some(m), Some(r)) = (h.mix.as_deref().and_then(hair_color_idx), h.rate) {
-                        hair_mix = Some((fam + m, r));
-                    }
-                }
-                None => warnings.push(format!("遊戲資料裡找不到髮型「{}」", h.name)),
+                Some((id, cat)) => equips.push((id, cat, e.dye.filter(|d| !d.is_noop()))),
+                None => missing.push(e.name.clone().or(e.id.map(|i| i.to_string())).unwrap_or_default()),
             }
-        } else {
-            hair_id = [if female { 31000 } else { 30000 }, 30000].into_iter().find(|&id| ctx.has("Character/Hair", id));
         }
+    }
+    if !missing.is_empty() {
+        warnings.push(format!("遊戲資料裡找不到點裝：{}", missing.join("、")));
+    }
+    let equip_out: Vec<ItemOut> = equips
+        .iter()
+        .map(|&(id, cat, dye)| ItemOut { id, name: ctx.equip_name(id), slot: slot_key(id, cat), cash: true, dye })
+        .collect();
 
-        // 臉型
-        let mut face_id = None;
-        let mut face_mix = None;
-        let face_fam = |id: u32| id - (id / 100 % 10) * 100;
-        let freq = req.face.clone();
-        if let Some(f) = &freq {
-            let fem = f.gender.as_deref().map(|g| g == "F").unwrap_or(female);
-            let found = if let Some(id) = f.id.filter(|&id| ctx.has("Character/Face", id)) {
-                Some((face_fam(id), id))
-            } else if f.name.trim().is_empty() {
-                [if fem { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id)).map(|id| (id, id))
-            } else {
-                pick_family(&ctx.face, &f.name, face_fam, fem, false)
-            };
-            match found {
-                Some((fam, id)) => {
-                    let mut chosen = id;
-                    if let Some(c) = f.color.as_deref().and_then(face_color_idx) {
-                        if ctx.has("Character/Face", fam + c * 100) {
-                            chosen = fam + c * 100;
-                        }
-                    }
-                    face_id = Some(chosen);
-                    if let (Some(m), Some(r)) = (f.mix.as_deref().and_then(face_color_idx), f.rate) {
-                        face_mix = Some((fam + m * 100, r));
-                    }
+    // 武器決定站姿（雙手武器用 stand2）；點裝武器依武器種類分子資料夾
+    let mut pose = "stand1";
+    let mut wprefix = String::new();
+    let mut wtype = None;
+    if let Some(&(wid, _, _)) = equips.iter().find(|(_, c, _)| *c == "Weapon") {
+        wtype = Some(wid / 10000 % 100);
+        if let Ok(root) = ctx.data.img("Character/Weapon", &format!("{wid:08}.img")) {
+            let mut base = root.as_ref();
+            if base.get("stand1").is_none() && base.get("stand2").is_none() {
+                if let Some((k, sub)) = root.children().iter().find(|(k, n)| k.chars().all(|c| c.is_ascii_digit()) && n.get("stand1").or(n.get("stand2")).is_some()) {
+                    base = sub;
+                    wprefix = format!("{k}/");
+                    wtype = k.parse::<u32>().ok().map(|t| t % 100);
                 }
-                None => warnings.push(format!("遊戲資料裡找不到臉型「{}」", f.name)),
             }
-        } else {
-            face_id = [if female { 21000 } else { 20000 }, 20000].into_iter().find(|&id| ctx.has("Character/Face", id));
+            if base.get("stand1").is_none() && base.get("stand2").is_some() {
+                pose = "stand2";
+            }
         }
+    }
 
-        // 點裝：先找出編號，武器決定站姿（雙手武器用 stand2）
-        let mut equips: Vec<(u32, &'static str, Option<Dye>)> = Vec::new();
-        let mut missing: Vec<String> = Vec::new();
-        if !head_only {
-            let reqs: Vec<EquipReq> = if let Some(items) = &req.items {
-                items.clone()
-            } else if let Some(ids) = &req.equip_ids {
-                ids.iter().map(|&id| EquipReq { id: Some(id), ..Default::default() }).collect()
-            } else {
-                req.equips.iter().map(|n| EquipReq { name: Some(n.clone()), ..Default::default() }).collect()
-            };
-            for e in reqs {
-                let found = match (e.id, e.name.as_deref()) {
-                    (Some(id), _) => ctx.equip_by_id(id),
-                    (None, Some(n)) => ctx.find_equip(n, female),
-                    _ => None,
-                };
-                match found {
-                    Some((id, cat)) => equips.push((id, cat, e.dye.filter(|d| !d.is_noop()))),
-                    None => missing.push(e.name.clone().or(e.id.map(|i| i.to_string())).unwrap_or_default()),
-                }
+    // 帽子、套服等用 vslot 蓋住部分髮型、臉型
+    let mut covered: Vec<String> = Vec::new();
+    let mut has_cap = false;
+    for (id, cat, _) in &equips {
+        if matches!(*cat, "Cap" | "Accessory" | "Longcoat" | "Coat" | "Cape") {
+            let vs = ctx.vslot(&format!("Character/{cat}"), *id);
+            if *cat == "Cap" && !vs.is_empty() {
+                has_cap = true;
             }
+            covered.extend(vs.as_bytes().chunks(2).map(|c| String::from_utf8_lossy(c).into_owned()));
         }
-        let equip_out: Vec<ItemOut> = equips
-            .iter()
-            .map(|&(id, cat, dye)| ItemOut { id, name: ctx.equip_name(id), slot: slot_key(id, cat), cash: true, dye })
-            .collect();
-        let mut pose = "stand1";
-        if let Some(&(wid, _, _)) = equips.iter().find(|(_, c, _)| *c == "Weapon") {
-            let root = ctx.data.img("Character/Weapon", &format!("{wid:08}.img")).ok();
-            if let Some(root) = root {
-                let mut base = root.as_ref();
-                if base.get("stand1").is_none() && base.get("stand2").is_none() {
-                    if let Some((_, sub)) = root.children().iter().find(|(k, n)| k.chars().all(|c| c.is_ascii_digit()) && n.get("stand1").or(n.get("stand2")).is_some()) {
-                        base = sub;
-                    }
-                }
-                if base.get("stand1").is_none() && base.get("stand2").is_some() {
-                    pose = "stand2";
-                }
-            }
-        }
+    }
 
-        let mut parts: Vec<Layer> = Vec::new();
-        let mut has_head = false;
-        if !head_only {
-            match ctx.layers("Character", body_id, &format!("{pose}/0"), &[], skin) {
-                Ok(l) => parts.extend(l),
-                Err(e) => warnings.push(format!("身體：{e}")),
-            }
-        }
-        let mut head = ctx.layers("Character", head_id, "front", &["head", "humanEar"], skin).unwrap_or_default();
-        if head.is_empty() {
-            head = match ctx.layers("Character", head_id, "stand1/0", &["head"], skin) {
-                Ok(l) => l,
-                Err(e) => {
-                    warnings.push(format!("頭：{e}"));
-                    Vec::new()
-                }
-            };
-        }
-        if !head.is_empty() {
-            has_head = true;
-            parts.extend(head);
-        }
-        if let Some(id) = face_id {
-            match ctx.mixed("Character/Face", id, face_mix, "default", skin) {
+    (Look { body_id, head_id, skin, hair_id, hair_mix, face_id, face_mix, equips, wprefix, wtype, pose, covered, has_cap }, equip_out)
+}
+
+/// 某一格動作的所有圖層；回傳 (圖層, 延遲毫秒, 是否看得到臉)
+fn frame_parts(ctx: &mut Ctx, look: &Look, action: &str, idx: usize, warnings: &mut Vec<String>) -> Result<(Vec<Layer>, i32, bool), String> {
+    let fpath = format!("{action}/{idx}");
+    let broot = ctx.data.img("Character", &format!("{:08}.img", look.body_id))?;
+    let fnode = resolve(&broot, &fpath, 0).ok_or_else(|| format!("身體沒有 {fpath}"))?;
+    let delay = canvas_delay(fnode).unwrap_or(120);
+    // 身體畫格的 face = 0 表示背對（爬梯子、繩子）
+    let face = fnode.get("face").and_then(|v| v.as_int()).map(|v| v != 0).unwrap_or(!matches!(action, "ladder" | "rope"));
+
+    let mut parts = ctx.layers("Character", look.body_id, &fpath, &[], look.skin)?;
+    // 頭：看得到臉用正面，爬梯子時用背面
+    let mut head = ctx.layers("Character", look.head_id, if face { "front" } else { "back" }, &["head", "humanEar"], look.skin).unwrap_or_default();
+    if head.is_empty() {
+        head = ctx.layers("Character", look.head_id, &fpath, &["head"], look.skin).unwrap_or_default();
+    }
+    if head.is_empty() {
+        warnings.push("讀不到頭部圖片".into());
+    }
+    parts.extend(head);
+    if face {
+        if let Some(id) = look.face_id {
+            match ctx.mixed("Character/Face", id, look.face_mix, "default", look.skin) {
                 Ok(l) => parts.extend(l.into_iter().map(|mut l| {
                     l.owner = 1;
                     l
@@ -853,67 +1230,318 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
                 Err(e) => warnings.push(format!("臉型：{e}")),
             }
         }
-        if let Some(id) = hair_id {
-            match ctx.mixed("Character/Hair", id, hair_mix, "default", skin) {
-                Ok(l) => parts.extend(l.into_iter().filter(|l| !(head_only && l.name == "hairBelowBody")).map(|mut l| {
+    }
+    if let Some(id) = look.hair_id {
+        let cands = [fpath.clone(), (if face { "stand1/0" } else { "ladder/0" }).to_string(), (if face { "default" } else { "backDefault" }).to_string()];
+        if let Some(fr) = ctx.first_frame("Character/Hair", id, &cands) {
+            match ctx.mixed("Character/Hair", id, look.hair_mix, &fr, look.skin) {
+                // 沒戴帽子時，背面只顯示 backHair（backHairBelowCap 是戴帽子時用的）
+                Ok(l) => parts.extend(l.into_iter().filter(|l| look.has_cap || !l.name.starts_with("backHairBelowCap")).map(|mut l| {
                     l.owner = 2;
                     l
                 })),
                 Err(e) => warnings.push(format!("髮型：{e}")),
             }
         }
-
-        // 點裝圖層；帽子、面具等會依 vslot 蓋掉部分髮型或臉型
-        let mut covered: Vec<String> = Vec::new();
-        for (i, (id, cat, dye)) in equips.iter().enumerate() {
-            let rel = format!("Character/{cat}");
-            let Some(frame) = ctx.equip_frame(&rel, *id, pose) else { continue };
-            match ctx.layers(&rel, *id, &frame, &[], skin) {
-                Ok(mut l) if !l.is_empty() => {
-                    if let Some(d) = dye {
-                        for layer in l.iter_mut() {
-                            apply_dye(&mut layer.px, d);
-                        }
-                    }
-                    let vs = ctx.vslot(&rel, *id);
-                    if matches!(*cat, "Cap" | "Accessory" | "Longcoat" | "Coat" | "Cape") {
-                        covered.extend(vs.as_bytes().chunks(2).map(|c| String::from_utf8_lossy(c).into_owned()));
-                    }
-                    parts.extend(l.into_iter().map(|mut l| {
-                        l.owner = 10 + i;
-                        l
-                    }));
+    }
+    for (i, (id, cat, dye)) in look.equips.iter().enumerate() {
+        let rel = format!("Character/{cat}");
+        let prefix = if *cat == "Weapon" { look.wprefix.clone() } else { String::new() };
+        let Some(frame) = ctx.equip_frame_at(&rel, *id, cat, &prefix, action, idx, face) else { continue };
+        match ctx.layers(&rel, *id, &frame, &[], look.skin) {
+            Ok(mut l) if !l.is_empty() => {
+                // 多種顏色的武器只畫第一種
+                if l.iter().any(|x| x.name == "weapon1") {
+                    l.retain(|x| !x.name.starts_with("weapon") || x.name == "weapon");
                 }
-                Ok(_) => {}
-                Err(e) => warnings.push(format!("點裝 {id}：{e}")),
+                if let Some(d) = dye {
+                    for layer in l.iter_mut() {
+                        apply_dye(&mut layer.px, d);
+                    }
+                }
+                parts.extend(l.into_iter().map(|mut l| {
+                    l.owner = 10 + i;
+                    l
+                }));
+            }
+            Ok(_) => {}
+            Err(e) => warnings.push(format!("點裝 {id}：{e}")),
+        }
+    }
+    if !look.covered.is_empty() {
+        let smap = &ctx.smap;
+        parts.retain(|l| {
+            if l.owner != 1 && l.owner != 2 {
+                return true;
+            }
+            let codes = smap.get(&l.zname).map(String::as_str).unwrap_or("");
+            !codes.as_bytes().chunks(2).any(|c| look.covered.iter().any(|v| v.as_bytes() == c))
+        });
+    }
+    Ok((parts, delay, face))
+}
+
+/// 選單上的動作 → 遊戲裡的動作名稱（依武器挑選）
+fn pick_action(ctx: &mut Ctx, look: &Look, want: &str) -> String {
+    let broot = ctx.data.img("Character", &format!("{:08}.img", look.body_id)).ok();
+    let wroot = look.equips.iter().find(|(_, c, _)| *c == "Weapon").and_then(|(wid, _, _)| ctx.data.img("Character/Weapon", &format!("{wid:08}.img")).ok());
+    let body_has = |a: &str| broot.as_ref().map(|r| resolve(r, &format!("{a}/0"), 0).is_some()).unwrap_or(false);
+    let weapon_has = |a: &str| wroot.as_ref().map(|r| resolve(r, &format!("{}{a}/0", look.wprefix), 0).is_some()).unwrap_or(true);
+    let choose = |list: &[&str]| -> Option<String> {
+        list.iter().find(|a| body_has(a) && weapon_has(a)).or_else(|| list.iter().find(|a| body_has(a))).map(|a| a.to_string())
+    };
+    match want {
+        "attack" => {
+            let prefs = attack_prefs(look.wtype);
+            prefs
+                .iter()
+                .chain(ATTACK_ACTIONS.iter())
+                .find(|a| body_has(a) && weapon_has(a))
+                .map(|a| a.to_string())
+                .or_else(|| choose(prefs))
+                .unwrap_or_else(|| "swingO1".into())
+        }
+        "walk" => choose(if look.pose == "stand2" { &["walk2", "walk1"] } else { &["walk1", "walk2"] }).unwrap_or_else(|| "walk1".into()),
+        "ladder" | "prone" | "sit" | "jump" => want.to_string(),
+        _ => look.pose.to_string(),
+    }
+}
+
+fn png_frame(c: &Composed, delay: i32) -> Result<AnimFrame, String> {
+    let root = c.anchors.get("@root").copied().unwrap_or((0, 0));
+    let anchors = ["brow", "neck", "navel"]
+        .iter()
+        .filter_map(|k| c.anchors.get(*k).map(|(x, y)| (k.to_string(), (x - root.0, y - root.1))))
+        .collect();
+    Ok(AnimFrame { png: png_data_url(c.w, c.h, &c.px)?, x: c.x0 - root.0, y: c.y0 - root.1, w: c.w, h: c.h, delay, anchors })
+}
+
+fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
+    with_ctx(req.game_dir.as_deref(), |ctx| {
+        let mut warnings = Vec::new();
+        let head_only = req.mode.as_deref() == Some("head");
+        let (look, equip_out) = resolve_look(ctx, &req, &mut warnings);
+        let (hair_id, face_id) = (look.hair_id, look.face_id);
+
+        // 只有頭（髮型、臉型的小圖）
+        if head_only {
+            let mut parts: Vec<Layer> = Vec::new();
+            let mut head = ctx.layers("Character", look.head_id, "front", &["head", "humanEar"], look.skin).unwrap_or_default();
+            if head.is_empty() {
+                head = match ctx.layers("Character", look.head_id, "stand1/0", &["head"], look.skin) {
+                    Ok(l) => l,
+                    Err(e) => {
+                        warnings.push(format!("頭：{e}"));
+                        Vec::new()
+                    }
+                };
+            }
+            let has_head = !head.is_empty();
+            parts.extend(head);
+            if let Some(id) = look.face_id {
+                match ctx.mixed("Character/Face", id, look.face_mix, "default", look.skin) {
+                    Ok(l) => parts.extend(l),
+                    Err(e) => warnings.push(format!("臉型：{e}")),
+                }
+            }
+            if let Some(id) = look.hair_id {
+                match ctx.mixed("Character/Hair", id, look.hair_mix, "default", look.skin) {
+                    Ok(l) => parts.extend(l.into_iter().filter(|l| l.name != "hairBelowBody")),
+                    Err(e) => warnings.push(format!("髮型：{e}")),
+                }
+            }
+            let start: &[(&str, (i32, i32))] = if has_head { &[("neck", (0, 0))] } else { &[("brow", (0, 0))] };
+            let (w, h, px, ax, ay) = compose(&parts, start).ok_or("沒有可以顯示的圖片")?;
+            return Ok(RenderOut { png: png_data_url(w, h, &px)?, w, h, cx: ax, cy: ay, fx: None, fy: None, hair_id, face_id, warnings, equips: equip_out, anim: None });
+        }
+
+        // 全身：沒指定動作時只畫站姿第一格；指定動作時輸出每一格與特效
+        let want = req.action.clone();
+        let action = match &want {
+            Some(w) => pick_action(ctx, &look, w),
+            None => look.pose.to_string(),
+        };
+        let count = if want.is_some() && action != "jump" {
+            let broot = ctx.data.img("Character", &format!("{:08}.img", look.body_id))?;
+            (0..64).take_while(|i| resolve(&broot, &format!("{action}/{i}"), 0).is_some()).count().max(1)
+        } else {
+            1
+        };
+        let after = if want.as_deref() == Some("attack") { ctx.afterimage(&look, &action) } else { HashMap::new() };
+        let mut frames: Vec<AnimFrame> = Vec::new();
+        let mut first: Option<Composed> = None;
+        for i in 0..count {
+            let (mut parts, delay, _) = match frame_parts(ctx, &look, &action, i, &mut warnings) {
+                Ok(v) => v,
+                Err(e) if i > 0 => {
+                    warnings.push(e);
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
+            if let Some(extra) = after.get(&i) {
+                parts.extend(extra.iter().cloned());
+            }
+            let c = compose_full(&parts, &[("navel", (0, 0))]).ok_or("沒有可以顯示的圖片")?;
+            if want.is_some() {
+                frames.push(png_frame(&c, delay)?);
+            }
+            if first.is_none() {
+                first = Some(c);
             }
         }
-        if !covered.is_empty() {
-            let smap = &ctx.smap;
-            parts.retain(|l| {
-                if l.owner != 1 && l.owner != 2 {
-                    return true;
-                }
-                let codes = smap.get(&l.zname).map(String::as_str).unwrap_or("");
-                !codes.as_bytes().chunks(2).any(|c| covered.iter().any(|v| v.as_bytes() == c))
-            });
-        }
-        if !missing.is_empty() {
-            warnings.push(format!("遊戲資料裡找不到點裝：{}", missing.join("、")));
-        }
+        let c = first.ok_or("沒有可以顯示的圖片")?;
+        let root = c.anchors.get("@root").copied().unwrap_or((0, 0));
+        let navel = c.anchors.get("navel").copied().unwrap_or((0, 0));
+        // 角色中心（肚臍往上一點），前端用來把角色擺在正中間，不受大型武器影響
+        let (cx, cy) = (navel.0 - c.x0, navel.1 - c.y0 - 12);
+        let (fx, fy) = (root.0 - c.x0, root.1 - c.y0);
 
-        let start: &[(&str, (i32, i32))] = if !head_only && parts.iter().any(|l| l.map.iter().any(|(k, _)| k == "navel")) {
-            &[("navel", (0, 0))]
-        } else if has_head {
-            &[("neck", (0, 0))]
+        let anim = if want.is_some() {
+            let mut effects = Vec::new();
+            for &(id, _, dye) in &look.equips {
+                if let Some(t) = ctx.item_effect(id, &action, dye) {
+                    effects.push(t);
+                }
+            }
+            // 站立時的中心（肚臍往上一點）相對於腳下，切換動作時角色不會跳動
+            let center = ctx
+                .layers("Character", look.body_id, &format!("{}/0", look.pose), &["body"], look.skin)
+                .ok()
+                .and_then(|l| l.into_iter().next())
+                .and_then(|b| b.map.iter().find(|(k, _)| k == "navel").map(|(_, v)| *v))
+                .map(|(x, y)| (x, y - 12))
+                .unwrap_or((0, -40));
+            Some(AnimOut { action: action.clone(), frames, effects, center })
         } else {
-            &[("brow", (0, 0))]
+            None
         };
-        let (w, h, px, ax, ay) = compose(&parts, start).ok_or("沒有可以顯示的圖片")?;
-        // 角色中心（全身時以肚臍往上一點為準），前端用來把角色擺在正中間，不受大型武器影響
-        let (cx, cy) = if start[0].0 == "navel" { (ax, ay - 12) } else { (ax, ay) };
-        Ok(RenderOut { png: png_data_url(w, h, &px)?, w, h, cx, cy, hair_id, face_id, warnings, equips: equip_out })
+        let mut seen = std::collections::HashSet::new();
+        warnings.retain(|w| seen.insert(w.clone()));
+        Ok(RenderOut { png: png_data_url(c.w, c.h, &c.px)?, w: c.w, h: c.h, cx, cy, fx: Some(fx), fy: Some(fy), hair_id, face_id, warnings, equips: equip_out, anim })
     })
+}
+
+/* ---------------- 名牌戒指、聊天戒指 ---------------- */
+
+/// UI 圖片的一個部分（名牌的左、中、右；對話框的九宮格與箭頭）
+#[derive(Serialize, Clone)]
+pub struct Piece {
+    pub png: String,
+    pub w: u32,
+    pub h: u32,
+    pub ox: i32,
+    pub oy: i32,
+}
+
+#[derive(Serialize, Clone)]
+pub struct UiSkin {
+    pub id: i64,
+    /// 文字顏色（#rrggbb）
+    pub clr: Option<String>,
+    pub pieces: HashMap<String, Piece>,
+}
+
+#[derive(Serialize, Clone, Default)]
+pub struct TagsOut {
+    pub name_tag: Option<UiSkin>,
+    pub balloon: Option<UiSkin>,
+    /// 讀不到時的說明（方便回報）
+    pub notes: Vec<String>,
+}
+
+const NAME_TAG_KEYS: [&str; 3] = ["w", "c", "e"];
+const BALLOON_KEYS: [&str; 11] = ["nw", "n", "ne", "w", "c", "e", "sw", "s", "se", "arrow", "head"];
+
+/// 遊戲的顏色數值（有號 32 位元 ARGB）→ #rrggbb
+fn argb_hex(v: i64) -> String {
+    format!("#{:06x}", (v as u32) & 0x00FF_FFFF)
+}
+
+impl Ctx {
+    fn ring_ids(&mut self, name: &str) -> Vec<u32> {
+        if self.rings.is_none() {
+            let list = self.data.img("String", "Eqp.img").map(|e| names_of(&e, "Ring")).unwrap_or_default();
+            self.rings = Some(list);
+        }
+        let key = norm_name(name);
+        self.rings.as_ref().map(|r| r.iter().filter(|(_, n)| norm_name(n) == key).map(|(id, _)| *id).collect()).unwrap_or_default()
+    }
+
+    /// UI/NameTag.img 或 UI/ChatBalloon.img 裡某個編號的圖片
+    fn ui_skin(&mut self, img: &str, id: i64, keys: &[&str], notes: &mut Vec<String>) -> Option<UiSkin> {
+        let Some(rel) = self.img_rel("UI", img) else {
+            notes.push(format!("找不到 UI/{img}"));
+            return None;
+        };
+        let root = self.data.img(&rel, img).ok()?;
+        let base = id.to_string();
+        let is_canvas = |p: &str| matches!(resolve(&root, p, 0), Some(Node::Canvas(..)));
+        // 一般是「編號/c」；有動畫的是「編號/0/c」
+        let path = [base.clone(), format!("{base}/0")].into_iter().find(|p| keys.iter().any(|k| is_canvas(&format!("{p}/{k}"))));
+        let Some(path) = path else {
+            let kids: Vec<String> = resolve(&root, &base, 0).map(|n| n.children().iter().map(|(k, _)| k.clone()).take(20).collect()).unwrap_or_default();
+            notes.push(format!("UI/{img}/{id} 的內容：{}", if kids.is_empty() { "（沒有這個編號）".to_string() } else { kids.join("、") }));
+            return None;
+        };
+        let clr = [format!("{path}/clr"), format!("{base}/clr")]
+            .iter()
+            .find_map(|p| resolve(&root, p, 0).and_then(|v| v.as_int()))
+            .map(argb_hex);
+        let mut pieces = HashMap::new();
+        for k in keys {
+            let Some(cn) = resolve(&root, &format!("{path}/{k}"), 0).cloned() else { continue };
+            if !matches!(cn, Node::Canvas(..)) {
+                continue;
+            }
+            let (ox, oy) = canvas_origin(&cn);
+            if let Ok((w, h, px)) = self.data.pixels_of(&rel, img, &cn) {
+                if let Ok(png) = png_data_url(w, h, &px) {
+                    pieces.insert(k.to_string(), Piece { png, w, h, ox, oy });
+                }
+            }
+        }
+        if pieces.is_empty() {
+            return None;
+        }
+        Some(UiSkin { id, clr, pieces })
+    }
+}
+
+fn tags_of(ctx: &mut Ctx, rings: &[String]) -> TagsOut {
+    let mut out = TagsOut::default();
+    let (mut tag_id, mut chat_id) = (None, None);
+    for name in rings {
+        for id in ctx.ring_ids(name) {
+            let Ok(Some(info)) = ctx.data.img_child("Character/Ring", &format!("{id:08}.img"), "info") else { continue };
+            if let Some(v) = info.get("nameTag").and_then(|v| v.as_int()) {
+                tag_id.get_or_insert(v);
+            }
+            if let Some(v) = info.get("chatBalloon").and_then(|v| v.as_int()) {
+                chat_id.get_or_insert(v);
+            }
+            break;
+        }
+    }
+    let mut notes = Vec::new();
+    if let Some(id) = tag_id {
+        out.name_tag = ctx.ui_skin("NameTag.img", id, &NAME_TAG_KEYS, &mut notes);
+    }
+    // 沒有聊天戒指時用一般的對話框（0）
+    out.balloon = ctx.ui_skin("ChatBalloon.img", chat_id.unwrap_or(0), &BALLOON_KEYS, &mut notes);
+    if out.balloon.is_none() && chat_id.is_some() {
+        out.balloon = ctx.ui_skin("ChatBalloon.img", 0, &BALLOON_KEYS, &mut Vec::new());
+    }
+    out.notes = notes;
+    out
+}
+
+/// 依戒指名稱取得名牌與對話框的外觀
+#[tauri::command]
+pub async fn beauty_tags(game_dir: Option<String>, rings: Vec<String>) -> Result<TagsOut, String> {
+    tauri::async_runtime::spawn_blocking(move || with_ctx(game_dir.as_deref(), |ctx| Ok(tags_of(ctx, &rings))))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1332,6 +1960,63 @@ mod tests {
         px[(1 * 4 + 3) * 4 + 3] = 255;
         assert!(icon_png(4, 2, &px).is_some());
         assert!(icon_png(4, 2, &vec![0u8; 32]).is_none());
+    }
+
+    fn layer(name: &str, origin: (i32, i32), map: Vec<(&str, (i32, i32))>, w: u32, h: u32, z: i32) -> Layer {
+        Layer {
+            name: name.into(),
+            zname: name.into(),
+            owner: 0,
+            z,
+            origin,
+            map: map.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+            w,
+            h,
+            px: vec![255; (w * h * 4) as usize],
+        }
+    }
+
+    #[test]
+    fn compose_root_anchor() {
+        // 身體原點 (16, 31)，肚臍在原點的 (-4, -20)；特效以腳下為準
+        let body = layer("body", (16, 31), vec![("navel", (-4, -20)), ("neck", (-3, -30))], 32, 32, 10);
+        let fx = layer("effect", (5, 5), vec![("@root", (0, 0))], 10, 10, i32::MIN / 2);
+        let c = compose_full(&[body, fx], &[("navel", (0, 0))]).unwrap();
+        let root = c.anchors["@root"];
+        assert_eq!(root, (4, 20));
+        assert_eq!(c.anchors["neck"], (1, -10));
+        // 身體左上角 = 腳下 - 原點
+        assert_eq!((c.x0, c.y0), (root.0 - 16, root.1 - 31));
+        // 特效從 (root - 原點) 開始：x -1～9、y 15～25，身體 y -11～21
+        assert_eq!(c.w, 32);
+        assert_eq!(c.h, 36);
+        let f = png_frame(&c, 100).unwrap();
+        assert_eq!((f.x, f.y), (-16, -31));
+        assert_eq!(f.anchors["navel"], (-4, -20));
+    }
+
+    #[test]
+    fn merge_pieces() {
+        let a = (2, 2, vec![255u8; 16], (1, 1));
+        let b = (2, 2, vec![255u8; 16], (-3, 0));
+        let (w, h, px, x, y) = merge_canvases(&[a, b]).unwrap();
+        assert_eq!((w, h, x, y), (6, 3, -1, -1));
+        assert_eq!(px.len(), 6 * 3 * 4);
+        assert!(merge_canvases(&[]).is_none());
+    }
+
+    #[test]
+    fn colors_hex() {
+        assert_eq!(argb_hex(-1), "#ffffff");
+        assert_eq!(argb_hex(-16777216), "#000000");
+        assert_eq!(argb_hex(0xFF33_6699u32 as i32 as i64), "#336699");
+    }
+
+    #[test]
+    fn attack_by_weapon() {
+        assert_eq!(attack_prefs(Some(40))[0], "swingT1");
+        assert_eq!(attack_prefs(Some(45))[0], "shoot1");
+        assert_eq!(attack_prefs(None)[0], "swingO1");
     }
 
     #[test]

@@ -290,7 +290,7 @@ if (typeof document !== "undefined") (() => {
         try {
           out = await invoke("beauty_render", { req });
           renderCache.set(k, out);
-          if (renderCache.size > 80) renderCache.delete(renderCache.keys().next().value);
+          if (renderCache.size > 60) renderCache.delete(renderCache.keys().next().value);
         } catch (e) { err = String(e); }
       }
       busy = false;
@@ -313,6 +313,22 @@ if (typeof document !== "undefined") (() => {
     const list = preset?.length ? preset : c.cash.cash_item_equipment_base || [];
     return list.filter((x) => !/戒指|EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
   }
+  /** 戒指（名牌戒指、聊天戒指會改變名牌與對話框的樣子）；外觀套組沒有戒指時看基本點裝 */
+  function ringsOf(c) {
+    if (!c?.cash) return [];
+    const isRing = (x) => /戒指|반지|ring/i.test(`${x.cash_item_equipment_slot || ""}${x.cash_item_equipment_part || ""}`);
+    const preset = (c.cash[`cash_item_equipment_preset_${c.cash.preset_no}`] || []).filter(isRing);
+    const list = preset.length ? preset : (c.cash.cash_item_equipment_base || []).filter(isRing);
+    return [...new Set(list.map((x) => x.cash_item_name).filter(Boolean))];
+  }
+  /** 名牌、對話框的外觀（依戒指，從遊戲資料讀取） */
+  const tagCache = new Map();
+  function fetchTags(rings) {
+    if (!TAURI) return Promise.resolve(null);
+    const k = JSON.stringify([st.gamePath || "", rings]);
+    if (!tagCache.has(k)) tagCache.set(k, invoke("beauty_tags", { gameDir: st.gamePath || null, rings }).catch(() => { tagCache.delete(k); return null; }));
+    return tagCache.get(k);
+  }
 
   /** 某個角色目前的樣子（不含試穿），給左邊側欄的紙娃娃用 */
   function charReq(c) {
@@ -331,12 +347,13 @@ if (typeof document !== "undefined") (() => {
   }
   async function charLook(name) {
     const c = await invoke("maple_lookup", { name, force: false });
+    const tags = await fetchTags(ringsOf(c));
     try {
       const out = await invoke("beauty_render", { req: charReq(c) });
-      return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy };
+      return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy, tags };
     } catch (e) {
       // 讀不到遊戲資料時改用官方角色圖
-      if (c?.basic?.character_image) return { name: c.name, png: c.basic.character_image, official: true };
+      if (c?.basic?.character_image) return { name: c.name, png: c.basic.character_image, official: true, tags };
       throw e;
     }
   }
@@ -380,38 +397,117 @@ if (typeof document !== "undefined") (() => {
     };
   }
 
-  /** 美容美髮目前的紙娃娃（給側欄「同步美容美髮」用） */
+  /** 美容美髮目前的紙娃娃（給側欄「同步美容美髮」用，一律是站姿） */
   let lastDoll = null;
   function announceDoll(d) {
     lastDoll = d;
     document.dispatchEvent(new CustomEvent("beauty-doll", { detail: d }));
   }
-  const showDoll = renderQueue((out, err) => {
+  const dollOf = (out) => ({ name: st.charName, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy });
+  const officialDoll = () => (ch?.basic?.character_image && !(st.tryHair || st.tryFace) ? { name: st.charName, png: ch.basic.character_image, official: true } : null);
+  // 中間的角色在做其他動作時，側欄另外畫一張站姿
+  const announceQueue = renderQueue((out) => announceDoll(out ? dollOf(out) : officialDoll()));
+
+  /* ---------- 中間的角色：每一格動作、道具特效 ---------- */
+  let act = "stand";
+  const Actor = (() => {
+    const box = $("#bActor"), cv = $("#bCanvas"), g = cv.getContext("2d");
+    let cur = null, gen = 0, raf = 0, t0 = 0, drawn = "";
+    const loadImg = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+    const dur = (f) => Math.max(30, Number(f.delay) || 120);
+    const total = (fs) => fs.reduce((a, f) => a + dur(f), 0);
+    const pick = (fs, sum, t) => {
+      if (fs.length < 2 || !sum) return 0;
+      let x = t % sum;
+      for (let i = 0; i < fs.length; i++) { x -= dur(fs[i]); if (x < 0) return i; }
+      return fs.length - 1;
+    };
+    const withImgs = (fs) => Promise.all(fs.map(async (f) => ({ ...f, img: await loadImg(f.png) })));
+    async function set(anim) {
+      const my = ++gen;
+      const frames = await withImgs(anim.frames || []);
+      const effects = await Promise.all((anim.effects || []).map(async (e) => ({ ...e, frames: await withImgs(e.frames || []) })));
+      if (my !== gen || !frames.length) return false;
+      // 畫布範圍：所有畫格，加上特效跟著每一格錨點時的範圍（原點 = 角色腳下）
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      const add = (x, y, w, h) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h); };
+      const anchorOf = (b, name) => (name && b.anchors?.[name]) || [0, 0];
+      for (const f of frames) add(f.x, f.y, f.w, f.h);
+      for (const e of effects) for (const f of e.frames) for (const b of frames) { const a = anchorOf(b, e.anchor); add(a[0] + f.x, a[1] + f.y, f.w, f.h); }
+      for (const e of effects) e.sum = total(e.frames);
+      cur = { frames, effects, x0, y0, sum: total(frames), anchorOf, center: anim.center || [0, -40], brow: frames[0].anchors?.brow || [0, -55] };
+      cv.width = Math.max(1, x1 - x0);
+      cv.height = Math.max(1, y1 - y0);
+      cv.style.left = `${x0}px`;
+      cv.style.top = `${y0}px`;
+      cv.style.width = `${cv.width}px`;
+      cv.style.height = `${cv.height}px`;
+      $("#bBalloon").style.bottom = `${20 - cur.brow[1]}px`;
+      box.hidden = false;
+      drawn = "";
+      t0 = performance.now();
+      cancelAnimationFrame(raf);
+      const moving = frames.length > 1 || effects.some((e) => e.frames.length > 1);
+      const step = (now) => {
+        // 看不到時（切到其他工具）不重畫
+        if (box.offsetParent) draw(now - t0);
+        if (moving && my === gen) raf = requestAnimationFrame(step);
+      };
+      draw(0);
+      if (moving) raf = requestAnimationFrame(step);
+      return true;
+    }
+    function draw(t) {
+      if (!cur) return;
+      const bi = pick(cur.frames, cur.sum, t);
+      const eis = cur.effects.map((e) => pick(e.frames, e.sum, t));
+      const key = `${bi}|${eis.join(",")}`;
+      if (key === drawn) return;
+      drawn = key;
+      g.clearRect(0, 0, cv.width, cv.height);
+      const b = cur.frames[bi];
+      const effects = (front) => cur.effects.forEach((e, i) => {
+        if ((e.z >= 0) !== front) return;
+        const f = e.frames[eis[i]];
+        if (!f?.img) return;
+        const a = cur.anchorOf(b, e.anchor);
+        g.drawImage(f.img, a[0] + f.x - cur.x0, a[1] + f.y - cur.y0);
+      });
+      effects(false);
+      if (b.img) g.drawImage(b.img, b.x - cur.x0, b.y - cur.y0);
+      effects(true);
+    }
+    function clear() { gen++; cur = null; cancelAnimationFrame(raf); box.hidden = true; }
+    return { set, clear, center: () => cur?.center || [0, -40], on: () => !!cur && !box.hidden };
+  })();
+  /** 沒有動畫資料時（舊的結果），把單張圖當成一格 */
+  const animOf = (out) => out.anim || {
+    frames: [{ png: out.png, x: -(out.fx ?? out.cx), y: -(out.fy ?? out.cy), w: out.w, h: out.h, delay: 0, anchors: {} }],
+    effects: [], center: [out.cx - (out.fx ?? out.cx), out.cy - (out.fy ?? out.cy)],
+  };
+
+  const showDoll = renderQueue(async (out, err) => {
     const look = $("#bLook"), empty = $("#bEmpty"), note = $("#bDollNote");
     note.textContent = "";
-    if (out) announceDoll({ name: st.charName, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy });
-    else announceDoll(ch?.basic?.character_image && !(st.tryHair || st.tryFace) ? { name: st.charName, png: ch.basic.character_image, official: true } : null);
+    if (act === "stand") announceDoll(out ? dollOf(out) : officialDoll());
     if (out) {
       lastEquips = out.equips || [];
       if (!st.tryHair) lastHairId = out.hair_id || null;
       if (!st.tryFace) lastFaceId = out.face_id || null;
       if (st.dress) renderEquipped();
-      look.dataset.w = out.w;
-      look.dataset.h = out.h;
-      look.dataset.cx = out.cx ?? out.w / 2;
-      look.dataset.cy = out.cy ?? out.h / 2;
-      look.src = out.png;
-      look.hidden = false;
-      sizeLook();
-      empty.hidden = true;
-      if (out.warnings?.length) note.textContent = out.warnings.join("；");
+      const notes = [...(out.warnings || []), ...(tags?.notes || [])];
+      if (notes.length) note.textContent = notes.join("；");
+      if (await Actor.set(animOf(out))) {
+        look.hidden = true;
+        empty.hidden = true;
+        sizeLook();
+      }
       return;
     }
+    Actor.clear();
     // 讀不到遊戲資料：有角色就先顯示官方角色圖
     const img = ch?.basic?.character_image;
     if (img && !(st.tryHair || st.tryFace)) {
-      delete look.dataset.w;
-      delete look.dataset.h;
       look.src = img;
       look.hidden = false;
       empty.hidden = true;
@@ -421,6 +517,86 @@ if (typeof document !== "undefined") (() => {
     }
     if (err) note.textContent = err;
   });
+
+  /* ---------- 名牌、對話框（依名牌戒指、聊天戒指） ---------- */
+  let tags = null, tagsFor = "";
+  const bg = (el, p, repeat) => {
+    el.style.backgroundImage = p ? `url("${p.png}")` : "";
+    el.style.backgroundRepeat = repeat || "no-repeat";
+  };
+  function applyNameTag() {
+    const el = $("#bNameTag");
+    $("#bNameText").textContent = st.charName || "";
+    el.hidden = !st.charName;
+    const t = tags?.name_tag, P = t?.pieces || {};
+    el.classList.toggle("plain", !t);
+    const parts = [[".nt-w", P.w], [".nt-c", P.c], [".nt-e", P.e]];
+    // 三段依原點對齊（有些名牌左右兩端比中間高）
+    const top = Math.max(0, ...parts.filter(([, p]) => p).map(([, p]) => p.oy));
+    for (const [sel, p] of parts) {
+      const node = el.querySelector(sel);
+      node.removeAttribute("style");
+      if (!t || !p) continue;
+      bg(node, p, sel === ".nt-c" ? "repeat-x" : "no-repeat");
+      node.style.height = `${p.h}px`;
+      node.style.marginTop = `${top - p.oy}px`;
+      if (sel === ".nt-c") { node.style.lineHeight = `${p.h}px`; node.style.color = t.clr || "#fff"; }
+      else node.style.width = `${p.w}px`;
+    }
+  }
+  function applyBalloon() {
+    const el = $("#bBalloon"), b = tags?.balloon, P = b?.pieces || {};
+    el.classList.toggle("plain", !b);
+    const box = el.querySelector(".bb-box");
+    box.removeAttribute("style");
+    el.querySelectorAll("i, .bb-c").forEach((n) => n.removeAttribute("style"));
+    if (!b) return;
+    const W = (...ps) => Math.max(0, ...ps.filter(Boolean).map((p) => p.w));
+    const H = (...ps) => Math.max(0, ...ps.filter(Boolean).map((p) => p.h));
+    box.style.gridTemplateColumns = `${W(P.nw, P.w, P.sw)}px auto ${W(P.ne, P.e, P.se)}px`;
+    box.style.gridTemplateRows = `${H(P.nw, P.n, P.ne)}px auto ${H(P.sw, P.s, P.se)}px`;
+    for (const k of ["nw", "ne", "sw", "se"]) bg(el.querySelector(`.bb-${k}`), P[k]);
+    bg(el.querySelector(".bb-n"), P.n, "repeat-x");
+    bg(el.querySelector(".bb-s"), P.s, "repeat-x");
+    bg(el.querySelector(".bb-w"), P.w, "repeat-y");
+    bg(el.querySelector(".bb-e"), P.e, "repeat-y");
+    const c = el.querySelector(".bb-c");
+    bg(c, P.c, "repeat");
+    c.style.color = b.clr || "#000";
+    for (const k of ["arrow", "head"]) {
+      const n = el.querySelector(`.bb-${k}`), p = P[k];
+      if (!p) { n.style.display = "none"; continue; }
+      bg(n, p);
+      n.style.width = `${p.w}px`;
+      n.style.height = `${p.h}px`;
+    }
+    // 箭頭蓋住下緣，看起來是從對話框長出來的
+    if (P.arrow) el.querySelector(".bb-arrow").style.marginTop = `${-Math.min(H(P.s), P.arrow.h - 1)}px`;
+  }
+  function applyTags(t) {
+    tags = t;
+    applyNameTag();
+    applyBalloon();
+    document.dispatchEvent(new CustomEvent("beauty-tags", { detail: t }));
+  }
+  function refreshTags() {
+    const rings = ringsOf(ch);
+    const k = JSON.stringify([st.gamePath || "", rings]);
+    applyNameTag();
+    if (k === tagsFor) return;
+    tagsFor = k;
+    fetchTags(rings).then((t) => { if (tagsFor === k) applyTags(t); });
+  }
+  let sayTimer = 0;
+  function say(text) {
+    const el = $("#bBalloon");
+    clearTimeout(sayTimer);
+    if (!text) { el.hidden = true; return; }
+    $("#bBalloonText").textContent = text;
+    el.hidden = false;
+    // 和遊戲一樣，過一段時間對話框會消失（字越多停越久）
+    sayTimer = setTimeout(() => (el.hidden = true), Math.min(20000, 6000 + text.length * 250));
+  }
 
   let lastEquips = [];
   let lastHairId = null, lastFaceId = null, lastSkinId = null; // 紙娃娃最後一次實際穿上的點裝（角色原本的套組解析後的結果）
@@ -432,26 +608,24 @@ if (typeof document !== "undefined") (() => {
   const pan = { x: 0, y: 0 };
   const DOLL_SCALE = 3, DOLL_MIN = 1, DOLL_MAX = 12;
   const dollScale = () => Math.min(DOLL_MAX, Math.max(DOLL_MIN, Number(st.dollScale) || DOLL_SCALE));
+  // 官方角色圖本身比較大，倍率打折
+  const lookScale = () => (Actor.on() ? dollScale() : dollScale() * 0.55);
   /** 讓角色本身（不是整張圖）位在框的正中間：大型武器不會把角色擠到旁邊 */
-  function basePan(scale) {
-    const look = $("#bLook");
-    const w = Number(look.dataset.w), h = Number(look.dataset.h);
-    if (!w || !h) return { x: 0, y: 0 };
-    return { x: (w / 2 - Number(look.dataset.cx)) * scale, y: (h / 2 - Number(look.dataset.cy)) * scale };
-  }
-  const lookScale = () => (Number($("#bLook").dataset.w) ? dollScale() : dollScale() * 0.55);
   function placeLook() {
-    const b = basePan(lookScale());
-    $("#bLook").style.transform = `translate(${b.x + pan.x}px, ${b.y + pan.y}px)`;
+    const s = lookScale();
+    if (Actor.on()) {
+      const [cx, cy] = Actor.center();
+      const actor = $("#bActor");
+      actor.style.transform = `translate(${pan.x - cx * s}px, ${pan.y - cy * s}px) scale(${s})`;
+      actor.style.setProperty("--ui", String(Math.min(s, 2) / s));
+      return;
+    }
+    $("#bLook").style.transform = `translate(${pan.x}px, ${pan.y}px)`;
   }
   /** 紙娃娃放大倍率：滑鼠在角色框裡用滾輪調整 */
   function sizeLook() {
     const look = $("#bLook");
-    const base = Number(look.dataset.w) || 0;
-    const w = base || look.naturalWidth || 0;
-    if (!w) return;
-    // 官方角色圖本身比較大，倍率打折
-    look.style.width = `${Math.round(w * lookScale())}px`;
+    if (!Actor.on() && look.naturalWidth) look.style.width = `${Math.round(look.naturalWidth * lookScale())}px`;
     placeLook();
   }
 
@@ -473,8 +647,14 @@ if (typeof document !== "undefined") (() => {
 
   function renderDoll() {
     const tryH = st.tryHair, tryF = st.tryFace;
-    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.skinId && !st.outfit?.length)) showDoll(null);
-    else showDoll(lookReq(tryH, tryF, "full"));
+    refreshTags();
+    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.skinId && !st.outfit?.length)) { showDoll(null); announceQueue(null); }
+    else {
+      const req = lookReq(tryH, tryF, "full");
+      showDoll({ ...req, action: act });
+      // 側欄要的是站姿；中間在做其他動作時另外畫
+      if (act !== "stand") announceQueue(req);
+    }
 
     const wear = $("#bWear");
     wear.innerHTML = "";
@@ -704,6 +884,7 @@ if (typeof document !== "undefined") (() => {
     const stage = $("#bStage");
     let drag = null;
     stage.addEventListener("wheel", (e) => {
+      if (e.target.closest(".b-chatbar")) return;
       e.preventDefault();
       e.stopPropagation();
       if (e.deltaY === 0) return;
@@ -722,7 +903,7 @@ if (typeof document !== "undefined") (() => {
       sizeLook();
     }, { passive: false });
     stage.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || e.target.closest("button")) return;
+      if (e.button !== 0 || e.target.closest("button, .b-chatbar")) return;
       drag = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       stage.setPointerCapture(e.pointerId);
       stage.classList.add("dragging");
@@ -737,9 +918,29 @@ if (typeof document !== "undefined") (() => {
     const end = () => { drag = null; stage.classList.remove("dragging"); };
     stage.addEventListener("pointerup", end);
     stage.addEventListener("pointercancel", end);
-    stage.addEventListener("dblclick", () => { pan.x = pan.y = 0; st.dollScale = DOLL_SCALE; save(); sizeLook(); });
+    stage.addEventListener("dblclick", (e) => {
+      if (e.target.closest(".b-chatbar")) return;
+      pan.x = pan.y = 0; st.dollScale = DOLL_SCALE; save(); sizeLook();
+    });
   })();
   $("#bLook").addEventListener("load", sizeLook);
+  // 聊天：按 Enter 讓角色說話（空白 = 收起對話框）
+  $("#bChat").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    say(e.target.value.trim());
+    e.target.value = "";
+  });
+  // 動作：下拉選單直接選；右邊的按鈕回到站立
+  const setAct = (v) => {
+    act = v || "stand";
+    $("#bAct").value = act;
+    $("#bActReset").disabled = act === "stand";
+    renderDoll();
+  };
+  $("#bAct").addEventListener("change", (e) => setAct(e.target.value));
+  $("#bActReset").addEventListener("click", () => setAct("stand"));
+  $("#bActReset").disabled = true;
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
   $("#bCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
@@ -1504,7 +1705,7 @@ if (typeof document !== "undefined") (() => {
   if (st.charName && TAURI) lookup(false);
   window.Beauty = {
     onShow: renderAll,
-    current: () => ({ name: st.charName || "", doll: lastDoll }),
+    current: () => ({ name: st.charName || "", doll: lastDoll, tags }),
     /** 側欄輸入角色名稱且開著同步時，直接查詢美容美髮的角色 */
     setName: async (name) => { $("#bName").value = name; await lookup(false); },
     charLook,

@@ -407,10 +407,36 @@
             <p class="b-status muted" id="bStatus">輸入角色名稱可以載入目前的造型；不輸入則使用空白紙娃娃</p>
             <div class="b-stage" id="bStage" title="滾輪放大縮小・按住拖曳移動・按兩下回到預設">
               <img id="bLook" alt="" hidden />
-              <canvas id="bCanvas" width="300" height="300" hidden></canvas>
+              <!-- 遊戲資料畫的角色：原點在角色腳下，名牌、對話框跟著一起縮放 -->
+              <div class="b-actor" id="bActor" hidden>
+                <canvas id="bCanvas" width="1" height="1"></canvas>
+                <div class="b-balloon" id="bBalloon" hidden>
+                  <i class="bb-head"></i>
+                  <div class="bb-box">
+                    <i class="bb-nw"></i><i class="bb-n"></i><i class="bb-ne"></i>
+                    <i class="bb-w"></i><span class="bb-c" id="bBalloonText"></span><i class="bb-e"></i>
+                    <i class="bb-sw"></i><i class="bb-s"></i><i class="bb-se"></i>
+                  </div>
+                  <i class="bb-arrow"></i>
+                </div>
+                <div class="b-nametag plain" id="bNameTag" hidden><i class="nt-w"></i><span class="nt-c" id="bNameText"></span><i class="nt-e"></i></div>
+              </div>
               <div class="b-empty" id="bEmpty">
                 <svg viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>
                 <span>空白紙娃娃</span>
+              </div>
+              <div class="b-chatbar" id="bChatBar">
+                <input type="text" id="bChat" maxlength="70" placeholder="輸入文字讓角色說話" title="按 Enter 送出；空白送出會收起對話框" autocomplete="off" spellcheck="false" />
+                <select class="b-act" id="bAct" title="角色動作">
+                  <option value="stand">站立</option>
+                  <option value="attack">普通攻擊</option>
+                  <option value="walk">走路</option>
+                  <option value="ladder">爬梯子</option>
+                  <option value="prone">趴下</option>
+                  <option value="sit">坐下</option>
+                  <option value="jump">跳躍</option>
+                </select>
+                <button class="b-act-reset" id="bActReset" title="回到站立"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg></button>
               </div>
             </div>
             <div class="b-colors">

@@ -542,10 +542,47 @@ const SideDoll = (() => {
     const room = Math.min((bw * 0.82) / BODY_W, (bh * 0.8) / BODY_H, 5);
     const scale = room >= 1 ? Math.floor(room) : Math.max(0.4, room);
     img.style.width = `${Math.round(doll.w * scale)}px`;
-    // 角色本體的中心放在框的正中間
+    // 左右以角色本體置中；上下讓腳踩在框的下方（像站在地上），不是整個置中
     const c = doll.box || { cx: doll.cx ?? doll.w / 2, cy: doll.cy ?? doll.h / 2 };
+    const feet = doll.fy ?? c.cy + BODY_H / 2;
+    const ground = bh - Math.max(10, Math.round(bh * 0.1));
     img.style.left = `${Math.round(bw / 2 - c.cx * scale)}px`;
-    img.style.top = `${Math.round(bh / 2 - c.cy * scale)}px`;
+    img.style.top = `${Math.round(ground - feet * scale)}px`;
+  }
+  /** 名牌戒指：輸入框直接變成名牌的樣子（左、中、右三段，像素放大） */
+  function styleName(tags) {
+    const t = tags?.name_tag;
+    const P = t?.pieces || {};
+    const ps = [P.w, P.c, P.e].filter(Boolean);
+    const wrap = inp.parentElement;
+    wrap.classList.toggle("tagged", ps.length > 0);
+    inp.removeAttribute("style");
+    if (!ps.length) return;
+    const top = Math.max(0, ...ps.map((p) => p.oy));
+    const H = Math.max(...ps.map((p) => top - p.oy + p.h));
+    const k = Math.max(1, Math.min(2, Math.floor(42 / H)));
+    const y = (p) => (top - p.oy) * k;
+    // 第一層在最上面：左右兩端蓋在中間（中間只鋪在文字範圍）
+    const L = [];
+    if (P.w) L.push([P.w, `left 0 top ${y(P.w)}px`, "no-repeat", "border-box"]);
+    if (P.e) L.push([P.e, `right 0 top ${y(P.e)}px`, "no-repeat", "border-box"]);
+    if (P.c) L.push([P.c, `left 0 top ${y(P.c)}px`, "repeat-x", "content-box"]);
+    Object.assign(inp.style, {
+      backgroundImage: L.map(([p]) => `url("${p.png}")`).join(", "),
+      backgroundPosition: L.map((l) => l[1]).join(", "),
+      backgroundRepeat: L.map((l) => l[2]).join(", "),
+      backgroundSize: L.map(([p]) => `${p.w * k}px ${p.h * k}px`).join(", "),
+      backgroundOrigin: L.map((l) => l[3]).join(", "),
+      backgroundClip: L.map((l) => l[3]).join(", "),
+      backgroundColor: "transparent",
+      paddingLeft: `${(P.w?.w || 0) * k}px`,
+      paddingRight: `${(P.e?.w || 0) * k}px`,
+      paddingTop: "0",
+      paddingBottom: "0",
+      height: `${H * k}px`,
+      lineHeight: `${(P.c?.h || H) * k}px`,
+      color: t.clr || "#fff",
+    });
   }
   function show(d) {
     doll = d && d.png ? d : null;
@@ -576,17 +613,19 @@ const SideDoll = (() => {
       const cur = window.Beauty?.current?.();
       if (document.activeElement !== inp) inp.value = cur?.name || "";
       show(cur?.doll || null);
+      styleName(cur?.name ? cur?.tags : null);
       return;
     }
     if (document.activeElement !== inp) inp.value = cfg.name;
-    if (!cfg.name || !TAURI || !window.Beauty?.charLook) { show(null); return; }
+    if (!cfg.name || !TAURI || !window.Beauty?.charLook) { show(null); styleName(null); return; }
     const my = ++gen;
     try {
       const d = await window.Beauty.charLook(cfg.name);
-      if (my === gen) show(d);
+      if (my === gen) { show(d); styleName(d?.tags); }
     } catch (e) {
       if (my !== gen) return;
       show(null);
+      styleName(null);
       if (manual) toast(String(e));
     }
   }
@@ -609,6 +648,7 @@ const SideDoll = (() => {
     if (document.activeElement !== inp) inp.value = window.Beauty?.current?.().name || "";
     show(e.detail);
   });
+  document.addEventListener("beauty-tags", (e) => { if (cfg.sync) styleName(window.Beauty?.current?.().name ? e.detail : null); });
   document.addEventListener("beauty-ready", () => load(false));
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(box);
   return { load };
