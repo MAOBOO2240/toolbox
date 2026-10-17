@@ -79,6 +79,43 @@ const BossCore = (() => {
     return 6;
   }
 
+  /**
+   * BOSS攻略次數初始化票券（BOSS重製卷），整個帳號共用、每隻王每週（每月王每月）只能重製一次：
+   * - 下級：每週 1 張；中級：每週 3 張（所有難度合併，終極難度不能用）；上級：每週 1 張（同中級）
+   * - 終極：每週 1 張，重製終極難度；每月：每月 1 張，只能重製黑魔法師
+   */
+  const TICKETS = [
+    { id: "low", name: "下級", per: 1, unit: "週", bosses: ["炎魔", "梅格耐斯", "希拉", "拉圖斯", "比艾樂", "斑斑", "血腥皇后", "貝倫", "粉豆", "西格諾斯", "濃姬"] },
+    { id: "mid", name: "中級", per: 3, unit: "週", bosses: ["史烏", "戴米安", "守護天使綠水靈", "露希妲", "威爾", "戴斯克", "頓凱爾", "真·希拉", "受選的賽蓮", "監視者卡洛斯", "咖凌", "最初的敵對者", "瑪麗西亞"] },
+    { id: "high", name: "上級", per: 1, unit: "週", bosses: ["林波", "巴德利斯"] },
+    { id: "ext", name: "終極", per: 1, unit: "週", bosses: ["史烏", "受選的賽蓮", "監視者卡洛斯", "最初的敵對者", "咖凌", "瑪麗西亞"] },
+    { id: "month", name: "每月", per: 1, unit: "月", bosses: ["黑魔法師"] },
+  ];
+  const TICKET = Object.fromEntries(TICKETS.map((t) => [t.id, t]));
+  /**
+   * 這次重製要用哪一種票券：第一次打的是終極難度 → 終極票券；其他依 BOSS 分下級、中級、上級；
+   * 沒有票券可以重製時回傳 null（例如燦爛的凶星、尤比太）
+   */
+  function ticketFor(b, firstDiff, resetDiff) {
+    if (!b) return null;
+    if (b.type === "month") return TICKET.month.bosses.includes(b.name) ? "month" : null;
+    if (b.type !== "week") return null;
+    const ext = firstDiff === "終極" || (firstDiff == null && resetDiff === "終極");
+    if (ext) return TICKET.ext.bosses.includes(b.name) ? "ext" : null;
+    return ["low", "mid", "high"].find((id) => TICKET[id].bosses.includes(b.name)) || null;
+  }
+  /** 一隻角色某隻王的重製要用的票券 */
+  function ticketOf(ch, key) {
+    const b = BY_KEY[key], s = ch?.sel?.[key], r = ch?.rs?.[key];
+    return ticketFor(b, s && b?.diffs[s.d] ? b.diffs[s.d][0] : null, r && r.d != null && b?.diffs[r.d] ? b.diffs[r.d][0] : null);
+  }
+  /** 整個帳號各種票券用了幾張 */
+  function ticketUse(chars) {
+    const use = Object.fromEntries(TICKETS.map((t) => [t.id, 0]));
+    for (const ch of chars) for (const key of Object.keys(ch.rs || {})) { const t = ticketOf(ch, key); if (t) use[t]++; }
+    return use;
+  }
+
   /** 一顆結晶分給每個人的價值（組隊平分，無條件捨去） */
   const share = (price, party, max = 6) => Math.floor(price / Math.max(1, Math.min(max, party || 1)));
 
@@ -90,7 +127,7 @@ const BossCore = (() => {
    * 重製卷多打的一樣是每週王結晶，算在角色 12 顆、帳號 90 顆裡
    */
   function crystals(ch, owner) {
-    const week = [], day = [], month = [];
+    const week = [], day = [], month = [], monthReset = [];
     for (const [key, s] of Object.entries(ch?.sel || {})) {
       const b = BY_KEY[key];
       if (!b || !b.diffs[s.d]) continue;
@@ -102,12 +139,14 @@ const BossCore = (() => {
     }
     for (const [key, r] of Object.entries(ch?.rs || {})) {
       const b = BY_KEY[key];
-      if (!b || b.type !== "week" || r.d == null || !b.diffs[r.d]) continue;
+      if (!b || r.d == null || !b.diffs[r.d]) continue;
       const [diff, price] = b.diffs[r.d];
-      week.push({ key, name: b.name, diff, value: share(price, r.p, maxParty(b.name, diff)), owner, reset: true });
+      const item = { key, name: b.name, diff, value: share(price, r.p, maxParty(b.name, diff)), owner, reset: true };
+      if (b.type === "week") week.push(item);
+      else if (b.type === "month") monthReset.push(item);
     }
     week.sort((a, b) => b.value - a.value || (a.reset ? 1 : 0) - (b.reset ? 1 : 0));
-    return { week: week.slice(0, CHAR_CAP), weekOver: week.slice(CHAR_CAP), day, month };
+    return { week: week.slice(0, CHAR_CAP), weekOver: week.slice(CHAR_CAP), day, month, monthReset };
   }
 
   /** 從所有結晶裡挑價值最高的 90 顆 */
@@ -124,9 +163,13 @@ const BossCore = (() => {
     const per = chars.map((ch, i) => ({ ch, ...crystals(ch, i) }));
     const weekPool = per.flatMap((c) => [...c.week, ...c.day]);
     const monthPool = per.flatMap((c) => c.month);
+    const monthReset = per.flatMap((c) => c.monthReset);
     const normal = sell(weekPool);
     const withMonth = sell([...weekPool, ...monthPool]);
-    const monthly = monthPool.length ? normal.value * 3 + withMonth.value : normal.value * 4;
+    // 用每月重製票券再打一次黑魔法師：放在另一週賣（同一週會擠到帳號 90 顆）
+    const withReset = monthReset.length ? sell([...weekPool, ...monthReset]) : null;
+    const bmWeeks = (monthPool.length ? 1 : 0) + (withReset ? 1 : 0);
+    const monthly = normal.value * (4 - bmWeeks) + (monthPool.length ? withMonth.value : 0) + (withReset ? withReset.value : 0);
     const part = (list) => list.reduce((a, x) => a + x.value, 0);
     return {
       per: per.map((c) => ({
@@ -134,7 +177,7 @@ const BossCore = (() => {
         weekCount: c.week.length + c.weekOver.length, over: c.weekOver.length, crystals: c.week.length + c.day.length,
         resets: [...c.week, ...c.weekOver].filter((x) => x.reset).length,
       })),
-      normal, withMonth, monthly,
+      normal, withMonth, withReset, monthly, bmWeeks,
       byType: {
         week: part(per.flatMap((c) => c.week)), day: part(per.flatMap((c) => c.day)), month: part(monthPool),
         reset: part(per.flatMap((c) => c.week.filter((x) => x.reset))),
@@ -150,7 +193,7 @@ const BossCore = (() => {
     阿卡伊農: 30, 凡雷恩: 31, 闇黑龍王: 32, 卡翁: 33,
   };
 
-  return { CHAR_CAP, WORLD_CAP, ICON, LIST, BY_KEY, maxParty, share, crystals, sell, summary };
+  return { CHAR_CAP, WORLD_CAP, ICON, LIST, BY_KEY, TICKETS, TICKET, ticketFor, ticketOf, ticketUse, maxParty, share, crystals, sell, summary };
 })();
 
 if (typeof module !== "undefined") module.exports = BossCore;
@@ -182,7 +225,7 @@ if (typeof document !== "undefined") (() => {
         if (b && b.diffs[s.d]) s.p = Math.min(s.p || 1, C.maxParty(b.name, b.diffs[s.d][0]));
         if (s.r) { if (!used.has(k) && !ch.rs[k]) ch.rs[k] = { d: s.d, p: s.p }; delete s.r; }
       }
-      for (const k of Object.keys(ch.rs)) { if (used.has(k) || C.BY_KEY[k]?.type !== "week") delete ch.rs[k]; else used.add(k); }
+      for (const k of Object.keys(ch.rs)) { if (used.has(k) || !["week", "month"].includes(C.BY_KEY[k]?.type)) delete ch.rs[k]; else used.add(k); }
     }
   }
   /** 這隻王本週是哪隻角色用重製卷（整個帳號每隻王每週只能重製一次） */
@@ -316,6 +359,7 @@ if (typeof document !== "undefined") (() => {
     const cnt = `每週王 <b class="${p.weekCount > C.CHAR_CAP ? "bad" : ""}">${p.weekCount}</b> / ${C.CHAR_CAP}`;
     const resets = st.chars.reduce((a, c) => a + Object.keys(c.rs || {}).length, 0);
     if (st.page === "reset") head.innerHTML = `${who}<span>這隻重製 <b>${Object.keys(ch.rs || {}).length}</b> 隻・整個帳號 <b>${resets}</b> 隻</span>`;
+    else if (st.page === "month") head.innerHTML = `${who}<span>不算在每週 ${C.CHAR_CAP} 顆裡，算在帳號 ${C.WORLD_CAP} 顆裡</span>`;
     else if (st.page === "week") head.innerHTML = `${who}<span>${cnt}${p.over ? `<small>超過的 ${p.over} 顆價值最低，不會賣</small>` : ""}</span>`;
     else if (st.page === "day") head.innerHTML = `${who}<span>每天一顆，不算在每週 ${C.CHAR_CAP} 顆裡</span>`;
     else head.innerHTML = `${who}<span>不算在每週 ${C.CHAR_CAP} 顆裡，算在帳號 ${C.WORLD_CAP} 顆裡</span>`;
@@ -379,6 +423,8 @@ if (typeof document !== "undefined") (() => {
     const ic = icon(b);
     ic.classList.add("bs-ic-reset");
     ic.title = "BOSS重製卷";
+    const tk = C.ticketOf(ch, b.key);
+    if (tk) ic.style.setProperty("--tk", `url(assets/ticket/${tk}.png)`);
     const diffs = document.createElement("div");
     diffs.className = "bs-diffs";
     b.diffs.forEach(([d, price], i) => {
@@ -396,14 +442,16 @@ if (typeof document !== "undefined") (() => {
     });
     const party = cell("bs-c");
     const val = cell("bs-val");
-    let sub = "BOSS重製卷・選這次要打的難度";
+    const t = C.TICKET[C.ticketOf(ch, b.key)];
+    const tName = t ? `${t.name}票券` : "沒有可用的票券";
+    let sub = `${tName}・選這次要打的難度`;
     if (r.d != null) {
       const [d, price] = b.diffs[r.d];
       const mp = C.maxParty(b.name, d);
       party.appendChild(stepper(Math.min(r.p || 1, mp), 1, mp, "人", (v) => { r.p = v; save(); render(); }, `重製這次的組隊人數，最多 ${mp} 人，可以用滾輪調整`));
       val.textContent = zh(C.share(price, r.p, mp));
-      const sold = mine.week.some((x) => x.key === b.key && x.reset);
-      sub = sold ? `BOSS重製卷${(r.p || 1) > 1 ? `・${r.p} 人平分` : ""}` : `BOSS重製卷・超過 ${C.CHAR_CAP} 顆，不會賣`;
+      const sold = b.type !== "week" || mine.week.some((x) => x.key === b.key && x.reset);
+      sub = sold ? `${tName}${(r.p || 1) > 1 ? `・${r.p} 人平分` : ""}` : `${tName}・超過 ${C.CHAR_CAP} 顆，不會賣`;
     } else {
       val.textContent = "—";
       val.classList.add("muted");
@@ -413,23 +461,51 @@ if (typeof document !== "undefined") (() => {
     return row;
   }
 
+  /** 票券圖示（遊戲裡的道具圖） */
+  function ticketIcon(id, cls = "bs-tk-ic") {
+    const im = new Image();
+    im.src = `assets/ticket/${id}.png`;
+    im.alt = "";
+    im.className = cls;
+    im.draggable = false;
+    return im;
+  }
+
   /**
-   * BOSS重製卷：整個帳號每隻每週王每週只能重製一次（一隻角色重製了，其他角色就不能再重製同一隻）。
-   * 這裡選要重製哪幾隻王，難度、人數回到「每週王」那邊選
+   * BOSS重製卷：整個帳號每隻王每週（黑魔法師每月）只能重製一次，一隻角色重製了其他角色就不能重製同一隻。
+   * 這裡選要重製哪幾隻王，用哪一種票券依 BOSS 和第一次打的難度決定；難度、人數回到每週王（每月王）那邊選
    */
   function renderResets(ch) {
     const box = $("#bsList");
     box.className = "bs-list cols-5";
+    const use = C.ticketUse(st.chars);
+    // 票券：用了幾張／每週（每月）幾張
+    const bar = document.createElement("div");
+    bar.className = "bs-tickets";
+    for (const t of C.TICKETS) {
+      const chip = document.createElement("div");
+      chip.className = "bs-ticket" + (use[t.id] > t.per ? " bad" : use[t.id] === t.per ? " full" : "");
+      chip.title = `${t.name}重製票券：每${t.unit} ${t.per} 張\n可以重製：${t.bosses.join("、")}${t.id === "mid" || t.id === "high" ? "\n終極難度不能用這張" : ""}`;
+      const txt = document.createElement("span");
+      txt.innerHTML = `<b></b><small></small>`;
+      txt.children[0].textContent = t.name;
+      txt.children[1].textContent = `${use[t.id]} / ${t.per}`;
+      chip.append(ticketIcon(t.id), txt);
+      bar.appendChild(chip);
+    }
+    box.appendChild(bar);
     const note = document.createElement("p");
     note.className = "bs-reset-note muted";
-    note.textContent = `每隻每週王每週只能重製一次，整個帳號共用（一隻角色重製了，其他角色就不能重製同一隻）。選好後到「每週王」選這次重製要打的難度與人數；多打的結晶一樣算在角色 ${C.CHAR_CAP} 顆、帳號 ${C.WORLD_CAP} 顆裡。`;
+    note.textContent = `整個帳號每隻王每週只能重製一次（黑魔法師每月一次），一隻角色重製了其他角色就不能重製同一隻。第一次打終極難度要用終極票券；燦爛的凶星、尤比太沒有票券可以重製。選好後到「每週王」選這次要打的難度與人數，多打的結晶一樣算在角色 ${C.CHAR_CAP} 顆、帳號 ${C.WORLD_CAP} 顆裡。`;
     box.appendChild(note);
     box.appendChild(headRow(["", "名稱", "重製難度", "重製", "結晶錢"]));
-    for (const b of C.LIST.filter((x) => x.type === "week")) {
+    for (const b of C.LIST.filter((x) => x.type === "week" || x.type === "month")) {
       const owner = resetOwner(b.key);
       const mineR = owner === ch ? ch.rs[b.key] : null;
+      const tk = mineR ? C.ticketOf(ch, b.key) : C.ticketFor(b, ch.sel[b.key] ? b.diffs[ch.sel[b.key].d]?.[0] : null, null);
+      const t = C.TICKET[tk];
       const row = document.createElement("div");
-      row.className = "bs-row" + (mineR ? " on" : "") + (owner && owner !== ch ? " taken" : "");
+      row.className = "bs-row" + (mineR ? " on" : "") + ((owner && owner !== ch) || !t ? " taken" : "");
       const diffs = document.createElement("div");
       diffs.className = "bs-diffs";
       if (mineR && mineR.d != null) {
@@ -438,18 +514,28 @@ if (typeof document !== "undefined") (() => {
         chip.className = `cbtn small on ${DIFF_COLOR[d] || "c-silver"} bs-chip`;
         chip.textContent = d;
         diffs.appendChild(chip);
-      } else if (mineR) diffs.appendChild(cell("bs-hint muted", "到每週王選"));
+      } else if (mineR) diffs.appendChild(cell("bs-hint muted", b.type === "month" ? "到每月王選" : "到每週王選"));
       const act = cell("bs-c");
       const btn = document.createElement("button");
-      if (owner && owner !== ch) {
+      if (!t) {
+        btn.className = "cbtn small c-silver";
+        btn.disabled = true;
+        btn.textContent = "無法重製";
+        btn.title = "沒有可以重製這隻王的票券";
+      } else if (owner && owner !== ch) {
         btn.className = "cbtn small c-silver";
         btn.disabled = true;
         btn.textContent = "已被重製";
-        btn.title = `「${owner.name || "角色"}」這週已經用重製卷重製這隻王`;
+        btn.title = `「${owner.name || "角色"}」這${t.unit}已經重製這隻王`;
+      } else if (!mineR && use[tk] >= t.per) {
+        btn.className = "cbtn small c-silver";
+        btn.disabled = true;
+        btn.textContent = "票券用完";
+        btn.title = `${t.name}重製票券每${t.unit}只有 ${t.per} 張，已經用完了`;
       } else {
         btn.className = "cbtn small c-teal" + (mineR ? " on" : "");
         btn.textContent = mineR ? "重製中" : "重製";
-        btn.title = mineR ? "再點一次取消" : "這隻角色用重製卷再打一次這隻王";
+        btn.title = mineR ? "再點一次取消" : `用${t.name}重製票券再打一次這隻王`;
         btn.addEventListener("click", () => {
           if (mineR) delete ch.rs[b.key];
           else {
@@ -461,18 +547,20 @@ if (typeof document !== "undefined") (() => {
       }
       act.appendChild(btn);
       const val = cell("bs-val");
-      let sub = "";
+      let sub = t ? `${t.name}票券` : "沒有可以重製的票券";
       if (owner && owner !== ch) sub = `「${owner.name || "角色"}」已重製`;
       if (mineR && mineR.d != null) {
         const [d, price] = b.diffs[mineR.d];
         const mp = C.maxParty(b.name, d);
         val.textContent = zh(C.share(price, mineR.p, mp));
-        if ((mineR.p || 1) > 1) sub = `${mineR.p} 人平分`;
+        if ((mineR.p || 1) > 1) sub += `・${mineR.p} 人平分`;
       } else {
         val.textContent = zh(Math.max(...b.diffs.map((d) => d[1])));
         val.classList.add("muted");
       }
-      row.append(icon(b), nameCell(b, sub), diffs, act, val);
+      const name = nameCell(b, sub);
+      if (t) name.children[1].prepend(ticketIcon(tk, "bs-tk-mini"));
+      row.append(icon(b), name, diffs, act, val);
       box.appendChild(row);
     }
   }
@@ -493,8 +581,9 @@ if (typeof document !== "undefined") (() => {
       kv("每週王", eText(sum.byType.week), sum.byType.reset ? `含重製卷 ${eText(sum.byType.reset)}` : "") +
       kv("每日王", eText(sum.byType.day)) +
       (hasMonth ? kv("黑魔法師那週", eText(m.value), m.left.length ? `${m.left.length} 顆賣不掉` : "") : "") +
+      (sum.withReset ? kv("重製黑魔法師那週", eText(sum.withReset.value), sum.withReset.left.length ? `${sum.withReset.left.length} 顆賣不掉` : "") : "") +
       "</div>" +
-      `<div class="f-line total pos bs-total" title="台幣依「送禮買賣」的楓幣比率（${intFmt.format(r)} 萬楓幣 = 1 台幣）"><span>每月收入<small>4 週${hasMonth ? "，其中一週打黑魔法師" : ""}・約 ${nt(sum.monthly)}</small></span><b>${eText(sum.monthly)}</b></div>`;
+      `<div class="f-line total pos bs-total" title="台幣依「送禮買賣」的楓幣比率（${intFmt.format(r)} 萬楓幣 = 1 台幣）"><span>每月收入<small>4 週${sum.bmWeeks ? `，其中 ${sum.bmWeeks} 週打黑魔法師` : ""}・約 ${nt(sum.monthly)}</small></span><b>${eText(sum.monthly)}</b></div>`;
   }
 
   function render() {

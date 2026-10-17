@@ -114,16 +114,27 @@
 .bs-reset-note { grid-column: 1 / -1; margin: 0 0 0.2rem; font-size: 0.78rem; line-height: 1.5; }
 /* BOSS重製卷 */
 .bs-reset-btn { gap: 0.3rem; }
-.bs-reset-btn svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.bs-reset-btn img { height: 1.15rem; width: auto; flex: none; margin: -0.1rem 0; }
+.bs-tickets { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.4rem; margin-bottom: 0.1rem; }
+.bs-ticket { display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0.55rem; border-radius: 0.7rem; background: var(--card-2); box-shadow: inset 0 0 0 1px var(--sep); }
+.bs-ticket span { display: flex; flex-direction: column; line-height: 1.2; }
+.bs-ticket b { font-size: 0.82rem; }
+.bs-ticket small { font-size: 0.74rem; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.bs-ticket.full small { color: #0d9488; }
+.bs-ticket.bad { box-shadow: inset 0 0 0 1.5px #e5484d; }
+.bs-ticket.bad small { color: #e5484d; }
+.bs-tk-ic { height: 1.9rem; width: auto; flex: none; }
+.bs-tk-mini { height: 0.9rem; width: auto; margin-right: 0.25rem; vertical-align: -0.15rem; }
 .bs-row.taken { opacity: 0.6; }
 .bs-hint { font-size: 0.76rem; white-space: nowrap; }
 /* 每週王底下「重製」那一列：縮排一點，左邊一條青色線 */
 .bs-row.bs-reset { margin-top: -0.15rem; background: color-mix(in srgb, #14b8a6 7%, var(--card-2)); box-shadow: inset 3px 0 0 #14b8a6, inset 0 0 0 1px color-mix(in srgb, #14b8a6 35%, transparent); }
 .bs-row.bs-reset.on { background: color-mix(in srgb, #14b8a6 12%, var(--card)); }
 .bs-ic.bs-ic-reset { position: relative; transform: scale(0.82); }
+/* 重製那一列：BOSS 圖右下角放用的票券 */
 .bs-ic.bs-ic-reset::after {
-  content: "重製"; position: absolute; right: -0.35rem; bottom: -0.3rem; padding: 0 0.2rem; border-radius: 0.3rem;
-  background: #14b8a6; color: #fff; font-size: 0.55rem; font-weight: 800; line-height: 1.3;
+  content: ""; position: absolute; right: -0.45rem; bottom: -0.35rem; width: 1.5rem; height: 1.2rem;
+  background: var(--tk, none) center / contain no-repeat;
 }
 .bs-empty { grid-column: 1 / -1; text-align: center; padding: 2rem 1rem; font-size: 0.88rem; }
 
