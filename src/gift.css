@@ -77,3 +77,6 @@ img.f-ic { image-rendering: auto; }
 .f-input { position: relative; }
 .f-ghost { position: absolute; top: 50%; transform: translateY(-50%); color: var(--text-2); font-weight: 600; pointer-events: none; white-space: nowrap; font-size: 0.95rem; }
 .f-ghost[hidden] { display: none; }
+
+/* 換算結果大字後面的中文讀法 */
+.f-zh { margin-left: 0.6rem; font-size: 1rem; font-weight: 600; color: var(--text-2); letter-spacing: 0; }

@@ -155,9 +155,22 @@ if (typeof document !== "undefined") (() => {
     const main = n >= 1e8
       ? `${e >= 1000 ? intFmt.format(Math.round(e)) : +e.toFixed(e >= 100 ? 1 : 2)}e`
       : `${n >= 1e6 ? intFmt.format(Math.round(n / 1e4)) : +(n / 1e4).toFixed(2)}w`;
-    const yi = Math.floor(n / 1e8), wan = Math.round((n % 1e8) / 1e4);
-    const zh = n >= 1e8 ? `${intFmt.format(yi)} 億${wan ? ` ${intFmt.format(wan)} 萬` : ""}` : `${ntFmt.format(n / 1e4)} 萬`;
-    return { main, zh };
+    return { main, zh: zhNum(Math.round(n / 1e4) * 1e4) };
+  }
+  /** 中文讀法：154286 → 15萬4286、1209600000000 → 1兆2096億（萬以下的零頭四捨五入到小數兩位） */
+  function zhNum(n) {
+    if (!isFinite(n)) return "";
+    const neg = n < 0;
+    let x = Math.abs(n);
+    const units = [[1e12, "兆"], [1e8, "億"], [1e4, "萬"]];
+    let out = "";
+    for (const [u, name] of units) {
+      const q = Math.floor(x / u + 1e-9);
+      if (q > 0) { out += `${q}${name}`; x -= q * u; }
+    }
+    const rest = Math.round(x * 100) / 100;
+    if (rest > 0 || !out) out += `${rest}`;
+    return (neg ? "-" : "") + out;
   }
   const num = (v) => { const n = parseFloat(String(v).replace(/[,\s]/g, "")); return isFinite(n) ? n : 0; };
 
@@ -281,12 +294,14 @@ if (typeof document !== "undefined") (() => {
       out.textContent = "—";
       sub.textContent = perNt > 0 ? "" : "請先輸入目前楓幣比值";
     } else if (isMeso) {
-      out.textContent = nt(v / perNt);
-      sub.innerHTML = `${ICON.meso()}${meso(v).main}（${meso(v).zh}）楓幣`;
+      const twd = v / perNt;
+      // 大字後面用灰色小字寫中文讀法
+      out.innerHTML = `${nt(twd)}<small class="f-zh">${zhNum(twd >= 100 ? Math.round(twd) : twd)}元</small>`;
+      sub.innerHTML = `${ICON.meso()}${meso(v).main} 楓幣`;
     } else {
       const m = meso(v * perNt);
-      out.innerHTML = `${ICON.meso()}${m.main}`;
-      sub.textContent = `${m.zh} 楓幣・${nt(v)}`;
+      out.innerHTML = `${ICON.meso()}${m.main}<small class="f-zh">${m.zh}</small>`;
+      sub.textContent = nt(v);
     }
     // 常用換算
     const box = $("#fFxTable");

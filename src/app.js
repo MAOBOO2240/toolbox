@@ -503,19 +503,49 @@ const SideDoll = (() => {
   const saveCfg = () => store.set("side-doll", cfg);
   const img = $("#sideDollImg"), empty = $("#sideDollEmpty"), box = $("#sideDollPic"), inp = $("#sideName");
 
-  // 角色本體大約的大小（像素）：放大倍率以角色為準，大型武器超出框沒關係
-  const BODY_W = 46, BODY_H = 78;
+  /**
+   * 找出角色本體的位置：在不透明像素最密集的地方放一個「角色大小」的框
+   * （橫向、縱向各自找總量最大的區段）。大型武器、披風雖然延伸得遠，但像素密度比不上身體，
+   * 所以不會把中心拉走；放大倍率也以這個角色大小為準。
+   */
+  const BODY_W = 44, BODY_H = 74;
+  function bodyBox(el) {
+    try {
+      const w = el.naturalWidth, h = el.naturalHeight;
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(el, 0, 0);
+      const px = ctx.getImageData(0, 0, w, h).data;
+      const cols = new Float64Array(w), rows = new Float64Array(h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (px[(y * w + x) * 4 + 3] > 128) { cols[x]++; rows[y]++; }
+      }
+      const densest = (arr, size) => {
+        const n = arr.length, k = Math.min(size, n);
+        let sum = 0;
+        for (let i = 0; i < k; i++) sum += arr[i];
+        let best = sum, at = 0;
+        for (let i = k; i < n; i++) { sum += arr[i] - arr[i - k]; if (sum > best) { best = sum; at = i - k + 1; } }
+        return { at, k, mass: best };
+      };
+      const cx = densest(cols, BODY_W), cy = densest(rows, BODY_H);
+      if (!cx.mass) return null;
+      return { cx: cx.at + cx.k / 2, cy: cy.at + cy.k / 2 };
+    } catch (_) { return null; }
+  }
   function fit() {
-    img.classList.toggle("body", !!(doll && !doll.official && doll.w));
-    if (!doll || doll.official || !doll.w || img.hidden) { img.style.width = img.style.left = img.style.top = ""; return; }
+    const body = !!(doll && !doll.official && doll.w);
+    img.classList.toggle("body", body);
+    if (!body || img.hidden) { img.style.width = img.style.left = img.style.top = ""; return; }
     const bw = box.clientWidth, bh = box.clientHeight;
     const room = Math.min((bw * 0.82) / BODY_W, (bh * 0.8) / BODY_H, 5);
     const scale = room >= 1 ? Math.floor(room) : Math.max(0.4, room);
     img.style.width = `${Math.round(doll.w * scale)}px`;
-    // 角色中心放在框的中間偏下
-    const cx = doll.cx ?? doll.w / 2, cy = doll.cy ?? doll.h / 2;
-    img.style.left = `${Math.round(bw / 2 - cx * scale)}px`;
-    img.style.top = `${Math.round(bh * 0.56 - cy * scale)}px`;
+    // 角色本體的中心放在框的正中間
+    const c = doll.box || { cx: doll.cx ?? doll.w / 2, cy: doll.cy ?? doll.h / 2 };
+    img.style.left = `${Math.round(bw / 2 - c.cx * scale)}px`;
+    img.style.top = `${Math.round(bh / 2 - c.cy * scale)}px`;
   }
   function show(d) {
     doll = d && d.png ? d : null;
@@ -529,7 +559,11 @@ const SideDoll = (() => {
     img.classList.toggle("official", !!doll.official);
     if (!doll.official) img.style.maxWidth = img.style.maxHeight = "none";
     else img.style.maxWidth = img.style.maxHeight = "";
-    img.onload = () => { fit(); if (isCharTheme()) applySettings(); };
+    img.onload = () => {
+      if (doll && !doll.official && !doll.box) doll.box = bodyBox(img);
+      fit();
+      if (isCharTheme()) applySettings();
+    };
     if (img.getAttribute("src") !== doll.png) img.src = doll.png;
     else img.onload();
     img.hidden = false;
