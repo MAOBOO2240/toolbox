@@ -37,6 +37,7 @@
       background: linear-gradient(135deg, #ff6b6b, #e5484d);
       box-shadow: 0 6px 16px rgba(229, 72, 77, 0.45);
     }
+    .card.timer .icon { background: linear-gradient(135deg, #bf5af2, #5e5ce6); box-shadow: 0 6px 16px rgba(94, 92, 230, 0.45); }
     .card.info .icon { background: linear-gradient(135deg, #64d2ff, #4c8dff); box-shadow: 0 6px 16px rgba(76, 141, 255, 0.45); }
     .icon svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .text { min-width: 0; }
@@ -67,6 +68,7 @@
     const bar = document.getElementById("bar");
     const ICON = {
       warn: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg>',
+      timer: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>',
       info: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>',
     };
     const SHOW_MS = 12000;

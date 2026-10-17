@@ -89,7 +89,7 @@
       <div class="tc-head">
         <input class="tc-name f-name" maxlength="20" spellcheck="false" title="點擊修改名稱" />
         <span class="spacer"></span>
-        ${t.builtin ? "" : `<button class="icon-btn f-del" title="刪除計時器">${TRASH}</button>`}
+        <button class="icon-btn f-del" title="刪除計時器">${TRASH}</button>
         ${sw("f-enabled")}
       </div>
       <div class="tc-clock">
@@ -450,7 +450,8 @@
     const on = !file.master_on;
     await tapi.setMaster(on);
     file.master_on = on;
-    file.prefs.overlay.show = on; // 總開關連動浮動視窗顯示
+    // 總開關連動浮動視窗的顯示與鎖定（後端會記住關閉前的狀態）
+    try { file.prefs = (await tapi.get()).prefs; } catch (_) { file.prefs.overlay.show = on; }
     renderMaster();
     renderPrefs();
     file.timers.forEach((t) => fillCard(card(t.id), t));

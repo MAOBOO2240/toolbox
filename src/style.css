@@ -501,13 +501,13 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .g-hname .item-ic { width: 1.4rem; height: 1.4rem; }
 
 /* 主頁磁磚：遊戲道具圖示 */
-.tile .cat-icon.item {
+.cat-icon.item {
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 30%, var(--card-2)), var(--card-2) 75%);
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.tile .cat-icon.item { overflow: hidden; }
-/* 圖示已裁掉透明邊，放大後置中，不會超出方框 */
-.tile .cat-icon.item img { width: 76%; height: 76%; object-fit: contain; image-rendering: pixelated; display: block; }
+.tile .cat-icon.item { overflow: hidden; display: flex; align-items: center; justify-content: center; }
+/* 圖示已裁掉透明邊：固定大小、置中 */
+.tile .cat-icon.item img { flex: none; width: 3.3rem; height: 3.3rem; object-fit: contain; image-rendering: pixelated; display: block; margin: 0; }
 
 /* 設定：更新 */
 .pop-sep { height: 0.5px; background: var(--sep); margin: 0.6rem 0; }
@@ -525,3 +525,59 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .g-tabs .cbtn, .b-kind .cbtn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
 .g-tabs .cbtn .item-ic, .b-kind .cbtn .item-ic { width: 1.9rem; height: 1.9rem; background: transparent; }
 .g-tabs .cbtn .item-ic.none, .b-kind .cbtn .item-ic.none { display: none; }
+
+/* ---------- 我的最愛（左側） ---------- */
+.fav-sec {
+  margin-top: 1rem;
+  padding: 0.35rem;
+  border-radius: 0.9rem;
+  min-height: 0;
+  display: flex; flex-direction: column;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.side-title {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin: 0 0 0.35rem; padding: 0 0.3rem;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; color: var(--text-2);
+}
+.side-title svg { width: 0.95rem; height: 0.95rem; fill: #ffb000; stroke: none; }
+.favs { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; }
+.fav {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600; font-size: 0.9rem; text-align: left;
+  background: transparent;
+  transition: background 0.15s;
+}
+.fav:hover { background: var(--card-2); }
+.fav .cat-icon { width: 1.75rem; height: 1.75rem; border-radius: 0.5rem; }
+.fav .cat-icon svg { width: 1rem; height: 1rem; }
+.fav .cat-icon.item { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.fav .cat-icon.item img { width: 1.4rem; height: 1.4rem; object-fit: contain; image-rendering: pixelated; display: block; }
+.fav-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fav-empty {
+  display: none;
+  padding: 0.8rem 0.5rem;
+  border-radius: 0.75rem;
+  border: 1.5px dashed var(--sep);
+  text-align: center; font-size: 0.78rem; color: var(--text-2);
+}
+.fav-sec.empty .fav-empty { display: block; }
+.fav-sec.drop { background: color-mix(in srgb, #ffb000 12%, transparent); box-shadow: inset 0 0 0 2px #ffb000; }
+.fav-sec.drop .fav-empty { border-color: transparent; }
+
+/* 拖曳中 */
+.drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 9999; margin: 0;
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35) !important;
+  transition: box-shadow 0.15s, opacity 0.15s;
+}
+.drag-ghost.fav { background: var(--card); }
+.drag-ghost.del { opacity: 0.55; box-shadow: 0 0 0 2px #e5484d, 0 18px 40px rgba(229, 72, 77, 0.35) !important; }
+.drag-src { opacity: 0.25; }
+body.tool-dragging, body.tool-dragging * { cursor: grabbing !important; user-select: none; }
+body.tool-dragging .tile:hover { transform: none; }
+body.tool-dragging .tile:hover .cat-icon { transform: none; }

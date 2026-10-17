@@ -1,4 +1,4 @@
-//! 自動更新：用使用者自己的 GitHub 權杖讀取私人儲存庫的 v1.0.0 發行版本，
+//! 自動更新：用編譯時內建（混淆過）的 GitHub 權杖讀取私人儲存庫的 v1.0.0 發行版本，
 //! 版本以 commit 判斷（版本號固定 1.0.0），有新版就下載 MAOBOO.zip、替換執行檔並重新開啟。
 
 use serde::{Deserialize, Serialize};
@@ -13,14 +13,13 @@ const REPO: &str = "MAOBOO2240/toolbox";
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct UpdCfg {
+    /// 舊版手動填的權杖（內建權杖不存在時才用）
     pub token: String,
-    /// 發現新版本時自動更新（倒數後執行）
-    pub auto: bool,
 }
 
 impl Default for UpdCfg {
     fn default() -> Self {
-        Self { token: String::new(), auto: true }
+        Self { token: String::new() }
     }
 }
 
@@ -32,6 +31,31 @@ static INNER: OnceLock<Mutex<Inner>> = OnceLock::new();
 
 fn inner() -> std::sync::MutexGuard<'static, Inner> {
     INNER.get().expect("update 尚未初始化").lock().unwrap_or_else(|e| e.into_inner())
+}
+
+// 編譯時由 build.rs 產生：K_SEED、K_LEN、K_A、K_B
+include!(concat!(env!("OUT_DIR"), "/update_token.rs"));
+
+/// 還原內建的權杖（沒有內建時是空字串）
+#[inline(never)]
+fn builtin() -> String {
+    let mut enc = vec![0u8; K_LEN];
+    for (j, b) in K_A.iter().rev().enumerate() {
+        enc[j * 2] = *b;
+    }
+    for (j, b) in K_B.iter().rev().enumerate() {
+        enc[j * 2 + 1] = *b;
+    }
+    let mut x = K_SEED;
+    let mut out = Vec::with_capacity(K_LEN);
+    for (i, b) in enc.iter().enumerate() {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        let k = (x >> ((i % 7) * 8)) as u8;
+        out.push(b ^ k ^ (i as u8).wrapping_mul(0x5B));
+    }
+    String::from_utf8(out).unwrap_or_default()
 }
 
 /// 這個執行檔是用哪個 commit 編譯的（GitHub Actions 編譯時才有）
@@ -65,7 +89,6 @@ pub struct UpdInfo {
     pub current: String,
     pub run: String,
     pub token_set: bool,
-    pub auto: bool,
 }
 
 #[tauri::command]
@@ -74,29 +97,17 @@ pub fn update_info() -> UpdInfo {
     UpdInfo {
         current: current().chars().take(7).collect(),
         run: option_env!("GITHUB_RUN_NUMBER").unwrap_or("").to_string(),
-        token_set: !g.cfg.token.trim().is_empty(),
-        auto: g.cfg.auto,
-    }
-}
-
-#[tauri::command]
-pub fn update_set(token: Option<String>, auto: Option<bool>) {
-    let mut g = inner();
-    if let Some(t) = token {
-        g.cfg.token = t.trim().to_string();
-    }
-    if let Some(a) = auto {
-        g.cfg.auto = a;
-    }
-    if let Ok(s) = serde_json::to_string_pretty(&g.cfg) {
-        let _ = std::fs::write(&g.path, s);
+        token_set: K_LEN > 0 || !g.cfg.token.trim().is_empty(),
     }
 }
 
 fn token() -> Result<String, String> {
-    let t = inner().cfg.token.clone();
+    let mut t = builtin();
     if t.trim().is_empty() {
-        Err("尚未設定 GitHub 權杖".into())
+        t = inner().cfg.token.clone();
+    }
+    if t.trim().is_empty() {
+        Err("這個版本沒有內建更新權限".into())
     } else {
         Ok(t)
     }
@@ -111,9 +122,9 @@ fn github(url: &str, token: &str, accept: &str) -> Result<ureq::Response, String
         .timeout(Duration::from_secs(60))
         .call()
         .map_err(|e| match e {
-            ureq::Error::Status(401, _) => "權杖無效或已過期".to_string(),
-            ureq::Error::Status(403, _) => "權杖沒有權限，或 GitHub 暫時限制查詢次數".to_string(),
-            ureq::Error::Status(404, _) => "找不到發行版本（權杖需要能讀取 toolbox 儲存庫）".to_string(),
+            ureq::Error::Status(401, _) => "更新權限已失效（權杖過期）".to_string(),
+            ureq::Error::Status(403, _) => "沒有更新權限，或 GitHub 暫時限制查詢次數".to_string(),
+            ureq::Error::Status(404, _) => "找不到發行版本".to_string(),
             ureq::Error::Status(c, _) => format!("GitHub 回應錯誤 {c}"),
             e => format!("連線失敗：{e}"),
         })
@@ -200,4 +211,14 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
     std::process::Command::new(&exe).spawn().map_err(|e| format!("新版本已下載，但無法自動開啟：{e}"))?;
     app.exit(0);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn builtin_roundtrip() {
+        // 測試時通常沒有 UPDATE_TOKEN，至少要能正常還原（長度一致、不會 panic）
+        let t = super::builtin();
+        assert_eq!(t.len(), super::K_LEN);
+    }
 }

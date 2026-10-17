@@ -29,11 +29,14 @@ pub struct Overlay {
     pub y: i32,
     pub w: u32,
     pub h: u32,
+    /// 「全部關閉」前的顯示與鎖定，「全部開啟」時恢復
+    pub saved_show: Option<bool>,
+    pub saved_locked: Option<bool>,
 }
 
 impl Default for Overlay {
     fn default() -> Self {
-        Self { show: false, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180 }
+        Self { show: false, locked: false, bg: 0.35, x: 120, y: 160, w: 340, h: 180, saved_show: None, saved_locked: None }
     }
 }
 
@@ -68,7 +71,7 @@ impl Default for Prefs {
 pub struct TimerCfg {
     pub id: String,
     pub name: String,
-    /// 預設項目（不可刪除）
+    /// 程式內建的預設項目（現在也可以刪除）
     pub builtin: bool,
     pub duration_ms: u64,
     pub cooldown_ms: u64,
@@ -471,6 +474,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     let app = app.clone();
     std::thread::spawn(move || {
         let mut applied: Option<OvApplied> = None;
+        // 同一個計時器的通知視窗 10 秒內不重複跳（「長」通知每 3 秒響一次）
+        let mut popped: HashMap<String, Instant> = HashMap::new();
         let mut last_save = Instant::now();
         loop {
             std::thread::sleep(TICK);
@@ -508,6 +513,10 @@ pub fn init(app: &AppHandle, path: PathBuf) {
 
             for name in names {
                 audio::play(&prefs.sound, &prefs.sound_file, &name, prefs.volume);
+                if popped.get(&name).map(|t| t.elapsed() >= Duration::from_secs(10)).unwrap_or(true) {
+                    popped.insert(name.clone(), Instant::now());
+                    crate::notify::show(&app, &name, "時間到了！", "timer");
+                }
             }
             sync_overlay(&app, &mut applied, want, &prefs.overlay);
             let listening = master && !info.is_self && (!game_only || info.is_game);
@@ -562,9 +571,11 @@ pub fn update_prefs(prefs: Prefs) {
     let mut e = eng();
     let o = &e.file.prefs.overlay;
     let geom = (o.x, o.y, o.w, o.h);
+    let saved = (o.saved_show, o.saved_locked);
     e.file.prefs = Prefs { volume: prefs.volume.min(200), ..prefs };
     let o = &mut e.file.prefs.overlay;
     (o.x, o.y, o.w, o.h) = geom;
+    (o.saved_show, o.saved_locked) = saved;
     o.bg = o.bg.clamp(0.0, 1.0);
     e.dirty = true;
 }
@@ -583,7 +594,7 @@ pub fn add_timer() -> TimerCfg {
 #[tauri::command]
 pub fn delete_timer(id: String) {
     let mut e = eng();
-    e.file.timers.retain(|t| t.id != id || t.builtin);
+    e.file.timers.retain(|t| t.id != id);
     e.rt.remove(&id);
     e.dirty = true;
 }
@@ -615,7 +626,17 @@ pub fn timer_stop(id: String) {
 pub fn set_master(on: bool) {
     let mut e = eng();
     e.file.master_on = on;
-    e.file.prefs.overlay.show = on;
+    let o = &mut e.file.prefs.overlay;
+    if on {
+        // 全部開啟：浮動視窗的顯示與鎖定恢復成關閉前的樣子
+        o.show = o.saved_show.unwrap_or(true);
+        o.locked = o.saved_locked.unwrap_or(o.locked);
+    } else {
+        o.saved_show = Some(o.show);
+        o.saved_locked = Some(o.locked);
+        o.show = false;
+        o.locked = false;
+    }
     if !on {
         e.rt.clear();
     }

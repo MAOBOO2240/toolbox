@@ -34,10 +34,29 @@ jobs:
 
       - name: Run tests
         working-directory: src-tauri
-        run: cargo test
+        shell: bash
+        env:
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          set -o pipefail
+          if ! cargo test 2>&1 | tee ../test.log; then
+            # 把編譯錯誤變成註解，方便在網頁或 API 直接看到
+            msg=$(grep -E -A14 '^(error|warning: unused)' ../test.log | head -200 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error title=cargo test::$msg"
+            exit 1
+          fi
 
       - name: Build exe
-        run: npm run build
+        shell: bash
+        env:
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          set -o pipefail
+          if ! npm run build 2>&1 | tee build.log; then
+            msg=$(grep -E -A14 '^error' build.log | head -200 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error title=build::$msg"
+            exit 1
+          fi
 
       - name: Prepare asset
         shell: pwsh

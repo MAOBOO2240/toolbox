@@ -33,6 +33,14 @@
           工具箱
         </button>
       </nav>
+      <div class="fav-sec empty" id="favSec">
+        <p class="side-title">
+          <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+          我的最愛
+        </p>
+        <div class="favs" id="favs"></div>
+        <div class="fav-empty">拖曳工具到這裡</div>
+      </div>
       <div class="side-foot">
         <button class="gear" id="gearBtn" aria-label="設定">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -58,14 +66,6 @@
           <div class="pop-sep"></div>
           <p class="pop-title">更新</p>
           <div class="pop-row"><span>目前版本</span><span class="muted" id="verText">—</span></div>
-          <div class="pop-col">
-            <span>GitHub 權杖</span>
-            <div class="pop-token">
-              <input type="password" id="updToken" placeholder="貼上權杖" autocomplete="off" spellcheck="false" />
-              <button class="cbtn c-blue small solid" id="updSave">儲存</button>
-            </div>
-          </div>
-          <div class="pop-row"><span>自動更新</span><label class="switch sm"><input type="checkbox" id="updAuto" /><span class="slider"></span></label></div>
           <div class="pop-row"><button class="cbtn c-teal small" id="updCheck">檢查更新</button><span class="muted pop-status" id="updStatus"></span></div>
         </div>
       </div>

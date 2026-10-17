@@ -250,7 +250,6 @@ const CATS = {
     title: "楓之谷工具",
     eyebrow: "MapleStory",
     tools: [
-      { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
@@ -260,14 +259,117 @@ const CATS = {
     title: "工具箱",
     eyebrow: "Toolbox",
     tools: [
+      { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
       { id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" },
       { id: "watch", name: "斷線通知", desc: "新楓之谷斷線或關閉時跳出通知", color: "red", icon: "plug" },
     ],
   },
 };
 
+const TOOL = {};
+for (const [cat, c] of Object.entries(CATS)) c.tools.forEach((t, i) => (TOOL[t.id] = { ...t, cat, def: i }));
+
 let currentCat = store.get("toolbox-cat", "maple");
 if (!CATS[currentCat]) currentCat = "maple";
+
+/* 自訂排序（每個分類各自一份）與我的最愛 */
+let tileOrder = store.get("toolbox-order", {}) || {};
+let favs = (store.get("toolbox-favs", []) || []).filter((id) => TOOL[id]);
+const saveFavs = () => store.set("toolbox-favs", favs);
+const isFav = (id) => favs.includes(id);
+
+/** 依自訂順序排列；沒排過的（例如新加入的工具）放回它預設的位置 */
+function orderedTools(cat) {
+  const ids = CATS[cat].tools.map((t) => t.id);
+  const out = (tileOrder[cat] || []).filter((id) => ids.includes(id));
+  for (const id of ids) if (!out.includes(id)) out.splice(Math.min(TOOL[id].def, out.length), 0, id);
+  return out.map((id) => TOOL[id]);
+}
+
+/** 工具圖示：有對應的遊戲道具時換成道具圖示（讀不到就保留原本的圖示） */
+function toolIcon(t) {
+  const box = document.createElement("span");
+  box.className = `cat-icon ${t.color}`;
+  box.style.setProperty("--accent", TILE_ACCENT[t.color] || "#4c8dff");
+  box.innerHTML = ICONS[t.icon];
+  if (t.item) ItemIcons.get(t.item).then((png) => {
+    if (!png) return;
+    box.classList.add("item");
+    box.innerHTML = "";
+    const img = new Image();
+    img.src = png;
+    img.alt = "";
+    img.draggable = false;
+    box.append(img);
+  });
+  return box;
+}
+
+function addFav(id, at = favs.length) {
+  const old = favs.indexOf(id);
+  if (old >= 0) { favs.splice(old, 1); if (old < at) at -= 1; }
+  favs.splice(Math.max(0, Math.min(at, favs.length)), 0, id);
+  saveFavs();
+  renderFavs();
+  if (old < 0) toast(`已加入我的最愛：${TOOL[id].name}`);
+}
+function removeFav(id) {
+  favs = favs.filter((x) => x !== id);
+  saveFavs();
+  renderFavs();
+  toast(`已從我的最愛移除：${TOOL[id].name}`);
+}
+
+function renderFavs() {
+  const box = $("#favs");
+  box.innerHTML = "";
+  $("#favSec").classList.toggle("empty", !favs.length);
+  for (const id of favs) {
+    const t = TOOL[id];
+    const b = document.createElement("button");
+    b.className = "fav";
+    b.dataset.id = id;
+    const name = document.createElement("span");
+    name.className = "fav-name";
+    name.textContent = t.name;
+    b.append(toolIcon(t), name);
+    b.addEventListener("click", () => openTool(id));
+    b.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY, t.name, [["開啟", () => openTool(id)], ["移除我的最愛", () => removeFav(id)]]);
+    });
+    dragTool(b, id, "fav");
+    box.append(b);
+  }
+}
+
+function renderTiles() {
+  const tiles = $("#tiles");
+  tiles.innerHTML = "";
+  for (const t of orderedTools(currentCat)) {
+    const btn = document.createElement("button");
+    btn.className = "tile";
+    btn.dataset.id = t.id;
+    btn.style.setProperty("--accent", TILE_ACCENT[t.color] || "#4c8dff");
+    const strong = document.createElement("strong");
+    strong.textContent = t.name;
+    const small = document.createElement("small");
+    small.textContent = t.desc;
+    btn.append(toolIcon(t), strong, small);
+    btn.addEventListener("click", () => openTool(t.id));
+    btn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const opts = [
+        isFav(t.id) ? ["移除我的最愛", () => removeFav(t.id)] : ["加入我的最愛", () => addFav(t.id)],
+        ["開啟", () => openTool(t.id)],
+      ];
+      if (tileOrder[currentCat]) opts.push(["恢復預設排序", () => { delete tileOrder[currentCat]; store.set("toolbox-order", tileOrder); renderTiles(); }]);
+      showCtx(e.clientX, e.clientY, t.name, opts);
+    });
+    dragTool(btn, t.id, "tile");
+    tiles.appendChild(btn);
+  }
+}
 
 function showCat(cat) {
   currentCat = cat;
@@ -276,32 +378,130 @@ function showCat(cat) {
   $$(".cat").forEach((b) => b.classList.toggle("on", b.dataset.cat === cat));
   $("#catTitle").textContent = c.title;
   $("#catEyebrow").textContent = c.eyebrow;
-  const tiles = $("#tiles");
-  tiles.innerHTML = "";
-  for (const t of c.tools) {
-    const btn = document.createElement("button");
-    btn.className = "tile";
-    btn.style.setProperty("--accent", TILE_ACCENT[t.color] || "#4c8dff");
-    btn.innerHTML = `<span class="cat-icon ${t.color}">${ICONS[t.icon]}</span><strong></strong><small></small>`;
-    btn.querySelector("strong").textContent = t.name;
-    btn.querySelector("small").textContent = t.desc;
-    btn.addEventListener("click", () => openTool(t.id));
-    tiles.appendChild(btn);
-    // 有對應的遊戲道具時，改用遊戲裡的道具圖示（讀不到就保留原本的圖示）
-    if (t.item) ItemIcons.get(t.item).then((png) => {
-      if (!png) return;
-      const box = btn.querySelector(".cat-icon");
-      box.classList.add("item");
-      box.innerHTML = "";
-      const img = new Image();
-      img.src = png;
-      img.alt = "";
-      img.draggable = false;
-      box.append(img);
-    });
-  }
+  renderTiles();
   showView("cat");
   $("#app").classList.remove("collapsed");
+}
+
+/* ---------- 右鍵選單 ---------- */
+const ctxMenu = document.createElement("div");
+ctxMenu.className = "b-ctx";
+ctxMenu.hidden = true;
+document.body.append(ctxMenu);
+function showCtx(x, y, title, opts) {
+  ctxMenu.innerHTML = "";
+  const h = document.createElement("div");
+  h.className = "b-ctx-title";
+  h.textContent = title;
+  ctxMenu.append(h);
+  for (const [label, fn] of opts) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.addEventListener("click", () => { ctxMenu.hidden = true; fn(); });
+    ctxMenu.append(b);
+  }
+  ctxMenu.hidden = false;
+  const r = ctxMenu.getBoundingClientRect();
+  ctxMenu.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`;
+  ctxMenu.style.top = `${Math.min(y, innerHeight - r.height - 8)}px`;
+}
+document.addEventListener("pointerdown", (e) => { if (!ctxMenu.contains(e.target)) ctxMenu.hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") ctxMenu.hidden = true; });
+window.addEventListener("blur", () => (ctxMenu.hidden = true));
+
+/* ---------- 拖曳：磁磚排序、拖進我的最愛、我的最愛排序／拖出去取消 ---------- */
+/** 移動 DOM 後，讓其他項目滑到新位置 */
+function flip(container, mutate) {
+  const kids = [...container.children];
+  const before = new Map(kids.map((k) => [k, k.getBoundingClientRect()]));
+  mutate();
+  for (const k of kids) {
+    const a = before.get(k), b = k.getBoundingClientRect();
+    const dx = a.left - b.left, dy = a.top - b.top;
+    if (dx || dy) k.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  }
+}
+/** 依游標的高度，算出要插在我的最愛的第幾個 */
+function favIndexAt(y, skip) {
+  const items = [...$$("#favs .fav")].filter((x) => x !== skip);
+  const i = items.findIndex((x) => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  return i < 0 ? items.length : i;
+}
+
+let dragJustEnded = false;
+function dragTool(el, id, from) {
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const sx = e.clientX, sy = e.clientY;
+    const list = el.parentElement;
+    let ghost = null, zone = null, ox = 0, oy = 0;
+    const setZone = (z) => {
+      if (z === zone) return;
+      zone = z;
+      $("#favSec").classList.toggle("drop", z === "fav");
+      ghost?.classList.toggle("del", z === "unfav");
+    };
+    const move = (ev) => {
+      if (!ghost) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+        const r = el.getBoundingClientRect();
+        ox = sx - r.left;
+        oy = sy - r.top;
+        ghost = el.cloneNode(true);
+        ghost.classList.add("drag-ghost");
+        Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px` });
+        document.body.append(ghost);
+        el.classList.add("drag-src");
+        document.body.classList.add("tool-dragging");
+        ctxMenu.hidden = true;
+      }
+      ghost.style.transform = `translate(${ev.clientX - ox}px, ${ev.clientY - oy}px) scale(1.04) rotate(-2deg)`;
+      const t = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (from === "tile") {
+        if (t?.closest("#favSec")) { setZone("fav"); return; }
+        setZone(null);
+        const over = t?.closest(".tile");
+        if (over && over !== el && over.parentElement === list && !over.getAnimations().length) {
+          const kids = [...list.children];
+          flip(list, () => list.insertBefore(el, kids.indexOf(el) < kids.indexOf(over) ? over.nextSibling : over));
+        }
+      } else {
+        if (!t?.closest(".sidebar")) { setZone("unfav"); return; }
+        setZone(null);
+        const over = t?.closest(".fav");
+        if (over && over !== el && over.parentElement === list && !over.getAnimations().length) {
+          const kids = [...list.children];
+          flip(list, () => list.insertBefore(el, kids.indexOf(el) < kids.indexOf(over) ? over.nextSibling : over));
+        }
+      }
+    };
+    const up = (ev) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (!ghost) return;
+      dragJustEnded = true;
+      setTimeout(() => (dragJustEnded = false), 0);
+      ghost.remove();
+      el.classList.remove("drag-src");
+      document.body.classList.remove("tool-dragging");
+      const z = zone;
+      setZone(null);
+      if (from === "tile") {
+        tileOrder[currentCat] = [...list.children].map((x) => x.dataset.id);
+        store.set("toolbox-order", tileOrder);
+        if (z === "fav") addFav(id, favIndexAt(ev.clientY));
+      } else if (z === "unfav") {
+        removeFav(id);
+      } else {
+        favs = [...list.children].map((x) => x.dataset.id);
+        saveFavs();
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  // 拖曳結束時不要當成點擊
+  el.addEventListener("click", (e) => { if (dragJustEnded) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }
 
 let currentView = "cat";
@@ -335,6 +535,16 @@ window.BackHooks = BackHooks;
 window.refreshBack = refreshBack;
 
 function openTool(id) {
+  // 從我的最愛開啟時，返回鍵回到這個工具所在的分類
+  if (TOOL[id] && TOOL[id].cat !== currentCat) {
+    currentCat = TOOL[id].cat;
+    store.set("toolbox-cat", currentCat);
+    $$(".cat").forEach((b) => b.classList.toggle("on", b.dataset.cat === currentCat));
+    $("#catTitle").textContent = CATS[currentCat].title;
+    $("#catEyebrow").textContent = CATS[currentCat].eyebrow;
+    renderTiles();
+  }
+  ctxMenu.hidden = true;
   refreshBack();
   $("#app").classList.add("collapsed");
   showView(id);
@@ -477,6 +687,7 @@ $("#currentSerial").addEventListener("click", () =>
   $("#rawInput").value = st.raw || "";
   render();
   showCat(currentCat);
+  renderFavs();
   api.onChange((next) => {
     const wasDone = state.index >= state.serials.length;
     update(next);
@@ -486,25 +697,20 @@ $("#currentSerial").addEventListener("click", () =>
 
 window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
 
-/* ---------- 自動更新 ---------- */
+/* ---------- 自動更新 ----------
+ * 程式開啟時檢查一次；按「稍後」之後這次就不再提醒，下次開啟程式才會再跳出。
+ * 設定裡的「檢查更新」可以手動再檢查。 */
 (() => {
   if (!TAURI) { $("#verText").textContent = "預覽模式"; return; }
-  let info = null, prompted = false, countdown = null;
+  let info = null, snoozed = false;
   const status = (t) => { $("#updStatus").textContent = t || ""; };
 
   async function refresh() {
     try { info = await invoke("update_info"); } catch (_) { return; }
     $("#verText").textContent = info.current ? `#${info.run}（${info.current}）` : "自行編譯版";
-    $("#updToken").value = "";
-    $("#updToken").placeholder = info.token_set ? "已設定（貼上新的可取代）" : "貼上權杖";
-    $("#updAuto").checked = info.auto;
   }
 
-  function closeDialog() {
-    clearInterval(countdown);
-    countdown = null;
-    $("#updBackdrop").classList.remove("show");
-  }
+  const closeDialog = () => $("#updBackdrop").classList.remove("show");
 
   async function install() {
     closeDialog();
@@ -514,48 +720,29 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
     catch (e) { status(String(e)); toast(String(e)); }
   }
 
-  /** 發現新版本：右下角通知 + 程式內對話框；開啟自動更新時倒數後自動更新 */
   function offer(r) {
-    if (prompted) return;
-    prompted = true;
-    invoke("notify_show", { title: "發現新版本", body: `工具箱有新版本（${r.latest}），${info.auto ? "即將自動更新" : "可以到程式裡更新"}。`, kind: "info" }).catch(() => {});
+    invoke("notify_show", { title: "發現新版本", body: `工具箱有新版本（${r.latest}），可以到程式裡更新。`, kind: "info" }).catch(() => {});
     $("#updMsg").textContent = "發現新版本";
-    let left = 10;
-    const sub = () => { $("#updSub").textContent = info.auto ? `${left} 秒後自動更新，程式會重新開啟。` : `目前 ${r.current}，最新 ${r.latest}。更新後程式會重新開啟。`; };
-    sub();
+    $("#updSub").textContent = `目前 ${r.current}，最新 ${r.latest}。更新後程式會重新開啟。`;
     $("#updBackdrop").classList.add("show");
-    if (info.auto) {
-      countdown = setInterval(() => { left -= 1; sub(); if (left <= 0) install(); }, 1000);
-    }
   }
 
   async function check(manual) {
     if (!info) await refresh();
-    if (!info?.token_set) { if (manual) status("請先填入 GitHub 權杖"); return; }
+    if (!info?.token_set) { if (manual) status("這個版本沒有內建更新權限"); return; }
     if (manual) status("檢查中…");
     try {
       const r = await invoke("update_check");
-      if (r.has_update) { status(`有新版本（${r.latest}）`); if (manual) prompted = false; offer(r); }
-      else status(manual ? (r.current ? "已經是最新版本" : "自行編譯版不檢查更新") : "");
+      if (r.has_update) {
+        status(`有新版本（${r.latest}）`);
+        if (manual || !snoozed) offer(r);
+      } else status(manual ? (r.current ? "已經是最新版本" : "自行編譯版不檢查更新") : "");
     } catch (e) { status(String(e)); }
   }
 
-  $("#updSave").addEventListener("click", async () => {
-    const t = $("#updToken").value.trim();
-    if (!t) return status("請貼上權杖");
-    await invoke("update_set", { token: t });
-    await refresh();
-    status("已儲存");
-    check(true);
-  });
-  $("#updToken").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#updSave").click(); });
-  $("#updAuto").addEventListener("change", async (e) => { await invoke("update_set", { auto: e.target.checked }); await refresh(); });
   $("#updCheck").addEventListener("click", () => check(true));
   $("#updNow").addEventListener("click", install);
-  $("#updLater").addEventListener("click", closeDialog);
+  $("#updLater").addEventListener("click", () => { snoozed = true; closeDialog(); });
 
-  // 程式一開啟就先檢查一次
   refresh().then(() => check(false));
-  // 每 30 分鐘檢查一次；按過「稍後」的，下次檢查時再提醒
-  setInterval(() => { prompted = false; check(false); }, 30 * 60 * 1000);
 })();

@@ -330,7 +330,6 @@ fn main() {
             toast::toast_status,
             toast::open_notify_settings,
             update::update_info,
-            update::update_set,
             update::update_check,
             update::update_install
         ])

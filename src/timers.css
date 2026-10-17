@@ -43,7 +43,9 @@
   gap: 1rem;
   align-items: start;
 }
-.timer-grid.paused .tcard { opacity: 0.55; }
+.timer-grid.paused .tcard { opacity: 0.55; transition: opacity 0.15s; }
+/* 全部關閉時，游標移到卡片上仍然亮起，按鈕可以看清楚 */
+.timer-grid.paused .tcard:hover { opacity: 1; }
 
 /* ---------- 計時器卡片 ---------- */
 .tcard {
