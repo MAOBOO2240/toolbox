@@ -316,6 +316,9 @@ $("#gearBtn").addEventListener("click", () => {
 }
 
 /* ---------- 道具圖示（依名稱從遊戲檔找，黃金蘋果、閃亮彗星共用） ---------- */
+/** 每週 BOSS 的結晶（同名的結晶有好幾種，選說明裡寫每週的那一個） */
+const CRYSTAL_ITEM = ["每週BOSS結晶", "強烈的力量結晶#每週|週BOSS|週王"];
+
 const ItemIcons = (() => {
   const cache = new Map(); // 名稱 → data URL 或 null
   const want = new Set();
@@ -402,7 +405,7 @@ const CATS = {
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
-      { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", item: "強烈的力量結晶" },
+      { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", item: CRYSTAL_ITEM },
     ],
   },
   tools: {
@@ -440,13 +443,17 @@ function orderedTools(cat) {
   return out.map((id) => TOOL[id]);
 }
 
-/** 工具圖示：有對應的遊戲道具時換成道具圖示（讀不到就保留原本的圖示） */
+/** 工具圖示：有對應的遊戲道具時換成道具圖示（讀不到就保留原本的圖示）；item 可以是好幾個名稱，依序找 */
+async function firstIcon(names) {
+  for (const n of [].concat(names)) { const png = await ItemIcons.get(n); if (png) return png; }
+  return null;
+}
 function toolIcon(t) {
   const box = document.createElement("span");
   box.className = `cat-icon ${t.color}`;
   box.style.setProperty("--accent", TILE_ACCENT[t.color] || "#4c8dff");
   box.innerHTML = ICONS[t.icon];
-  if (t.item) ItemIcons.get(t.item).then((png) => {
+  if (t.item) firstIcon(t.item).then((png) => {
     if (!png) return;
     box.classList.add("item");
     box.innerHTML = "";

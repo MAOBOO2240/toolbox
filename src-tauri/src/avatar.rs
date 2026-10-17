@@ -1895,10 +1895,37 @@ impl Ctx {
         icon_png(w, h, &px)
     }
 
-    fn icon_by_name(&mut self, name: &str) -> Option<String> {
-        let key = norm_name(name);
-        if let Some(v) = self.name_icons.get(&key) {
+    /// 道具說明（String 裡的 desc）；裝備不讀
+    fn item_desc(&mut self, folder: &str, id: u32) -> Option<String> {
+        let (img, sub) = match folder {
+            "Item/Consume" => ("Consume.img", ""),
+            "Item/Etc" => ("Etc.img", "Etc"),
+            "Item/Install" => ("Ins.img", ""),
+            "Item/Cash" => ("Cash.img", ""),
+            "Item/Pet" => ("Pet.img", ""),
+            _ => return None,
+        };
+        let root = self.data.img("String", img).ok()?;
+        let node = if sub.is_empty() { Some(root.as_ref()) } else { root.get(sub) }?;
+        node.get(&id.to_string())?.get("desc")?.as_str().map(str::to_string)
+    }
+
+    /// 依名稱找道具圖示。名稱後面可以加「#提示」：同名的道具有好幾個時，
+    /// 優先選說明裡有提示文字的（多個提示用 | 分開），例如「強烈的力量結晶#每週」
+    fn icon_by_name(&mut self, full: &str) -> Option<String> {
+        let full_key = norm_name(full);
+        if let Some(v) = self.name_icons.get(&full_key) {
             return v.clone();
+        }
+        let (name, hint) = match full.split_once('#') {
+            Some((a, b)) => (a, Some(b.to_string())),
+            None => (full, None),
+        };
+        let key = norm_name(name);
+        if hint.is_none() {
+            if let Some(v) = self.name_icons.get(&key) {
+                return v.clone();
+            }
         }
         // 特殊名稱：@meso0～@meso3 是楓幣圖示
         if let Some(n) = key.strip_prefix("@meso").and_then(|n| n.parse::<u32>().ok()) {
@@ -1918,6 +1945,16 @@ impl Ctx {
                 cands = self.item_names.as_ref().and_then(|m| m.get(&short)).cloned().unwrap_or_default();
             }
         }
+        if let Some(h) = &hint {
+            let hs: Vec<String> = h.split('|').map(norm_name).filter(|x| !x.is_empty()).collect();
+            let (mut good, mut rest) = (Vec::new(), Vec::new());
+            for c in cands {
+                let hit = self.item_desc(c.0, c.1).map(|d| norm_name(&d)).is_some_and(|d| hs.iter().any(|x| d.contains(x.as_str())));
+                if hit { good.push(c) } else { rest.push(c) }
+            }
+            good.extend(rest);
+            cands = good;
+        }
         let mut found = None;
         for (folder, id) in cands.into_iter().take(12) {
             if let Some(png) = self.item_icon(folder, id) {
@@ -1925,7 +1962,7 @@ impl Ctx {
                 break;
             }
         }
-        self.name_icons.insert(key, found.clone());
+        self.name_icons.insert(full_key, found.clone());
         found
     }
 }

@@ -344,7 +344,10 @@ if (typeof document !== "undefined") (() => {
     cols.forEach((t, i) => {
       const c = cell(i === cols.length - 1 ? "r" : "", "");
       if (i === cols.length - 1) {
-        c.append(ItemIcons.el("強烈的力量結晶"), document.createTextNode(t));
+        const ic = document.createElement("span");
+        ic.className = "item-ic none";
+        firstIcon(CRYSTAL_ITEM).then((png) => { if (png) { const im = new Image(); im.src = png; im.alt = ""; ic.append(im); ic.classList.remove("none"); } });
+        c.append(ic, document.createTextNode(t));
         c.title = "一顆強烈的力量結晶賣給收藏家的楓幣（組隊時是平分後的價值）";
       } else c.textContent = t;
       row.appendChild(c);

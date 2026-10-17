@@ -286,3 +286,19 @@
 .g-ai { flex: none; padding: 0.7rem 0.75rem 0.65rem; }
 .g-ai .g-metrics { padding: 0 0.2rem; }
 .g-ai .g-comment { margin: 0.55rem 0 0; }
+
+/* 解析頁：怎麼貼上的說明（三段，放不下時在段落之間換行） */
+.imp-tip {
+  margin: 0; padding: 0.6rem 0.8rem; border-radius: 0.75rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem;
+  background: color-mix(in srgb, var(--blue) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 30%, transparent);
+  color: var(--text); font-size: 0.86rem; font-weight: 600; line-height: 1.5;
+}
+.imp-tip .keys { display: inline-flex; align-items: center; gap: 0.2rem; white-space: nowrap; font-size: 0.8rem; color: var(--text-2); }
+.imp-tip .keys i { font-style: normal; margin: 0 0.15rem; color: var(--blue); }
+.imp-tip kbd {
+  display: inline-block; min-width: 1.5em; padding: 0.05em 0.4em; border-radius: 0.35rem;
+  background: var(--card); box-shadow: inset 0 -2px 0 var(--sep), 0 0 0 1px var(--sep);
+  color: var(--text); font: inherit; font-size: 0.76rem; font-weight: 700; line-height: 1.5; text-align: center;
+}
