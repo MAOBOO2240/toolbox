@@ -199,7 +199,17 @@ fn setup_main_window(app: &tauri::App, st: &AppState) {
 
 /// Windows 11：設定標題列與邊框顏色，和程式內容的底色區分開（Windows 10 會忽略）
 #[tauri::command]
-fn set_frame(window: WebviewWindow, dark: bool) {
+fn set_frame(window: WebviewWindow, dark: bool, caption: Option<String>, border: Option<String>) {
+    // "#rrggbb" → (r, g, b)
+    let hex = |s: &Option<String>| -> Option<(u32, u32, u32)> {
+        let t = s.as_deref()?.trim().trim_start_matches('#');
+        if t.len() != 6 {
+            return None;
+        }
+        let v = u32::from_str_radix(t, 16).ok()?;
+        Some((v >> 16 & 0xFF, v >> 8 & 0xFF, v & 0xFF))
+    };
+    let (custom_caption, custom_border) = (hex(&caption), hex(&border));
     #[cfg(windows)]
     {
         use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
@@ -208,11 +218,18 @@ fn set_frame(window: WebviewWindow, dark: bool) {
         const DWMWA_TEXT_COLOR: u32 = 36;
         // COLORREF 是 0x00BBGGRR
         let rgb = |r: u32, g: u32, b: u32| (b << 16) | (g << 8) | r;
-        let (caption, text, border) = if dark {
+        let (mut caption, text, mut border) = if dark {
             (rgb(0x0f, 0x11, 0x16), rgb(0xe8, 0xec, 0xf3), rgb(0x3d, 0x5a, 0x99))
         } else {
             (rgb(0xd9, 0xe1, 0xec), rgb(0x1d, 0x24, 0x33), rgb(0x8f, 0xa6, 0xc8))
         };
+        // 主題「角色色彩」：外框跟著角色的顏色
+        if let Some((r, g, b)) = custom_caption {
+            caption = rgb(r, g, b);
+        }
+        if let Some((r, g, b)) = custom_border {
+            border = rgb(r, g, b);
+        }
         if let Ok(h) = window.hwnd() {
             for (attr, color) in [(DWMWA_CAPTION_COLOR, caption), (DWMWA_TEXT_COLOR, text), (DWMWA_BORDER_COLOR, border)] {
                 unsafe {
@@ -222,7 +239,7 @@ fn set_frame(window: WebviewWindow, dark: bool) {
         }
     }
     #[cfg(not(windows))]
-    let _ = (window, dark);
+    let _ = (window, dark, custom_caption, custom_border);
 }
 
 /// 從右下角圖示叫出主視窗

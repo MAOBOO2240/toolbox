@@ -114,7 +114,7 @@ function scrollableParent(el) {
   return null;
 }
 document.addEventListener("wheel", (e) => {
-  if (e.ctrlKey || e.deltaY === 0) return;
+  if (e.ctrlKey || e.deltaY === 0 || e.defaultPrevented) return;
   // 數字輸入框、下拉選單保留原本的滾輪行為
   if (e.target.closest("select")) return;
   const box = scrollableParent(e.target);
@@ -135,16 +135,90 @@ function effectiveTheme() {
   return darkQuery.matches ? "dark" : "light";
 }
 
+/* ---------- 主題「角色色彩」：從側欄紙娃娃取主色，套用到程式與視窗外框 ---------- */
+const TINT_VARS = ["--bg", "--side", "--card", "--card-2", "--text-2", "--sep", "--blue", "--blue-soft", "--glass"];
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min, s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+function hslToHex(h, s, l) {
+  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return "#" + [f(0), f(8), f(4)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+let tintCache = { src: null, hsl: null };
+/** 紙娃娃最有代表性的顏色（飽和度高、出現最多的色相） */
+function dollAccent() {
+  const img = document.getElementById("sideDollImg");
+  if (!img || img.hidden || !img.complete || !img.naturalWidth) return null;
+  if (tintCache.src === img.src) return tintCache.hsl;
+  let hsl = null;
+  try {
+    const scale = Math.min(1, 128 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale)), h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, w, h);
+    const px = ctx.getImageData(0, 0, w, h).data;
+    const bins = Array.from({ length: 36 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+    let total = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 200) continue;
+      const [hh, ss, ll] = rgbToHsl(px[i], px[i + 1], px[i + 2]);
+      const wgt = ss * (1 - Math.abs(2 * ll - 1)); // 彩度
+      if (wgt < 0.15) continue;
+      const bin = bins[Math.floor(hh / 10) % 36];
+      bin.w += wgt; bin.r += px[i] * wgt; bin.g += px[i + 1] * wgt; bin.b += px[i + 2] * wgt;
+      total += wgt;
+    }
+    // 相鄰色相合在一起比，挑最多的
+    let best = -1, bestW = 0;
+    for (let i = 0; i < 36; i++) {
+      const w3 = bins[(i + 35) % 36].w * 0.5 + bins[i].w + bins[(i + 1) % 36].w * 0.5;
+      if (w3 > bestW) { bestW = w3; best = i; }
+    }
+    if (best >= 0 && total > 4) {
+      const b = bins[best];
+      hsl = rgbToHsl(b.r / b.w, b.g / b.w, b.b / b.w);
+    }
+  } catch (_) { hsl = null; } // 官方角色圖（外部網址）無法讀取像素
+  tintCache = { src: img.src, hsl };
+  return hsl;
+}
+/** 套用角色色彩；回傳視窗外框要用的顏色 */
+function applyTint(dark) {
+  const acc = settings.theme === "char" ? dollAccent() : null;
+  if (!acc) { TINT_VARS.forEach((v) => root.style.removeProperty(v)); return null; }
+  const h = Math.round(acc[0]);
+  const s = Math.min(0.85, Math.max(0.45, acc[1]));
+  const hsl = (sat, lit, a = 1) => `hsl(${h} ${Math.round(sat * 100)}% ${Math.round(lit * 100)}% / ${a})`;
+  const lightAcc = dark ? 0.62 : 0.45;
+  const vars = dark
+    ? { "--bg": hsl(0.22, 0.11), "--side": hsl(0.24, 0.14), "--card": hsl(0.2, 0.17), "--card-2": hsl(0.18, 0.22), "--text-2": hsl(0.14, 0.7), "--sep": hsl(0.35, 0.75, 0.14), "--glass": hsl(0.22, 0.11, 0.86) }
+    : { "--bg": hsl(0.4, 0.95), "--side": hsl(0.45, 0.97), "--card": "#ffffff", "--card-2": hsl(0.35, 0.94), "--text-2": hsl(0.12, 0.4), "--sep": hsl(0.25, 0.3, 0.14), "--glass": hsl(0.4, 0.95, 0.8) };
+  vars["--blue"] = hsl(s, lightAcc);
+  vars["--blue-soft"] = hsl(s, lightAcc, dark ? 0.2 : 0.14);
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  return { caption: dark ? hslToHex(h, 0.24, 0.14) : hslToHex(h, 0.45, 0.9), border: hslToHex(h, s, lightAcc) };
+}
+
 function applySettings() {
   const theme = effectiveTheme();
   root.dataset.theme = theme;
   root.dataset.font = settings.font;
   $$("#fontSeg button").forEach((b) => b.classList.toggle("on", b.dataset.font === settings.font));
-  $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === theme));
+  $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === (settings.theme === "char" ? "char" : theme)));
   $$("#closeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.v === (settings.close_tray ? "tray" : "exit")));
   api.setWindowTheme(theme);
-  // 視窗外框（標題列與邊框）換成和程式內容有區別的顏色
-  if (TAURI) invoke("set_frame", { dark: theme === "dark" }).catch(() => {});
+  const tint = applyTint(theme === "dark");
+  // 視窗外框（標題列與邊框）換成和程式內容有區別的顏色；角色色彩時跟著角色
+  if (TAURI) invoke("set_frame", { dark: theme === "dark", caption: tint?.caption ?? null, border: tint?.border ?? null }).catch(() => {});
 }
 
 function saveSettings() {
@@ -154,7 +228,7 @@ function saveSettings() {
 
 $$("#fontSeg button").forEach((b) => b.addEventListener("click", () => { settings.font = b.dataset.font; saveSettings(); }));
 $$("#themeSeg button").forEach((b) => b.addEventListener("click", () => { settings.theme = b.dataset.theme; saveSettings(); }));
-darkQuery.addEventListener("change", () => { if (settings.theme === "system") applySettings(); });
+darkQuery.addEventListener("change", () => { if (settings.theme === "system" || settings.theme === "char") applySettings(); });
 
 $$("#closeSeg button").forEach((b) => b.addEventListener("click", () => { settings.close_tray = b.dataset.v === "tray"; saveSettings(); }));
 
@@ -256,7 +330,6 @@ const CATS = {
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
-      { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
     ],
   },
   tools: {
@@ -266,6 +339,7 @@ const CATS = {
       { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
       { id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" },
       { id: "watch", name: "斷線通知", desc: "新楓之谷斷線、回到登入畫面或關閉時通知", color: "red", icon: "plug" },
+      { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
     ],
   },
   // 我的最愛：內容由使用者收藏決定
@@ -419,6 +493,84 @@ function flip(container, mutate) {
     if (dx || dy) k.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   }
 }
+
+/* ---------- 側欄紙娃娃：輸入角色名稱，或同步美容美髮的造型 ---------- */
+const SideDoll = (() => {
+  let cfg = { name: "", sync: false, ...(store.get("side-doll", {}) || {}) };
+  let doll = null, gen = 0;
+  const saveCfg = () => store.set("side-doll", cfg);
+  const img = $("#sideDollImg"), empty = $("#sideDollEmpty"), box = $("#sideDollPic"), inp = $("#sideName");
+
+  function fit() {
+    if (!doll || doll.official || !doll.w || img.hidden) { img.style.width = ""; img.style.transform = ""; return; }
+    const room = Math.min(box.clientWidth / doll.w, (box.clientHeight - 8) / doll.h);
+    const scale = room >= 1 ? Math.min(3, Math.floor(room)) : Math.max(0.3, room);
+    img.style.width = `${Math.round(doll.w * scale)}px`;
+    // 角色本身放在正中間（大型武器不會把角色擠到旁邊）
+    img.style.transform = `translateX(${Math.round((doll.w / 2 - (doll.cx ?? doll.w / 2)) * scale)}px)`;
+  }
+  function show(d) {
+    doll = d && d.png ? d : null;
+    if (!doll) {
+      img.hidden = true;
+      empty.removeAttribute("hidden"); // SVG 沒有 hidden 屬性，要用 attribute
+      img.removeAttribute("src");
+      if (settings.theme === "char") applySettings();
+      return;
+    }
+    img.classList.toggle("official", !!doll.official);
+    if (!doll.official) img.style.maxWidth = img.style.maxHeight = "none";
+    else img.style.maxWidth = img.style.maxHeight = "";
+    img.onload = () => { fit(); if (settings.theme === "char") applySettings(); };
+    if (img.getAttribute("src") !== doll.png) img.src = doll.png;
+    else img.onload();
+    img.hidden = false;
+    empty.setAttribute("hidden", "");
+  }
+  async function load(manual) {
+    $("#sideSync").checked = !!cfg.sync;
+    inp.placeholder = cfg.sync ? "美容美髮的角色" : "角色名稱";
+    if (cfg.sync) {
+      const cur = window.Beauty?.current?.();
+      if (document.activeElement !== inp) inp.value = cur?.name || "";
+      show(cur?.doll || null);
+      return;
+    }
+    if (document.activeElement !== inp) inp.value = cfg.name;
+    if (!cfg.name || !TAURI || !window.Beauty?.charLook) { show(null); return; }
+    const my = ++gen;
+    try {
+      const d = await window.Beauty.charLook(cfg.name);
+      if (my === gen) show(d);
+    } catch (e) {
+      if (my !== gen) return;
+      show(null);
+      if (manual) toast(String(e));
+    }
+  }
+  function submit() {
+    const name = inp.value.trim();
+    if (cfg.sync) {
+      if (window.Beauty?.setName && name !== (window.Beauty.current?.().name || "")) window.Beauty.setName(name);
+      return;
+    }
+    if (name === cfg.name && doll) return;
+    cfg.name = name;
+    saveCfg();
+    load(true);
+  }
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); inp.blur(); } });
+  inp.addEventListener("change", submit);
+  $("#sideSync").addEventListener("change", (e) => { cfg.sync = e.target.checked; saveCfg(); load(true); });
+  document.addEventListener("beauty-doll", (e) => {
+    if (!cfg.sync) return;
+    if (document.activeElement !== inp) inp.value = window.Beauty?.current?.().name || "";
+    show(e.detail);
+  });
+  document.addEventListener("beauty-ready", () => load(false));
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(box);
+  return { load };
+})();
 
 /* 左上角圖示：點一下播放動畫，再點一下停止 */
 {

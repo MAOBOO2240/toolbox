@@ -45,6 +45,17 @@
           <span class="cat-count" id="favCount" hidden></span>
         </button>
       </nav>
+      <!-- 側欄紙娃娃：輸入角色名稱，或同步美容美髮的造型 -->
+      <div class="side-doll" id="sideDoll">
+        <div class="side-doll-pic" id="sideDollPic">
+          <img id="sideDollImg" alt="" draggable="false" hidden />
+          <svg class="side-doll-empty" id="sideDollEmpty" viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>
+        </div>
+        <div class="side-doll-name">
+          <input type="text" id="sideName" placeholder="角色名稱" autocomplete="off" spellcheck="false" />
+        </div>
+        <label class="side-doll-sync"><span>同步美容美髮</span><span class="switch sm"><input type="checkbox" id="sideSync" /><span class="slider"></span></span></label>
+      </div>
       <div class="side-foot">
         <button class="gear" id="gearBtn" aria-label="設定">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -87,10 +98,11 @@
               </div>
             </div>
             <div class="set-row">
-              <span>主題</span>
+              <span>主題<small class="muted">「角色色彩」會依左邊紙娃娃的顏色調整程式與視窗外框的配色</small></span>
               <div class="seg" id="themeSeg">
                 <button data-theme="light">淺色</button>
                 <button data-theme="dark">深色</button>
+                <button data-theme="char">角色色彩</button>
               </div>
             </div>
             <div class="set-row">
@@ -713,13 +725,14 @@
               <button class="cbtn c-pink" data-v="sell">賣送禮</button>
             </div>
             <div class="f-field">
-              <label for="fDisc">折扣<small class="muted">輸入 8 = 8 折、82 = 82 折</small></label>
+              <label for="fDisc">折扣<small class="muted">輸入 8 = 8 折、82 = 82 折；游標放在框上可以用滾輪調整</small></label>
               <div class="f-input"><input type="text" id="fDisc" inputmode="decimal" placeholder="例如 82" autocomplete="off" /><span>折</span></div>
               <small class="f-hint" id="fDiscHint"></small>
             </div>
             <div class="f-field">
               <label for="fPrice">道具原價<small class="muted">商城標價（樂豆點）</small></label>
-              <div class="f-input"><input type="text" id="fPrice" inputmode="decimal" placeholder="例如 1000" autocomplete="off" /><span>點</span></div>
+              <div class="f-input"><input type="text" id="fPrice" placeholder="例如 1000，也可以打 990+390*2" autocomplete="off" /><span>點</span></div>
+              <small class="f-hint" id="fPriceHint"></small>
             </div>
             <div class="f-sell-only">
               <div class="f-field">
@@ -782,8 +795,8 @@
             </div>
             <div class="f-field">
               <label for="fFxAmount" id="fFxLabel">要買賣多少楓幣</label>
-              <div class="f-input"><input type="text" id="fFxAmount" inputmode="decimal" autocomplete="off" /><span id="fFxUnit">e</span></div>
-              <small class="f-hint">w = 萬、e = 億</small>
+              <div class="f-input"><input type="text" id="fFxAmount" autocomplete="off" /><span id="fFxUnit">e</span></div>
+              <small class="f-hint" id="fFxHint">w = 萬、e = 億</small>
             </div>
           </div>
           <div class="card f-card f-out">

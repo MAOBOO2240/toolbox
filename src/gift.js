@@ -42,6 +42,57 @@ const GiftCore = (() => {
     return (m[1] ? parseFloat(m[1]) * 1e8 : 0) + (m[2] ? parseFloat(m[2]) * 1e4 : 0);
   }
 
+  /**
+   * 算式：支援 + - * / 與括號，數字可以帶 w（萬）、e（億），例如 1000+390*2、3e+5000w、(10-2)*3。
+   * 沒有單位的數字視為 defUnit；結果換回實際數值。算不出來回傳 null。
+   */
+  function calc(v, defUnit = 1) {
+    const src = String(v).toLowerCase().replace(/[,\s]/g, "").replace(/億/g, "e").replace(/萬/g, "w")
+      .replace(/[×x]/g, "*").replace(/÷/g, "/").replace(/（/g, "(").replace(/）/g, ")");
+    if (!src) return null;
+    const toks = [];
+    const re = /(\d+(?:\.\d+)?|\.\d+)(?:e(\d+(?:\.\d+)?)w|([ew]))?|([-+*/()])/y;
+    let m;
+    re.lastIndex = 0;
+    while (re.lastIndex < src.length) {
+      m = re.exec(src);
+      if (!m) return null;
+      if (m[4]) { toks.push(m[4]); continue; }
+      let n = parseFloat(m[1]);
+      if (m[2] !== undefined) n = n * 1e8 + parseFloat(m[2]) * 1e4;
+      else if (m[3] === "e") n *= 1e8;
+      else if (m[3] === "w") n *= 1e4;
+      else n *= defUnit;
+      toks.push(n / defUnit); // 以預設單位計算，乘除時不會重複套用單位
+    }
+    let i = 0;
+    const peek = () => toks[i];
+    function factor() {
+      const t = toks[i++];
+      if (typeof t === "number") return t;
+      if (t === "-") return -factor();
+      if (t === "+") return factor();
+      if (t === "(") { const v2 = expr(); if (toks[i++] !== ")") throw 0; return v2; }
+      throw 0;
+    }
+    function term() {
+      let v2 = factor();
+      while (peek() === "*" || peek() === "/") { const op = toks[i++]; const r = factor(); v2 = op === "*" ? v2 * r : v2 / r; }
+      return v2;
+    }
+    function expr() {
+      let v2 = term();
+      while (peek() === "+" || peek() === "-") { const op = toks[i++]; const r = term(); v2 = op === "+" ? v2 + r : v2 - r; }
+      return v2;
+    }
+    try {
+      const out = expr();
+      if (i !== toks.length || !isFinite(out)) return null;
+      return out * defUnit;
+    } catch (_) { return null; }
+  }
+  const isFormula = (v) => /[-+*/×÷()（）]/.test(String(v).replace(/^\s*-/, ""));
+
   /** 每 1 點樂豆點的成本（台幣） */
   function pointCost(pay, card) {
     if (pay === "reader") return 1 / (1 + READER_BONUS);
@@ -73,7 +124,7 @@ const GiftCore = (() => {
     return { pay: s.price * d, save: s.price * (1 - d), disc: d };
   }
 
-  return { VIP, READER_BONUS, discount, amount, pointCost, sell, buy };
+  return { VIP, READER_BONUS, discount, amount, calc, isFormula, pointCost, sell, buy };
 })();
 
 if (typeof module !== "undefined") module.exports = GiftCore;
@@ -143,7 +194,8 @@ if (typeof document !== "undefined") (() => {
     $("#fDiscHint").textContent = st.disc === "" ? "" : d === null ? "看不懂這個折扣" : `${discText(d)}（${+(d * 100).toFixed(2)}%）`;
     const cd = G.discount(st.card);
     $("#fCardHint").textContent = cd === null ? "" : `每 1 點成本 ${ntFmt.format(cd)} 元`;
-    const price = G.amount(st.price);
+    const price = G.calc(st.price);
+    $("#fPriceHint").textContent = st.price && G.isFormula(st.price) ? (price === null ? "算式看不懂" : `＝ ${ntFmt.format(price)} 點`) : "";
     const out = $("#fResult");
     if (st.mode === "buy") {
       const r = G.buy({ price, disc: st.disc });
@@ -177,9 +229,12 @@ if (typeof document !== "undefined") (() => {
     const out = $("#fFxBig"), sub = $("#fFxSub");
     const isMeso = st.fxMode === "meso";
     $("#fFxUnit").textContent = isMeso ? "e" : "元";
-    $("#fFxAmount").placeholder = isMeso ? "例如 10（= 10e），也可以打 5000w、3e2000w" : "例如 1000";
+    $("#fFxAmount").placeholder = isMeso ? "例如 10（= 10e），也可以打 5000w、3e2000w" : "例如 1000，也可以打 300*3";
     $("#fFxLabel").textContent = isMeso ? "要買賣多少楓幣" : "要買賣多少台幣";
-    const v = isMeso ? G.amount(st.fxAmount, 1e8) : num(st.fxAmount);
+    const v = G.calc(st.fxAmount, isMeso ? 1e8 : 1);
+    $("#fFxHint").textContent = st.fxAmount && G.isFormula(st.fxAmount)
+      ? (v === null ? "算式看不懂" : `＝ ${isMeso ? meso(v).main : nt(v)}`)
+      : "w = 萬、e = 億；可以輸入算式，例如 3e+5000w、1000*3";
     if (!(perNt > 0) || !(v > 0)) {
       out.textContent = "—";
       sub.textContent = perNt > 0 ? "" : "請先輸入目前楓幣比值";
@@ -230,6 +285,37 @@ if (typeof document !== "undefined") (() => {
   bindInput("#fRatio2", "ratio");
   bindInput("#fVipPer", "vipPer");
   bindInput("#fFxAmount", "fxAmount");
+  /* 游標放在輸入框上用滾輪調整：折扣類一次 ±1（8 折會先換成 80 再加減），其他依各自的單位 */
+  function wheel(id, field, step, kind) {
+    const el = $(id);
+    el.dataset.wheel = "";
+    el.addEventListener("wheel", (e) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1 : -1;
+      let next;
+      if (kind === "disc") {
+        const d = G.discount(st[field]);
+        const pct = d === null ? 90 : Math.round(d * 100);
+        next = String(Math.min(100, Math.max(1, pct + dir * step)));
+      } else {
+        const cur = num(st[field]);
+        next = String(Math.max(0, +(cur + dir * step).toFixed(4)));
+      }
+      st[field] = next;
+      el.value = next; // 游標所在的框可能正在輸入中，直接更新
+      if (id === "#fRatio") $("#fRatio2").value = next;
+      if (id === "#fRatio2") $("#fRatio").value = next;
+      save(); syncInputs(); renderGift(); renderFx();
+    }, { passive: false });
+  }
+  wheel("#fDisc", "disc", 1, "disc");
+  wheel("#fCard", "card", 1, "disc");
+  wheel("#fFengPerE", "fengPerE", 1);
+  wheel("#fRatio", "ratio", 50);
+  wheel("#fRatio2", "ratio", 50);
+  wheel("#fVipPer", "vipPer", 10);
+
   $("#fReset").addEventListener("click", () => {
     st = { ...defaults(), page: st.page, mode: st.mode };
     save(); renderAll();

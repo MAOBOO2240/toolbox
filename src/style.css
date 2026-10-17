@@ -630,3 +630,25 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 /* 我的最愛：說明放在標題下面 */
 .cat-hint { margin: 0.45rem 0 0; font-size: 0.85rem; color: var(--text-2); }
 .cat-hint[hidden] { display: none; }
+
+/* ---------- 側欄紙娃娃 ---------- */
+.side-doll { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.45rem; margin: 0.8rem 0 0.6rem; }
+.side-doll-pic {
+  flex: 1; min-height: 4rem; position: relative; overflow: hidden;
+  display: flex; align-items: flex-end; justify-content: center;
+  border-radius: 1rem;
+  background: radial-gradient(ellipse at 50% 85%, color-mix(in srgb, var(--blue) 14%, transparent), transparent 70%);
+}
+.side-doll-pic img { image-rendering: pixelated; display: block; margin-bottom: 0.3rem; max-width: 100%; max-height: 100%; object-fit: contain; }
+.side-doll-pic img.official { image-rendering: auto; }
+.side-doll-empty { width: 3.2rem; height: 4.8rem; margin-bottom: 0.6rem; fill: none; stroke: var(--sep); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 4 4; }
+.side-doll-empty[hidden] { display: none; }
+.side-doll-name input {
+  width: 100%; padding: 0.45rem 0.7rem; border: 0; border-radius: 0.65rem; outline: none;
+  background: var(--card-2); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 600; text-align: center;
+  box-shadow: inset 0 0 0 1px var(--sep);
+}
+.side-doll-name input:focus { box-shadow: inset 0 0 0 1px var(--blue), 0 0 0 3px var(--blue-soft); }
+.side-doll-name input[readonly] { color: var(--text-2); }
+.side-doll-sync { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0 0.2rem; font-size: 0.8rem; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.set-row .seg { flex-wrap: nowrap; }

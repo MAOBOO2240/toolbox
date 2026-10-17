@@ -306,11 +306,39 @@ if (typeof document !== "undefined") (() => {
   }
 
   /** 目前外觀套組的點裝（沒有套組就用基本點裝），不含戒指等看不到的 */
-  function cashList() {
-    if (!ch?.cash) return [];
-    const preset = ch.cash[`cash_item_equipment_preset_${ch.cash.preset_no}`];
-    const list = preset?.length ? preset : ch.cash.cash_item_equipment_base || [];
+  function cashList() { return cashListOf(ch); }
+  function cashListOf(c) {
+    if (!c?.cash) return [];
+    const preset = c.cash[`cash_item_equipment_preset_${c.cash.preset_no}`];
+    const list = preset?.length ? preset : c.cash.cash_item_equipment_base || [];
     return list.filter((x) => !/戒指|EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
+  }
+
+  /** 某個角色目前的樣子（不含試穿），給左邊側欄的紙娃娃用 */
+  function charReq(c) {
+    const g = c?.basic?.character_gender === "男" ? "M" : "F";
+    const part = (x, key) => (x ? { name: x[key], color: x.base_color || null, mix: x.mix_color || null, rate: Number(x.mix_rate) || 0, gender: g } : null);
+    return {
+      game_dir: st.gamePath || null,
+      skin: c?.beauty?.character_skin?.skin_name || null,
+      gender: g,
+      hair: part(c?.beauty?.character_hair, "hair_name"),
+      face: part(c?.beauty?.character_face, "face_name"),
+      mode: "full",
+      skin_id: null,
+      items: cashListOf(c).map((x) => ({ name: x.cash_item_name, dye: prismToDye(x.cash_item_coloring_prism) })),
+    };
+  }
+  async function charLook(name) {
+    const c = await invoke("maple_lookup", { name, force: false });
+    try {
+      const out = await invoke("beauty_render", { req: charReq(c) });
+      return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy };
+    } catch (e) {
+      // 讀不到遊戲資料時改用官方角色圖
+      if (c?.basic?.character_image) return { name: c.name, png: c.basic.character_image, official: true };
+      throw e;
+    }
   }
 
   /** API 的染色稜鏡 → 紙娃娃染色參數 */
@@ -350,9 +378,17 @@ if (typeof document !== "undefined") (() => {
     };
   }
 
+  /** 美容美髮目前的紙娃娃（給側欄「同步美容美髮」用） */
+  let lastDoll = null;
+  function announceDoll(d) {
+    lastDoll = d;
+    document.dispatchEvent(new CustomEvent("beauty-doll", { detail: d }));
+  }
   const showDoll = renderQueue((out, err) => {
     const look = $("#bLook"), empty = $("#bEmpty"), note = $("#bDollNote");
     note.textContent = "";
+    if (out) announceDoll({ name: st.charName, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy });
+    else announceDoll(ch?.basic?.character_image && !(st.tryHair || st.tryFace) ? { name: st.charName, png: ch.basic.character_image, official: true } : null);
     if (out) {
       lastEquips = out.equips || [];
       if (!st.tryHair) lastHairId = out.hair_id || null;
@@ -1464,5 +1500,12 @@ if (typeof document !== "undefined") (() => {
   renderAll();
   // 重新開啟時，若之前有查過角色，從本機快取取回（不會用掉 API 次數，除非快取已過期）
   if (st.charName && TAURI) lookup(false);
-  window.Beauty = { onShow: renderAll };
+  window.Beauty = {
+    onShow: renderAll,
+    current: () => ({ name: st.charName || "", doll: lastDoll }),
+    /** 側欄輸入角色名稱且開著同步時，直接查詢美容美髮的角色 */
+    setName: async (name) => { $("#bName").value = name; await lookup(false); },
+    charLook,
+  };
+  document.dispatchEvent(new CustomEvent("beauty-ready"));
 })();
