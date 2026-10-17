@@ -256,6 +256,9 @@ fn in_maintenance(quiet: &[u8], (dow, h, m): (u32, u32, u32)) -> bool {
     })
 }
 
+/// 遊戲關閉前這麼多秒內有碰鍵盤滑鼠，就當作是自己關的，不通知
+const SELF_CLOSE_SECS: u64 = 300;
+
 /// 自己登出時，登入畫面要待多久才通知
 const LOGIN_WAIT: u64 = 300;
 /// 中斷前這麼多秒都沒有碰鍵盤滑鼠，就當作不是自己登出的（離開電腦時被送回登入畫面）
@@ -417,7 +420,12 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             if !running {
                 if was_running && cfg.on_close {
                     let maint = in_maintenance(&cfg.quiet, local_now()) || (lost_since.is_some() && maint_loss);
-                    alert(&app, "新楓之谷已關閉", "遊戲程式已結束。", maint);
+                    if !maint && idle_secs() < SELF_CLOSE_SECS {
+                        // 關閉前 5 分鐘內有在操作電腦：當作是自己關的
+                        log("新楓之谷已關閉（關閉前有在操作電腦，當作是自己關的，不通知）".into());
+                    } else {
+                        alert(&app, "新楓之谷已關閉", "遊戲程式已結束。", maint);
+                    }
                 }
                 had_game = false;
                 lost_since = None;
