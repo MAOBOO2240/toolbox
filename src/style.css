@@ -626,3 +626,7 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .set-row small { font-size: 0.76rem; font-weight: 500; line-height: 1.45; }
 .set-row .seg { flex: none; }
 #updStatus { font-weight: 500; font-size: 0.85rem; }
+
+/* 我的最愛：說明放在標題下面 */
+.cat-hint { margin: 0.45rem 0 0; font-size: 0.85rem; color: var(--text-2); }
+.cat-hint[hidden] { display: none; }

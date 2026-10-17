@@ -59,11 +59,12 @@
         <header class="large-title">
           <p class="eyebrow" id="catEyebrow">Toolbox</p>
           <h1 id="catTitle">工具箱</h1>
+          <p class="cat-hint" id="catHint" hidden>在工具上按右鍵選「加入我的最愛」，或把工具拖到左邊的「我的最愛」；在這一頁把工具拖到虛線框外就會移除。</p>
         </header>
         <div class="tiles" id="tiles"></div>
         <div class="fav-empty-page" id="favEmpty" hidden>
           <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
-          <p>在工具上按右鍵選「加入我的最愛」，或把工具拖到左邊的「我的最愛」</p>
+          <p>還沒有收藏的工具</p>
         </div>
       </section>
 
@@ -232,6 +233,8 @@
 
         <!-- 第一頁：模擬 -->
         <div class="g-page" id="gPageSim">
+          <div class="g-left">
+          <div class="card g-ai"><p class="g-comment" id="gComment"></p></div>
           <div class="card g-pool">
             <div class="g-tabs" id="gTabs">
               <button class="cbtn c-amber" data-pool="apple">黃金蘋果</button>
@@ -255,6 +258,7 @@
             <div class="g-table" id="gTable"></div>
           </div>
 
+          </div>
           <div class="g-side">
             <div class="g-stats">
               <div class="g-stat"><span>總花費</span><b id="sSpent">0</b></div>
@@ -282,7 +286,6 @@
 
             <div class="card g-analysis">
               <div class="g-metrics" id="gMetrics"></div>
-              <p class="g-comment" id="gComment"></p>
             </div>
 
             <div class="card g-results">
@@ -500,6 +503,8 @@
         </nav>
 
         <div class="g-page" id="cPageSim">
+          <div class="g-left">
+          <div class="card g-ai"><p class="g-comment" id="cComment"></p></div>
           <div class="card g-pool">
             <div class="g-tabs c-tabs" id="cTabs">
               <button class="cbtn c-teal" data-pool="shiny">閃亮彗星</button>
@@ -523,6 +528,7 @@
             <div class="g-table" id="cTable"></div>
           </div>
 
+          </div>
           <div class="g-side">
             <div class="g-stats">
               <div class="g-stat"><span>總花費</span><b id="cSpent">0</b></div>
@@ -551,7 +557,6 @@
 
             <div class="card g-analysis">
               <div class="g-metrics" id="cMetrics"></div>
-              <p class="g-comment" id="cComment"></p>
             </div>
 
             <div class="card g-results">
@@ -611,6 +616,8 @@
         </nav>
 
         <div class="g-page" id="sPageSim">
+          <div class="g-left">
+          <div class="card g-ai"><p class="g-comment" id="sComment"></p></div>
           <div class="card g-pool">
             <div class="g-tabs s-tabs" id="sTabs">
               <button class="cbtn c-purple" data-lv="bag">星光錦囊<small></small></button>
@@ -636,6 +643,7 @@
             <div class="g-table" id="sTable"></div>
           </div>
 
+          </div>
           <div class="g-side">
             <div class="g-stats">
               <div class="g-stat"><span>總花費</span><b id="slSpent">0</b></div>
@@ -651,19 +659,16 @@
                 <button class="pill primary" data-sdraw="10">10 抽</button>
                 <button class="pill primary" data-sdraw="100">100 抽</button>
               </div>
-              <div class="g-box-row">
-                <button class="g-box s-synth" id="sSynth"><span>合成星光結晶體</span><small></small></button>
-                <button class="g-box s-openall" id="sOpenAll"><span>全部開到底</span><small></small></button>
-              </div>
               <div class="g-actions-foot">
-                <button class="cbtn c-purple small" id="sAutoOpen" title="開啟後，抽到的玲瓏星光、星光原石等會自動合成並打開到底">抽到自動開到底</button>
+                <span class="muted s-draw-info" id="sDrawInfo"></span>
+                <span class="spacer"></span>
+                <button class="cbtn c-purple small" id="sAutoOpen" title="開啟後，抽到的玲瓏星光、星光原石等會自動一路打開到底">抽到自動開到底</button>
                 <button class="cbtn c-red small solid" id="sReset">重置統計</button>
               </div>
             </div>
 
             <div class="card g-analysis">
               <div class="g-metrics" id="sMetrics"></div>
-              <p class="g-comment" id="sComment"></p>
             </div>
 
             <div class="card g-results">

@@ -24,32 +24,28 @@
 }
 :root[data-theme="dark"] .s-box-tag { color: #c4a5ff; }
 
-/* 合成、全部開到底 */
-.g-box.s-synth { background: linear-gradient(135deg, #fde68a, #fbbf24); color: #3b2600; }
-.g-box.s-openall { background: linear-gradient(135deg, #e9d5ff, #a78bfa 55%, #f0abfc); color: #2e1065; }
-
 /* 本次獲得：星光類道具 */
 .s-chip .item-ic { width: 1.35rem; height: 1.35rem; }
 .s-chip { padding-left: 0.35rem; }
 .g-sec .g-chip.s-chip.box { box-shadow: inset 0 0 0 1px color-mix(in srgb, #8b5cf6 45%, transparent); color: #7c3aed; font-weight: 700; }
 :root[data-theme="dark"] .g-sec .g-chip.s-chip.box { color: #c4a5ff; }
 
-/* 保管箱：名稱右邊的合成／開啟按鈕 */
+/* 保管箱 */
 .s-hrow.feat .t { color: #c88a00; font-weight: 700; }
 :root[data-theme="dark"] .s-hrow.feat .t { color: #ffc94a; }
-.s-act-btn {
-  flex: none;
-  padding: 0.05rem 0.45rem; border: 0; border-radius: 0.45rem; cursor: pointer;
-  background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed;
-  font: inherit; font-size: 0.72rem; font-weight: 700;
-  transition: background 0.15s, color 0.15s;
-}
-.s-act-btn.synth { background: color-mix(in srgb, #f5a30b 18%, transparent); color: #b45309; }
-.s-act-btn:hover, .s-act-btn.on { background: #8b5cf6; color: #fff; }
-.s-act-btn.synth:hover, .s-act-btn.synth.on { background: #f5a30b; color: #2a1a00; }
-:root[data-theme="dark"] .s-act-btn { color: #c4a5ff; }
-:root[data-theme="dark"] .s-act-btn.synth { color: #ffc46b; }
 #view-star .c-split-row input[type="number"] { width: 4.5rem; padding: 0.3rem 0.5rem; text-align: right; font-weight: 700; }
 
 /* 解析頁 */
 .s-import { grid-template-columns: minmax(0, 1fr); max-width: 56rem; }
+
+/* 分頁：有得開時亮起來，沒有時變淡 */
+.s-tabs .cbtn.empty:not(.on) { opacity: 0.5; }
+.s-tabs .cbtn.ready:not(.on) { animation: s-ready 1.8s ease-in-out infinite; }
+.s-tabs .cbtn.ready small { opacity: 1; font-weight: 800; }
+@keyframes s-ready {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 0%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent), 0 0 18px color-mix(in srgb, var(--c) 45%, transparent); }
+}
+.s-draw-info { font-size: 0.8rem; font-weight: 600; }
+.g-actions-foot .spacer { flex: 1; }
+#sPageSim .g-actions-foot { gap: 0.5rem; }

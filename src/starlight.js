@@ -310,10 +310,18 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 獎池 ---------- */
+  /** 分頁下面顯示保管箱裡有幾抽可以開；有得開的分頁會亮起來 */
   function renderTabs() {
     $$("#sTabs button").forEach((b) => {
-      b.classList.toggle("on", b.dataset.lv === st.tab);
-      b.querySelector("small").textContent = `${st.pools[b.dataset.lv].length} 項`;
+      const lv = b.dataset.lv;
+      b.classList.toggle("on", lv === st.tab);
+      const small = b.querySelector("small");
+      if (lv === "bag") { small.textContent = "花錢抽"; b.classList.remove("ready", "empty"); return; }
+      const n = availOf(lv);
+      small.textContent = `${intFmt.format(n)} 抽`;
+      b.classList.toggle("ready", n > 0);
+      b.classList.toggle("empty", n === 0);
+      b.title = lv === "crystal" ? `每 ${C.SYNTH} 個玲瓏星光可以抽一次星光結晶體` : `保管箱裡有 ${n} 個${C.LEVEL_NAME[lv]}`;
     });
   }
 
@@ -384,6 +392,8 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 統計、分析 ---------- */
   const ownedOf = (name) => Object.entries(st.owned).reduce((a, [k, n]) => a + (splitKey(k)[1] === name ? n : 0), 0);
+  /** 這一層保管箱裡還能開幾次 */
+  const availOf = (lv) => (lv === "crystal" ? ownedOf(C.LEVEL_NAME.crystal) + Math.floor(ownedOf(C.SEED) / C.SYNTH) : ownedOf(C.LEVEL_NAME[lv]));
   function totalValue() {
     const { effOf } = C.evaluate(st);
     let v = 0;
@@ -401,16 +411,16 @@ if (typeof document !== "undefined") (() => {
     pEl.textContent = (profit > 0 ? "+" : "") + big(profit);
     pEl.className = profit > 0 ? "pos" : profit < 0 ? "neg" : "";
     $("#sBags").textContent = intFmt.format(s.bags);
-    const seeds = ownedOf(C.SEED);
-    $("#sSeeds").textContent = intFmt.format(seeds);
-    const sy = $("#sSynth");
-    sy.disabled = seeds < C.SYNTH;
-    sy.querySelector("small").textContent = sy.disabled ? `玲瓏星光不足（需 ${C.SYNTH}）` : `可合成 ${intFmt.format(Math.floor(seeds / C.SYNTH))} 個`;
-    const boxes = C.BOXES.reduce((a, n) => a + (n === C.SEED ? Math.floor(ownedOf(n) / C.SYNTH) : ownedOf(n)), 0);
-    const all = $("#sOpenAll");
-    all.disabled = !boxes;
-    all.querySelector("small").textContent = boxes ? "合成並打開保管箱裡所有星光" : "保管箱沒有可以開的";
+    $("#sSeeds").textContent = intFmt.format(ownedOf(C.SEED));
     $("#sAutoOpen").classList.toggle("on", !!st.autoOpen);
+    // 抽獎按鈕抽的是左邊選到的那一層
+    const lv = st.tab;
+    const avail = lv === "bag" ? Infinity : availOf(lv);
+    $$("[data-sdraw]").forEach((b) => (b.disabled = !avail));
+    $("#sDrawInfo").textContent = lv === "bag"
+      ? "目前抽：星光錦囊"
+      : avail ? `目前抽：${C.LEVEL_NAME[lv]}（剩 ${intFmt.format(avail)} 抽）` : `沒有可以抽的${C.LEVEL_NAME[lv]}`;
+    renderTabs();
   }
 
   const metric = (label, value, cls = "") => `<div class="g-metric"><span>${label}</span><b class="${cls}">${value}</b></div>`;
@@ -463,7 +473,6 @@ if (typeof document !== "undefined") (() => {
     }
   }
 
-  let openRow = null; // 保管箱中正在輸入數量的道具（合成／開啟）
   function renderHistory() {
     const box = $("#sHistory");
     box.innerHTML = "";
@@ -500,73 +509,14 @@ if (typeof document !== "undefined") (() => {
       t.textContent = name;
       nm.append(ItemIcons.el(name), t);
       nm.title = name;
-      // 名稱右邊：玲瓏星光「合成」、其他星光「開啟」
-      const canAct = C.isBox(name) && (name === C.SEED ? ownedOf(name) >= C.SYNTH : owned > 0);
-      if (canAct) {
-        const b = document.createElement("button");
-        b.className = "s-act-btn" + (openRow === name ? " on" : "") + (name === C.SEED ? " synth" : "");
-        b.textContent = name === C.SEED ? "合成" : "開啟";
-        b.addEventListener("click", () => { openRow = openRow === name ? null : name; renderHistory(); });
-        nm.append(b);
-      }
       const cnt = document.createElement("span");
       cnt.className = "c-count" + (owned ? "" : " zero");
       cnt.textContent = `×${intFmt.format(owned)}`;
       row.append(nm, cnt);
       row.insertAdjacentHTML("beforeend", `<span class="muted">${effOf(name) && owned ? big(effOf(name) * owned) : "—"}</span><span class="${cls}">${actual === null ? "—" : `${actual.toFixed(2)}%${cls === "up" ? " ▲" : cls === "down" ? " ▼" : ""}`}</span>`);
       box.appendChild(row);
-      if (openRow === name && canAct && !box.querySelector(".c-split-row")) box.appendChild(actRow(name));
     }
   }
-
-  /** 保管箱：輸入數量合成或開啟 */
-  function actRow(name) {
-    const synth = name === C.SEED;
-    const max = synth ? Math.floor(ownedOf(name) / C.SYNTH) : ownedOf(name);
-    const wrap = document.createElement("div");
-    wrap.className = "c-split-row s-act-row";
-    const input = document.createElement("input");
-    input.type = "number";
-    input.min = "1";
-    input.max = String(max);
-    input.value = "1";
-    const info = document.createElement("span");
-    info.className = "muted";
-    const upd = () => {
-      const n = Math.min(max, Math.max(0, Math.floor(Number(input.value) || 0)));
-      info.textContent = synth ? `個星光結晶體（用掉 ${intFmt.format(n * C.SYNTH)} 個玲瓏星光）` : `個（共有 ${intFmt.format(max)} 個）`;
-    };
-    upd();
-    const go = (n) => {
-      n = Math.min(max, Math.max(0, Math.floor(n)));
-      if (!n) return;
-      openRow = null;
-      beginBatch();
-      if (synth) synthesize(n); else for (let i = 0; i < n; i++) openOne(name);
-      commit(synth ? `合成了 ${n} 個星光結晶體` : `開啟了 ${n} 個${name}`);
-    };
-    input.addEventListener("input", upd);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(Number(input.value)); if (e.key === "Escape") { openRow = null; renderHistory(); } });
-    const btn = document.createElement("button");
-    btn.className = "cbtn c-amber small solid";
-    btn.textContent = synth ? "合成" : "開啟";
-    btn.addEventListener("click", () => go(Number(input.value)));
-    const all = document.createElement("button");
-    all.className = "cbtn c-purple small";
-    all.textContent = synth ? "全部合成" : "全部開啟";
-    all.addEventListener("click", () => go(max));
-    const label = document.createElement("span");
-    label.textContent = synth ? "合成" : "開啟";
-    wrap.append(label, input, info, btn, all);
-    setTimeout(() => { input.focus(); input.select(); }, 0);
-    return wrap;
-  }
-  // 點其他地方就關閉數量輸入列
-  document.addEventListener("pointerdown", (e) => {
-    if (!openRow || e.target.closest(".s-act-row, .s-act-btn")) return;
-    openRow = null;
-    renderHistory();
-  });
 
   function renderRight() {
     renderStats();
@@ -594,7 +544,6 @@ if (typeof document !== "undefined") (() => {
     for (const lv of C.LEVELS) st.histDraws[lv] += st.batchDraws[lv];
     st.batch = {};
     st.batchDraws = zeroLv();
-    openRow = null;
     pickers = null;
   }
   function gain(lv, it) {
@@ -625,26 +574,22 @@ if (typeof document !== "undefined") (() => {
     st.stats.bags += 1;
     openLevel("bag");
   }
-  function synthesize(n) {
-    take(C.SEED, n * C.SYNTH);
-    const k = key("bag", C.LEVEL_NAME.crystal);
-    st.owned[k] = (st.owned[k] || 0) + n;
-    st.batch[k] = (st.batch[k] || 0) + n;
-    st.stats.synth += n;
+  /** 開一次某一層：星光結晶體用掉 4 個玲瓏星光（舊版合成好的星光結晶體優先用），其他層用掉 1 個該道具 */
+  function openBox(lv) {
+    if (lv === "crystal") {
+      if (ownedOf(C.LEVEL_NAME.crystal) > 0) take(C.LEVEL_NAME.crystal, 1);
+      else take(C.SEED, C.SYNTH);
+      st.stats.synth += 1;
+    } else take(C.LEVEL_NAME[lv], 1);
+    openLevel(lv);
   }
-  function openOne(name) {
-    take(name, 1);
-    openLevel(C.OPENS[name]);
-  }
-  /** 保管箱裡的星光全部合成、打開到底 */
+  /** 保管箱裡的星光全部一路開到底（「抽到自動開到底」、「抽」到指定道具時用） */
   function openEverything() {
     let n = 0;
     for (let guard = 0; guard < 1e6; guard++) {
-      const s = Math.floor(ownedOf(C.SEED) / C.SYNTH);
-      if (s) { synthesize(s); n += s; continue; }
-      const name = Object.keys(C.OPENS).find((b) => ownedOf(b) > 0 && st.pools[C.OPENS[b]].length);
-      if (!name) break;
-      openOne(name);
+      const lv = C.LEVELS.slice(1).find((x) => availOf(x) > 0 && st.pools[x].length);
+      if (!lv) break;
+      openBox(lv);
       n++;
     }
     return n;
@@ -655,14 +600,22 @@ if (typeof document !== "undefined") (() => {
     if (msg) toast(msg);
   }
 
+  /** 抽左邊選到的那一層：星光錦囊花錢；其他層用保管箱裡的星光 */
   function drawN(n, fresh) {
-    if (!st.pools.bag.length) { toast("星光錦囊的獎池是空的"); return false; }
+    const lv = st.tab;
+    if (!st.pools[lv].length) { toast(`${C.LEVEL_NAME[lv]}的獎池是空的`); return false; }
+    if (lv !== "bag") {
+      const avail = availOf(lv);
+      if (!avail) { toast(lv === "crystal" ? `玲瓏星光不足（每 ${C.SYNTH} 個抽一次）` : `保管箱沒有${C.LEVEL_NAME[lv]}`); return false; }
+      n = Math.min(n, avail);
+    }
     if (fresh) beginBatch();
     for (let i = 0; i < n; i++) {
-      buyBag();
+      if (lv === "bag") buyBag(); else openBox(lv);
       if (st.autoOpen) openEverything();
     }
     commit();
+    if (lv !== "bag" && !availOf(lv)) return false; // 抽完了，按住也停下來
   }
   function drawUntil(name) {
     if (!st.pools.bag.length) return toast("星光錦囊的獎池是空的");
@@ -728,7 +681,7 @@ if (typeof document !== "undefined") (() => {
   };
   $$("#sTabs button").forEach((b) => {
     b.prepend(ItemIcons.el(C.LEVEL_NAME[b.dataset.lv]));
-    b.addEventListener("click", () => { st.tab = b.dataset.lv; save(); renderPool(); });
+    b.addEventListener("click", () => { st.tab = b.dataset.lv; save(); renderPool(); renderStats(); });
   });
   $("#sCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#sCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderRight(); });
@@ -769,22 +722,10 @@ if (typeof document !== "undefined") (() => {
   });
 
   $$("[data-sdraw]").forEach((b) => holdable(b, (fresh) => drawN(Number(b.dataset.sdraw), fresh)));
-  $("#sSynth").addEventListener("click", () => {
-    const n = Math.floor(ownedOf(C.SEED) / C.SYNTH);
-    if (!n) return;
-    beginBatch();
-    synthesize(n);
-    commit(`合成了 ${n} 個星光結晶體`);
-  });
-  $("#sOpenAll").addEventListener("click", () => {
-    beginBatch();
-    const n = openEverything();
-    commit(n ? "保管箱裡的星光都合成、打開了" : "保管箱沒有可以開的");
-  });
   $("#sAutoOpen").addEventListener("click", () => {
     st.autoOpen = !st.autoOpen;
     save(); renderStats();
-    toast(st.autoOpen ? "抽到的星光會自動合成並打開到底" : "抽到的星光會留在保管箱，自己決定要不要開");
+    toast(st.autoOpen ? "抽到的星光會自動一路打開到底" : "抽到的星光會留在保管箱；點左邊亮起來的分頁再按抽獎就能打開");
   });
   $("#sReset").addEventListener("click", async () => {
     if (!(await confirmBox("確定要重置花費、數量與保管箱嗎？"))) return;

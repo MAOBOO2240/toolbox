@@ -336,6 +336,9 @@ function renderTiles() {
   const isFavPage = currentCat === "fav";
   const list = isFavPage ? favs.map((id) => TOOL[id]) : orderedTools(currentCat);
   $("#favEmpty").hidden = !(isFavPage && !list.length);
+  // 沒有收藏時，空白提示緊接在標題下面
+  tiles.style.display = isFavPage && !list.length ? "none" : "";
+  $("#catHint").hidden = !isFavPage;
   for (const t of list) {
     const btn = document.createElement("button");
     btn.className = "tile";
