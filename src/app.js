@@ -673,6 +673,7 @@ const UiArt = (() => {
     const A = skin.ani || [];
     let left = -Math.ceil(tw / 2), right = left + tw;
     let list, cy = P.c ? P.c.h / 2 - P.c.oy : 7;
+    let textRoom = tw; // 名牌中間可以放字的寬度（固定大小的名牌比文字寬）
     if (!A.length) {
       const ops = [];
       if (P.c) for (let x = left; x < right; x += Math.max(1, P.c.w)) ops.push({ p: P.c, x, y: 0, clip: [left, -1e4, right, 1e4] });
@@ -688,7 +689,7 @@ const UiArt = (() => {
       if (mixed && !skin.ani_tag && P.c) base.push({ p: P.c, x: bgLeft, y: 0 });
       const ax = mixed ? bgLeft - sx : left, ay = mixed ? -sy : 0;
       list = A.map((a) => [...base, { p: a, x: ax, y: ay }]);
-      if (mixed) { left -= sx; right -= sx; }
+      if (mixed) { left -= sx; right -= sx; textRoom = Math.max(tw, P.c && P.c.w > 1 ? P.c.w : Math.round(A[0].w * 0.6)); }
       if (!P.c || P.c.w <= 1) {
         // 沒有中間那塊：文字放在動畫第一格的中間高度
         const a = A[0];
@@ -698,7 +699,7 @@ const UiArt = (() => {
     const art = paintFrames(list);
     if (!art) return null;
     const frames = art.canvases.map((canvas, i) => ({ canvas, delay: A[i]?.delay || 100 }));
-    return { canvas: frames[0].canvas, frames, x: art.x, y: art.y, left, right, cy };
+    return { canvas: frames[0].canvas, frames, x: art.x, y: art.y, left, right, cy, textRoom };
   }
   /** 名牌動畫：依每一格的時間換圖；同一個 key 重新播放時會停掉上一次的 */
   const players = new Map();
@@ -818,27 +819,32 @@ const SideDoll = (() => {
     if (my !== paintGen) return;
     const family = getComputedStyle(inp).fontFamily;
     const room = wrap.clientWidth || 240;
-    for (const k of [2, 1]) {
-      const font = `700 ${11 * k}px ${family}`;
-      measure.font = font;
-      const tw = Math.ceil(measure.measureText(inp.value || inp.placeholder || "").width / k) + 4;
-      const art = UiArt.nameTag(t, tw);
-      if (!art) break;
+    const text = inp.value || inp.placeholder || "";
+    measure.font = `700 11px ${family}`;
+    const tw = Math.ceil(measure.measureText(text).width) + 4;
+    const art = UiArt.nameTag(t, tw);
+    if (art) {
       const W = art.canvas.width, H = art.canvas.height;
-      if (W * k > room && k > 1) continue;
-      // 文字垂直置中在名牌中間那塊
-      const mid = (art.cy - art.y) * k, full = H * k;
+      // 放大倍率：最多兩倍，名牌太寬（裝飾多）時縮到剛好放得下，不會直接掉回一倍讓字變很小
+      const k = Math.max(1, Math.min(2, (room - 4) / W));
+      // 字的大小跟著名牌放大；固定大小的名牌中間比較寬，字可以再大一點（最大 16px）
+      let fs = 11 * k;
+      if (art.textRoom > tw) fs = Math.max(fs, Math.min(16, (11 * k * (art.textRoom - 6)) / Math.max(1, tw - 4)));
+      const font = `700 ${fs.toFixed(1)}px ${family}`;
+      // 文字放在名牌中間那塊的正中央（左右、上下都用 padding 把中心對過去）
+      const midY = (art.cy - art.y) * k, full = H * k;
+      const midX = ((art.left + art.right) / 2 - art.x) * k, wide = W * k;
       wrap.classList.add("tagged");
       Object.assign(inp.style, {
         font,
         color: t.clr || "#fff",
-        width: `${W * k}px`,
+        width: `${wide}px`,
         height: `${full}px`,
-        paddingLeft: `${(art.left - art.x) * k}px`,
-        paddingRight: `${(art.x + W - art.right) * k}px`,
-        paddingTop: `${Math.max(0, 2 * mid - full)}px`,
-        paddingBottom: `${Math.max(0, full - 2 * mid)}px`,
-        backgroundSize: `${W * k}px ${H * k}px`,
+        paddingLeft: `${Math.max(0, 2 * midX - wide)}px`,
+        paddingRight: `${Math.max(0, wide - 2 * midX)}px`,
+        paddingTop: `${Math.max(0, 2 * midY - full)}px`,
+        paddingBottom: `${Math.max(0, full - 2 * midY)}px`,
+        backgroundSize: `${wide}px ${full}px`,
         backgroundRepeat: "no-repeat",
         backgroundColor: "transparent",
       });

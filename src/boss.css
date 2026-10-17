@@ -5,6 +5,9 @@
   padding: 1rem;
 }
 .bs-side { display: flex; flex-direction: column; gap: 0.8rem; min-height: 0; overflow-y: auto; }
+/* 角色欄位填滿左邊，總計貼齊底部；角色多的時候在清單裡捲動 */
+.bs-side > .bs-card:first-child { flex: 1 1 0; min-height: 11rem; }
+.bs-side > #bsSum { flex: none; }
 .bs-card { display: flex; flex-direction: column; gap: 0.7rem; }
 .bs-side .bs-card { padding: 0.85rem; gap: 0.55rem; }
 .bs-card h3 { margin: 0; font-size: 1rem; }
@@ -20,7 +23,7 @@
 .bs-list-head small { margin-left: 0.4rem; font-size: 0.74rem; color: #e5484d; }
 
 /* 角色 */
-.bs-chars { display: flex; flex-direction: column; gap: 0.3rem; overflow-y: auto; margin: -0.2rem; padding: 0.2rem; }
+.bs-chars { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.3rem; overflow-y: auto; margin: -0.2rem; padding: 0.2rem; }
 .bs-card .cbtn:disabled { opacity: 0.45; cursor: default; }
 .bs-char {
   display: flex; align-items: center; gap: 0.5rem;
@@ -109,6 +112,19 @@
 .bs-val { text-align: right; font-size: 0.92rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bs-val.muted { font-weight: 500; font-size: 0.84rem; }
 .bs-reset-note { grid-column: 1 / -1; margin: 0 0 0.2rem; font-size: 0.78rem; line-height: 1.5; }
+/* BOSS重製卷 */
+.bs-reset-btn { gap: 0.3rem; }
+.bs-reset-btn svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.bs-row.taken { opacity: 0.6; }
+.bs-hint { font-size: 0.76rem; white-space: nowrap; }
+/* 每週王底下「重製」那一列：縮排一點，左邊一條青色線 */
+.bs-row.bs-reset { margin-top: -0.15rem; background: color-mix(in srgb, #14b8a6 7%, var(--card-2)); box-shadow: inset 3px 0 0 #14b8a6, inset 0 0 0 1px color-mix(in srgb, #14b8a6 35%, transparent); }
+.bs-row.bs-reset.on { background: color-mix(in srgb, #14b8a6 12%, var(--card)); }
+.bs-ic.bs-ic-reset { position: relative; transform: scale(0.82); }
+.bs-ic.bs-ic-reset::after {
+  content: "重製"; position: absolute; right: -0.35rem; bottom: -0.3rem; padding: 0 0.2rem; border-radius: 0.3rem;
+  background: #14b8a6; color: #fff; font-size: 0.55rem; font-weight: 800; line-height: 1.3;
+}
 .bs-empty { grid-column: 1 / -1; text-align: center; padding: 2rem 1rem; font-size: 0.88rem; }
 
 /* ---------- 經驗追蹤 ---------- */
