@@ -141,6 +141,7 @@ function applySettings() {
   root.dataset.font = settings.font;
   $$("#fontSeg button").forEach((b) => b.classList.toggle("on", b.dataset.font === settings.font));
   $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === theme));
+  $$("#closeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.v === (settings.close_tray ? "tray" : "exit")));
   api.setWindowTheme(theme);
   // 視窗外框（標題列與邊框）換成和程式內容有區別的顏色
   if (TAURI) invoke("set_frame", { dark: theme === "dark" }).catch(() => {});
@@ -148,21 +149,20 @@ function applySettings() {
 
 function saveSettings() {
   applySettings();
-  api.saveSettings({ theme: settings.theme, font: settings.font });
+  api.saveSettings({ theme: settings.theme, font: settings.font, close_tray: !!settings.close_tray });
 }
 
 $$("#fontSeg button").forEach((b) => b.addEventListener("click", () => { settings.font = b.dataset.font; saveSettings(); }));
 $$("#themeSeg button").forEach((b) => b.addEventListener("click", () => { settings.theme = b.dataset.theme; saveSettings(); }));
 darkQuery.addEventListener("change", () => { if (settings.theme === "system") applySettings(); });
 
-const pop = $("#settingsPop");
-$("#gearBtn").addEventListener("click", (e) => {
-  e.stopPropagation();
-  pop.classList.toggle("show");
-  $("#gearBtn").classList.toggle("on", pop.classList.contains("show"));
-});
-document.addEventListener("click", (e) => {
-  if (!pop.contains(e.target)) { pop.classList.remove("show"); $("#gearBtn").classList.remove("on"); }
+$$("#closeSeg button").forEach((b) => b.addEventListener("click", () => { settings.close_tray = b.dataset.v === "tray"; saveSettings(); }));
+
+/* 設定：在右邊內容區顯示整頁 */
+$("#gearBtn").addEventListener("click", () => {
+  $$(".cat").forEach((b) => b.classList.remove("on"));
+  showView("settings");
+  $("#app").classList.remove("collapsed");
 });
 
 /* 主內容區不應該被捲動（切換頁面的滑入動畫中點擊或聚焦輸入框時，瀏覽器會把它捲過去，造成整頁偏移） */
@@ -343,7 +343,10 @@ function renderTiles() {
     strong.textContent = t.name;
     const small = document.createElement("small");
     small.textContent = t.desc;
-    btn.append(toolIcon(t), strong, small);
+    const inner = document.createElement("span");
+    inner.className = "tile-in";
+    inner.append(toolIcon(t), strong, small);
+    btn.append(inner);
     btn.addEventListener("click", () => openTool(t.id));
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
@@ -413,7 +416,16 @@ function flip(container, mutate) {
 /* 一排幾個：空白 = 依視窗寬度自動 */
 let perRow = Number(store.get("toolbox-perrow", 0)) || 0;
 function applyPerRow() {
-  $("#tiles").style.gridTemplateColumns = perRow ? `repeat(${perRow}, minmax(0, var(--tile)))` : "";
+  // 欄寬要是固定值（不能是 minmax），方框的高度才算得出來；放不下時平均縮小
+  const tiles = $("#tiles");
+  if (perRow) {
+    // 分類頁寬度扣掉左右留白與間距後平均分；比預設大小大時維持預設大小
+    tiles.style.setProperty("--col", `min(var(--tile), calc((100cqw - 4rem - ${perRow - 1} * 1.1rem) / ${perRow}))`);
+    tiles.style.gridTemplateColumns = `repeat(${perRow}, var(--col))`;
+  } else {
+    tiles.style.removeProperty("--col");
+    tiles.style.gridTemplateColumns = "";
+  }
   const inp = $("#perRow");
   if (document.activeElement !== inp) inp.value = perRow || "";
 }
@@ -550,6 +562,7 @@ function showView(name) {
   }
   currentView = name;
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
+  $("#gearBtn").classList.toggle("on", name === "settings");
 }
 
 /** 各工具可以接管返回按鈕：在子頁面（例如解析）時顯示「上一頁」並回到抽獎模擬 */
@@ -713,6 +726,12 @@ $("#currentSerial").addEventListener("click", () =>
 (async () => {
   const st = await api.getState();
   settings = { theme: "system", font: "m", ...(st.settings || {}) };
+  // 文字大小改版：原本的「中」變成「小」、「大」變成「中」，新增更大的「大」；預設為「中」
+  if (!store.get("toolbox-font-v2", false)) {
+    if (settings.font === "l") settings.font = "m";
+    store.set("toolbox-font-v2", true);
+    api.saveSettings({ theme: settings.theme, font: settings.font, close_tray: !!settings.close_tray });
+  }
   applySettings();
   state = st;
   $("#rawInput").value = st.raw || "";
@@ -732,9 +751,9 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
  * 程式開啟時檢查一次；按「稍後」之後這次就不再提醒，下次開啟程式才會再跳出。
  * 設定裡的「檢查更新」可以手動再檢查。 */
 (() => {
-  if (!TAURI) { $("#verText").textContent = "1.0.0"; return; }
+  if (!TAURI) return;
   let info = null, snoozed = false;
-  const status = (t) => { $("#updStatus").textContent = t || ""; };
+  const status = (t) => { $("#updStatus").textContent = t || "程式開啟時會自動檢查一次"; };
 
   async function refresh() {
     try { info = await invoke("update_info"); } catch (_) { return; }
@@ -753,7 +772,6 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
   }
 
   function offer(r) {
-    invoke("notify_show", { title: "發現新版本", body: `工具箱有新版本（${r.latest}），可以到程式裡更新。`, kind: "info" }).catch(() => {});
     $("#updMsg").textContent = "發現新版本";
     $("#updSub").textContent = `目前 ${r.current}，最新 ${r.latest}。更新後程式會重新開啟。`;
     $("#updBackdrop").classList.add("show");

@@ -48,32 +48,6 @@
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
           <span>設定</span>
         </button>
-        <div class="popover" id="settingsPop">
-          <p class="pop-title">設定</p>
-          <div class="pop-row">
-            <span>一排</span>
-            <span class="pop-num"><input type="number" id="perRow" min="1" max="12" placeholder="自動" /><span class="muted">個</span></span>
-          </div>
-          <div class="pop-row">
-            <span>文字大小</span>
-            <div class="seg" id="fontSeg">
-              <button data-font="s">小</button>
-              <button data-font="m">中</button>
-              <button data-font="l">大</button>
-            </div>
-          </div>
-          <div class="pop-row">
-            <span>外觀</span>
-            <div class="seg" id="themeSeg">
-              <button data-theme="light">淺色</button>
-              <button data-theme="dark">深色</button>
-            </div>
-          </div>
-          <div class="pop-sep"></div>
-          <p class="pop-title">更新</p>
-          <div class="pop-row"><span>目前版本</span><span class="muted" id="verText">—</span></div>
-          <div class="pop-row"><button class="cbtn c-teal small" id="updCheck">檢查更新</button><span class="muted pop-status" id="updStatus"></span></div>
-        </div>
       </div>
     </aside>
 
@@ -89,6 +63,56 @@
         <div class="fav-empty-page" id="favEmpty" hidden>
           <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
           <p>在工具上按右鍵選「加入我的最愛」，或把工具拖到左邊的「我的最愛」</p>
+        </div>
+      </section>
+
+      <!-- 設定 -->
+      <section class="view" id="view-settings">
+        <header class="large-title">
+          <p class="eyebrow">Settings</p>
+          <h1>設定</h1>
+        </header>
+        <div class="set-page">
+          <div class="card set-card">
+            <h3>外觀</h3>
+            <div class="set-row">
+              <span>文字大小</span>
+              <div class="seg" id="fontSeg">
+                <button data-font="l">大</button>
+                <button data-font="m">中</button>
+                <button data-font="s">小</button>
+              </div>
+            </div>
+            <div class="set-row">
+              <span>主題</span>
+              <div class="seg" id="themeSeg">
+                <button data-theme="light">淺色</button>
+                <button data-theme="dark">深色</button>
+              </div>
+            </div>
+            <div class="set-row">
+              <span>一排幾個<small class="muted">主頁面每一排顯示幾個工具；空白就依視窗寬度自動排列</small></span>
+              <span class="pop-num"><input type="number" id="perRow" min="1" max="12" placeholder="自動" /><span class="muted">個</span></span>
+            </div>
+          </div>
+          <div class="card set-card">
+            <h3>視窗</h3>
+            <div class="set-row">
+              <span>按右上角關閉時<small class="muted">縮小到右下角時程式會繼續執行，計時器與斷線通知照常運作；在右下角圖示按右鍵可以結束程式</small></span>
+              <div class="seg" id="closeSeg">
+                <button data-v="exit">直接關閉</button>
+                <button data-v="tray">縮小到右下角</button>
+              </div>
+            </div>
+          </div>
+          <div class="card set-card">
+            <h3>更新</h3>
+            <div class="set-row"><span>目前版本</span><span class="muted" id="verText">1.0.0</span></div>
+            <div class="set-row">
+              <span class="muted" id="updStatus">程式開啟時會自動檢查一次</span>
+              <button class="cbtn c-teal small" id="updCheck">檢查更新</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -596,6 +620,13 @@
               <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
               <label class="w-row"><span>回到登入畫面時通知<small class="muted">離開電腦時被送回登入畫面：照下面設定的秒數通知<br />正在操作時回到登入畫面（多半是自己登出）：待滿 5 分鐘才通知</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
               <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
+              <div class="w-row"><span>週三維護不通知<small class="muted">可以複選；選到的時間前 5 分鐘到後 30 分鐘內斷線或關閉都不通知</small></span>
+                <div class="w-quiet" id="wQuiet">
+                  <button class="cbtn c-purple small" data-h="0">00:00</button>
+                  <button class="cbtn c-blue small" data-h="7">07:00</button>
+                  <button class="cbtn c-teal small" data-h="8">08:00</button>
+                </div>
+              </div>
               <div class="w-row"><span>通知方式<small class="muted">Windows 通知會留在通知中心；Discord 可以傳到手機</small></span>
                 <div class="seg" id="wMode">
                   <button data-v="windows">Windows 通知</button>

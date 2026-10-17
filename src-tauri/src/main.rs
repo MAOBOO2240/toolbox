@@ -225,6 +225,40 @@ fn set_frame(window: WebviewWindow, dark: bool) {
     let _ = (window, dark);
 }
 
+/// 從右下角圖示叫出主視窗
+fn show_main(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// 右下角（系統匣）圖示：左鍵開啟，右鍵選單可以開啟或結束
+fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+    let show = MenuItem::with_id(app, "show", "開啟工具箱", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "結束工具箱", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let mut tray = TrayIconBuilder::with_id("main").tooltip("工具箱").menu(&menu).show_menu_on_left_click(false);
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.on_menu_event(|app, e| match e.id.as_ref() {
+        "show" => show_main(app),
+        "quit" => app.exit(0),
+        _ => {}
+    })
+    .on_tray_icon_event(|tray, e| {
+        if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+            show_main(tray.app_handle());
+        }
+    })
+    .build(app)?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -245,6 +279,9 @@ fn main() {
             update::init(dir.join("update.json"));
             toast::init(dir.clone());
             watch::init(app.handle(), dir.join("watch.json"));
+            if let Err(e) = setup_tray(app) {
+                eprintln!("無法建立右下角圖示：{e}");
+            }
 
             let (tx, rx) = mpsc::channel();
             input::start(app.handle().clone(), tx);
@@ -275,8 +312,20 @@ fn main() {
                             *PENDING_SIZE.lock().unwrap() = Some((size.width, size.height));
                         }
                     }
-                    // 關閉主視窗時連同浮動視窗一起結束程式
-                    WindowEvent::CloseRequested { .. } => window.app_handle().exit(0),
+                    // 關閉主視窗：設定為縮小時藏到右下角；否則連同浮動視窗一起結束程式
+                    WindowEvent::CloseRequested { api, .. } => {
+                        let to_tray = window
+                            .app_handle()
+                            .try_state::<Arc<Shared>>()
+                            .map(|s| s.state.lock().unwrap().settings.close_tray)
+                            .unwrap_or(false);
+                        if to_tray {
+                            api.prevent_close();
+                            let _ = window.hide();
+                        } else {
+                            window.app_handle().exit(0);
+                        }
+                    }
                     _ => {}
                 }
             } else if label == timers::OVERLAY_LABEL {

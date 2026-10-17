@@ -4,7 +4,7 @@
  * 斷線通知：顯示 Rust 背景監看的狀態與設定
  * ========================================================== */
 if (typeof document !== "undefined") (() => {
-  let cfg = { on_close: true, on_disconnect: true, threshold: 20, sound: true, sound_name: "beep2", sound_file: "", volume: 100, mode: "windows", on_login: true, discord_url: "", discord_user: "" };
+  let cfg = { on_close: true, on_disconnect: true, threshold: 20, sound: true, sound_name: "beep2", sound_file: "", volume: 100, mode: "windows", on_login: true, discord_url: "", discord_user: "", quiet: [] };
   let status = { running: false, conns: 0, state: "off", at_login: false, lost_secs: 0, notify_in: 0, active_loss: false, events: [] };
 
   const STATE = {
@@ -58,6 +58,7 @@ if (typeof document !== "undefined") (() => {
     if (document.activeElement !== $("#wDcUrl")) $("#wDcUrl").value = cfg.discord_url;
     if (document.activeElement !== $("#wDcUser")) $("#wDcUser").value = cfg.discord_user;
     $("#wDcBox").hidden = cfg.mode === "windows";
+    $$("#wQuiet button").forEach((b) => b.classList.toggle("on", (cfg.quiet || []).includes(Number(b.dataset.h))));
     $("#wSound").checked = cfg.sound;
     $("#wTh").value = cfg.threshold;
     $("#wThV").textContent = `${cfg.threshold} 秒`;
@@ -93,6 +94,14 @@ if (typeof document !== "undefined") (() => {
   $("#wOnDisc").addEventListener("change", (e) => { cfg.on_disconnect = e.target.checked; saveCfg(); checkToast(false); });
   $("#wOnClose").addEventListener("change", (e) => { cfg.on_close = e.target.checked; saveCfg(); checkToast(false); });
   $("#wOnLogin").addEventListener("change", (e) => { cfg.on_login = e.target.checked; saveCfg(); checkToast(false); });
+  $$("#wQuiet button").forEach((b) => b.addEventListener("click", () => {
+    const h = Number(b.dataset.h);
+    const q = new Set(cfg.quiet || []);
+    if (q.has(h)) q.delete(h); else q.add(h);
+    cfg.quiet = [...q].sort((a, b2) => a - b2);
+    saveCfg();
+    renderCfg();
+  }));
   $("#wDcUrl").addEventListener("input", (e) => { cfg.discord_url = e.target.value.trim(); saveCfg(); dcStatus(""); });
   $("#wDcUser").addEventListener("input", (e) => {
     cfg.discord_user = e.target.value.replace(/\D/g, "");

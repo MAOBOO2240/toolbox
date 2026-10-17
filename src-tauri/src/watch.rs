@@ -41,6 +41,8 @@ pub struct WatchCfg {
     pub discord_url: String,
     /// 要提及的 Discord 使用者 ID（只通知這個人）
     pub discord_user: String,
+    /// 週三維護：這些整點（0／7／8）前後斷線不通知
+    pub quiet: Vec<u8>,
 }
 
 impl Default for WatchCfg {
@@ -58,6 +60,7 @@ impl Default for WatchCfg {
             discord: false,
             discord_url: String::new(),
             discord_user: String::new(),
+            quiet: Vec::new(),
         }
     }
 }
@@ -227,6 +230,32 @@ fn idle_secs() -> u64 {
     0
 }
 
+/// 現在的星期（0＝週日）、時、分（本機時間）
+#[cfg(windows)]
+fn local_now() -> (u32, u32, u32) {
+    use windows_sys::Win32::System::SystemInformation::GetLocalTime;
+    let mut t: windows_sys::Win32::Foundation::SYSTEMTIME = unsafe { std::mem::zeroed() };
+    unsafe { GetLocalTime(&mut t) };
+    (t.wDayOfWeek as u32, t.wHour as u32, t.wMinute as u32)
+}
+
+#[cfg(not(windows))]
+fn local_now() -> (u32, u32, u32) {
+    (0, 0, 0)
+}
+
+/// 週三維護時間：所選整點的前 5 分鐘到後 30 分鐘
+fn in_maintenance(quiet: &[u8], (dow, h, m): (u32, u32, u32)) -> bool {
+    let week = 7 * 1440;
+    let now = (dow * 1440 + h * 60 + m) as i64;
+    quiet.iter().any(|&q| {
+        let target = (3 * 1440 + q as u32 * 60) as i64;
+        let d = (now - target).rem_euclid(week);
+        // d 在 [0, 30] 或 [week-5, week) 之間
+        d <= 30 || d >= week - 5
+    })
+}
+
 /// 自己登出時，登入畫面要待多久才通知
 const LOGIN_WAIT: u64 = 300;
 /// 中斷前這麼多秒都沒有碰鍵盤滑鼠，就當作不是自己登出的（離開電腦時被送回登入畫面）
@@ -330,13 +359,20 @@ const LOGIN_PORT: u16 = 8484;
 
 /* ---------------- 背景執行緒 ---------------- */
 
-fn alert(app: &AppHandle, title: &str, body: &str) {
-    let cfg = {
-        let mut g = inner();
-        g.status.events.insert(0, WatchEvent { at: now_ms(), text: format!("{title}：{body}") });
-        g.status.events.truncate(30);
-        g.cfg.clone()
-    };
+fn log(text: String) {
+    let mut g = inner();
+    g.status.events.insert(0, WatchEvent { at: now_ms(), text });
+    g.status.events.truncate(30);
+}
+
+/// 發出通知；週三維護時間（maint）只記錄、不通知
+fn alert(app: &AppHandle, title: &str, body: &str, maint: bool) {
+    if maint {
+        log(format!("{title}（週三維護時間，不通知）"));
+        return;
+    }
+    log(format!("{title}：{body}"));
+    let cfg = inner().cfg.clone();
     play(&cfg, title);
     deliver(app, &cfg, title, body);
 }
@@ -353,8 +389,9 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let mut login_port: Option<u16> = None;
         let mut had_game = false;
         let mut lost_since: Option<Instant> = None;
-        // 中斷的那一刻是否正在操作電腦
+        // 中斷的那一刻是否正在操作電腦、是否在週三維護時間
         let mut active_loss = false;
+        let mut maint_loss = false;
         let mut fired = false;
         let mut notify_in = 0u64;
         loop {
@@ -379,7 +416,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             let state;
             if !running {
                 if was_running && cfg.on_close {
-                    alert(&app, "新楓之谷已關閉", "遊戲程式已結束。");
+                    let maint = in_maintenance(&cfg.quiet, local_now()) || (lost_since.is_some() && maint_loss);
+                    alert(&app, "新楓之谷已關閉", "遊戲程式已結束。", maint);
                 }
                 had_game = false;
                 lost_since = None;
@@ -401,6 +439,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 if lost_since.is_none() {
                     lost_since = Some(Instant::now());
                     active_loss = idle_secs() < AFK_SECS;
+                    maint_loss = in_maintenance(&cfg.quiet, local_now());
                 }
                 let since = lost_since.unwrap_or_else(Instant::now);
                 let secs = cfg.threshold.max(5);
@@ -413,10 +452,10 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                         if at_login {
                             if cfg.on_login {
                                 let body = if active_loss { "已經在登入畫面待了 5 分鐘。".to_string() } else { format!("已經 {secs} 秒沒有連到遊戲伺服器。") };
-                                alert(&app, "新楓之谷回到登入畫面", &body);
+                                alert(&app, "新楓之谷回到登入畫面", &body, maint_loss);
                             }
                         } else if cfg.on_disconnect {
-                            alert(&app, "新楓之谷斷線了", &format!("連線已中斷 {secs} 秒。"));
+                            alert(&app, "新楓之谷斷線了", &format!("連線已中斷 {secs} 秒。"), maint_loss);
                         }
                     }
                     fired = true;
@@ -454,7 +493,10 @@ pub fn watch_get() -> (WatchCfg, WatchStatus) {
 #[tauri::command]
 pub fn watch_set(cfg: WatchCfg) {
     let mut g = inner();
-    g.cfg = WatchCfg { threshold: cfg.threshold.clamp(5, 600), volume: cfg.volume.min(200), ..cfg };
+    let mut quiet: Vec<u8> = cfg.quiet.iter().copied().filter(|h| *h < 24).collect();
+    quiet.sort_unstable();
+    quiet.dedup();
+    g.cfg = WatchCfg { threshold: cfg.threshold.clamp(5, 600), volume: cfg.volume.min(200), quiet, ..cfg };
     if let Ok(s) = serde_json::to_string_pretty(&g.cfg) {
         let _ = std::fs::write(&g.path, s);
     }
@@ -496,6 +538,18 @@ mod tests {
         // 8484 = 0x2124，網路順序存成 bytes [0x21, 0x24, 0, 0]
         assert_eq!(port_of(u32::from_le_bytes([0x21, 0x24, 0, 0])), 8484);
         assert_eq!(port_of(u32::from_le_bytes([0x01, 0xBB, 0, 0])), 443);
+    }
+
+    #[test]
+    fn maintenance_window() {
+        let q = [0u8, 7];
+        assert!(in_maintenance(&q, (3, 0, 10))); // 週三 00:10
+        assert!(in_maintenance(&q, (2, 23, 57))); // 週二 23:57（前 5 分鐘）
+        assert!(in_maintenance(&q, (3, 7, 30)));
+        assert!(!in_maintenance(&q, (3, 7, 31)));
+        assert!(!in_maintenance(&q, (3, 8, 5))); // 沒選 08:00
+        assert!(!in_maintenance(&q, (4, 0, 10))); // 週四
+        assert!(!in_maintenance(&[], (3, 0, 0)));
     }
 
     #[test]
