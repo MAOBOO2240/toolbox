@@ -125,6 +125,7 @@ input, select { font: inherit; color: inherit; }
 .cat-icon.pink { background: linear-gradient(135deg, #ff6fb1, #bf5af2); }
 .cat-icon.comet { background: linear-gradient(135deg, #64d2ff, #5e5ce6); }
 .cat-icon.red { background: linear-gradient(135deg, #ff7a7a, #e5484d); }
+.cat-icon.star { background: linear-gradient(135deg, #fcd34d, #a78bfa 60%, #6366f1); }
 
 .side-foot { margin-top: auto; position: relative; }
 .gear {

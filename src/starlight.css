@@ -1,0 +1,55 @@
+/* ---------- 星光錦囊（沿用黃金蘋果、閃亮彗星的版面，這裡只放不同的部分） ---------- */
+#view-star .g-row .g-val { text-align: right; font-variant-numeric: tabular-nums; }
+#view-star .g-row { min-height: 2.75rem; }
+
+/* 五層獎池分頁：圖示＋名稱，項數放下面 */
+.s-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.4rem; }
+.s-tabs .cbtn {
+  flex-direction: column; align-items: center; gap: 0.15rem;
+  min-height: 4.2rem; padding: 0.45rem 0.3rem;
+  font-size: 0.86rem; letter-spacing: 0;
+}
+.s-tabs .cbtn .item-ic { width: 1.7rem; height: 1.7rem; }
+.s-tabs .cbtn small { font-size: 0.68rem; }
+
+.s-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.88rem; }
+#view-star .g-row.jackpot .s-name { color: #c88a00; font-weight: 700; }
+:root[data-theme="dark"] #view-star .g-row.jackpot .s-name { color: #ffc94a; }
+#view-star .g-row.box .s-name { color: #7c3aed; font-weight: 700; }
+:root[data-theme="dark"] #view-star .g-row.box .s-name { color: #c4a5ff; }
+.s-box-tag {
+  flex: none; padding: 0.05rem 0.4rem; border-radius: 0.4rem;
+  background: color-mix(in srgb, #8b5cf6 16%, transparent); color: #7c3aed;
+  font-size: 0.66rem; font-weight: 800;
+}
+:root[data-theme="dark"] .s-box-tag { color: #c4a5ff; }
+
+/* 合成、全部開到底 */
+.g-box.s-synth { background: linear-gradient(135deg, #fde68a, #fbbf24); color: #3b2600; }
+.g-box.s-openall { background: linear-gradient(135deg, #e9d5ff, #a78bfa 55%, #f0abfc); color: #2e1065; }
+
+/* 本次獲得：星光類道具 */
+.s-chip .item-ic { width: 1.35rem; height: 1.35rem; }
+.s-chip { padding-left: 0.35rem; }
+.g-sec .g-chip.s-chip.box { box-shadow: inset 0 0 0 1px color-mix(in srgb, #8b5cf6 45%, transparent); color: #7c3aed; font-weight: 700; }
+:root[data-theme="dark"] .g-sec .g-chip.s-chip.box { color: #c4a5ff; }
+
+/* 保管箱：名稱右邊的合成／開啟按鈕 */
+.s-hrow.feat .t { color: #c88a00; font-weight: 700; }
+:root[data-theme="dark"] .s-hrow.feat .t { color: #ffc94a; }
+.s-act-btn {
+  flex: none;
+  padding: 0.05rem 0.45rem; border: 0; border-radius: 0.45rem; cursor: pointer;
+  background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed;
+  font: inherit; font-size: 0.72rem; font-weight: 700;
+  transition: background 0.15s, color 0.15s;
+}
+.s-act-btn.synth { background: color-mix(in srgb, #f5a30b 18%, transparent); color: #b45309; }
+.s-act-btn:hover, .s-act-btn.on { background: #8b5cf6; color: #fff; }
+.s-act-btn.synth:hover, .s-act-btn.synth.on { background: #f5a30b; color: #2a1a00; }
+:root[data-theme="dark"] .s-act-btn { color: #c4a5ff; }
+:root[data-theme="dark"] .s-act-btn.synth { color: #ffc46b; }
+#view-star .c-split-row input[type="number"] { width: 4.5rem; padding: 0.3rem 0.5rem; text-align: right; font-weight: 700; }
+
+/* 解析頁 */
+.s-import { grid-template-columns: minmax(0, 1fr); max-width: 56rem; }

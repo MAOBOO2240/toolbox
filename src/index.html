@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="gacha.css" />
   <link rel="stylesheet" href="beauty.css" />
   <link rel="stylesheet" href="comet.css" />
+  <link rel="stylesheet" href="starlight.css" />
   <link rel="stylesheet" href="watch.css" />
 </head>
 <body>
@@ -598,6 +599,99 @@
           </div>
         </div>
       </section>
+      <!-- 星光錦囊 -->
+      <section class="view" id="view-star">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">星光錦囊</span>
+          <div class="g-pages" id="sPages">
+            <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析</button>
+          </div>
+        </nav>
+
+        <div class="g-page" id="sPageSim">
+          <div class="card g-pool">
+            <div class="g-tabs s-tabs" id="sTabs">
+              <button class="cbtn c-purple" data-lv="bag">星光錦囊<small></small></button>
+              <button class="cbtn c-amber" data-lv="crystal">星光結晶體<small></small></button>
+              <button class="cbtn c-orange" data-lv="ore">星光原石<small></small></button>
+              <button class="cbtn c-blue" data-lv="water">星光水晶<small></small></button>
+              <button class="cbtn c-pink" data-lv="bright">璀璨星光<small></small></button>
+            </div>
+            <div class="g-toolbar">
+              <label class="g-cost">星光錦囊每個價格<input type="text" inputmode="decimal" id="sCost" placeholder="0" /></label>
+              <button class="cbtn c-teal small" id="sAutoPrice">自動帶入價格</button>
+              <span class="spacer"></span>
+              <button class="cbtn c-red small" id="sClearItems">清除道具</button>
+            </div>
+            <div class="g-add">
+              <input type="text" id="sNewName" placeholder="新增道具名稱" />
+              <input type="text" inputmode="decimal" id="sNewProb" placeholder="機率 %" />
+              <input type="text" inputmode="decimal" id="sNewValue" placeholder="價值" />
+              <button class="cbtn c-green small solid" id="sAdd">新增</button>
+            </div>
+            <p class="g-warn" id="sWarn" hidden></p>
+            <div class="g-thead"><span>抽</span><span>名稱</span><span class="r">機率</span><span class="r">價值</span><span></span></div>
+            <div class="g-table" id="sTable"></div>
+          </div>
+
+          <div class="g-side">
+            <div class="g-stats">
+              <div class="g-stat"><span>總花費</span><b id="slSpent">0</b></div>
+              <div class="g-stat"><span>總價值</span><b id="slValue">0</b></div>
+              <div class="g-stat"><span>損益</span><b id="slProfit">0</b></div>
+              <div class="g-stat"><span>星光錦囊</span><b id="sBags">0</b></div>
+              <div class="g-stat"><span>玲瓏星光</span><b id="sSeeds">0</b></div>
+            </div>
+
+            <div class="card g-actions">
+              <div class="g-draw-row">
+                <button class="pill primary" data-sdraw="1">單抽</button>
+                <button class="pill primary" data-sdraw="10">10 抽</button>
+                <button class="pill primary" data-sdraw="100">100 抽</button>
+              </div>
+              <div class="g-box-row">
+                <button class="g-box s-synth" id="sSynth"><span>合成星光結晶體</span><small></small></button>
+                <button class="g-box s-openall" id="sOpenAll"><span>全部開到底</span><small></small></button>
+              </div>
+              <div class="g-actions-foot">
+                <button class="cbtn c-purple small" id="sAutoOpen" title="開啟後，抽到的玲瓏星光、星光原石等會自動合成並打開到底">抽到自動開到底</button>
+                <button class="cbtn c-red small solid" id="sReset">重置統計</button>
+              </div>
+            </div>
+
+            <div class="card g-analysis">
+              <div class="g-metrics" id="sMetrics"></div>
+              <p class="g-comment" id="sComment"></p>
+            </div>
+
+            <div class="card g-results">
+              <section class="g-sec g-sec-batch">
+                <div class="g-res-head"><strong>本次獲得</strong><span class="muted" id="sBatchBadge"></span></div>
+                <div class="g-chips" id="sBatch"></div>
+              </section>
+              <section class="g-sec g-sec-vault">
+                <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量・總價值・實際機率</span></div>
+                <div class="g-vault-scroll" id="sHistory"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="g-page g-import s-import" id="sPageImport" hidden>
+          <div class="card g-imp">
+            <h3>獎池解析</h3>
+            <p class="hint">貼上官網的機率表（每行「名稱 機率%」）。只有名稱、沒有機率的行是標題：「玲瓏星光／星光結晶體」底下是星光結晶體的內容，「星光原石」「星光水晶」「璀璨星光」底下是各自打開的內容。</p>
+            <textarea id="sPaste" placeholder="例如：&#10;暗黑輪迴星火	21.00%&#10;玲瓏星光	10.00%&#10;&#10;星光結晶體	機率&#10;星力18星強化券	18.00%&#10;星光原石	50.00%"></textarea>
+            <div class="g-imp-foot">
+              <span class="muted" id="sParseResult"></span>
+              <button class="cbtn c-blue small solid" id="sParse">解析並套用</button>
+            </div>
+            <div class="c-rule-line" id="sRuleLine"></div>
+          </div>
+        </div>
+      </section>
       <!-- 斷線通知 -->
       <section class="view" id="view-watch">
         <nav class="navbar">
@@ -757,6 +851,7 @@
   <script src="gacha.js"></script>
   <script src="beauty.js"></script>
   <script src="comet.js"></script>
+  <script src="starlight.js"></script>
   <script src="watch.js"></script>
 </body>
 </html>
