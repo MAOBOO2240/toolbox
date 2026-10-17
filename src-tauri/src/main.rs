@@ -327,6 +327,7 @@ fn main() {
             watch::watch_clear_log,
             watch::watch_test,
             watch::watch_preview,
+            watch::watch_discord_test,
             toast::toast_status,
             toast::open_notify_settings,
             update::update_info,

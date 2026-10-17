@@ -234,6 +234,7 @@
 .c-green { --c: #22b45e; }
 .c-teal { --c: #12a594; }
 .c-pink { --c: #e8489a; }
+.c-indigo { --c: #5865f2; }
 
 .g-marker { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.2rem; }
 .g-marker input { flex: 0 1 18rem; }

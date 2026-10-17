@@ -4,15 +4,16 @@
  * 斷線通知：顯示 Rust 背景監看的狀態與設定
  * ========================================================== */
 if (typeof document !== "undefined") (() => {
-  let cfg = { on_close: true, on_disconnect: true, threshold: 20, sound: true, sound_name: "beep2", sound_file: "", volume: 100, mode: "both" };
-  let status = { running: false, conns: 0, state: "off", lost_secs: 0, events: [] };
+  let cfg = { on_close: true, on_disconnect: true, threshold: 20, sound: true, sound_name: "beep2", sound_file: "", volume: 100, mode: "both", on_login: true, discord: false, discord_url: "", discord_everyone: true };
+  let status = { running: false, conns: 0, state: "off", at_login: false, lost_secs: 0, events: [] };
 
   const STATE = {
     off: ["未偵測到新楓之谷", "開啟遊戲後會自動開始監看", "off"],
-    waiting: ["新楓之谷已開啟", "等待遊戲連上伺服器…", "wait"],
+    waiting: ["新楓之谷已開啟", "進入遊戲後開始監看", "wait"],
     online: ["連線中", "", "ok"],
     lost: ["連線中斷", "", "warn"],
-    down: ["已斷線", "已經通知你了；重新連上後會自動恢復監看", "bad"],
+    down: ["已斷線", "已經通知你了；重新進入遊戲後會自動恢復監看", "bad"],
+    login: ["回到登入畫面", "已經通知你了；重新進入遊戲後會自動恢復監看", "bad"],
   };
 
   const pad = (n) => String(n).padStart(2, "0");
@@ -24,7 +25,8 @@ if (typeof document !== "undefined") (() => {
   function renderStatus() {
     const [title, detail0, cls] = STATE[status.state] || STATE.off;
     let detail = detail0;
-    if (status.state === "online") detail = `遊戲有 ${status.conns} 條連線`;
+    if (status.state === "online") detail = `遊戲中（${status.conns} 條連線）`;
+    if (status.state === "waiting" && status.at_login) detail = "在登入畫面，進入遊戲後開始監看";
     if (status.state === "lost") detail = `已中斷 ${status.lost_secs} 秒，超過 ${cfg.threshold} 秒就會通知`;
     $("#wStatus").className = `card w-status ${cls}`;
     $("#wState").textContent = title;
@@ -48,6 +50,11 @@ if (typeof document !== "undefined") (() => {
   function renderCfg() {
     $("#wOnDisc").checked = cfg.on_disconnect;
     $("#wOnClose").checked = cfg.on_close;
+    $("#wOnLogin").checked = cfg.on_login;
+    $("#wDc").checked = cfg.discord;
+    if (document.activeElement !== $("#wDcUrl")) $("#wDcUrl").value = cfg.discord_url;
+    $("#wDcEveryone").checked = cfg.discord_everyone;
+    $("#wDcBox").classList.toggle("dim", !cfg.discord);
     $("#wSound").checked = cfg.sound;
     $("#wTh").value = cfg.threshold;
     $("#wThV").textContent = `${cfg.threshold} 秒`;
@@ -69,7 +76,7 @@ if (typeof document !== "undefined") (() => {
     policy: "通知被系統原則停用了（公司或學校電腦常見）。",
   };
   async function checkToast(announce) {
-    const uses = cfg.mode !== "app" && (cfg.on_disconnect || cfg.on_close);
+    const uses = cfg.mode !== "app" && (cfg.on_disconnect || cfg.on_close || cfg.on_login);
     if (!TAURI || !uses) { $("#wWarn").hidden = true; return; }
     const st = await invoke("toast_status").catch(() => "unknown");
     const msg = WARN[st];
@@ -82,6 +89,25 @@ if (typeof document !== "undefined") (() => {
 
   $("#wOnDisc").addEventListener("change", (e) => { cfg.on_disconnect = e.target.checked; saveCfg(); checkToast(false); });
   $("#wOnClose").addEventListener("change", (e) => { cfg.on_close = e.target.checked; saveCfg(); checkToast(false); });
+  $("#wOnLogin").addEventListener("change", (e) => { cfg.on_login = e.target.checked; saveCfg(); checkToast(false); });
+  $("#wDc").addEventListener("change", (e) => {
+    cfg.discord = e.target.checked;
+    saveCfg();
+    renderCfg();
+    if (cfg.discord && !cfg.discord_url) $("#wDcUrl").focus();
+  });
+  $("#wDcUrl").addEventListener("input", (e) => { cfg.discord_url = e.target.value.trim(); saveCfg(); dcStatus(""); });
+  $("#wDcEveryone").addEventListener("change", (e) => { cfg.discord_everyone = e.target.checked; saveCfg(); });
+  const dcStatus = (t, cls = "") => { const el = $("#wDcStatus"); el.textContent = t; el.className = `w-dc-status muted ${cls}`; };
+  $("#wDcTest").addEventListener("click", async () => {
+    if (!cfg.discord_url) { dcStatus("請先貼上 Webhook 網址", "bad"); return; }
+    if (!TAURI) { dcStatus("預覽模式無法傳送"); return; }
+    dcStatus("傳送中…");
+    try {
+      await invoke("watch_discord_test", { url: cfg.discord_url, everyone: cfg.discord_everyone });
+      dcStatus("已送出，請到 Discord 確認", "ok");
+    } catch (e) { dcStatus(String(e), "bad"); }
+  });
   $("#wSound").addEventListener("change", (e) => { cfg.sound = e.target.checked; saveCfg(); renderCfg(); });
   $$("#wMode button").forEach((b) => b.addEventListener("click", () => { cfg.mode = b.dataset.v; saveCfg(); renderCfg(); checkToast(false); }));
   $("#wSoundName").addEventListener("change", (e) => { cfg.sound_name = e.target.value; saveCfg(); renderCfg(); });

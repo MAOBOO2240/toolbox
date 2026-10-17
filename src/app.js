@@ -261,9 +261,11 @@ const CATS = {
     tools: [
       { id: "timer", name: "計時器", desc: "道具／技能倒數與浮動視窗", color: "purple", icon: "clock" },
       { id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" },
-      { id: "watch", name: "斷線通知", desc: "新楓之谷斷線或關閉時跳出通知", color: "red", icon: "plug" },
+      { id: "watch", name: "斷線通知", desc: "新楓之谷斷線、回到登入畫面或關閉時通知", color: "red", icon: "plug" },
     ],
   },
+  // 我的最愛：內容由使用者收藏決定
+  fav: { title: "我的最愛", eyebrow: "Favorites", tools: [] },
 };
 
 const TOOL = {};
@@ -305,48 +307,34 @@ function toolIcon(t) {
   return box;
 }
 
-function addFav(id, at = favs.length) {
-  const old = favs.indexOf(id);
-  if (old >= 0) { favs.splice(old, 1); if (old < at) at -= 1; }
-  favs.splice(Math.max(0, Math.min(at, favs.length)), 0, id);
+function addFav(id) {
+  if (isFav(id)) return;
+  favs.push(id);
   saveFavs();
-  renderFavs();
-  if (old < 0) toast(`已加入我的最愛：${TOOL[id].name}`);
+  renderFavCount();
+  if (currentCat === "fav") renderTiles();
+  toast(`已加入我的最愛：${TOOL[id].name}`);
 }
 function removeFav(id) {
   favs = favs.filter((x) => x !== id);
   saveFavs();
-  renderFavs();
+  renderFavCount();
+  if (currentCat === "fav") renderTiles();
   toast(`已從我的最愛移除：${TOOL[id].name}`);
 }
-
-function renderFavs() {
-  const box = $("#favs");
-  box.innerHTML = "";
-  $("#favSec").classList.toggle("empty", !favs.length);
-  for (const id of favs) {
-    const t = TOOL[id];
-    const b = document.createElement("button");
-    b.className = "fav";
-    b.dataset.id = id;
-    const name = document.createElement("span");
-    name.className = "fav-name";
-    name.textContent = t.name;
-    b.append(toolIcon(t), name);
-    b.addEventListener("click", () => openTool(id));
-    b.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      showCtx(e.clientX, e.clientY, t.name, [["開啟", () => openTool(id)], ["移除我的最愛", () => removeFav(id)]]);
-    });
-    dragTool(b, id, "fav");
-    box.append(b);
-  }
+function renderFavCount() {
+  const c = $("#favCount");
+  c.textContent = favs.length || "";
+  c.hidden = !favs.length;
 }
 
 function renderTiles() {
   const tiles = $("#tiles");
   tiles.innerHTML = "";
-  for (const t of orderedTools(currentCat)) {
+  const isFavPage = currentCat === "fav";
+  const list = isFavPage ? favs.map((id) => TOOL[id]) : orderedTools(currentCat);
+  $("#favEmpty").hidden = !(isFavPage && !list.length);
+  for (const t of list) {
     const btn = document.createElement("button");
     btn.className = "tile";
     btn.dataset.id = t.id;
@@ -363,10 +351,10 @@ function renderTiles() {
         isFav(t.id) ? ["移除我的最愛", () => removeFav(t.id)] : ["加入我的最愛", () => addFav(t.id)],
         ["開啟", () => openTool(t.id)],
       ];
-      if (tileOrder[currentCat]) opts.push(["恢復預設排序", () => { delete tileOrder[currentCat]; store.set("toolbox-order", tileOrder); renderTiles(); }]);
+      if (!isFavPage && tileOrder[currentCat]) opts.push(["恢復預設排序", () => { delete tileOrder[currentCat]; store.set("toolbox-order", tileOrder); renderTiles(); }]);
       showCtx(e.clientX, e.clientY, t.name, opts);
     });
-    dragTool(btn, t.id, "tile");
+    dragTool(btn, t.id);
     tiles.appendChild(btn);
   }
 }
@@ -409,7 +397,7 @@ document.addEventListener("pointerdown", (e) => { if (!ctxMenu.contains(e.target
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") ctxMenu.hidden = true; });
 window.addEventListener("blur", () => (ctxMenu.hidden = true));
 
-/* ---------- 拖曳：磁磚排序、拖進我的最愛、我的最愛排序／拖出去取消 ---------- */
+/* ---------- 拖曳：磁磚排序；拖到左邊的「我的最愛」= 收藏 ---------- */
 /** 移動 DOM 後，讓其他項目滑到新位置 */
 function flip(container, mutate) {
   const kids = [...container.children];
@@ -421,15 +409,9 @@ function flip(container, mutate) {
     if (dx || dy) k.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   }
 }
-/** 依游標的高度，算出要插在我的最愛的第幾個 */
-function favIndexAt(y, skip) {
-  const items = [...$$("#favs .fav")].filter((x) => x !== skip);
-  const i = items.findIndex((x) => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
-  return i < 0 ? items.length : i;
-}
 
 let dragJustEnded = false;
-function dragTool(el, id, from) {
+function dragTool(el, id) {
   el.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     const sx = e.clientX, sy = e.clientY;
@@ -438,10 +420,9 @@ function dragTool(el, id, from) {
     const setZone = (z) => {
       if (z === zone) return;
       zone = z;
-      $("#favSec").classList.toggle("drop", z === "fav");
-      ghost?.classList.toggle("del", z === "unfav");
-      // 拖到我的最愛上方時縮小，比較好對準
-      if (ghost) ghost.style.scale = z === "fav" ? "0.5" : "";
+      $("#favCat").classList.toggle("drop", z === "fav");
+      // 拖到「我的最愛」上方時縮小，比較好對準
+      if (ghost) ghost.style.scale = z === "fav" ? "0.45" : "";
     };
     const move = (ev) => {
       if (!ghost) {
@@ -457,27 +438,17 @@ function dragTool(el, id, from) {
         document.body.classList.add("tool-dragging");
         ctxMenu.hidden = true;
       }
-      ghost.style.transform = `translate(${ev.clientX - ox}px, ${ev.clientY - oy}px) scale(1.04) rotate(-2deg)`;
+      ghost.style.transform = `translate(${ev.clientX - ox}px, ${ev.clientY - oy}px) rotate(-2deg)`;
       const t = document.elementFromPoint(ev.clientX, ev.clientY);
-      if (from === "tile") {
-        if (t?.closest("#favSec")) { setZone("fav"); return; }
-        setZone(null);
-        const over = t?.closest(".tile");
-        if (over && over !== el && over.parentElement === list && !over.getAnimations().length) {
-          const kids = [...list.children];
-          flip(list, () => list.insertBefore(el, kids.indexOf(el) < kids.indexOf(over) ? over.nextSibling : over));
-        }
-      } else {
-        if (!t?.closest(".sidebar")) { setZone("unfav"); return; }
-        setZone(null);
-        const over = t?.closest(".fav");
-        if (over && over !== el && over.parentElement === list && !over.getAnimations().length) {
-          const kids = [...list.children];
-          flip(list, () => list.insertBefore(el, kids.indexOf(el) < kids.indexOf(over) ? over.nextSibling : over));
-        }
+      if (currentCat !== "fav" && t?.closest("#favCat")) { setZone("fav"); return; }
+      setZone(null);
+      const over = t?.closest(".tile");
+      if (over && over !== el && over.parentElement === list && !over.getAnimations().length) {
+        const kids = [...list.children];
+        flip(list, () => list.insertBefore(el, kids.indexOf(el) < kids.indexOf(over) ? over.nextSibling : over));
       }
     };
-    const up = (ev) => {
+    const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       if (!ghost) return;
@@ -488,15 +459,14 @@ function dragTool(el, id, from) {
       document.body.classList.remove("tool-dragging");
       const z = zone;
       setZone(null);
-      if (from === "tile") {
-        tileOrder[currentCat] = [...list.children].map((x) => x.dataset.id);
-        store.set("toolbox-order", tileOrder);
-        if (z === "fav") addFav(id, favIndexAt(ev.clientY));
-      } else if (z === "unfav") {
-        removeFav(id);
-      } else {
-        favs = [...list.children].map((x) => x.dataset.id);
+      const order = [...list.children].map((x) => x.dataset.id);
+      if (currentCat === "fav") {
+        favs = order;
         saveFavs();
+      } else {
+        tileOrder[currentCat] = order;
+        store.set("toolbox-order", tileOrder);
+        if (z === "fav") addFav(id);
       }
     };
     window.addEventListener("pointermove", move);
@@ -537,8 +507,8 @@ window.BackHooks = BackHooks;
 window.refreshBack = refreshBack;
 
 function openTool(id) {
-  // 從我的最愛開啟時，返回鍵回到這個工具所在的分類
-  if (TOOL[id] && TOOL[id].cat !== currentCat) {
+  // 從其他地方開啟時，返回鍵回到這個工具所在的分類（從我的最愛開啟就回到我的最愛）
+  if (TOOL[id] && currentCat !== "fav" && TOOL[id].cat !== currentCat) {
     currentCat = TOOL[id].cat;
     store.set("toolbox-cat", currentCat);
     $$(".cat").forEach((b) => b.classList.toggle("on", b.dataset.cat === currentCat));
@@ -689,7 +659,7 @@ $("#currentSerial").addEventListener("click", () =>
   $("#rawInput").value = st.raw || "";
   render();
   showCat(currentCat);
-  renderFavs();
+  renderFavCount();
   api.onChange((next) => {
     const wasDone = state.index >= state.serials.length;
     update(next);

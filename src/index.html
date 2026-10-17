@@ -32,15 +32,14 @@
           </span>
           工具箱
         </button>
-      </nav>
-      <div class="fav-sec empty" id="favSec">
-        <p class="side-title">
-          <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+        <button class="cat" data-cat="fav" id="favCat">
+          <span class="cat-icon gold">
+            <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+          </span>
           我的最愛
-        </p>
-        <div class="favs" id="favs"></div>
-        <div class="fav-empty">拖曳工具到這裡</div>
-      </div>
+          <span class="cat-count" id="favCount" hidden></span>
+        </button>
+      </nav>
       <div class="side-foot">
         <button class="gear" id="gearBtn" aria-label="設定">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -80,6 +79,10 @@
           <h1 id="catTitle">工具箱</h1>
         </header>
         <div class="tiles" id="tiles"></div>
+        <div class="fav-empty-page" id="favEmpty" hidden>
+          <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+          <p>在工具上按右鍵選「加入我的最愛」，或把工具拖到左邊的「我的最愛」</p>
+        </div>
       </section>
 
       <!-- 序號複製 -->
@@ -570,7 +573,8 @@
             <div class="card w-set">
               <h3>通知設定</h3>
               <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
-              <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束（斷線後關閉或當機）</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>回到登入畫面時通知<small class="muted">遊戲還開著，但被送回登入畫面</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
               <div class="w-row"><span>通知方式<small class="muted">Windows 通知會留在通知中心，獨佔全螢幕也收得到</small></span>
                 <div class="seg" id="wMode">
                   <button data-v="windows">Windows 通知</button>
@@ -603,6 +607,21 @@
                 <span class="w-th"><input type="range" class="range" id="wTh" min="5" max="120" step="5" /><b id="wThV">20 秒</b></span>
               </div>
               <p class="hint" id="wFileName"></p>
+              <h3 class="w-sub">Discord 通知</h3>
+              <label class="w-row"><span>同步送到 Discord<small class="muted">手機裝 Discord 就能收到</small></span><span class="switch sm"><input type="checkbox" id="wDc" /><span class="slider"></span></span></label>
+              <div class="w-dc" id="wDcBox">
+                <div class="w-dc-url">
+                  <input type="password" id="wDcUrl" placeholder="貼上 Webhook 網址" autocomplete="off" spellcheck="false" />
+                  <button class="cbtn c-indigo small solid" id="wDcTest">測試</button>
+                </div>
+                <label class="w-check"><input type="checkbox" id="wDcEveryone" /> 加上 @everyone（手機一定會跳通知）</label>
+                <p class="w-dc-status muted" id="wDcStatus"></p>
+                <ol class="w-steps">
+                  <li>在 Discord 建一個自己的伺服器（左邊「＋」→ 自己建立 → 僅供我和我的朋友使用）。</li>
+                  <li>在要收通知的頻道按齒輪「編輯頻道」→「整合」→「Webhook」→「新 Webhook」。</li>
+                  <li>按「複製 Webhook 網址」，貼到上面的欄位，再按「測試」。</li>
+                </ol>
+              </div>
               <p class="hint">「程式通知」是螢幕右下角的小視窗，遊戲是視窗化或無邊框全螢幕時看得到。Windows 開著「勿擾模式」時，Windows 通知只會進通知中心、不會跳出來。</p>
             </div>
             <div class="card w-log">
