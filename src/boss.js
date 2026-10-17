@@ -100,21 +100,26 @@ const BossCore = (() => {
   ];
   const TICKET = Object.fromEntries(TICKETS.map((t) => [t.id, t]));
   /**
-   * 這次重製要用哪一種票券：第一次打的是終極難度 → 終極票券；其他依 BOSS 分下級、中級、上級；
+   * 這次重製要用哪一種票券：只看第一次打的難度（重製的是第一次的紀錄）——
+   * 第一次打終極 → 終極票券；其他依 BOSS 分下級、中級、上級（重製後第二場可以改打終極）；
    * 沒有票券可以重製時回傳 null（例如燦爛的凶星、尤比太）
    */
-  function ticketFor(b, firstDiff, resetDiff) {
+  function ticketFor(b, firstDiff) {
     if (!b) return null;
     if (b.type === "month") return TICKET.month.bosses.includes(b.name) ? "month" : null;
     if (b.type !== "week") return null;
-    const ext = firstDiff === "終極" || (firstDiff == null && resetDiff === "終極");
-    if (ext) return TICKET.ext.bosses.includes(b.name) ? "ext" : null;
+    if (firstDiff === "終極") return TICKET.ext.bosses.includes(b.name) ? "ext" : null;
     return ["low", "mid", "high"].find((id) => TICKET[id].bosses.includes(b.name)) || null;
   }
   /** 一隻角色某隻王的重製要用的票券 */
   function ticketOf(ch, key) {
-    const b = BY_KEY[key], s = ch?.sel?.[key], r = ch?.rs?.[key];
-    return ticketFor(b, s && b?.diffs[s.d] ? b.diffs[s.d][0] : null, r && r.d != null && b?.diffs[r.d] ? b.diffs[r.d][0] : null);
+    const b = BY_KEY[key], s = ch?.sel?.[key];
+    return ticketFor(b, s && b?.diffs[s.d] ? b.diffs[s.d][0] : null);
+  }
+  /** 超過張數的票券（沒有超過時回傳 null） */
+  function ticketOver(chars) {
+    const use = ticketUse(chars);
+    return TICKETS.find((t) => use[t.id] > t.per) || null;
   }
   /** 整個帳號各種票券用了幾張 */
   function ticketUse(chars) {
@@ -200,7 +205,7 @@ const BossCore = (() => {
     阿卡伊農: 30, 凡雷恩: 31, 闇黑龍王: 32, 卡翁: 33,
   };
 
-  return { CHAR_CAP, WORLD_CAP, ICON, LIST, BY_KEY, TICKETS, TICKET, ticketFor, ticketOf, ticketUse, maxParty, share, crystals, sell, summary };
+  return { CHAR_CAP, WORLD_CAP, ICON, LIST, BY_KEY, TICKETS, TICKET, ticketFor, ticketOf, ticketUse, ticketOver, maxParty, share, crystals, sell, summary };
 })();
 
 if (typeof module !== "undefined") module.exports = BossCore;
@@ -237,6 +242,27 @@ if (typeof document !== "undefined") (() => {
   }
   /** 這隻王本週是哪隻角色用重製卷（整個帳號每隻王每週只能重製一次） */
   const resetOwner = (key) => st.chars.find((c) => c.rs?.[key]);
+  // 舊資料超過票券張數時，從後面的角色開始拿掉多出來的重製
+  for (let t; (t = C.ticketOver(st.chars)); ) {
+    const ch = [...st.chars].reverse().find((c) => Object.keys(c.rs || {}).some((k) => C.ticketOf(c, k) === t.id));
+    const key = Object.keys(ch.rs).reverse().find((k) => C.ticketOf(ch, k) === t.id);
+    delete ch.rs[key];
+  }
+  /**
+   * 會影響重製票券的修改（選難度、重製）都經過這裡：改完超過票券張數就還原並提示，不會超過
+   */
+  function guarded(ch, fn) {
+    const snap = JSON.stringify({ sel: ch.sel, rs: ch.rs });
+    fn();
+    const t = C.ticketOver(st.chars);
+    if (t) {
+      const o = JSON.parse(snap);
+      ch.sel = o.sel;
+      ch.rs = o.rs;
+      toast(`${t.name}重製票券每${t.unit}只有 ${t.per} 張，已經用完了`);
+    }
+    save(); render();
+  }
 
   const intFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 });
   /** 楓幣讀法：990841916 → 9億9084萬1916 */
@@ -392,12 +418,11 @@ if (typeof document !== "undefined") (() => {
         btn.textContent = d;
         const mp = C.maxParty(b.name, d);
         btn.title = `${b.name}（${d}）${zh(price)} 楓幣・最多 ${mp} 人`;
-        btn.addEventListener("click", () => {
-          // 點已選的難度 = 取消
+        btn.addEventListener("click", () => guarded(ch, () => {
+          // 點已選的難度 = 取消；有用重製卷的王改成終極（或從終極改回來）會換一種票券
           if (s && s.d === i) delete ch.sel[b.key];
           else ch.sel[b.key] = { d: i, p: Math.min(s?.p || 1, mp), ...(isDay ? { n: s?.n ?? 7 } : {}) };
-          save(); render();
-        });
+        }));
         diffs.appendChild(btn);
       });
       const party = cell("bs-c");
@@ -443,11 +468,10 @@ if (typeof document !== "undefined") (() => {
       btn.textContent = d;
       const mp = C.maxParty(b.name, d);
       btn.title = `重製後打${d}：${zh(price)} 楓幣・最多 ${mp} 人`;
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", () => guarded(ch, () => {
         if (r.d === i) { delete r.d; delete r.p; }
         else { r.d = i; r.p = Math.min(r.p || 1, mp); }
-        save(); render();
-      });
+      }));
       diffs.appendChild(btn);
     });
     const party = cell("bs-c");
@@ -506,13 +530,13 @@ if (typeof document !== "undefined") (() => {
     box.appendChild(bar);
     const note = document.createElement("p");
     note.className = "bs-reset-note muted";
-    note.textContent = `整個帳號每隻王每週只能重製一次（黑魔法師每月一次），一隻角色重製了其他角色就不能重製同一隻。第一次打終極難度要用終極票券；燦爛的凶星、尤比太沒有票券可以重製。選好後到「每週王」選這次要打的難度與人數，多打的結晶一樣算在角色 ${C.CHAR_CAP} 顆、帳號 ${C.WORLD_CAP} 顆裡。`;
+    note.textContent = `整個帳號每隻王每週只能重製一次（黑魔法師每月一次），一隻角色重製了其他角色就不能重製同一隻。第一次打終極難度要用終極票券（第一次打普通、困難用中級票券重製後，第二場可以改打終極）；燦爛的凶星、尤比太沒有票券可以重製。票券用完就不能再重製。選好後到「每週王」選這次要打的難度與人數，多打的結晶一樣算在角色 ${C.CHAR_CAP} 顆、帳號 ${C.WORLD_CAP} 顆裡。`;
     box.appendChild(note);
     box.appendChild(headRow(["", "名稱", "重製難度", "重製", "結晶錢"]));
     for (const b of C.LIST.filter((x) => x.type === "week" || x.type === "month")) {
       const owner = resetOwner(b.key);
       const mineR = owner === ch ? ch.rs[b.key] : null;
-      const tk = mineR ? C.ticketOf(ch, b.key) : C.ticketFor(b, ch.sel[b.key] ? b.diffs[ch.sel[b.key].d]?.[0] : null, null);
+      const tk = C.ticketOf(ch, b.key);
       const t = C.TICKET[tk];
       const row = document.createElement("div");
       row.className = "bs-row" + (mineR ? " on" : "") + ((owner && owner !== ch) || !t ? " taken" : "");
@@ -546,14 +570,13 @@ if (typeof document !== "undefined") (() => {
         btn.className = "cbtn small c-teal" + (mineR ? " on" : "");
         btn.textContent = mineR ? "重製中" : "重製";
         btn.title = mineR ? "再點一次取消" : `用${t.name}重製票券再打一次這隻王`;
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", () => guarded(ch, () => {
           if (mineR) delete ch.rs[b.key];
           else {
             const s = ch.sel[b.key];
             ch.rs[b.key] = s ? { d: s.d, p: s.p } : {};
           }
-          save(); render();
-        });
+        }));
       }
       act.appendChild(btn);
       const val = cell("bs-val");
