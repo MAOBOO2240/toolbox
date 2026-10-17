@@ -263,6 +263,8 @@ input, select { font: inherit; color: inherit; }
 .tile small {
   font-size: 7cqw; color: var(--text-2); line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  /* 說明固定佔兩行的高度：一行或兩行的工具，圖示和名稱都在同一個高度 */
+  height: 2.8em;
 }
 
 /* ---------- 導覽列 ---------- */
