@@ -442,7 +442,8 @@ if (typeof document !== "undefined") (() => {
       cv.style.top = `${y0}px`;
       cv.style.width = `${cv.width}px`;
       cv.style.height = `${cv.height}px`;
-      $("#bBalloon").style.bottom = `${20 - cur.brow[1]}px`;
+      // 對話框的箭頭在頭頂上方
+      $("#bBalloon").style.top = `${cur.brow[1] - 27}px`;
       box.hidden = false;
       drawn = "";
       t0 = performance.now();
@@ -518,65 +519,56 @@ if (typeof document !== "undefined") (() => {
     if (err) note.textContent = err;
   });
 
-  /* ---------- 名牌、對話框（依名牌戒指、聊天戒指） ---------- */
+  /* ---------- 名牌、對話框（依名牌戒指、聊天戒指，圖片依原點拼起來） ---------- */
   let tags = null, tagsFor = "";
-  const bg = (el, p, repeat) => {
-    el.style.backgroundImage = p ? `url("${p.png}")` : "";
-    el.style.backgroundRepeat = repeat || "no-repeat";
+  const putCanvas = (cv, art) => {
+    cv.width = art.canvas.width;
+    cv.height = art.canvas.height;
+    const g = cv.getContext("2d");
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.drawImage(art.canvas, 0, 0);
   };
-  function applyNameTag() {
-    const el = $("#bNameTag");
-    $("#bNameText").textContent = st.charName || "";
+  let tagGen = 0;
+  const tagMeasure = document.createElement("canvas").getContext("2d");
+  async function applyNameTag() {
+    const my = ++tagGen;
+    const el = $("#bNameTag"), txt = $("#bNameText"), cv = el.querySelector(".nt-art");
+    txt.textContent = st.charName || "";
     el.hidden = !st.charName;
-    const t = tags?.name_tag, P = t?.pieces || {};
-    el.classList.toggle("plain", !t);
-    const parts = [[".nt-w", P.w], [".nt-c", P.c], [".nt-e", P.e]];
-    // 三段依原點對齊（有些名牌左右兩端比中間高）
-    const top = Math.max(0, ...parts.filter(([, p]) => p).map(([, p]) => p.oy));
-    for (const [sel, p] of parts) {
-      const node = el.querySelector(sel);
-      node.removeAttribute("style");
-      if (!t || !p) continue;
-      bg(node, p, sel === ".nt-c" ? "repeat-x" : "no-repeat");
-      node.style.height = `${p.h}px`;
-      node.style.marginTop = `${top - p.oy}px`;
-      if (sel === ".nt-c") { node.style.lineHeight = `${p.h}px`; node.style.color = t.clr || "#fff"; }
-      else node.style.width = `${p.w}px`;
-    }
+    const t = tags?.name_tag;
+    const ok = !!t && (await UiArt.ready(t));
+    if (my !== tagGen) return;
+    txt.removeAttribute("style");
+    el.classList.toggle("plain", !ok);
+    if (!ok || el.hidden) return;
+    // 名牌的上緣貼在腳下（去掉圖片上方透明的部分）
+    // 用畫布量字寬（角色框還沒顯示時也量得到）
+    tagMeasure.font = getComputedStyle(txt).font || '12px "Microsoft JhengHei", sans-serif';
+    const art = UiArt.nameTag(t, Math.ceil(tagMeasure.measureText(txt.textContent).width) + 4);
+    if (!art) { el.classList.add("plain"); return; }
+    putCanvas(cv, art);
+    cv.style.left = `${art.x}px`;
+    cv.style.top = "0px";
+    Object.assign(txt.style, { left: `${art.left}px`, width: `${art.right - art.left}px`, top: `${art.cy - art.y - 7}px`, color: t.clr || "#fff" });
   }
-  function applyBalloon() {
-    const el = $("#bBalloon"), b = tags?.balloon, P = b?.pieces || {};
-    el.classList.toggle("plain", !b);
-    const box = el.querySelector(".bb-box");
-    box.removeAttribute("style");
-    el.querySelectorAll("i, .bb-c").forEach((n) => n.removeAttribute("style"));
-    if (!b) return;
-    const W = (...ps) => Math.max(0, ...ps.filter(Boolean).map((p) => p.w));
-    const H = (...ps) => Math.max(0, ...ps.filter(Boolean).map((p) => p.h));
-    box.style.gridTemplateColumns = `${W(P.nw, P.w, P.sw)}px auto ${W(P.ne, P.e, P.se)}px`;
-    box.style.gridTemplateRows = `${H(P.nw, P.n, P.ne)}px auto ${H(P.sw, P.s, P.se)}px`;
-    for (const k of ["nw", "ne", "sw", "se"]) bg(el.querySelector(`.bb-${k}`), P[k]);
-    bg(el.querySelector(".bb-n"), P.n, "repeat-x");
-    bg(el.querySelector(".bb-s"), P.s, "repeat-x");
-    bg(el.querySelector(".bb-w"), P.w, "repeat-y");
-    bg(el.querySelector(".bb-e"), P.e, "repeat-y");
-    const c = el.querySelector(".bb-c");
-    bg(c, P.c, "repeat");
-    c.style.color = b.clr || "#000";
-    for (const k of ["arrow", "head"]) {
-      const n = el.querySelector(`.bb-${k}`), p = P[k];
-      if (!p) { n.style.display = "none"; continue; }
-      bg(n, p);
-      n.style.width = `${p.w}px`;
-      n.style.height = `${p.h}px`;
-    }
-    // 箭頭蓋住下緣，看起來是從對話框長出來的
-    if (P.arrow) el.querySelector(".bb-arrow").style.marginTop = `${-Math.min(H(P.s), P.arrow.h - 1)}px`;
+  async function layoutBalloon() {
+    const el = $("#bBalloon"), txt = $("#bBalloonText"), cv = el.querySelector(".bb-art");
+    const b = tags?.balloon;
+    const ok = !!b && (await UiArt.ready(b));
+    txt.removeAttribute("style");
+    el.classList.toggle("plain", !ok);
+    if (!ok || el.hidden) return;
+    const art = UiArt.balloon(b, Math.ceil(txt.offsetWidth), Math.ceil(txt.offsetHeight));
+    if (!art) { el.classList.add("plain"); return; }
+    putCanvas(cv, art);
+    cv.style.left = `${art.x}px`;
+    cv.style.top = `${art.y}px`;
+    Object.assign(txt.style, { left: `${art.left}px`, top: `${art.top}px`, color: b.clr || "#000" });
   }
   function applyTags(t) {
     tags = t;
     applyNameTag();
-    applyBalloon();
+    layoutBalloon();
     document.dispatchEvent(new CustomEvent("beauty-tags", { detail: t }));
   }
   function refreshTags() {
@@ -594,6 +586,7 @@ if (typeof document !== "undefined") (() => {
     if (!text) { el.hidden = true; return; }
     $("#bBalloonText").textContent = text;
     el.hidden = false;
+    layoutBalloon();
     // 和遊戲一樣，過一段時間對話框會消失（字越多停越久）
     sayTimer = setTimeout(() => (el.hidden = true), Math.min(20000, 6000 + text.length * 250));
   }

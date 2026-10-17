@@ -496,6 +496,104 @@ function flip(container, mutate) {
   }
 }
 
+/* ---------- 名牌、對話框：依遊戲圖片的原點拼起來（和遊戲相同的畫法） ---------- */
+const UiArt = (() => {
+  const imgs = new Map();
+  const load = (p) => {
+    if (!imgs.has(p.png)) {
+      imgs.set(p.png, new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = p.png; }));
+    }
+    return imgs.get(p.png);
+  };
+  const done = new Map();
+  /** 先把所有圖片載入（之後畫圖不用等） */
+  async function ready(skin) {
+    if (!skin?.pieces) return false;
+    const list = Object.values(skin.pieces);
+    const got = await Promise.all(list.map(load));
+    list.forEach((p, i) => done.set(p.png, got[i]));
+    return got.some(Boolean);
+  }
+  /**
+   * 依序畫出每一塊：塊的原點對齊 (x, y)；clip 是可選的裁切範圍 [左, 上, 右, 下]。
+   * 回傳畫布與畫布左上角的位置（和 x、y 同一個座標系）；trim = 去掉四周透明的部分
+   */
+  function paint(ops, trim) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const rects = ops.map(({ p, x, y, clip }) => {
+      let l = x - p.ox, t = y - p.oy, r = l + p.w, b = t + p.h;
+      if (clip) { l = Math.max(l, clip[0]); t = Math.max(t, clip[1]); r = Math.min(r, clip[2]); b = Math.min(b, clip[3]); }
+      if (r > l && b > t) { x0 = Math.min(x0, l); y0 = Math.min(y0, t); x1 = Math.max(x1, r); y1 = Math.max(y1, b); }
+      return r > l && b > t;
+    });
+    if (!isFinite(x0)) return null;
+    const cv = document.createElement("canvas");
+    cv.width = x1 - x0;
+    cv.height = y1 - y0;
+    const g = cv.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    ops.forEach(({ p, x, y, clip }, i) => {
+      const im = done.get(p.png);
+      if (!rects[i] || !im) return;
+      g.save();
+      if (clip) { g.beginPath(); g.rect(clip[0] - x0, clip[1] - y0, clip[2] - clip[0], clip[3] - clip[1]); g.clip(); }
+      g.drawImage(im, x - p.ox - x0, y - p.oy - y0);
+      g.restore();
+    });
+    if (!trim) return { canvas: cv, x: x0, y: y0 };
+    const px = g.getImageData(0, 0, cv.width, cv.height).data;
+    let tx0 = cv.width, ty0 = cv.height, tx1 = 0, ty1 = 0;
+    for (let yy = 0; yy < cv.height; yy++) for (let xx = 0; xx < cv.width; xx++) {
+      if (px[(yy * cv.width + xx) * 4 + 3] > 8) { tx0 = Math.min(tx0, xx); ty0 = Math.min(ty0, yy); tx1 = Math.max(tx1, xx + 1); ty1 = Math.max(ty1, yy + 1); }
+    }
+    if (tx1 <= tx0) return { canvas: cv, x: x0, y: y0 };
+    const out = document.createElement("canvas");
+    out.width = tx1 - tx0;
+    out.height = ty1 - ty0;
+    out.getContext("2d").drawImage(cv, -tx0, -ty0);
+    return { canvas: out, x: x0 + tx0, y: y0 + ty0 };
+  }
+  /** 名牌：文字寬 tw，中間 c 鋪滿文字範圍，左右接 w、e；原點 (0, 0) 是文字範圍的上緣中間 */
+  function nameTag(skin, tw) {
+    const P = skin.pieces || {};
+    const left = -Math.ceil(tw / 2), right = left + tw;
+    const ops = [];
+    if (P.c) for (let x = left; x < right; x += Math.max(1, P.c.w)) ops.push({ p: P.c, x, y: 0, clip: [left, -1e4, right, 1e4] });
+    if (P.w) ops.push({ p: P.w, x: left, y: 0 });
+    if (P.e) ops.push({ p: P.e, x: right, y: 0 });
+    const art = paint(ops, true);
+    if (!art) return null;
+    // 文字放在中間那塊的正中央
+    const cy = P.c ? P.c.h / 2 - P.c.oy : 7;
+    return { ...art, left, right, cy };
+  }
+  /**
+   * 對話框（九宮格）：文字 tw × th；原點 (0, 0) 是箭頭的位置（對話框下緣的正中間）。
+   * 畫法和遊戲相同：四邊依圖片大小重複，角落、箭頭依原點貼上
+   */
+  function balloon(skin, tw, th) {
+    const P = skin.pieces || {};
+    const xt = Math.max(1, P.n?.w || P.s?.w || 1), yt = Math.max(1, P.w?.h || P.e?.h || 1);
+    const width = (Math.ceil(tw / xt) + 2) * xt, height = Math.max(1, Math.ceil(th / yt)) * yt;
+    const left = -Math.floor(width / 2), right = left + width, top = -height, bottom = 0;
+    const ops = [];
+    const at = (p, x, y, clip) => { if (p) ops.push({ p, x, y, clip }); };
+    at(P.nw, left, top);
+    at(P.sw, left, bottom);
+    for (let y = top; y < bottom; y += yt) { at(P.w, left, y); at(P.e, right, y); }
+    if (P.c) for (let y = top; y < bottom; y += Math.max(1, P.c.h)) for (let x = left; x < right; x += Math.max(1, P.c.w)) at(P.c, x, y, [left, top, right, bottom]);
+    for (let x = left; x < right; x += xt) { at(P.n, x, top); at(P.s, x, bottom); }
+    at(P.ne, right, top);
+    at(P.se, right, bottom);
+    at(P.arrow, 0, bottom);
+    at(P.head, 0, top);
+    const art = paint(ops, false);
+    if (!art) return null;
+    return { ...art, left: -tw / 2, top: top + (height - th) / 2 };
+  }
+  return { ready, nameTag, balloon };
+})();
+
 /* ---------- 側欄紙娃娃：輸入角色名稱，或同步美容美髮的造型 ---------- */
 const SideDoll = (() => {
   let cfg = { name: "", sync: false, ...(store.get("side-doll", {}) || {}) };
@@ -549,41 +647,57 @@ const SideDoll = (() => {
     img.style.left = `${Math.round(bw / 2 - c.cx * scale)}px`;
     img.style.top = `${Math.round(ground - feet * scale)}px`;
   }
-  /** 名牌戒指：輸入框直接變成名牌的樣子（左、中、右三段，像素放大） */
+  /** 名牌戒指：輸入框直接變成名牌的樣子（依名字長度拼出名牌，像素放大兩倍） */
+  let nameSkin = null, paintGen = 0;
+  const measure = document.createElement("canvas").getContext("2d");
   function styleName(tags) {
-    const t = tags?.name_tag;
-    const P = t?.pieces || {};
-    const ps = [P.w, P.c, P.e].filter(Boolean);
-    const wrap = inp.parentElement;
-    wrap.classList.toggle("tagged", ps.length > 0);
-    inp.removeAttribute("style");
-    if (!ps.length) return;
-    const top = Math.max(0, ...ps.map((p) => p.oy));
-    const H = Math.max(...ps.map((p) => top - p.oy + p.h));
-    const k = Math.max(1, Math.min(2, Math.floor(42 / H)));
-    const y = (p) => (top - p.oy) * k;
-    // 第一層在最上面：左右兩端蓋在中間（中間只鋪在文字範圍）
-    const L = [];
-    if (P.w) L.push([P.w, `left 0 top ${y(P.w)}px`, "no-repeat", "border-box"]);
-    if (P.e) L.push([P.e, `right 0 top ${y(P.e)}px`, "no-repeat", "border-box"]);
-    if (P.c) L.push([P.c, `left 0 top ${y(P.c)}px`, "repeat-x", "content-box"]);
-    Object.assign(inp.style, {
-      backgroundImage: L.map(([p]) => `url("${p.png}")`).join(", "),
-      backgroundPosition: L.map((l) => l[1]).join(", "),
-      backgroundRepeat: L.map((l) => l[2]).join(", "),
-      backgroundSize: L.map(([p]) => `${p.w * k}px ${p.h * k}px`).join(", "),
-      backgroundOrigin: L.map((l) => l[3]).join(", "),
-      backgroundClip: L.map((l) => l[3]).join(", "),
-      backgroundColor: "transparent",
-      paddingLeft: `${(P.w?.w || 0) * k}px`,
-      paddingRight: `${(P.e?.w || 0) * k}px`,
-      paddingTop: "0",
-      paddingBottom: "0",
-      height: `${H * k}px`,
-      lineHeight: `${(P.c?.h || H) * k}px`,
-      color: t.clr || "#fff",
-    });
+    nameSkin = tags?.name_tag || null;
+    paintName();
   }
+  async function paintName() {
+    const my = ++paintGen;
+    const t = nameSkin;
+    const wrap = inp.parentElement;
+    if (!t || !(await UiArt.ready(t))) {
+      if (my !== paintGen) return;
+      wrap.classList.remove("tagged");
+      inp.removeAttribute("style");
+      return;
+    }
+    if (my !== paintGen) return;
+    const family = getComputedStyle(inp).fontFamily;
+    const room = wrap.clientWidth || 240;
+    for (const k of [2, 1]) {
+      const font = `700 ${11 * k}px ${family}`;
+      measure.font = font;
+      const tw = Math.ceil(measure.measureText(inp.value || inp.placeholder || "").width / k) + 4;
+      const art = UiArt.nameTag(t, tw);
+      if (!art) break;
+      const W = art.canvas.width, H = art.canvas.height;
+      if (W * k > room && k > 1) continue;
+      // 文字垂直置中在名牌中間那塊
+      const mid = (art.cy - art.y) * k, full = H * k;
+      wrap.classList.add("tagged");
+      Object.assign(inp.style, {
+        font,
+        color: t.clr || "#fff",
+        width: `${W * k}px`,
+        height: `${full}px`,
+        paddingLeft: `${(art.left - art.x) * k}px`,
+        paddingRight: `${(art.x + W - art.right) * k}px`,
+        paddingTop: `${Math.max(0, 2 * mid - full)}px`,
+        paddingBottom: `${Math.max(0, full - 2 * mid)}px`,
+        backgroundImage: `url("${art.canvas.toDataURL()}")`,
+        backgroundSize: `${W * k}px ${H * k}px`,
+        backgroundRepeat: "no-repeat",
+        backgroundColor: "transparent",
+      });
+      return;
+    }
+    wrap.classList.remove("tagged");
+    inp.removeAttribute("style");
+  }
+  inp.addEventListener("input", () => { if (nameSkin) paintName(); });
   function show(d) {
     doll = d && d.png ? d : null;
     if (!doll) {
@@ -665,7 +779,7 @@ const SideDoll = (() => {
   });
 }
 
-/* 一排幾個：空白 = 依視窗寬度自動 */
+/* 並排數量：空白 = 依視窗寬度自動 */
 let perRow = Number(store.get("toolbox-perrow", 0)) || 0;
 function applyPerRow() {
   // 欄寬要是固定值（不能是 minmax），方框的高度才算得出來；放不下時平均縮小
@@ -681,13 +795,28 @@ function applyPerRow() {
   const inp = $("#perRow");
   if (document.activeElement !== inp) inp.value = perRow || "";
 }
-$("#perRow").addEventListener("input", (e) => {
-  const v = Math.floor(Number(e.target.value));
-  perRow = v >= 1 ? Math.min(12, v) : 0;
+function setPerRow(v) {
+  perRow = v >= 1 ? Math.min(12, Math.floor(v)) : 0;
   store.set("toolbox-perrow", perRow);
   applyPerRow();
+}
+$("#perRow").addEventListener("input", (e) => {
+  // 只留數字
+  const digits = e.target.value.replace(/\D/g, "");
+  if (digits !== e.target.value) e.target.value = digits;
+  setPerRow(Number(digits));
 });
 $("#perRow").addEventListener("blur", applyPerRow);
+// 滾輪直接加減（自動時從目前實際的數量開始）
+$("#perRow").addEventListener("wheel", (e) => {
+  if (!e.deltaY) return;
+  e.preventDefault();
+  const cols = getComputedStyle($("#tiles")).gridTemplateColumns;
+  const shown = cols && cols !== "none" ? cols.split(" ").filter(Boolean).length : 0;
+  const cur = perRow || shown || 4;
+  setPerRow(Math.max(1, Math.min(12, cur + (e.deltaY < 0 ? 1 : -1))));
+  e.target.value = perRow;
+}, { passive: false });
 applyPerRow();
 
 /* 圖釘：固定後所有工具都不能拖曳移動 */

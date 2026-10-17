@@ -107,8 +107,8 @@
               </div>
             </div>
             <div class="set-row">
-              <span>一排幾個<small class="muted">主頁面每一排顯示幾個工具；空白就依視窗寬度自動排列</small></span>
-              <span class="pop-num"><input type="number" id="perRow" min="1" max="12" placeholder="自動" /><span class="muted">個</span></span>
+              <span>並排數量<small class="muted">主頁面每一排顯示幾個工具；游標放在輸入框上用滾輪調整；空白就依視窗寬度自動排列</small></span>
+              <span class="pop-num"><input type="text" inputmode="numeric" id="perRow" maxlength="2" placeholder="自動" autocomplete="off" /><span class="muted">個</span></span>
             </div>
           </div>
           <div class="card set-card">
@@ -410,16 +410,8 @@
               <!-- 遊戲資料畫的角色：原點在角色腳下，名牌、對話框跟著一起縮放 -->
               <div class="b-actor" id="bActor" hidden>
                 <canvas id="bCanvas" width="1" height="1"></canvas>
-                <div class="b-balloon" id="bBalloon" hidden>
-                  <i class="bb-head"></i>
-                  <div class="bb-box">
-                    <i class="bb-nw"></i><i class="bb-n"></i><i class="bb-ne"></i>
-                    <i class="bb-w"></i><span class="bb-c" id="bBalloonText"></span><i class="bb-e"></i>
-                    <i class="bb-sw"></i><i class="bb-s"></i><i class="bb-se"></i>
-                  </div>
-                  <i class="bb-arrow"></i>
-                </div>
-                <div class="b-nametag plain" id="bNameTag" hidden><i class="nt-w"></i><span class="nt-c" id="bNameText"></span><i class="nt-e"></i></div>
+                <div class="b-balloon" id="bBalloon" hidden><canvas class="bb-art"></canvas><span class="bb-text" id="bBalloonText"></span></div>
+                <div class="b-nametag plain" id="bNameTag" hidden><canvas class="nt-art"></canvas><span class="nt-text" id="bNameText"></span></div>
               </div>
               <div class="b-empty" id="bEmpty">
                 <svg viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>

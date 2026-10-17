@@ -457,34 +457,25 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 }
 .b-actor[hidden] { display: none; }
 .b-actor canvas { position: absolute; image-rendering: pixelated; }
-/* 名牌、對話框最多放大兩倍（角色放很大時字不會大到擠出框外） */
-.b-nametag {
-  position: absolute; left: 0; top: 1px; transform: translateX(-50%) scale(var(--ui, 1)); transform-origin: 50% 0;
-  display: flex; align-items: flex-start; white-space: nowrap;
-  font: 12px/1 "Microsoft JhengHei", "PingFang TC", sans-serif; letter-spacing: 0;
+/* 名牌、對話框：寬高為 0 的錨點（名牌在腳下、對話框在頭頂），最多放大兩倍（角色放很大時字不會大到擠出框外） */
+.b-nametag, .b-balloon {
+  position: absolute; left: 0; width: 0; height: 0;
+  transform: scale(var(--ui, 1)); transform-origin: 0 0;
+  font: 12px/14px "Microsoft JhengHei", "PingFang TC", sans-serif; letter-spacing: 0;
 }
-.b-nametag[hidden] { display: none; }
-.b-nametag i { display: block; flex: none; }
-.b-nametag .nt-c { display: block; padding: 0 1px; color: #fff; }
+.b-nametag { top: 2px; }
+.b-balloon { top: -85px; }
+.b-nametag[hidden], .b-balloon[hidden] { display: none; }
+.b-nametag canvas, .b-balloon canvas { position: absolute; image-rendering: pixelated; }
+.nt-text, .bb-text { position: absolute; display: block; }
+.nt-text { white-space: nowrap; text-align: center; color: #fff; }
+.bb-text { width: max-content; max-width: 110px; white-space: pre-wrap; word-break: break-all; text-align: center; color: #000; }
 /* 沒有名牌戒指：和遊戲一樣是半透明黑底白字 */
-.b-nametag.plain i { display: none; }
-.b-nametag.plain .nt-c { padding: 2px 4px 3px; border-radius: 3px; background: rgba(0, 0, 0, 0.62); line-height: 12px; }
-
-.b-balloon {
-  position: absolute; left: 0; bottom: 70px; transform: translateX(-50%) scale(var(--ui, 1)); transform-origin: 50% 100%;
-  display: flex; flex-direction: column; align-items: center;
-  font: 12px/1.3 "Microsoft JhengHei", "PingFang TC", sans-serif; letter-spacing: 0;
-}
-.b-balloon[hidden] { display: none; }
-.b-balloon i { display: block; }
-.bb-box { display: grid; }
-.bb-c { display: block; max-width: 132px; width: max-content; word-break: break-all; white-space: pre-wrap; color: #000; }
-.bb-arrow { position: relative; z-index: 1; }
-.bb-head { margin-bottom: -2px; }
+.b-nametag.plain canvas, .b-balloon.plain canvas { display: none; }
+.b-nametag.plain .nt-text { top: 0; left: 0; transform: translateX(-50%); padding: 1px 4px 2px; border-radius: 3px; background: rgba(0, 0, 0, 0.62); line-height: 13px; }
 /* 讀不到對話框圖片時的樣子 */
-.b-balloon.plain .bb-box { display: block; padding: 4px 7px; border-radius: 7px; background: #fff; box-shadow: 0 0 0 1px #666; }
-.b-balloon.plain .bb-box i, .b-balloon.plain .bb-head { display: none; }
-.b-balloon.plain .bb-arrow { width: 0; height: 0; border: 5px solid transparent; border-top-color: #666; border-bottom: 0; }
+.b-balloon.plain .bb-text { left: 0; bottom: 6px; transform: translateX(-50%); padding: 4px 7px; border-radius: 7px; background: #fff; box-shadow: 0 0 0 1px #666; }
+.b-balloon.plain::after { content: ""; position: absolute; left: -5px; top: -7px; border: 5px solid transparent; border-top: 6px solid #666; border-bottom: 0; }
 
 .b-chatbar {
   position: absolute; left: 0.6rem; right: 0.6rem; bottom: 0.6rem; z-index: 2;
