@@ -410,6 +410,22 @@ function flip(container, mutate) {
   }
 }
 
+/* 一排幾個：空白 = 依視窗寬度自動 */
+let perRow = Number(store.get("toolbox-perrow", 0)) || 0;
+function applyPerRow() {
+  $("#tiles").style.gridTemplateColumns = perRow ? `repeat(${perRow}, minmax(0, var(--tile)))` : "";
+  const inp = $("#perRow");
+  if (document.activeElement !== inp) inp.value = perRow || "";
+}
+$("#perRow").addEventListener("input", (e) => {
+  const v = Math.floor(Number(e.target.value));
+  perRow = v >= 1 ? Math.min(12, v) : 0;
+  store.set("toolbox-perrow", perRow);
+  applyPerRow();
+});
+$("#perRow").addEventListener("blur", applyPerRow);
+applyPerRow();
+
 /* 圖釘：固定後所有工具都不能拖曳移動 */
 let pinned = !!store.get("toolbox-pinned", false);
 function renderPin() {
@@ -433,13 +449,16 @@ function dragTool(el, id) {
     const sx = e.clientX, sy = e.clientY;
     const list = el.parentElement;
     const startOrder = [...list.children];
-    let ghost = null, zone = null, ox = 0, oy = 0;
+    let ghost = null, zone = null, ox = 0, oy = 0, frame = null, box = null;
+    const onFavPage = currentCat === "fav";
     const setZone = (z) => {
       if (z === zone) return;
       zone = z;
       $("#favCat").classList.toggle("drop", z === "fav");
       // 拖到「我的最愛」上方時縮小，比較好對準
       if (ghost) ghost.style.scale = z === "fav" ? "0.45" : "";
+      ghost?.classList.toggle("del", z === "unfav");
+      frame?.classList.toggle("out", z === "unfav");
     };
     const move = (ev) => {
       if (!ghost) {
@@ -451,13 +470,30 @@ function dragTool(el, id) {
         ghost.classList.add("drag-ghost");
         Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px`, transformOrigin: `${ox}px ${oy}px` });
         document.body.append(ghost);
+        // 我的最愛頁：用虛線框出範圍，拖到框外放開就移除
+        if (onFavPage) {
+          const rs = [...list.children].map((k) => k.getBoundingClientRect());
+          const pad = 12;
+          box = {
+            left: Math.min(...rs.map((q) => q.left)) - pad, top: Math.min(...rs.map((q) => q.top)) - pad,
+            right: Math.max(...rs.map((q) => q.right)) + pad, bottom: Math.max(...rs.map((q) => q.bottom)) + pad,
+          };
+          frame = document.createElement("div");
+          frame.className = "fav-frame";
+          Object.assign(frame.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.right - box.left}px`, height: `${box.bottom - box.top}px` });
+          document.body.append(frame);
+        }
         el.classList.add("drag-src");
         document.body.classList.add("tool-dragging");
         ctxMenu.hidden = true;
       }
       ghost.style.transform = `translate(${ev.clientX - ox}px, ${ev.clientY - oy}px) rotate(-2deg)`;
       const t = document.elementFromPoint(ev.clientX, ev.clientY);
-      if (currentCat !== "fav" && t?.closest("#favCat")) { setZone("fav"); return; }
+      if (!onFavPage && t?.closest("#favCat")) { setZone("fav"); return; }
+      if (onFavPage && box && !t?.closest("#favCat")) {
+        const inside = ev.clientX >= box.left && ev.clientX <= box.right && ev.clientY >= box.top && ev.clientY <= box.bottom;
+        if (!inside) { setZone("unfav"); return; }
+      }
       setZone(null);
       const over = t?.closest(".tile");
       if (over && over !== el && over.parentElement === list && !over.getAnimations().length) {
@@ -472,14 +508,15 @@ function dragTool(el, id) {
       dragJustEnded = true;
       setTimeout(() => (dragJustEnded = false), 0);
       ghost.remove();
+      frame?.remove();
       el.classList.remove("drag-src");
       document.body.classList.remove("tool-dragging");
       const z = zone;
       setZone(null);
-      // 拖到我的最愛：只收藏，經過其他工具時造成的位置變動要還原
-      if (z === "fav") {
-        flip(list, () => startOrder.forEach((k) => list.appendChild(k)));
-        addFav(id);
+      // 拖到我的最愛／拖出我的最愛：經過其他工具時造成的位置變動，瞬間還原
+      if (z === "fav" || z === "unfav") {
+        for (const k of startOrder) { k.getAnimations().forEach((a) => a.cancel()); list.appendChild(k); }
+        if (z === "fav") addFav(id); else removeFav(id);
         return;
       }
       const order = [...list.children].map((x) => x.dataset.id);
@@ -695,13 +732,14 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
  * 程式開啟時檢查一次；按「稍後」之後這次就不再提醒，下次開啟程式才會再跳出。
  * 設定裡的「檢查更新」可以手動再檢查。 */
 (() => {
-  if (!TAURI) { $("#verText").textContent = "預覽模式"; return; }
+  if (!TAURI) { $("#verText").textContent = "1.0.0"; return; }
   let info = null, snoozed = false;
   const status = (t) => { $("#updStatus").textContent = t || ""; };
 
   async function refresh() {
     try { info = await invoke("update_info"); } catch (_) { return; }
-    $("#verText").textContent = info.current ? `#${info.run}（${info.current}）` : "自行編譯版";
+    $("#verText").textContent = "1.0.0";
+    $("#verText").title = info.current ? `編譯 #${info.run}（${info.current}）` : "自行編譯版";
   }
 
   const closeDialog = () => $("#updBackdrop").classList.remove("show");

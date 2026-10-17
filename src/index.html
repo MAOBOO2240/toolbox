@@ -51,6 +51,10 @@
         <div class="popover" id="settingsPop">
           <p class="pop-title">設定</p>
           <div class="pop-row">
+            <span>一排</span>
+            <span class="pop-num"><input type="number" id="perRow" min="1" max="12" placeholder="自動" /><span class="muted">個</span></span>
+          </div>
+          <div class="pop-row">
             <span>文字大小</span>
             <div class="seg" id="fontSeg">
               <button data-font="s">小</button>
@@ -464,6 +468,7 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">閃亮彗星</span>
           <div class="g-pages" id="cPages">
+            <button class="cbtn c-amber" data-page="auto">自動分解</button>
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
             <button class="cbtn c-purple" data-page="import">解析</button>
           </div>
@@ -530,14 +535,14 @@
                 <div class="g-chips" id="cBatch"></div>
               </section>
               <section class="g-sec g-sec-vault">
-                <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量（點擊分解）・總價值・實際機率</span></div>
+                <div class="g-res-head"><strong>保管箱</strong><span class="muted">數量・總價值・實際機率</span></div>
                 <div class="g-vault-scroll" id="cHistory"></div>
               </section>
             </div>
           </div>
         </div>
 
-        <div class="g-page g-import c-import" id="cPageImport" hidden>
+        <div class="g-page c-autopage" id="cPageAuto" hidden>
           <div class="card g-imp c-auto-card">
             <div class="c-auto-head">
               <h3>自動分解</h3>
@@ -554,6 +559,9 @@
             <p class="hint">選等級會自動分解該等級的全部道具，再點其中某件可以單獨保留；沒選等級時點道具可以個別指定。會自動分解的道具也就是垃圾道具：自動帶入價格時留空。</p>
             <div class="c-auto-list" id="cAutoList"></div>
           </div>
+        </div>
+
+        <div class="g-page g-import c-import" id="cPageImport" hidden>
           <div class="card g-imp">
             <h3>獎池解析</h3>
             <p class="hint">貼上官網的機率表（每行「等級 名稱 機率%」）。遇到「璀璨彗星」標題後的道具放進璀璨彗星獎池，並取代原本的道具。兩件共用一個機率的，兩件平分這個機率。</p>
@@ -586,12 +594,12 @@
             <div class="card w-set">
               <h3>通知設定</h3>
               <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
-              <label class="w-row"><span>回到登入畫面時通知<small class="muted">遊戲還開著，但被送回登入畫面</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>回到登入畫面時通知<small class="muted">離開電腦時被送回登入畫面：照下面設定的秒數通知<br />正在操作時回到登入畫面（多半是自己登出）：待滿 5 分鐘才通知</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
               <label class="w-row"><span>遊戲關閉時通知<small class="muted">新楓之谷程式結束</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
-              <div class="w-row"><span>通知方式<small class="muted">Windows 通知會留在通知中心，獨佔全螢幕也收得到</small></span>
+              <div class="w-row"><span>通知方式<small class="muted">Windows 通知會留在通知中心；Discord 可以傳到手機</small></span>
                 <div class="seg" id="wMode">
                   <button data-v="windows">Windows 通知</button>
-                  <button data-v="app">程式通知</button>
+                  <button data-v="discord">Discord 通知</button>
                   <button data-v="both">兩者</button>
                 </div>
               </div>
@@ -620,22 +628,24 @@
                 <span class="w-th"><input type="range" class="range" id="wTh" min="5" max="120" step="5" /><b id="wThV">20 秒</b></span>
               </div>
               <p class="hint" id="wFileName"></p>
-              <h3 class="w-sub">Discord 通知</h3>
-              <label class="w-row"><span>同步送到 Discord<small class="muted">手機裝 Discord 就能收到</small></span><span class="switch sm"><input type="checkbox" id="wDc" /><span class="slider"></span></span></label>
               <div class="w-dc" id="wDcBox">
+                <h3 class="w-sub">Discord 通知</h3>
+                <label class="w-lbl">Webhook 網址</label>
                 <div class="w-dc-url">
                   <input type="password" id="wDcUrl" placeholder="貼上 Webhook 網址" autocomplete="off" spellcheck="false" />
                   <button class="cbtn c-indigo small solid" id="wDcTest">測試</button>
                 </div>
-                <label class="w-check"><input type="checkbox" id="wDcEveryone" /> 加上 @everyone（手機一定會跳通知）</label>
+                <label class="w-lbl">你的 Discord 使用者 ID<small class="muted">填了就只提及你一個人，手機會跳通知</small></label>
+                <input type="text" class="w-dc-id" id="wDcUser" placeholder="例如 123456789012345678" inputmode="numeric" autocomplete="off" spellcheck="false" />
                 <p class="w-dc-status muted" id="wDcStatus"></p>
                 <ol class="w-steps">
                   <li>在 Discord 建一個自己的伺服器（左邊「＋」→ 自己建立 → 僅供我和我的朋友使用）。</li>
-                  <li>在要收通知的頻道按齒輪「編輯頻道」→「整合」→「Webhook」→「新 Webhook」。</li>
-                  <li>按「複製 Webhook 網址」，貼到上面的欄位，再按「測試」。</li>
+                  <li>在要收通知的頻道按齒輪「編輯頻道」→「整合」→「Webhook」→「新 Webhook」→「複製 Webhook 網址」，貼到上面。</li>
+                  <li>使用者設定（左下齒輪）→「進階」→ 打開「開發者模式」。</li>
+                  <li>在自己的頭像上按右鍵 →「複製使用者 ID」，貼到上面，再按「測試」。</li>
                 </ol>
               </div>
-              <p class="hint">「程式通知」是螢幕右下角的小視窗，遊戲是視窗化或無邊框全螢幕時看得到。Windows 開著「勿擾模式」時，Windows 通知只會進通知中心、不會跳出來。</p>
+              <p class="hint">Windows 開著「勿擾模式」時，Windows 通知只會進通知中心、不會跳出來。Discord 送不出去時（例如沒有網路），會改用 Windows 通知。</p>
             </div>
             <div class="card w-log">
               <div class="w-log-head"><h3>紀錄</h3><button class="cbtn c-red small" id="wClear">清除</button></div>

@@ -424,6 +424,7 @@ B	愛心守護者短杖	1.30%`;
     $$("#cPages button").forEach((b) => b.classList.toggle("on", b.dataset.page === st.page));
     $("#cPageSim").hidden = st.page !== "sim";
     $("#cPageImport").hidden = st.page !== "import";
+    $("#cPageAuto").hidden = st.page !== "auto";
     window.refreshBack?.();
   }
 
@@ -629,12 +630,10 @@ B	愛心守護者短杖	1.30%`;
         sp.addEventListener("click", () => { openSplit = openSplit === k ? null : k; renderHistory(); });
         nm.append(sp);
       }
-      const cnt = document.createElement("button");
+      const cnt = document.createElement("span");
       cnt.className = "c-count" + (owned ? "" : " zero");
       cnt.textContent = `×${intFmt.format(owned)}`;
-      cnt.title = owned ? "點一下輸入要分解的數量" : "已全部分解";
-      cnt.disabled = !owned;
-      cnt.addEventListener("click", () => { openSplit = openSplit === k ? null : k; renderHistory(); });
+      if (!owned) cnt.title = "已全部分解";
       row.append(nm, cnt);
       row.insertAdjacentHTML("beforeend", `<span class="muted">${valueOf(name) && owned ? big(valueOf(name) * owned) : "—"}</span><span class="${cls}">${actual.toFixed(2)}%${cls === "up" ? " ▲" : cls === "down" ? " ▼" : ""}</span>`);
       box.appendChild(row);
@@ -681,6 +680,13 @@ B	愛心守護者短杖	1.30%`;
     return wrap;
   }
 
+  // 分解數量輸入列：點其他地方就關閉
+  document.addEventListener("pointerdown", (e) => {
+    if (!openSplit || e.target.closest(".c-split-row, .c-split-btn")) return;
+    openSplit = null;
+    renderHistory();
+  });
+
   function decompose(k, grade, n) {
     st.owned[k] = (st.owned[k] || 0) - n;
     if (st.owned[k] <= 0) delete st.owned[k];
@@ -700,7 +706,8 @@ B	愛心守護者短杖	1.30%`;
     renderPool();
     renderRight();
     renderPriceBtn();
-    if (st.page === "import") { renderAutoWin(); renderRuleLine(); }
+    if (st.page === "import") renderRuleLine();
+    if (st.page === "auto") renderAutoWin();
     if (document.activeElement !== $("#cCost")) $("#cCost").value = st.cost ? intFmt.format(st.cost) : "";
   }
 
@@ -866,8 +873,8 @@ B	愛心守護者短杖	1.30%`;
   /* ---------- 事件 ---------- */
   $$("#cPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); renderAll(); }));
   if (window.BackHooks) window.BackHooks["view-comet"] = {
-    label: () => (st.page === "import" ? "上一頁" : null),
-    back: () => { if (st.page !== "import") return false; st.page = "sim"; save(); renderAll(); return true; },
+    label: () => (st.page !== "sim" ? "上一頁" : null),
+    back: () => { if (st.page === "sim") return false; st.page = "sim"; save(); renderAll(); return true; },
   };
   $$("#cTabs button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.pool === "shiny" ? "閃亮彗星" : "璀璨彗星")));
   $$("#cTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
@@ -921,7 +928,7 @@ B	愛心守護者短杖	1.30%`;
   });
 
   // 自動分解視窗
-  $("#cAutoBtn").addEventListener("click", () => { st.page = "import"; save(); renderAll(); });
+  $("#cAutoBtn").addEventListener("click", () => { st.page = "auto"; save(); renderAll(); });
   $$("#cAutoGrades button").forEach((b) => b.addEventListener("click", () => {
     const g = b.dataset.g;
     st.auto.grades[g] = !st.auto.grades[g];

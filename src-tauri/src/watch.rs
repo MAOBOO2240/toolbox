@@ -32,15 +32,15 @@ pub struct WatchCfg {
     pub sound_file: String,
     /// 音量 0–200
     pub volume: u32,
-    /// 通知方式：app（程式右下角小視窗）/ windows（Windows 通知）/ both
+    /// 通知方式：windows（Windows 通知）/ discord（Discord）/ both
     pub mode: String,
     /// 回到登入畫面時通知
     pub on_login: bool,
-    /// 同步送到 Discord
+    /// 舊版的「同步送到 Discord」開關，只用來轉換舊設定
     pub discord: bool,
     pub discord_url: String,
-    /// Discord 訊息加上 @everyone（手機一定會推播）
-    pub discord_everyone: bool,
+    /// 要提及的 Discord 使用者 ID（只通知這個人）
+    pub discord_user: String,
 }
 
 impl Default for WatchCfg {
@@ -53,11 +53,11 @@ impl Default for WatchCfg {
             sound_name: "beep2".into(),
             sound_file: String::new(),
             volume: 100,
-            mode: "both".into(),
+            mode: "windows".into(),
             on_login: true,
             discord: false,
             discord_url: String::new(),
-            discord_everyone: true,
+            discord_user: String::new(),
         }
     }
 }
@@ -74,18 +74,31 @@ fn is_webhook(u: &str) -> bool {
         .any(|p| u.starts_with(p))
 }
 
-/// 用 Discord Webhook 發一則訊息
-fn discord_send(url: &str, everyone: bool, title: &str, body: &str) -> Result<(), String> {
+/// Discord 使用者 ID：17～20 位數字
+fn user_id(s: &str) -> Option<&str> {
+    let s = s.trim();
+    (s.len() >= 15 && s.len() <= 21 && s.bytes().all(|b| b.is_ascii_digit())).then_some(s)
+}
+
+/// 用 Discord Webhook 發一則訊息；有填使用者 ID 就只提及那個人
+fn discord_send(url: &str, user: &str, title: &str, body: &str) -> Result<(), String> {
     let url = url.trim();
     if !is_webhook(url) {
         return Err("這不是 Discord Webhook 網址".into());
     }
-    let content = format!("{}**{}**\n{}", if everyone { "@everyone " } else { "" }, title, body);
-    let mentions: Vec<&str> = if everyone { vec!["everyone"] } else { Vec::new() };
+    if !user.trim().is_empty() && user_id(user).is_none() {
+        return Err("Discord 使用者 ID 應該是一串數字".into());
+    }
+    let uid = user_id(user);
+    let content = match uid {
+        Some(id) => format!("<@{id}> **{title}**\n{body}"),
+        None => format!("**{title}**\n{body}"),
+    };
+    let users: Vec<&str> = uid.into_iter().collect();
     let payload = serde_json::json!({
         "username": "工具箱",
         "content": content,
-        "allowed_mentions": { "parse": mentions },
+        "allowed_mentions": { "parse": [], "users": users },
     });
     ureq::post(url)
         .timeout(Duration::from_secs(15))
@@ -99,25 +112,41 @@ fn discord_send(url: &str, everyone: bool, title: &str, body: &str) -> Result<()
         })
 }
 
-/// 依設定的通知方式發出通知；Windows 通知失敗時改用程式自己的通知；有設定 Discord 時同步送出
+/// Windows 通知；失敗時改用程式右下角的小視窗
+fn windows_notify(app: &AppHandle, title: &str, body: &str) {
+    if toast::show(title, body).is_err() {
+        notify::show(app, title, body, "warn");
+    }
+}
+
+/// 依設定的通知方式發出通知：Windows 通知、Discord，或兩者。
+/// Discord 沒設定好或送不出去時，改用 Windows 通知，避免漏掉。
 fn deliver(app: &AppHandle, cfg: &WatchCfg, title: &str, body: &str) {
-    if cfg.discord && !cfg.discord_url.trim().is_empty() {
-        let (url, everyone, t, b) = (cfg.discord_url.clone(), cfg.discord_everyone, title.to_string(), body.to_string());
+    let use_win = cfg.mode != "discord";
+    let use_dc = cfg.mode == "discord" || cfg.mode == "both";
+    if use_win {
+        windows_notify(app, title, body);
+    }
+    if use_dc {
+        if cfg.discord_url.trim().is_empty() {
+            if !use_win {
+                windows_notify(app, title, body);
+            }
+            return;
+        }
+        let (app, url, user, t, b) = (app.clone(), cfg.discord_url.clone(), cfg.discord_user.clone(), title.to_string(), body.to_string());
         std::thread::spawn(move || {
-            if let Err(e) = discord_send(&url, everyone, &t, &b) {
-                let mut g = inner();
-                g.status.events.insert(0, WatchEvent { at: now_ms(), text: format!("Discord 通知失敗：{e}") });
-                g.status.events.truncate(30);
+            if let Err(e) = discord_send(&url, &user, &t, &b) {
+                {
+                    let mut g = inner();
+                    g.status.events.insert(0, WatchEvent { at: now_ms(), text: format!("Discord 通知失敗：{e}") });
+                    g.status.events.truncate(30);
+                }
+                if !use_win {
+                    windows_notify(&app, &t, &b);
+                }
             }
         });
-    }
-    let win = cfg.mode == "windows" || cfg.mode == "both";
-    let mut app_popup = cfg.mode != "windows";
-    if win && toast::show(title, body).is_err() {
-        app_popup = true;
-    }
-    if app_popup {
-        notify::show(app, title, body, "warn");
     }
 }
 
@@ -137,6 +166,10 @@ pub struct WatchStatus {
     pub state: String,
     /// 目前連著登入伺服器（在登入畫面）
     pub at_login: bool,
+    /// 中斷計時中：再過幾秒會通知
+    pub notify_in: u64,
+    /// 中斷時你正在操作電腦（自己登出的可能性高，登入畫面要待滿 5 分鐘才通知）
+    pub active_loss: bool,
     pub lost_secs: u64,
     pub events: Vec<WatchEvent>,
 }
@@ -158,8 +191,46 @@ fn now_ms() -> u64 {
 }
 
 fn load(path: &Path) -> WatchCfg {
-    std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    let mut cfg: WatchCfg = std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    // 舊設定：「程式通知」改成 Windows 通知；開過「同步送到 Discord」的改成兩者
+    if cfg.mode == "app" {
+        cfg.mode = "windows".into();
+    }
+    if cfg.discord {
+        if cfg.mode != "discord" {
+            cfg.mode = "both".into();
+        }
+        cfg.discord = false;
+    }
+    if !matches!(cfg.mode.as_str(), "windows" | "discord" | "both") {
+        cfg.mode = "windows".into();
+    }
+    cfg
 }
+
+/// 鍵盤滑鼠多久沒有動作（秒）
+#[cfg(windows)]
+fn idle_secs() -> u64 {
+    use windows_sys::Win32::System::SystemInformation::GetTickCount;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+    let mut li = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+    unsafe {
+        if GetLastInputInfo(&mut li) == 0 {
+            return 0;
+        }
+        (GetTickCount().wrapping_sub(li.dwTime) / 1000) as u64
+    }
+}
+
+#[cfg(not(windows))]
+fn idle_secs() -> u64 {
+    0
+}
+
+/// 自己登出時，登入畫面要待多久才通知
+const LOGIN_WAIT: u64 = 300;
+/// 中斷前這麼多秒都沒有碰鍵盤滑鼠，就當作不是自己登出的（離開電腦時被送回登入畫面）
+const AFK_SECS: u64 = 60;
 
 /* ---------------- Windows：找遊戲程式、數連線 ---------------- */
 
@@ -282,7 +353,10 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let mut login_port: Option<u16> = None;
         let mut had_game = false;
         let mut lost_since: Option<Instant> = None;
+        // 中斷的那一刻是否正在操作電腦
+        let mut active_loss = false;
         let mut fired = false;
+        let mut notify_in = 0u64;
         loop {
             std::thread::sleep(Duration::from_secs(2));
             let pids = game_pids();
@@ -324,13 +398,22 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             } else if !had_game {
                 state = "waiting"; // 登入畫面，或剛開遊戲還沒連上伺服器
             } else {
-                let since = *lost_since.get_or_insert_with(Instant::now);
+                if lost_since.is_none() {
+                    lost_since = Some(Instant::now());
+                    active_loss = idle_secs() < AFK_SECS;
+                }
+                let since = lost_since.unwrap_or_else(Instant::now);
                 let secs = cfg.threshold.max(5);
-                if since.elapsed() >= Duration::from_secs(secs) {
+                // 回到登入畫面時，若中斷前你正在操作電腦（多半是自己登出），要在登入畫面待滿 5 分鐘才通知
+                let wait = if at_login && active_loss { LOGIN_WAIT.max(secs) } else { secs };
+                let elapsed = since.elapsed().as_secs();
+                notify_in = wait.saturating_sub(elapsed);
+                if elapsed >= wait {
                     if !fired {
                         if at_login {
                             if cfg.on_login {
-                                alert(&app, "新楓之谷回到登入畫面", &format!("已經 {secs} 秒沒有連到遊戲伺服器。"));
+                                let body = if active_loss { "已經在登入畫面待了 5 分鐘。".to_string() } else { format!("已經 {secs} 秒沒有連到遊戲伺服器。") };
+                                alert(&app, "新楓之谷回到登入畫面", &body);
                             }
                         } else if cfg.on_disconnect {
                             alert(&app, "新楓之谷斷線了", &format!("連線已中斷 {secs} 秒。"));
@@ -351,6 +434,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 g.status.pid = pids.first().copied().unwrap_or(0);
                 g.status.conns = game_conns;
                 g.status.at_login = at_login;
+                g.status.notify_in = if state == "lost" { notify_in } else { 0 };
+                g.status.active_loss = active_loss;
                 g.status.state = state.into();
                 g.status.lost_secs = lost_since.map(|s| s.elapsed().as_secs()).unwrap_or(0);
                 g.status.clone()
@@ -390,8 +475,8 @@ pub async fn watch_test(app: AppHandle) {
 
 /// 只測試 Discord，回傳成功或錯誤訊息
 #[tauri::command]
-pub async fn watch_discord_test(url: String, everyone: bool) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || discord_send(&url, everyone, "工具箱測試通知", "收到這則訊息，代表斷線通知會送到這個頻道。"))
+pub async fn watch_discord_test(url: String, user: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || discord_send(&url, &user, "工具箱測試通知", "收到這則訊息，代表斷線通知會送到這裡。"))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -411,6 +496,13 @@ mod tests {
         // 8484 = 0x2124，網路順序存成 bytes [0x21, 0x24, 0, 0]
         assert_eq!(port_of(u32::from_le_bytes([0x21, 0x24, 0, 0])), 8484);
         assert_eq!(port_of(u32::from_le_bytes([0x01, 0xBB, 0, 0])), 443);
+    }
+
+    #[test]
+    fn discord_user_id() {
+        assert_eq!(user_id(" 123456789012345678 "), Some("123456789012345678"));
+        assert_eq!(user_id("abc"), None);
+        assert_eq!(user_id("12345"), None);
     }
 
     #[test]

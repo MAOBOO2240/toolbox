@@ -199,8 +199,10 @@ input, select { font: inherit; color: inherit; }
 .large-title h1 { margin: 0.15rem 0 0; font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; }
 
 .tiles {
+  /* 磁磚大小跟著文字大小；一排幾個可以在設定裡指定（沒指定就依視窗寬度自動排） */
+  --tile: 13rem;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, var(--tile));
   gap: 1.1rem;
   padding: 0.6rem 2rem 2rem; /* 上面留空間給滑過時浮起的磁磚 */
   overflow-y: auto;
@@ -574,3 +576,23 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 body.tool-dragging, body.tool-dragging * { cursor: grabbing !important; user-select: none; }
 body.tool-dragging .tile:hover { transform: none; }
 body.tool-dragging .tile:hover .cat-icon { transform: none; }
+
+/* 設定：一排幾個 */
+.pop-num { display: inline-flex; align-items: center; gap: 0.4rem; }
+.pop-num input {
+  width: 4.2rem; padding: 0.35rem 0.5rem; border: 0; border-radius: 0.55rem;
+  background: var(--card-2); color: var(--text); text-align: center; font-weight: 700; outline: none;
+  box-shadow: inset 0 0 0 1px var(--sep);
+}
+.pop-num input:focus { box-shadow: inset 0 0 0 1px var(--blue), 0 0 0 3px var(--blue-soft); }
+.pop-num input::placeholder { color: var(--text-2); font-weight: 500; }
+
+/* 我的最愛：拖曳時顯示範圍，拖出範圍放開 = 移除 */
+.fav-frame {
+  position: fixed; z-index: 50; pointer-events: none;
+  border: 2px dashed color-mix(in srgb, #ffb000 70%, transparent);
+  border-radius: 2rem;
+  background: color-mix(in srgb, #ffb000 5%, transparent);
+  transition: border-color 0.15s, background 0.15s;
+}
+.fav-frame.out { border-color: color-mix(in srgb, #e5484d 60%, transparent); background: transparent; }

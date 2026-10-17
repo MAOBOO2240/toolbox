@@ -33,6 +33,7 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_NetworkManagement_IpHelper",
   "Win32_Graphics_Dwm",
+  "Win32_System_SystemInformation",
 ] }
 
 [profile.release]

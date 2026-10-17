@@ -48,8 +48,8 @@
   background: color-mix(in srgb, #f59e0b 16%, transparent); color: var(--text);
   font: inherit; font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.c-count:hover { background: #f59e0b; color: #2a1a00; }
-.c-count.zero { background: none; color: var(--text-2); cursor: default; }
+.c-count { cursor: default; }
+.c-count.zero { background: none; color: var(--text-2); }
 .c-split-btn {
   flex: none;
   padding: 0.05rem 0.45rem; border: 0; border-radius: 0.45rem; cursor: pointer;
@@ -75,7 +75,11 @@
 .c-rule-sep { height: 1px; background: var(--sep); margin: 0.2rem 0; }
 
 /* 解析頁：左邊自動分解、右邊獎池解析 */
-.c-import { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.c-import { grid-template-columns: minmax(0, 1fr); max-width: 56rem; }
+/* 自動分解：獨立分頁 */
+.c-autopage { display: flex; flex-direction: column; padding: 1rem; min-height: 0; }
+.c-autopage[hidden] { display: none; }
+.c-autopage .c-auto-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .c-auto-card { gap: 0.4rem; }
 .c-auto-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .c-auto-head h3 { margin: 0 0.3rem 0 0; }

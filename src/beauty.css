@@ -199,6 +199,7 @@
 .b-eq-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .b-eq-text small { font-size: 0.72rem; }
 .b-x {
+  flex: none; padding: 0;
   width: 1.9rem; height: 1.9rem; border: 0; border-radius: 0.55rem; cursor: pointer;
   background: color-mix(in srgb, #e5484d 16%, transparent); color: #e5484d;
   font-size: 1.1rem; font-weight: 700; line-height: 1;
@@ -349,7 +350,8 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 }
 .b-modal-head input[type="text"]:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .b-modal-head .spacer { flex: 1; }
-.b-modal-head .b-x { width: 2.2rem; height: 2.2rem; font-size: 1.3rem; }
+/* 關閉鈕固定是正方形（標題列擠的時候也不會被壓扁） */
+.b-modal-head .b-x { flex: none; width: 2.2rem; height: 2.2rem; padding: 0; display: grid; place-items: center; font-size: 1.3rem; }
 .b-style-grid {
   flex: 1; min-height: 0; overflow-y: auto;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 0.7rem;
