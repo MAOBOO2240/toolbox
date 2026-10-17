@@ -79,6 +79,20 @@ input, select { font: inherit; color: inherit; }
 
 .brand { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0.5rem 1.2rem; font-size: 1.15rem; font-weight: 800; }
 .brand-icon { width: 2rem; height: 2rem; image-rendering: pixelated; }
+/* 圖釘：固定工具位置 */
+.pin-btn {
+  margin-left: auto; margin-right: -0.4rem;
+  width: 2rem; height: 2rem; border-radius: 0.6rem;
+  display: grid; place-items: center;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+}
+.pin-btn:hover { background: var(--card-2); color: var(--text); }
+.pin-btn svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transform: rotate(40deg); transition: transform 0.2s; }
+.pin-btn.on { background: color-mix(in srgb, #ff7a2f 16%, transparent); color: #ff7a2f; }
+.pin-btn.on svg { fill: currentColor; transform: rotate(40deg) translateY(1px); }
+/* 說明往左對齊，避免被側欄切掉 */
+.brand .pin-btn[data-tip]:not([data-tip=""]):hover::after { left: auto; right: 0; transform: none; max-width: 12rem; font-size: 0.75rem; }
 
 .cats { display: flex; flex-direction: column; gap: 0.25rem; }
 .cat {

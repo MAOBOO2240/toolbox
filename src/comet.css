@@ -50,6 +50,16 @@
 }
 .c-count:hover { background: #f59e0b; color: #2a1a00; }
 .c-count.zero { background: none; color: var(--text-2); cursor: default; }
+.c-split-btn {
+  flex: none;
+  padding: 0.05rem 0.45rem; border: 0; border-radius: 0.45rem; cursor: pointer;
+  background: color-mix(in srgb, #f2711c 15%, transparent); color: #d4580a;
+  font: inherit; font-size: 0.72rem; font-weight: 700;
+  transition: background 0.15s, color 0.15s;
+}
+.c-split-btn:hover, .c-split-btn.on { background: #f2711c; color: #fff; }
+:root[data-theme="dark"] .c-split-btn { color: #ff9a55; }
+:root[data-theme="dark"] .c-split-btn:hover, :root[data-theme="dark"] .c-split-btn.on { color: #fff; }
 .c-split-row {
   display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
   margin: 0.15rem 0.9rem 0.4rem; padding: 0.45rem 0.6rem;

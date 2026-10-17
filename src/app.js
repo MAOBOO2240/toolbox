@@ -410,12 +410,29 @@ function flip(container, mutate) {
   }
 }
 
+/* 圖釘：固定後所有工具都不能拖曳移動 */
+let pinned = !!store.get("toolbox-pinned", false);
+function renderPin() {
+  const b = $("#pinBtn");
+  b.classList.toggle("on", pinned);
+  b.dataset.tip = pinned ? "已固定：所有工具都不會移動，再按一次解除" : "固定：開啟後所有工具都不再移動";
+  document.body.classList.toggle("tiles-pinned", pinned);
+}
+$("#pinBtn").addEventListener("click", () => {
+  pinned = !pinned;
+  store.set("toolbox-pinned", pinned);
+  renderPin();
+  toast(pinned ? "已固定所有工具的位置" : "已解除固定，可以拖曳工具");
+});
+renderPin();
+
 let dragJustEnded = false;
 function dragTool(el, id) {
   el.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pinned) return;
     const sx = e.clientX, sy = e.clientY;
     const list = el.parentElement;
+    const startOrder = [...list.children];
     let ghost = null, zone = null, ox = 0, oy = 0;
     const setZone = (z) => {
       if (z === zone) return;
@@ -459,6 +476,12 @@ function dragTool(el, id) {
       document.body.classList.remove("tool-dragging");
       const z = zone;
       setZone(null);
+      // 拖到我的最愛：只收藏，經過其他工具時造成的位置變動要還原
+      if (z === "fav") {
+        flip(list, () => startOrder.forEach((k) => list.appendChild(k)));
+        addFav(id);
+        return;
+      }
       const order = [...list.children].map((x) => x.dataset.id);
       if (currentCat === "fav") {
         favs = order;
@@ -466,7 +489,6 @@ function dragTool(el, id) {
       } else {
         tileOrder[currentCat] = order;
         store.set("toolbox-order", tileOrder);
-        if (z === "fav") addFav(id);
       }
     };
     window.addEventListener("pointermove", move);

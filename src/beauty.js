@@ -566,8 +566,8 @@ if (typeof document !== "undefined") (() => {
     const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
     btn.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || btn.disabled) return;
-      if (fn() === false) return;
-      t1 = setTimeout(() => { t2 = setInterval(() => { if (fn() === false) stop(); }, 110); }, 380);
+      if (fn(false) === false) return;
+      t1 = setTimeout(() => { t2 = setInterval(() => { if (fn(true) === false) stop(); }, 110); }, 380);
     });
     ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => btn.addEventListener(ev, stop));
   }
@@ -706,7 +706,14 @@ if (typeof document !== "undefined") (() => {
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
   $("#bCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
 
-  holdable($("#bDraw"), () => drawN(1));
+  // 按住單抽會連續抽；抽到主打就停下來
+  holdable($("#bDraw"), (repeat) => {
+    if (drawN(1) === false) return false;
+    if (st.last?.feat) {
+      if (repeat) toast(`抽到主打「${st.last.name}」，已停止連抽`);
+      return false;
+    }
+  });
   $("#bReset").addEventListener("click", async () => {
     if (!(await confirmBox("確定要重置花費、抽數與保管箱嗎？"))) return;
     st.stats = blankStats(); st.batch = {}; st.hist = {}; st.batchDraws = zero(); st.histDraws = zero(); st.last = null;
@@ -855,6 +862,7 @@ if (typeof document !== "undefined") (() => {
         if (z === over) return;
         over = z;
         $(".b-saved")?.classList.toggle("drop", z === "fav");
+        if (z === "fav") setFolder("outfit");
         $("#bPick")?.classList.toggle("drop-del", z === "unfav");
         $(".b-equipped")?.classList.toggle("drop", z === "wear");
         $("#bStage").classList.toggle("drop", z === "wear");
@@ -1053,7 +1061,27 @@ if (typeof document !== "undefined") (() => {
     renderSaved();
   }
 
+  /* 收藏資料夾：時裝／外觀 */
+  function setFolder(f) {
+    if (st.savedTab === f) return;
+    st.savedTab = f;
+    save();
+    syncFolder();
+    if (f === "look") renderLookFavs();
+  }
+  function syncFolder() {
+    const f = st.savedTab === "look" ? "look" : "outfit";
+    $$("#bFolder .b-ftab").forEach((b) => b.classList.toggle("on", b.dataset.f === f));
+    $("#bFolder").classList.toggle("look", f === "look");
+    $("#bFOutfit").hidden = f !== "outfit";
+    $("#bFLook").hidden = f !== "look";
+  }
+  $$("#bFolder .b-ftab").forEach((b) => b.addEventListener("click", () => setFolder(b.dataset.f)));
+
   function renderSaved() {
+    syncFolder();
+    if (st.savedTab === "look") renderLookFavs();
+    $("#bSavedCount").textContent = st.favs.length ? `${st.favs.length} 件` : "";
     const box = $("#bSaved");
     box.innerHTML = "";
     if (!st.favs.length) { box.innerHTML = '<div class="g-empty">還沒有收藏的時裝</div>'; return; }
@@ -1160,6 +1188,110 @@ if (typeof document !== "undefined") (() => {
     toast(i >= 0 ? `已取消收藏「${it.name}」` : `已收藏「${it.name}」`);
     $$("#bStyleGrid .b-style-card").forEach((c) => c.classList.toggle("fav", isStyleFav(kind, Number(c.dataset.id))));
     if (st.styleFavOnly) renderStyles();
+    if (st.savedTab === "look") renderLookFavs();
+  }
+
+  /* ---------- 收藏的外觀：髮型、臉型、膚色 ---------- */
+  const LOOK_KINDS = [["hair", "髮型"], ["face", "臉型"], ["skin", "膚色"]];
+  async function styleList(kind) {
+    if (!TAURI) return [];
+    if (kind === "skin") return (skins ||= await invoke("beauty_skins", { gameDir: st.gamePath || null }));
+    return (styleLists[kind] ||= await invoke("beauty_styles", { gameDir: st.gamePath || null, kind }));
+  }
+  function curIdOf(kind) {
+    if (kind === "skin") return st.skinId || lastSkinId;
+    if (kind === "hair") return st.tryHair?.id || lastHairId;
+    return st.tryFace?.id || lastFaceId;
+  }
+  function markLookFavs() {
+    $$("#bLookFavs .b-lf-card").forEach((c) => {
+      const cur = curIdOf(c.dataset.kind);
+      c.classList.toggle("on", !!cur && famOf(c.dataset.kind, cur) === Number(c.dataset.fam));
+    });
+  }
+  // 外觀卡片的頭像（只畫頭，不穿點裝），依序一張一張產生
+  const lfWant = [];
+  let lfBusy = false;
+  async function pumpLookThumbs() {
+    if (lfBusy) return;
+    lfBusy = true;
+    while (lfWant.length) {
+      const card = lfWant.shift();
+      if (!card.isConnected) continue;
+      const k = card.dataset.req;
+      let png = thumbCache.get(k);
+      if (png === undefined) {
+        try { png = (await invoke("beauty_render", { req: JSON.parse(k) })).png; } catch (_) { png = null; }
+        thumbCache.set(k, png);
+      }
+      const box = card.querySelector(".b-lf-pic");
+      box.innerHTML = "";
+      if (png) { const img = new Image(); img.src = png; img.alt = ""; box.append(img); }
+      else box.innerHTML = '<span class="muted">—</span>';
+    }
+    lfBusy = false;
+  }
+  let lfGen = 0;
+  async function renderLookFavs() {
+    const box = $("#bLookFavs");
+    const my = ++lfGen;
+    const total = LOOK_KINDS.reduce((n, [k]) => n + styleFavs(k).length, 0);
+    if (!total) {
+      box.innerHTML = '<div class="g-empty">還沒有收藏的外觀。在髮型、臉型、膚色視窗按卡片右上角的愛心就會收藏到這裡</div>';
+      return;
+    }
+    const lists = {};
+    for (const [k] of LOOK_KINDS) {
+      if (!styleFavs(k).length) continue;
+      try { lists[k] = await styleList(k); } catch (_) { lists[k] = []; }
+    }
+    if (my !== lfGen) return;
+    box.innerHTML = "";
+    lfWant.length = 0;
+    for (const [kind, label] of LOOK_KINDS) {
+      const favsK = styleFavs(kind);
+      if (!favsK.length) continue;
+      const group = document.createElement("div");
+      group.className = "b-lf-group";
+      const head = document.createElement("div");
+      head.className = "b-lf-head";
+      head.innerHTML = `<span>${label}</span><span class="muted">${favsK.length}</span>`;
+      const more = document.createElement("button");
+      more.className = "link-btn";
+      more.textContent = "全部" + label;
+      more.addEventListener("click", () => openStyle(kind));
+      head.append(more);
+      const grid = document.createElement("div");
+      grid.className = "b-lf-grid";
+      for (const fam of favsK) {
+        const it = (lists[kind] || []).find((x) => famOf(kind, x.id) === fam) || { id: fam, name: String(fam) };
+        const card = document.createElement("button");
+        card.className = "b-lf-card";
+        card.dataset.kind = kind;
+        card.dataset.fam = fam;
+        card.title = `${it.name}（${it.id}）`;
+        const req = thumbReq(kind, it);
+        req.mode = "head";
+        card.dataset.req = JSON.stringify(req);
+        const pic = document.createElement("div");
+        pic.className = "b-lf-pic";
+        const nm = document.createElement("span");
+        nm.className = "b-lf-name";
+        nm.textContent = it.name;
+        card.append(pic, nm);
+        card.addEventListener("click", () => { pickStyle(kind, it); markLookFavs(); });
+        card.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          showMenu(e.clientX, e.clientY, it.name, [["套用", () => { pickStyle(kind, it); markLookFavs(); }], ["取消收藏", () => toggleStyleFav(kind, it)]]);
+        });
+        grid.append(card);
+        if (TAURI) lfWant.push(card); else pic.innerHTML = '<span class="muted">—</span>';
+      }
+      group.append(head, grid);
+      box.append(group);
+    }
+    markLookFavs();
+    pumpLookThumbs();
   }
 
   function styleItems() {

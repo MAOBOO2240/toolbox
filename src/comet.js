@@ -620,6 +620,15 @@ B	愛心守護者短杖	1.30%`;
       t.textContent = name;
       nm.append(gradeBadge(gradeOf(pool, name)), ItemIcons.el(name), t);
       nm.title = name;
+      // 名稱右邊的分解按鈕
+      if (owned) {
+        const sp = document.createElement("button");
+        sp.className = "c-split-btn" + (openSplit === k ? " on" : "");
+        sp.textContent = "分解";
+        sp.title = `分解「${name}」（每件 ${C.FRAG[gradeOf(pool, name)] || 0} 碎片）`;
+        sp.addEventListener("click", () => { openSplit = openSplit === k ? null : k; renderHistory(); });
+        nm.append(sp);
+      }
       const cnt = document.createElement("button");
       cnt.className = "c-count" + (owned ? "" : " zero");
       cnt.textContent = `×${intFmt.format(owned)}`;
@@ -642,7 +651,7 @@ B	愛心守護者短杖	1.30%`;
     input.type = "number";
     input.min = "1";
     input.max = String(owned);
-    input.value = String(owned);
+    input.value = "1";
     const info = document.createElement("span");
     info.className = "muted";
     const upd = () => { const n = Math.min(owned, Math.max(0, Math.floor(Number(input.value) || 0))); info.textContent = `件，可得 ${intFmt.format(n * C.FRAG[g])} 碎片`; };

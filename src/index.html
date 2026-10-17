@@ -18,6 +18,9 @@
       <div class="brand">
         <img src="assets/icon.png" alt="" class="brand-icon" />
         <span>工具箱</span>
+        <button class="pin-btn" id="pinBtn" aria-label="固定工具位置" data-tip="">
+          <svg viewBox="0 0 24 24"><path d="M9 3.5h6l-.9 5.6 3.4 3.4H6.5l3.4-3.4z"/><path d="M12 12.5v8"/></svg>
+        </button>
       </div>
       <nav class="cats" id="cats">
         <button class="cat" data-cat="maple">
@@ -193,8 +196,8 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">黃金蘋果轉蛋模擬器</span>
           <div class="g-pages" id="gPages">
-            <button class="cbtn c-purple" data-page="import">解析/垃圾</button>
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析/垃圾</button>
           </div>
         </nav>
 
@@ -302,8 +305,8 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">美容美髮模擬器</span>
           <div class="g-pages" id="bPages">
-            <button class="cbtn c-purple" data-page="import">解析</button>
             <button class="cbtn c-pink" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析</button>
           </div>
         </nav>
 
@@ -412,14 +415,24 @@
               </div>
               <div class="b-eq-list" id="bEqList"></div>
             </div>
-            <div class="card b-saved">
-              <div class="b-card-head">
-                <strong>收藏的時裝</strong>
-                <span class="spacer"></span>
-                <button class="cbtn c-blue small solid" id="bSaveLook" title="把目前穿著的每一件點裝加入收藏">收藏目前裝備</button>
+            <!-- 收藏：資料夾樣式，分成時裝與外觀（髮型／臉型／膚色） -->
+            <div class="b-saved b-folder" id="bFolder">
+              <div class="b-ftabs">
+                <button class="b-ftab on" data-f="outfit"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2.2h7.4A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>收藏的時裝</button>
+                <button class="b-ftab" data-f="look"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2.2h7.4A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>收藏的外觀</button>
               </div>
-              <div class="b-fav-grid" id="bSaved"></div>
-              <p class="b-fav-hint muted">把點裝拖到這裡、或按右鍵選「收藏」加入；拖到角色或目前裝備就能穿上</p>
+              <div class="b-fpane" id="bFOutfit">
+                <div class="b-card-head">
+                  <span class="muted b-fcount" id="bSavedCount"></span>
+                  <span class="spacer"></span>
+                  <button class="cbtn c-blue small solid" id="bSaveLook" title="把目前穿著的每一件點裝加入收藏">收藏目前裝備</button>
+                </div>
+                <div class="b-fav-grid" id="bSaved"></div>
+                <p class="b-fav-hint muted">把點裝拖到這裡、或按右鍵選「收藏」加入；拖到角色或目前裝備就能穿上</p>
+              </div>
+              <div class="b-fpane" id="bFLook" hidden>
+                <div class="b-lf" id="bLookFavs"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -451,8 +464,8 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">閃亮彗星</span>
           <div class="g-pages" id="cPages">
-            <button class="cbtn c-purple" data-page="import">解析</button>
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
+            <button class="cbtn c-purple" data-page="import">解析</button>
           </div>
         </nav>
 
