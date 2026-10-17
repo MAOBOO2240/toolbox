@@ -448,7 +448,7 @@ if (typeof document !== "undefined") (() => {
       cv.style.width = `${cv.width}px`;
       cv.style.height = `${cv.height}px`;
       // 對話框的箭頭在頭頂上方
-      $("#bBalloon").style.top = `${cur.brow[1] - 27}px`;
+      $("#bBalloon").style.top = `${cur.brow[1] - 42}px`;
       box.hidden = false;
       drawn = "";
       t0 = performance.now();
@@ -547,13 +547,14 @@ if (typeof document !== "undefined") (() => {
     if (my !== tagGen) return;
     txt.removeAttribute("style");
     el.classList.toggle("plain", !ok);
-    if (!ok || el.hidden) return;
+    if (!ok || el.hidden) { UiArt.stop("beauty-name"); return; }
     // 名牌的上緣貼在腳下（去掉圖片上方透明的部分）
     // 用畫布量字寬（角色框還沒顯示時也量得到）
     tagMeasure.font = getComputedStyle(txt).font || '12px "Microsoft JhengHei", sans-serif';
     const art = UiArt.nameTag(t, Math.ceil(tagMeasure.measureText(txt.textContent).width) + 4);
-    if (!art) { el.classList.add("plain"); return; }
-    putCanvas(cv, art);
+    if (!art) { el.classList.add("plain"); UiArt.stop("beauty-name"); return; }
+    // 會動的名牌依每一格的時間換圖
+    UiArt.play("beauty-name", art.frames, (f) => putCanvas(cv, f));
     cv.style.left = `${art.x}px`;
     cv.style.top = "0px";
     Object.assign(txt.style, { left: `${art.left}px`, width: `${art.right - art.left}px`, top: `${art.cy - art.y - 7}px`, color: t.clr || "#fff" });
@@ -568,9 +569,11 @@ if (typeof document !== "undefined") (() => {
     const art = UiArt.balloon(b, Math.ceil(txt.offsetWidth), Math.ceil(txt.offsetHeight));
     if (!art) { el.classList.add("plain"); return; }
     putCanvas(cv, art);
+    // 華麗的對話框下緣裝飾會往下垂：整個往上移，最低的地方只比錨點低一點點，不會蓋到頭
+    const lift = Math.max(0, art.y + art.canvas.height - 6);
     cv.style.left = `${art.x}px`;
-    cv.style.top = `${art.y}px`;
-    Object.assign(txt.style, { left: `${art.left}px`, top: `${art.top}px`, color: b.clr || "#000" });
+    cv.style.top = `${art.y - lift}px`;
+    Object.assign(txt.style, { left: `${art.left}px`, top: `${art.top - lift}px`, color: b.clr || "#000" });
   }
   function applyTags(t) {
     tags = t;

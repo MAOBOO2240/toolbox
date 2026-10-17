@@ -69,12 +69,26 @@ const BossCore = (() => {
   LIST.sort((a, b) => top(b) - top(a));
   const BY_KEY = Object.fromEntries(LIST.map((b) => [b.key, b]));
 
+  /**
+   * 組隊人數上限：大部分 6 人；最新的幾隻只能 3 人，終極史烏只能 2 人
+   * （最初的敵對者、燦爛的凶星、林波、巴德利斯、尤比太：所有難度 3 人）
+   */
+  const PARTY3 = new Set(["最初的敵對者", "燦爛的凶星", "林波", "巴德利斯", "尤比太"]);
+  function maxParty(name, diff) {
+    if (PARTY3.has(name)) return 3;
+    if (name === "史烏" && diff === "終極") return 2;
+    return 6;
+  }
+  /** BOSS 重製卷：一天只能打一次，第一次打完後最多再用 6 張（一週 7 天） */
+  const RESET_MAX = 6;
+
   /** 一顆結晶分給每個人的價值（組隊平分，無條件捨去） */
-  const share = (price, party) => Math.floor(price / Math.max(1, Math.min(6, party || 1)));
+  const share = (price, party, max = 6) => Math.floor(price / Math.max(1, Math.min(max, party || 1)));
 
   /**
-   * 一隻角色這週的結晶：ch.sel = { key: { d: 難度索引, p: 組隊人數, n: 每週天數（每日王） } }
+   * 一隻角色這週的結晶：ch.sel = { key: { d: 難度索引, p: 組隊人數, n: 每週天數（每日王）, r: 重製卷張數（每週王） } }
    * 回傳 { week: 每週王（依價值排序，只有前 12 顆會賣），weekOver: 超過 12 顆的，day: 每日王（每天一顆），month: 每月王 }
+   * 用重製卷多打的每週王一樣是每週王結晶，算在角色 12 顆、帳號 90 顆裡
    */
   function crystals(ch, owner) {
     const week = [], day = [], month = [];
@@ -82,12 +96,14 @@ const BossCore = (() => {
       const b = BY_KEY[key];
       if (!b || !b.diffs[s.d]) continue;
       const [diff, price] = b.diffs[s.d];
-      const item = { key, name: b.name, diff, value: share(price, s.p), owner };
-      if (b.type === "week") week.push(item);
-      else if (b.type === "month") month.push(item);
+      const item = { key, name: b.name, diff, value: share(price, s.p, maxParty(b.name, diff)), owner };
+      if (b.type === "week") {
+        week.push(item);
+        for (let i = 0; i < Math.max(0, Math.min(RESET_MAX, s.r || 0)); i++) week.push({ ...item, reset: true });
+      } else if (b.type === "month") month.push(item);
       else for (let i = 0; i < Math.max(0, Math.min(7, s.n ?? 7)); i++) day.push(item);
     }
-    week.sort((a, b) => b.value - a.value);
+    week.sort((a, b) => b.value - a.value || (a.reset ? 1 : 0) - (b.reset ? 1 : 0));
     return { week: week.slice(0, CHAR_CAP), weekOver: week.slice(CHAR_CAP), day, month };
   }
 
@@ -113,9 +129,13 @@ const BossCore = (() => {
       per: per.map((c) => ({
         week: part(c.week), day: part(c.day), month: part(c.month),
         weekCount: c.week.length + c.weekOver.length, over: c.weekOver.length, crystals: c.week.length + c.day.length,
+        resets: [...c.week, ...c.weekOver].filter((x) => x.reset).length,
       })),
       normal, withMonth, monthly,
-      byType: { week: part(per.flatMap((c) => c.week)), day: part(per.flatMap((c) => c.day)), month: part(monthPool) },
+      byType: {
+        week: part(per.flatMap((c) => c.week)), day: part(per.flatMap((c) => c.day)), month: part(monthPool),
+        reset: part(per.flatMap((c) => c.week.filter((x) => x.reset))),
+      },
     };
   }
 
@@ -127,7 +147,7 @@ const BossCore = (() => {
     阿卡伊農: 30, 凡雷恩: 31, 闇黑龍王: 32, 卡翁: 33,
   };
 
-  return { CHAR_CAP, MAX_CHARS, WORLD_CAP, ICON, LIST, BY_KEY, share, crystals, sell, summary };
+  return { CHAR_CAP, MAX_CHARS, WORLD_CAP, RESET_MAX, ICON, LIST, BY_KEY, maxParty, share, crystals, sell, summary };
 })();
 
 if (typeof module !== "undefined") module.exports = BossCore;
@@ -149,6 +169,11 @@ if (typeof document !== "undefined") (() => {
   })();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} };
   const cur = () => st.chars.find((c) => c.id === st.cur) || st.chars[0];
+  // 舊資料：組隊人數超過上限的拉回來
+  for (const ch of st.chars) for (const [k, s] of Object.entries(ch.sel || {})) {
+    const b = C.BY_KEY[k];
+    if (b && b.diffs[s.d]) s.p = Math.min(s.p || 1, C.maxParty(b.name, b.diffs[s.d][0]));
+  }
 
   const intFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 });
   /** 楓幣讀法：990841916 → 9億9084萬1916 */
@@ -167,11 +192,11 @@ if (typeof document !== "undefined") (() => {
 
   // 難度顏色和遊戲裡一樣：EASY 灰、NORMAL 藍、HARD 粉紅、CHAOS 金、EXTREME 紅
   const DIFF_COLOR = { 簡易: "c-silver", 簡單: "c-silver", 一般: "c-blue", 普通: "c-blue", 困難: "c-pink", 混沌: "c-amber", 終極: "c-red" };
-  const PAGE_NAME = { week: "每週王", day: "每日王", month: "每月王" };
+  const PAGE_NAME = { week: "每週王", day: "每日王", month: "每月王", reset: "BOSS重製卷" };
 
   /* ---------- 分頁 ---------- */
   function renderPage() {
-    $$("#bsPages button").forEach((b) => b.classList.toggle("on", b.dataset.page === st.page));
+    $$("#bsPages [data-page]").forEach((b) => b.classList.toggle("on", b.dataset.page === st.page));
   }
 
   /* ---------- 角色 ---------- */
@@ -205,7 +230,7 @@ if (typeof document !== "undefined") (() => {
         if (st.cur === ch.id) st.cur = st.chars[0].id;
         save(); render();
       });
-      row.addEventListener("click", (e) => { if (e.target === row || e.target === info) { st.cur = ch.id; save(); render(); } });
+      row.addEventListener("click", (e) => { if (e.target.tagName !== "INPUT" && !e.target.closest(".b-x")) { st.cur = ch.id; save(); render(); } });
       const text = document.createElement("div");
       text.className = "bs-char-text";
       text.append(name, info);
@@ -214,7 +239,7 @@ if (typeof document !== "undefined") (() => {
     });
     // 超過 4 隻時，角色清單固定 4 隻的高度，用捲動的
     const rows = box.children;
-    box.style.maxHeight = rows.length > 4 ? `${rows[4].offsetTop - rows[0].offsetTop - 6}px` : "";
+    box.style.maxHeight = rows.length > 4 ? `${rows[4].offsetTop - rows[0].offsetTop - 4}px` : "";
     box.querySelector(".on")?.scrollIntoView({ block: "nearest" });
     $("#bsAdd").disabled = st.chars.length >= C.MAX_CHARS;
     $("#bsAdd").title = st.chars.length >= C.MAX_CHARS ? `最多 ${C.MAX_CHARS} 隻角色` : "";
@@ -237,6 +262,36 @@ if (typeof document !== "undefined") (() => {
     wrap.append(inp, u);
     return wrap;
   }
+  const cell = (cls, text = "") => { const el = document.createElement("div"); el.className = cls; el.textContent = text; return el; };
+  function icon(b) {
+    const ic = document.createElement("span");
+    ic.className = "bs-ic";
+    if (C.ICON[b.name] != null) ic.style.setProperty("--i", C.ICON[b.name]);
+    return ic;
+  }
+  function nameCell(b, sub) {
+    const name = document.createElement("div");
+    name.className = "bs-name";
+    name.innerHTML = `<span></span><small class="muted"></small>`;
+    name.children[0].textContent = b.name;
+    name.children[1].textContent = sub || "";
+    return name;
+  }
+
+  /** 最上面一列：說明每一欄是什麼 */
+  function headRow(cols) {
+    const row = document.createElement("div");
+    row.className = "bs-row bs-thead";
+    cols.forEach((t, i) => {
+      const c = cell(i === cols.length - 1 ? "r" : "", "");
+      if (i === cols.length - 1) {
+        c.append(ItemIcons.el("強烈的力量結晶"), document.createTextNode(t));
+        c.title = "一顆強烈的力量結晶賣給收藏家的楓幣（組隊時是平分後的價值）";
+      } else c.textContent = t;
+      row.appendChild(c);
+    });
+    return row;
+  }
 
   function renderList(sum) {
     const ch = cur();
@@ -248,52 +303,94 @@ if (typeof document !== "undefined") (() => {
     const p = sum.per[idx];
     // 標題列：這隻角色的每週王數量
     const head = $("#bsListHead");
-    if (st.page === "week") head.innerHTML = `<b>${ch.name || "角色"}</b>　每週王 <b class="${p.weekCount > C.CHAR_CAP ? "bad" : ""}">${p.weekCount}</b> / ${C.CHAR_CAP}${p.over ? `<small>（超過的 ${p.over} 顆價值最低，不會賣）</small>` : ""}`;
-    else if (st.page === "day") head.innerHTML = `<b>${ch.name || "角色"}</b>　每日王每天一顆，不算在每週 ${C.CHAR_CAP} 顆裡`;
-    else head.innerHTML = `<b>${ch.name || "角色"}</b>　每月王不算在每週 ${C.CHAR_CAP} 顆裡，但會算在帳號每週 ${C.WORLD_CAP} 顆裡`;
+    const who = `<b>${(ch.name || "角色").replace(/[<>&]/g, "")}</b>`;
+    const cnt = `每週王 <b class="${p.weekCount > C.CHAR_CAP ? "bad" : ""}">${p.weekCount}</b> / ${C.CHAR_CAP}`;
+    if (st.page === "week" || st.page === "reset") head.innerHTML = `${who}<span>${cnt}${p.over ? `<small>超過的 ${p.over} 顆價值最低，不會賣</small>` : ""}</span>`;
+    else if (st.page === "day") head.innerHTML = `${who}<span>每天一顆，不算在每週 ${C.CHAR_CAP} 顆裡</span>`;
+    else head.innerHTML = `${who}<span>不算在每週 ${C.CHAR_CAP} 顆裡，算在帳號 ${C.WORLD_CAP} 顆裡</span>`;
 
+    if (st.page === "reset") return renderResets(ch, over);
+
+    const isDay = st.page === "day";
+    box.className = `bs-list ${isDay ? "cols-6" : "cols-5"}`;
+    box.appendChild(headRow(isDay ? ["", "名稱", "難度", "人數", "天數", "結晶錢"] : ["", "名稱", "難度", "人數", "結晶錢"]));
     for (const b of C.LIST.filter((x) => x.type === st.page)) {
       const s = ch.sel[b.key];
       const row = document.createElement("div");
       row.className = "bs-row" + (s ? " on" : "") + (over.has(b.key) ? " over" : "");
-      const ic = document.createElement("span");
-      ic.className = "bs-ic";
-      if (C.ICON[b.name] != null) ic.style.setProperty("--i", C.ICON[b.name]);
-      const name = document.createElement("div");
-      name.className = "bs-name";
-      name.innerHTML = `<span></span><small class="muted"></small>`;
-      name.children[0].textContent = b.name;
       const diffs = document.createElement("div");
       diffs.className = "bs-diffs";
-      // 難的（結晶價格高的）在左邊
-      b.diffs.map((x, i) => [x, i]).reverse().forEach(([[d, price], i]) => {
+      // 難度由簡單到難
+      b.diffs.forEach(([d, price], i) => {
         const btn = document.createElement("button");
         btn.className = `cbtn small ${DIFF_COLOR[d] || "c-silver"}` + (s && s.d === i ? " on" : "");
         btn.textContent = d;
-        btn.title = `${b.name}（${d}）${zh(price)} 楓幣`;
+        const mp = C.maxParty(b.name, d);
+        btn.title = `${b.name}（${d}）${zh(price)} 楓幣・最多 ${mp} 人`;
         btn.addEventListener("click", () => {
           // 點已選的難度 = 取消
           if (s && s.d === i) delete ch.sel[b.key];
-          else ch.sel[b.key] = { d: i, p: s?.p || 1, ...(b.type === "day" ? { n: s?.n ?? 7 } : {}) };
+          else ch.sel[b.key] = { d: i, p: Math.min(s?.p || 1, mp), ...(isDay ? { n: s?.n ?? 7 } : {}), ...(s?.r ? { r: s.r } : {}) };
           save(); render();
         });
         diffs.appendChild(btn);
       });
-      const right = document.createElement("div");
-      right.className = "bs-right";
+      const party = cell("bs-c");
+      const days = cell("bs-c");
+      const val = cell("bs-val");
+      let sub = "";
       if (s) {
-        right.appendChild(stepper(s.p || 1, 1, 6, "人", (v) => { s.p = v; save(); render(); }, "組隊人數（結晶價值平分），可以用滾輪調整"));
-        if (b.type === "day") right.appendChild(stepper(s.n ?? 7, 0, 7, "天", (v) => { s.n = v; save(); render(); }, "每週打幾天，可以用滾輪調整"));
-        const val = C.share(b.diffs[s.d][1], s.p) * (b.type === "day" ? s.n ?? 7 : 1);
-        const v = document.createElement("b");
-        v.className = "bs-val";
-        v.textContent = zh(val);
-        right.appendChild(v);
-        name.children[1].textContent = over.has(b.key) ? "超過 12 顆，不會賣" : b.type === "day" ? `每顆 ${zh(C.share(b.diffs[s.d][1], s.p))}` : (s.p || 1) > 1 ? `${s.p} 人平分` : "";
+        const [d, price] = b.diffs[s.d];
+        const mp = C.maxParty(b.name, d);
+        party.appendChild(stepper(Math.min(s.p || 1, mp), 1, mp, "人", (v) => { s.p = v; save(); render(); }, `組隊人數（結晶價值平分），最多 ${mp} 人，可以用滾輪調整`));
+        if (isDay) days.appendChild(stepper(s.n ?? 7, 0, 7, "天", (v) => { s.n = v; save(); render(); }, "每週打幾天，可以用滾輪調整"));
+        const one = C.share(price, s.p, mp);
+        val.textContent = zh(one * (isDay ? s.n ?? 7 : 1));
+        sub = over.has(b.key) ? `超過 ${C.CHAR_CAP} 顆，不會賣` : isDay ? `每顆 ${zh(one)}` : [(s.p || 1) > 1 ? `${s.p} 人平分` : "", s.r ? `重製 ${s.r} 次` : ""].filter(Boolean).join("・");
       } else {
-        name.children[1].textContent = zh(Math.max(...b.diffs.map((d) => d[1])));
+        val.textContent = zh(Math.max(...b.diffs.map((d) => d[1])));
+        val.classList.add("muted");
+        const mps = [...new Set(b.diffs.map(([d]) => C.maxParty(b.name, d)))];
+        if (mps.some((m) => m < 6)) sub = b.diffs.map(([d]) => C.maxParty(b.name, d)).every((m) => m === mps[0]) ? `最多 ${mps[0]} 人` : b.diffs.filter(([d]) => C.maxParty(b.name, d) < 6).map(([d]) => `${d}最多 ${C.maxParty(b.name, d)} 人`).join("・");
       }
-      row.append(ic, name, diffs, right);
+      row.append(icon(b), nameCell(b, sub), diffs, party, ...(isDay ? [days] : []), val);
+      box.appendChild(row);
+    }
+  }
+
+  /** BOSS 重製卷：已經選好的每週王，用了幾張重製卷就多打幾次 */
+  function renderResets(ch, over) {
+    const box = $("#bsList");
+    box.className = "bs-list cols-5";
+    const list = C.LIST.filter((b) => b.type === "week" && ch.sel[b.key]);
+    const note = document.createElement("p");
+    note.className = "bs-reset-note muted";
+    note.textContent = `用重製卷多打一次會多一顆結晶，一樣算在角色每週 ${C.CHAR_CAP} 顆、帳號每週 ${C.WORLD_CAP} 顆裡；每天只能打一次，所以同一隻 BOSS 一週最多再打 ${C.RESET_MAX} 次。`;
+    box.appendChild(note);
+    if (!list.length) {
+      box.appendChild(cell("bs-empty muted", "先到「每週王」選這隻角色要打的 BOSS，才能使用重製卷"));
+      return;
+    }
+    box.appendChild(headRow(["", "名稱", "難度", "重製卷", "多賺"]));
+    for (const b of list) {
+      const s = ch.sel[b.key];
+      const [d, price] = b.diffs[s.d];
+      const mp = C.maxParty(b.name, d);
+      const one = C.share(price, s.p, mp);
+      const row = document.createElement("div");
+      row.className = "bs-row" + (s.r ? " on" : "") + (over.has(b.key) ? " over" : "");
+      const diffs = document.createElement("div");
+      diffs.className = "bs-diffs";
+      const chip = document.createElement("span");
+      chip.className = `cbtn small on ${DIFF_COLOR[d] || "c-silver"} bs-chip`;
+      chip.textContent = d;
+      diffs.appendChild(chip);
+      const n = cell("bs-c");
+      n.appendChild(stepper(s.r || 0, 0, C.RESET_MAX, "張", (v) => { if (v) s.r = v; else delete s.r; save(); render(); }, `這週對這隻 BOSS 用幾張重製卷（最多 ${C.RESET_MAX} 張），可以用滾輪調整`));
+      const val = cell("bs-val", s.r ? `+${zh(one * s.r)}` : "0");
+      if (!s.r) val.classList.add("muted");
+      const sub = [`每顆 ${zh(one)}`, (s.p || 1) > 1 ? `${s.p} 人平分` : "", over.has(b.key) ? `超過 ${C.CHAR_CAP} 顆的不會賣` : ""].filter(Boolean).join("・");
+      row.append(icon(b), nameCell(b, sub), diffs, n, val);
       box.appendChild(row);
     }
   }
@@ -302,22 +399,20 @@ if (typeof document !== "undefined") (() => {
   function renderSum(sum) {
     const r = ratio();
     const nt = (v) => `NT$ ${intFmt.format(Math.round(v / (r * 1e4)))}`;
-    const line = (k, v, s) => `<div class="f-line"><span>${k}${s ? `<small>${s}</small>` : ""}</span><b>${v}</b></div>`;
+    const kv = (k, v, s = "") => `<div class="bs-kv"><span>${k}</span><b>${v}</b>${s ? `<small>${s}</small>` : ""}</div>`;
     const n = sum.normal, m = sum.withMonth;
     const hasMonth = sum.byType.month > 0;
     $("#bsSum").innerHTML =
-      `<div class="f-big-label">每週收入</div>` +
-      `<div class="f-big">${eText(n.value)}</div>` +
-      `<div class="f-sub">${zh(n.value)} 楓幣・約 ${nt(n.value)}</div>` +
+      `<div class="bs-sum-top"><div><div class="f-big-label">每週收入</div><div class="bs-big">${eText(n.value)}</div></div>` +
+      `<div class="bs-sum-nt"><b>約 ${nt(n.value)}</b><small>${zh(n.value)}</small></div></div>` +
       `<div class="bs-cap"><div class="bs-bar"><i style="width:${Math.min(100, (n.count / C.WORLD_CAP) * 100)}%"></i></div><span>帳號每週結晶 <b>${n.count + n.left.length}</b> / ${C.WORLD_CAP}</span></div>` +
       (n.left.length ? `<p class="bs-warn">超過 ${C.WORLD_CAP} 顆：價值最低的 ${n.left.length} 顆賣不掉（少 ${zh(n.left.reduce((a, x) => a + x.value, 0))}）</p>` : "") +
-      '<div class="f-lines">' +
-      line("每週王", zh(sum.byType.week), `每隻角色最多 ${C.CHAR_CAP} 顆`) +
-      line("每日王", zh(sum.byType.day), "每天一顆") +
-      (hasMonth ? line("打黑魔法師那週", zh(m.value), `結晶 ${m.count + m.left.length} / ${C.WORLD_CAP}${m.left.length ? `，${m.left.length} 顆賣不掉` : ""}`) : "") +
-      `<div class="f-line total pos"><span>每月收入<small>4 週${hasMonth ? "，其中一週打黑魔法師" : ""}・約 ${nt(sum.monthly)}</small></span><b>${eText(sum.monthly)}</b></div>` +
+      '<div class="bs-kvs">' +
+      kv("每週王", eText(sum.byType.week), sum.byType.reset ? `含重製卷 ${eText(sum.byType.reset)}` : "") +
+      kv("每日王", eText(sum.byType.day)) +
+      (hasMonth ? kv("黑魔法師那週", eText(m.value), m.left.length ? `${m.left.length} 顆賣不掉` : "") : "") +
       "</div>" +
-      `<p class="bs-note muted">台幣依「送禮買賣」的楓幣比率（${intFmt.format(r)} 萬楓幣 = 1 台幣）</p>`;
+      `<div class="f-line total pos bs-total" title="台幣依「送禮買賣」的楓幣比率（${intFmt.format(r)} 萬楓幣 = 1 台幣）"><span>每月收入<small>4 週${hasMonth ? "，其中一週打黑魔法師" : ""}・約 ${nt(sum.monthly)}</small></span><b>${eText(sum.monthly)}</b></div>`;
   }
 
   function render() {
@@ -329,7 +424,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 事件 ---------- */
-  $$("#bsPages button").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); render(); }));
+  $$("#bsPages [data-page]").forEach((b) => b.addEventListener("click", () => { st.page = b.dataset.page; save(); render(); $("#bsList").scrollTop = 0; }));
   $("#bsAdd").addEventListener("click", () => {
     if (st.chars.length >= C.MAX_CHARS) { toast(`最多 ${C.MAX_CHARS} 隻角色`); return; }
     const c = newChar(st.chars.length + 1);
@@ -340,6 +435,14 @@ if (typeof document !== "undefined") (() => {
   });
   $("#bsClear").addEventListener("click", async () => {
     const ch = cur();
+    if (st.page === "reset") {
+      const keys = Object.keys(ch.sel).filter((k) => ch.sel[k].r);
+      if (!keys.length) return;
+      if (!(await confirmBox(`確定要清除「${ch.name || "角色"}」用的重製卷嗎？`))) return;
+      keys.forEach((k) => delete ch.sel[k].r);
+      save(); render();
+      return;
+    }
     const keys = Object.keys(ch.sel).filter((k) => C.BY_KEY[k]?.type === st.page);
     if (!keys.length) return;
     if (!(await confirmBox(`確定要清除「${ch.name || "角色"}」的${PAGE_NAME[st.page]}嗎？`))) return;

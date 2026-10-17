@@ -1443,12 +1443,27 @@ pub struct Piece {
     pub oy: i32,
 }
 
+/// 會動的名牌：一格動畫（delay 毫秒）
+#[derive(Serialize, Clone)]
+pub struct AniPiece {
+    pub png: String,
+    pub w: u32,
+    pub h: u32,
+    pub ox: i32,
+    pub oy: i32,
+    pub delay: i32,
+}
+
 #[derive(Serialize, Clone)]
 pub struct UiSkin {
     pub id: i64,
     /// 文字顏色（#rrggbb）
     pub clr: Option<String>,
     pub pieces: HashMap<String, Piece>,
+    /// 會動的名牌：「編號/ani/格數」或「編號/2（1、0）/格數」的動畫
+    pub ani: Vec<AniPiece>,
+    /// aniNameTag = 1：整個名牌都是動畫（不畫 c）
+    pub ani_tag: bool,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -1515,7 +1530,10 @@ impl Ctx {
         let base = id.to_string();
         let is_canvas = |p: &str| matches!(resolve(&root, p, 0), Some(Node::Canvas(..)));
         // 一般是「編號/c」；有動畫的是「編號/0/c」
-        let path = [base.clone(), format!("{base}/0")].into_iter().find(|p| keys.iter().any(|k| is_canvas(&format!("{p}/{k}"))));
+        let path = [base.clone(), format!("{base}/0")]
+            .into_iter()
+            .find(|p| keys.iter().any(|k| is_canvas(&format!("{p}/{k}"))))
+            .or_else(|| ["ani", "2", "1", "0"].iter().any(|d| is_canvas(&format!("{base}/{d}/0"))).then(|| base.clone()));
         let Some(path) = path else {
             let kids: Vec<String> = resolve(&root, &base, 0).map(|n| n.children().iter().map(|(k, _)| k.clone()).take(20).collect()).unwrap_or_default();
             notes.push(format!("UI/{img}/{id} 的內容：{}", if kids.is_empty() { "（沒有這個編號）".to_string() } else { kids.join("、") }));
@@ -1538,10 +1556,31 @@ impl Ctx {
                 }
             }
         }
-        if pieces.is_empty() {
+        // 會動的名牌（和 WzComparerR2 的讀法相同）：先找 ani，再找 2、1、0 底下的 0、1、2… 畫格
+        let mut ani = Vec::new();
+        let ani_tag = resolve(&root, &format!("{base}/aniNameTag"), 0).and_then(|v| v.as_int()).unwrap_or(0) != 0;
+        if img == "NameTag.img" {
+            let dir = ["ani", "2", "1", "0"].iter().map(|d| format!("{base}/{d}")).find(|d| is_canvas(&format!("{d}/0")));
+            if let Some(dir) = dir {
+                for f in 0..200 {
+                    let Some(cn) = resolve(&root, &format!("{dir}/{f}"), 0).cloned() else { break };
+                    if !matches!(cn, Node::Canvas(..)) {
+                        break;
+                    }
+                    let (ox, oy) = canvas_origin(&cn);
+                    let delay = canvas_delay(&cn).unwrap_or(100);
+                    if let Ok((w, h, px)) = self.data.pixels_of(&rel, img, &cn) {
+                        if let Ok(png) = png_data_url(w, h, &px) {
+                            ani.push(AniPiece { png, w, h, ox, oy, delay });
+                        }
+                    }
+                }
+            }
+        }
+        if pieces.is_empty() && ani.is_empty() {
             return None;
         }
-        Some(UiSkin { id, clr, pieces })
+        Some(UiSkin { id, clr, pieces, ani, ani_tag })
     }
 }
 

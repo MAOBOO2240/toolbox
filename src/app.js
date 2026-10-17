@@ -147,13 +147,43 @@ function rgbToHsl(r, g, b) {
   const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return [h * 60, s, l];
 }
-function hslToHex(h, s, l) {
-  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
-  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
-  return "#" + [f(0), f(8), f(4)].map((x) => x.toString(16).padStart(2, "0")).join("");
+/* OKLCH：亮度一致時色相看起來比較準，深色背景不會把粉色壓成咖啡色 */
+const _lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+const _gam = (c) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
+function rgbToOklch(r, g, b) {
+  r = _lin(r); g = _lin(g); b = _lin(b);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  return [L, Math.hypot(A, B), ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360];
 }
+function oklchToRgb(L, C, H) {
+  // 超出螢幕色域時慢慢降低彩度
+  for (let c = C; ; c *= 0.92) {
+    const A = c * Math.cos((H * Math.PI) / 180), B = c * Math.sin((H * Math.PI) / 180);
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+    const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+    const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+    const rgb = [
+      4.0767416621 * l - 3.3077085802 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+    ];
+    if (c < 0.002 || rgb.every((v) => v >= -0.001 && v <= 1.001)) return rgb.map((v) => Math.round(Math.max(0, Math.min(255, _gam(Math.max(0, v))))));
+  }
+}
+const oklchHex = (L, C, H) => "#" + oklchToRgb(L, C, H).map((x) => x.toString(16).padStart(2, "0")).join("");
+const oklchA = (L, C, H, a) => `rgba(${oklchToRgb(L, C, H).join(", ")}, ${a})`;
+
 let tintCache = { src: null, hsl: null };
-/** 紙娃娃最有代表性的顏色（飽和度高、出現最多的色相） */
+/**
+ * 紙娃娃最有代表性的顏色，回傳 OKLCH [亮度, 彩度, 色相]
+ * - 淡色（粉彩）也要算進來，不然淡粉色角色只會取到深色描邊
+ * - 找出最多的色相後，把附近 ±35° 的像素平均，取得角色真正看起來的顏色
+ */
 function dollAccent() {
   const img = document.getElementById("sideDollImg");
   if (!img || img.hidden || !img.complete || !img.naturalWidth) return null;
@@ -168,26 +198,35 @@ function dollAccent() {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, 0, 0, w, h);
     const px = ctx.getImageData(0, 0, w, h).data;
-    const bins = Array.from({ length: 36 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+    const bins = new Float64Array(36);
+    const pts = [];
     let total = 0;
     for (let i = 0; i < px.length; i += 4) {
       if (px[i + 3] < 200) continue;
       const [hh, ss, ll] = rgbToHsl(px[i], px[i + 1], px[i + 2]);
-      const wgt = ss * (1 - Math.abs(2 * ll - 1)); // 彩度
-      if (wgt < 0.15) continue;
-      const bin = bins[Math.floor(hh / 10) % 36];
-      bin.w += wgt; bin.r += px[i] * wgt; bin.g += px[i + 1] * wgt; bin.b += px[i + 2] * wgt;
+      const chroma = ss * (1 - Math.abs(2 * ll - 1));
+      if (chroma < 0.05 || ll > 0.97 || ll < 0.08) continue;
+      const wgt = Math.sqrt(chroma); // 開根號：淡色的面積也算數
+      bins[Math.floor(hh / 10) % 36] += wgt;
+      pts.push(hh, wgt, i);
       total += wgt;
     }
-    // 相鄰色相合在一起比，挑最多的
+    // 相鄰色相（±20°）合在一起比，挑最多的
     let best = -1, bestW = 0;
     for (let i = 0; i < 36; i++) {
-      const w3 = bins[(i + 35) % 36].w * 0.5 + bins[i].w + bins[(i + 1) % 36].w * 0.5;
-      if (w3 > bestW) { bestW = w3; best = i; }
+      const s5 = bins[(i + 34) % 36] * 0.25 + bins[(i + 35) % 36] * 0.5 + bins[i] + bins[(i + 1) % 36] * 0.5 + bins[(i + 2) % 36] * 0.25;
+      if (s5 > bestW) { bestW = s5; best = i; }
     }
     if (best >= 0 && total > 4) {
-      const b = bins[best];
-      hsl = rgbToHsl(b.r / b.w, b.g / b.w, b.b / b.w);
+      const ctr = best * 10 + 5;
+      let sw = 0, r = 0, g = 0, b = 0;
+      for (let k = 0; k < pts.length; k += 3) {
+        const d = ((pts[k] - ctr + 540) % 360) - 180;
+        if (Math.abs(d) > 35) continue;
+        const wgt = pts[k + 1], i = pts[k + 2];
+        sw += wgt; r += _lin(px[i]) * wgt; g += _lin(px[i + 1]) * wgt; b += _lin(px[i + 2]) * wgt;
+      }
+      if (sw > 0) hsl = rgbToOklch(_gam(r / sw), _gam(g / sw), _gam(b / sw));
     }
   } catch (_) { hsl = null; } // 官方角色圖（外部網址）無法讀取像素
   tintCache = { src: img.src, hsl };
@@ -197,17 +236,22 @@ function dollAccent() {
 function applyTint(dark) {
   const acc = isCharTheme() ? dollAccent() : null;
   if (!acc) { TINT_VARS.forEach((v) => root.style.removeProperty(v)); return null; }
-  const h = Math.round(acc[0]);
-  const s = Math.min(0.85, Math.max(0.45, acc[1]));
-  const hsl = (sat, lit, a = 1) => `hsl(${h} ${Math.round(sat * 100)}% ${Math.round(lit * 100)}% / ${a})`;
-  const lightAcc = dark ? 0.62 : 0.45;
+  const [, ac, ah] = acc;
+  // 深色底時紅、粉色會看起來像咖啡色，底色稍微往紫紅偏一點
+  let h = ah;
+  if (dark && ((h - 345 + 360) % 360) < 55) h = (h - 12 + 360) % 360; // 345°～40°
+  // 底色的彩度跟著角色：粉彩角色淡淡的，鮮豔角色濃一點
+  const bc = Math.min(0.045, 0.02 + ac * 0.25);
+  const c = (k) => bc * k;
+  const accL = dark ? 0.7 : 0.56; // 按鈕底色要能放白字
+  const accC = Math.min(0.17, Math.max(0.09, ac * 1.4)); // 粉彩角色的強調色也要看得出顏色
   const vars = dark
-    ? { "--bg": hsl(0.22, 0.11), "--side": hsl(0.24, 0.14), "--card": hsl(0.2, 0.17), "--card-2": hsl(0.18, 0.22), "--text-2": hsl(0.14, 0.7), "--sep": hsl(0.35, 0.75, 0.14), "--glass": hsl(0.22, 0.11, 0.86) }
-    : { "--bg": hsl(0.4, 0.95), "--side": hsl(0.45, 0.97), "--card": "#ffffff", "--card-2": hsl(0.35, 0.94), "--text-2": hsl(0.12, 0.4), "--sep": hsl(0.25, 0.3, 0.14), "--glass": hsl(0.4, 0.95, 0.8) };
-  vars["--blue"] = hsl(s, lightAcc);
-  vars["--blue-soft"] = hsl(s, lightAcc, dark ? 0.2 : 0.14);
+    ? { "--bg": oklchHex(0.215, c(0.9), h), "--side": oklchHex(0.245, c(1), h), "--card": oklchHex(0.28, c(0.9), h), "--card-2": oklchHex(0.32, c(0.85), h), "--text-2": oklchHex(0.76, c(0.8), h), "--sep": oklchA(0.85, c(1.4), h, 0.14), "--glass": oklchA(0.215, c(0.9), h, 0.86) }
+    : { "--bg": oklchHex(0.965, c(0.35), h), "--side": oklchHex(0.978, c(0.25), h), "--card": "#ffffff", "--card-2": oklchHex(0.945, c(0.4), h), "--text-2": oklchHex(0.5, c(0.8), h), "--sep": oklchA(0.4, c(1), h, 0.14), "--glass": oklchA(0.965, c(0.35), h, 0.8) };
+  vars["--blue"] = oklchHex(accL, accC, ah);
+  vars["--blue-soft"] = oklchA(accL, accC, ah, dark ? 0.2 : 0.14);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
-  return { caption: dark ? hslToHex(h, 0.24, 0.14) : hslToHex(h, 0.45, 0.9), border: hslToHex(h, s, lightAcc) };
+  return { caption: dark ? oklchHex(0.245, c(1), h) : oklchHex(0.93, c(0.6), h), border: oklchHex(accL, accC, ah) };
 }
 
 function applySettings() {
@@ -531,7 +575,7 @@ const UiArt = (() => {
   /** 先把所有圖片載入（之後畫圖不用等） */
   async function ready(skin) {
     if (!skin?.pieces) return false;
-    const list = Object.values(skin.pieces);
+    const list = [...Object.values(skin.pieces), ...(skin.ani || [])];
     const got = await Promise.all(list.map(load));
     list.forEach((p, i) => done.set(p.png, got[i]));
     return got.some(Boolean);
@@ -575,20 +619,104 @@ const UiArt = (() => {
     out.getContext("2d").drawImage(cv, -tx0, -ty0);
     return { canvas: out, x: x0 + tx0, y: y0 + ty0 };
   }
-  /** 名牌：文字寬 tw，中間 c 鋪滿文字範圍，左右接 w、e；原點 (0, 0) 是文字範圍的上緣中間 */
+  /** 好幾組要疊在一起的圖（動畫的每一格）畫成同樣大小、同樣位置的畫布，再一起去掉四周透明的部分 */
+  function paintFrames(list) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const ops of list) for (const { p, x, y, clip } of ops) {
+      let l = x - p.ox, t = y - p.oy, r = l + p.w, b = t + p.h;
+      if (clip) { l = Math.max(l, clip[0]); t = Math.max(t, clip[1]); r = Math.min(r, clip[2]); b = Math.min(b, clip[3]); }
+      if (r > l && b > t) { x0 = Math.min(x0, l); y0 = Math.min(y0, t); x1 = Math.max(x1, r); y1 = Math.max(y1, b); }
+    }
+    if (!isFinite(x0)) return null;
+    const W = x1 - x0, H = y1 - y0;
+    const canvases = list.map((ops) => {
+      const cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      const g = cv.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      for (const { p, x, y, clip } of ops) {
+        const im = done.get(p.png);
+        if (!im) continue;
+        g.save();
+        if (clip) { g.beginPath(); g.rect(clip[0] - x0, clip[1] - y0, clip[2] - clip[0], clip[3] - clip[1]); g.clip(); }
+        g.drawImage(im, x - p.ox - x0, y - p.oy - y0);
+        g.restore();
+      }
+      return cv;
+    });
+    // 所有格合起來的不透明範圍
+    let tx0 = W, ty0 = H, tx1 = 0, ty1 = 0;
+    for (const cv of canvases) {
+      const px = cv.getContext("2d").getImageData(0, 0, W, H).data;
+      for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+        if (px[(yy * W + xx) * 4 + 3] > 8) { if (xx < tx0) tx0 = xx; if (yy < ty0) ty0 = yy; if (xx + 1 > tx1) tx1 = xx + 1; if (yy + 1 > ty1) ty1 = yy + 1; }
+      }
+    }
+    if (tx1 <= tx0) return { canvases, x: x0, y: y0 };
+    const out = canvases.map((cv) => {
+      const o = document.createElement("canvas");
+      o.width = tx1 - tx0; o.height = ty1 - ty0;
+      o.getContext("2d").drawImage(cv, -tx0, -ty0);
+      return o;
+    });
+    return { canvases: out, x: x0 + tx0, y: y0 + ty0 };
+  }
+  /**
+   * 名牌：文字寬 tw；原點 (0, 0) 是文字範圍的上緣中間。
+   * - 一般名牌：中間 c 鋪滿文字範圍，左右接 w、e
+   * - 會動的名牌（和 WzComparerR2 相同）：c 是整塊底圖（不鋪），動畫貼在 c 的左上角；
+   *   aniNameTag 的名牌只有動畫；c 只有 1×1 的名牌，動畫貼在文字左上角
+   * 回傳的 frames 是每一格動畫的畫布（一般名牌只有一格）
+   */
   function nameTag(skin, tw) {
     const P = skin.pieces || {};
-    const left = -Math.ceil(tw / 2), right = left + tw;
-    const ops = [];
-    if (P.c) for (let x = left; x < right; x += Math.max(1, P.c.w)) ops.push({ p: P.c, x, y: 0, clip: [left, -1e4, right, 1e4] });
-    if (P.w) ops.push({ p: P.w, x: left, y: 0 });
-    if (P.e) ops.push({ p: P.e, x: right, y: 0 });
-    const art = paint(ops, true);
+    const A = skin.ani || [];
+    let left = -Math.ceil(tw / 2), right = left + tw;
+    let list, cy = P.c ? P.c.h / 2 - P.c.oy : 7;
+    if (!A.length) {
+      const ops = [];
+      if (P.c) for (let x = left; x < right; x += Math.max(1, P.c.w)) ops.push({ p: P.c, x, y: 0, clip: [left, -1e4, right, 1e4] });
+      if (P.w) ops.push({ p: P.w, x: left, y: 0 });
+      if (P.e) ops.push({ p: P.e, x: right, y: 0 });
+      list = [ops];
+    } else {
+      const mixed = skin.ani_tag || (P.c && (P.c.w > 1 || P.c.h > 1));
+      const bgW = mixed ? (P.c ? P.c.w : 0) : tw; // 只有動畫時，動畫原點對齊名牌中間
+      const bgLeft = -Math.floor(bgW / 2);
+      const sx = skin.ani_tag || !P.c ? 0 : P.c.ox, sy = skin.ani_tag || !P.c ? 0 : P.c.oy;
+      const base = [];
+      if (mixed && !skin.ani_tag && P.c) base.push({ p: P.c, x: bgLeft, y: 0 });
+      const ax = mixed ? bgLeft - sx : left, ay = mixed ? -sy : 0;
+      list = A.map((a) => [...base, { p: a, x: ax, y: ay }]);
+      if (mixed) { left -= sx; right -= sx; }
+      if (!P.c || P.c.w <= 1) {
+        // 沒有中間那塊：文字放在動畫第一格的中間高度
+        const a = A[0];
+        cy = Math.round(ay - a.oy + a.h / 2);
+      }
+    }
+    const art = paintFrames(list);
     if (!art) return null;
-    // 文字放在中間那塊的正中央
-    const cy = P.c ? P.c.h / 2 - P.c.oy : 7;
-    return { ...art, left, right, cy };
+    const frames = art.canvases.map((canvas, i) => ({ canvas, delay: A[i]?.delay || 100 }));
+    return { canvas: frames[0].canvas, frames, x: art.x, y: art.y, left, right, cy };
   }
+  /** 名牌動畫：依每一格的時間換圖；同一個 key 重新播放時會停掉上一次的 */
+  const players = new Map();
+  function play(key, frames, show) {
+    clearTimeout(players.get(key));
+    players.delete(key);
+    if (!frames?.length) return;
+    show(frames[0], 0);
+    if (frames.length < 2) return;
+    let i = 0;
+    const next = () => {
+      i = (i + 1) % frames.length;
+      show(frames[i], i);
+      players.set(key, setTimeout(next, Math.max(30, frames[i].delay || 100)));
+    };
+    players.set(key, setTimeout(next, Math.max(30, frames[0].delay || 100)));
+  }
+  const stop = (key) => { clearTimeout(players.get(key)); players.delete(key); };
   /**
    * 對話框（九宮格）：文字 tw × th；原點 (0, 0) 是箭頭的位置（對話框下緣的正中間）。
    * 畫法和遊戲相同：四邊依圖片大小重複，角落、箭頭依原點貼上
@@ -613,7 +741,7 @@ const UiArt = (() => {
     if (!art) return null;
     return { ...art, left: -tw / 2, top: top + (height - th) / 2 };
   }
-  return { ready, nameTag, balloon };
+  return { ready, nameTag, balloon, play, stop };
 })();
 
 /* ---------- 側欄紙娃娃：輸入角色名稱，或同步美容美髮的造型 ---------- */
@@ -682,6 +810,7 @@ const SideDoll = (() => {
     const wrap = inp.parentElement;
     if (!t || !(await UiArt.ready(t))) {
       if (my !== paintGen) return;
+      UiArt.stop("side-name");
       wrap.classList.remove("tagged");
       inp.removeAttribute("style");
       return;
@@ -709,13 +838,16 @@ const SideDoll = (() => {
         paddingRight: `${(art.x + W - art.right) * k}px`,
         paddingTop: `${Math.max(0, 2 * mid - full)}px`,
         paddingBottom: `${Math.max(0, full - 2 * mid)}px`,
-        backgroundImage: `url("${art.canvas.toDataURL()}")`,
         backgroundSize: `${W * k}px ${H * k}px`,
         backgroundRepeat: "no-repeat",
         backgroundColor: "transparent",
       });
+      // 會動的名牌：每一格先轉成圖片，輪流換背景
+      const urls = art.frames.map((f) => ({ url: `url("${f.canvas.toDataURL()}")`, delay: f.delay }));
+      UiArt.play("side-name", urls, (f) => (inp.style.backgroundImage = f.url));
       return;
     }
+    UiArt.stop("side-name");
     wrap.classList.remove("tagged");
     inp.removeAttribute("style");
   }

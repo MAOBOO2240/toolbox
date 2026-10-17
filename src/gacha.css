@@ -134,10 +134,12 @@
 .g-box small { font-size: 0.72rem; font-weight: 700; opacity: 0.75; }
 .g-box:hover { filter: brightness(1.05); }
 .g-box:active { transform: scale(0.97); }
-/* 銀箱、金箱用淺底深字，深色模式下也清楚 */
-.g-box.silver { background: linear-gradient(135deg, #f1f5f9, #cbd5e1); color: #1e293b; }
-.g-box.gold { background: linear-gradient(135deg, #fde68a, #f5b52e); color: #3b2600; }
 .g-box:disabled { background: var(--card-2); color: var(--text-2); pointer-events: none; }
+/* 箱子分頁：碎片夠開時亮起來（動畫沿用星光錦囊），不夠時變淡 */
+#gTabs .cbtn.empty:not(.on) { opacity: 0.5; }
+#gTabs .cbtn.ready:not(.on) { animation: s-ready 1.8s ease-in-out infinite; }
+#gTabs .cbtn.ready small { opacity: 1; font-weight: 800; }
+#gPageSim .g-draw-row .pill:disabled { opacity: 0.45; cursor: default; }
 .g-actions-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 0.45rem; }
 .danger-link { color: var(--red); }
 .danger-link:hover { background: rgba(255, 59, 48, 0.12); }

@@ -63,23 +63,26 @@ const TrackCore = (() => {
 
   /**
    * 平均每天的經驗：past 是 days 天前那天結束時的資料，
-   * 經過的時間 = (days - 1) 天 + 今天已經過的時間
+   * 經過的時間 = (days - 1) 天 + 今天已經過的時間，至少算 1 天
+   * （只有昨天的資料時，凌晨剛練一點點不會被放大成好幾倍）
    */
   function perDay(now, past, days, hoursToday) {
     if (!now || !past || !days) return null;
-    const elapsed = Math.max(0.25, days - 1 + hoursToday / 24);
+    const elapsed = Math.max(1, days - 1 + hoursToday / 24);
     return Math.max(0, total(now) - total(past)) / elapsed;
   }
 
-  /** 預計升級：還差多少 ÷ 每天平均 → 幾天後 */
+  /** 預計升級：還差多少 ÷ 每天平均 → 幾天後；超過兩年就不算日期了 */
+  const ETA_MAX = 730;
   function eta(now, daily) {
     if (!now || now.level >= T.MAX) return null;
     const left = Math.max(0, T.need(now.level) - (Number(now.exp) || 0));
     if (!(daily > 0)) return null;
-    return { days: left / daily, level: now.level + 1 };
+    const days = left / daily;
+    return { days, level: now.level + 1, far: days > ETA_MAX };
   }
 
-  return { PREFIX, total, today, perDay, eta };
+  return { PREFIX, ETA_MAX, total, today, perDay, eta };
 })();
 
 if (typeof module !== "undefined") module.exports = { ExpCore, TrackCore };
@@ -90,7 +93,7 @@ if (typeof module !== "undefined") module.exports = { ExpCore, TrackCore };
 if (typeof document !== "undefined") (() => {
   const C = TrackCore, E = ExpCore;
   const KEY = "track-v1";
-  let st = (() => { try { return { names: [], data: {}, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {} }; } })();
+  let st = (() => { try { return { names: [], data: {}, sort: null, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null }; } })();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} };
   let busy = false, timer = null;
 
@@ -102,6 +105,50 @@ if (typeof document !== "undefined") (() => {
   }
   const hoursToday = () => { const n = new Date(); return n.getHours() + n.getMinutes() / 60; };
 
+  /** 一隻角色要顯示的數值（排序也用這些） */
+  function stats(name) {
+    const r = st.data[name];
+    const now = r?.now;
+    // 今天的起點：昨天的資料；凌晨 Nexon 還沒準備好時，用今天第一次查到的資料
+    const t = C.today(now, r?.yesterday || r?.first_today);
+    const daily = C.perDay(now, r?.past, r?.past_days, hoursToday());
+    const eta = C.eta(now, daily);
+    const dailyPct = daily != null && now ? (daily / Math.max(1, E.need(now.level))) * 100 : null;
+    return { r, now, t, daily, eta, dailyPct };
+  }
+
+  /* ---------- 排序：點表頭 大到小 → 小到大 → 自己排的順序 ---------- */
+  const SORTS = {
+    level: (x) => (x.now ? x.now.level + x.now.rate / 100 : null),
+    exp: (x) => (x.now ? x.now.rate : null),
+    today: (x) => (x.t ? x.t.levels * 100 + (x.t.pct || 0) : null),
+    avg: (x) => x.dailyPct,
+    eta: (x) => (x.now?.level >= E.MAX ? null : x.eta ? x.eta.days : null),
+  };
+  const HEAD = [
+    ["", null], ["", null], ["角色", null], ["等級", "level"], ["經驗", "exp"], ["今天", "today"],
+    ["平均每天<small>(30天)</small>", "avg"], ["預計升級<small>(看看就好)</small>", "eta"], ["", null],
+  ];
+  function ordered() {
+    const s = st.sort;
+    if (!s || !SORTS[s.key]) return [...st.names];
+    const val = (n) => SORTS[s.key](stats(n));
+    return [...st.names].sort((a, b) => {
+      const va = val(a), vb = val(b);
+      if (va == null && vb == null) return st.names.indexOf(a) - st.names.indexOf(b);
+      if (va == null) return 1; // 沒資料的放最後
+      if (vb == null) return -1;
+      return s.dir === "desc" ? vb - va : va - vb;
+    });
+  }
+  function clickSort(key) {
+    const s = st.sort;
+    if (!s || s.key !== key) st.sort = { key, dir: "desc" };
+    else if (s.dir === "desc") st.sort = { key, dir: "asc" };
+    else st.sort = null;
+    save(); render();
+  }
+
   function render() {
     const box = $("#tkList");
     box.innerHTML = "";
@@ -111,13 +158,27 @@ if (typeof document !== "undefined") (() => {
     }
     const head = document.createElement("div");
     head.className = "tk-row tk-head";
-    head.innerHTML = "<span></span><span>角色</span><span>等級</span><span>經驗</span><span>今天</span><span>平均每天</span><span>預計升級</span><span></span>";
+    for (const [label, key] of HEAD) {
+      const c = document.createElement(key ? "button" : "span");
+      c.innerHTML = label;
+      if (key) {
+        c.className = "tk-sort" + (st.sort?.key === key ? ` on ${st.sort.dir}` : "");
+        c.title = "點一下：大到小；再點：小到大；再點：恢復自己排的順序";
+        c.addEventListener("click", () => clickSort(key));
+      }
+      head.appendChild(c);
+    }
     box.appendChild(head);
-    st.names.forEach((name) => {
-      const r = st.data[name];
-      const now = r?.now;
+    for (const name of ordered()) {
+      const { r, now, t, eta, dailyPct } = stats(name);
       const row = document.createElement("div");
       row.className = "card tk-row";
+      row.dataset.name = name;
+      const grip = document.createElement("span");
+      grip.className = "tk-grip";
+      grip.title = "按住拖曳可以改變順序";
+      grip.innerHTML = "<i></i><i></i><i></i><i></i><i></i><i></i>";
+      grip.addEventListener("pointerdown", (e) => startDrag(e, row));
       const pic = document.createElement("span");
       pic.className = "tk-pic";
       if (now?.image) { const img = new Image(); img.src = now.image; img.alt = ""; img.draggable = false; pic.append(img); }
@@ -128,11 +189,6 @@ if (typeof document !== "undefined") (() => {
       who.children[1].textContent = r?.error ? r.error : [now?.world, now?.class].filter(Boolean).join("・");
       if (r?.error) who.children[1].classList.add("bad");
       const cell = (text, cls = "") => { const s = document.createElement("span"); s.className = `tk-cell ${cls}`; s.textContent = text; return s; };
-      // 今天的起點：昨天的資料；凌晨 Nexon 還沒準備好時，用今天第一次查到的資料
-      const t = C.today(now, r?.yesterday || r?.first_today);
-      const daily = C.perDay(now, r?.past, r?.past_days, hoursToday());
-      const eta = C.eta(now, daily);
-      const dailyPct = daily != null && now ? (daily / Math.max(1, E.need(now.level))) * 100 : null;
       const del = document.createElement("button");
       del.className = "b-x";
       del.title = "移除";
@@ -143,19 +199,70 @@ if (typeof document !== "undefined") (() => {
         delete st.data[name];
         save(); render();
       });
-      const avg = cell(dailyPct == null ? "—" : `+${fmtPct(dailyPct)}`, dailyPct > 0 ? "up" : "");
-      if (r?.past_days && r.past_days < 30) avg.title = `角色資料只查得到近 ${r.past_days} 天`;
+      // 一天超過一級時改顯示幾級，不顯示好幾百 %
+      const avgText = dailyPct == null ? "—" : dailyPct >= 100 ? `+${(dailyPct / 100).toFixed(2)} 級` : `+${fmtPct(dailyPct)}`;
+      const avg = cell(avgText, dailyPct > 0 ? "up" : "");
+      if (r?.past_days === 1) avg.title = "只查得到昨天的資料，先用今天練的量估計";
+      else if (r?.past_days && r.past_days < 30) avg.title = `角色資料只查得到近 ${r.past_days} 天`;
+      let etaText = "—";
+      if (now?.level >= E.MAX) etaText = "已滿級";
+      else if (eta?.far) etaText = `兩年以上 Lv.${eta.level}`;
+      else if (eta) etaText = `${dateText(eta.days)} Lv.${eta.level}`;
+      const etaCell = cell(etaText, eta && !eta.far ? "tk-eta" : "");
+      if (eta) etaCell.title = `照近期的速度，大約 ${Math.ceil(eta.days)} 天後升到 Lv.${eta.level}`;
       row.append(
-        pic, who,
+        grip, pic, who,
         cell(now ? `Lv.${now.level}` : "—", "tk-lv"),
         cell(now ? fmtPct(now.rate) : "—"),
-        cell(!t ? "—" : t.levels ? `+${t.levels} 級` : `+${fmtPct(t.pct)}`, t && (t.levels || t.pct > 0) ? "up" : ""),
+        cell(!t ? "—" : t.levels ? `+${t.levels} 級` : `+${fmtPct(Math.min(100, t.pct))}`, t && (t.levels || t.pct > 0) ? "up" : ""),
         avg,
-        cell(now?.level >= E.MAX ? "已滿級" : eta ? `${dateText(eta.days)} Lv.${eta.level}` : "—", eta ? "tk-eta" : ""),
+        etaCell,
         del,
       );
       box.appendChild(row);
-    });
+    }
+  }
+
+  /* ---------- 拖曳排序：按住左邊的六個點 ---------- */
+  function startDrag(e, row) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const box = $("#tkList");
+    const rows = () => [...box.querySelectorAll(".tk-row:not(.tk-head)")];
+    const startY = e.clientY;
+    const top0 = row.getBoundingClientRect().top; // 拖曳開始時這一列的位置
+    let shift = 0, lastY = startY;
+    row.classList.add("dragging");
+    try { row.setPointerCapture(e.pointerId); } catch (_) {}
+    // 讓這一列跟著滑鼠：位移 = 滑鼠移動量 − 這一列在清單裡已經換過去的距離
+    const follow = () => {
+      const natural = row.getBoundingClientRect().top - shift;
+      shift = lastY - startY - (natural - top0);
+      row.style.transform = `translateY(${shift}px)`;
+    };
+    const move = (ev) => {
+      lastY = ev.clientY;
+      follow();
+      // 經過上一列或下一列的中間就換位置
+      const list = rows();
+      const i = list.indexOf(row);
+      const prev = list[i - 1], next = list[i + 1];
+      const mid = (r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2; };
+      const rb = row.getBoundingClientRect();
+      if (prev && rb.top < mid(prev)) { box.insertBefore(row, prev); follow(); }
+      else if (next && rb.bottom > mid(next)) { box.insertBefore(row, next.nextSibling); follow(); }
+    };
+    const up = () => {
+      row.removeEventListener("pointermove", move);
+      row.removeEventListener("pointerup", up);
+      row.removeEventListener("pointercancel", up);
+      const order = rows().map((r) => r.dataset.name);
+      if (order.join("\n") !== ordered().join("\n")) { st.names = order; st.sort = null; save(); }
+      render();
+    };
+    row.addEventListener("pointermove", move);
+    row.addEventListener("pointerup", up);
+    row.addEventListener("pointercancel", up);
   }
 
   async function refresh(force) {

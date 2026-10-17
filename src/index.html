@@ -259,9 +259,9 @@
           </div>
           <div class="card g-pool">
             <div class="g-tabs" id="gTabs">
-              <button class="cbtn c-amber" data-pool="apple">黃金蘋果</button>
-              <button class="cbtn c-silver" data-pool="silver">銀色箱子</button>
-              <button class="cbtn c-orange" data-pool="gold">金色箱子</button>
+              <button class="cbtn c-amber" data-pool="apple">黃金蘋果<small></small></button>
+              <button class="cbtn c-silver" data-pool="silver">銀色箱子<small></small></button>
+              <button class="cbtn c-orange" data-pool="gold">金色箱子<small></small></button>
             </div>
             <div class="g-toolbar">
               <label class="g-cost">每抽成本<input type="text" inputmode="decimal" id="gCost" placeholder="0" /></label>
@@ -296,12 +296,8 @@
                 <button class="pill primary" data-draw="10">10 抽</button>
                 <button class="pill primary" data-draw="100">100 抽</button>
               </div>
-              <div class="g-box-row">
-                <button class="g-box silver" id="gOpenSilver"><span>開啟幸運銀箱</span><small>消耗 30 碎片</small></button>
-                <button class="g-box gold" id="gOpenGold"><span>開啟幸運金箱</span><small>消耗 100 碎片</small></button>
-              </div>
               <div class="g-actions-foot">
-                <span class="muted">按住按鈕可連續抽取・每抽獲得 1 個碎片</span>
+                <span class="muted s-draw-info" id="gDrawInfo"></span>
                 <button class="cbtn c-red small solid" id="gReset">重置統計</button>
               </div>
             </div>
@@ -736,11 +732,6 @@
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">BOSS 結晶</span>
-          <div class="g-pages" id="bsPages">
-            <button class="cbtn c-purple" data-page="month">每月王</button>
-            <button class="cbtn c-pink" data-page="week">每週王</button>
-            <button class="cbtn c-blue" data-page="day">每日王</button>
-          </div>
         </nav>
         <div class="bs-page">
           <div class="bs-side">
@@ -751,7 +742,16 @@
             <div class="card bs-card" id="bsSum"></div>
           </div>
           <div class="card bs-card bs-main">
-            <div class="bs-card-head"><div class="bs-list-head" id="bsListHead"></div><button class="cbtn c-red small" id="bsClear">清除</button></div>
+            <div class="bs-card-head bs-main-head">
+              <div class="bs-list-head" id="bsListHead"></div>
+              <div class="bs-pages" id="bsPages">
+                <button class="cbtn c-teal small" data-page="reset">BOSS重製卷</button>
+                <button class="cbtn c-purple small" data-page="month">每月王</button>
+                <button class="cbtn c-pink small" data-page="week">每週王</button>
+                <button class="cbtn c-blue small" data-page="day">每日王</button>
+                <button class="cbtn c-red small" id="bsClear">清除</button>
+              </div>
+            </div>
             <div class="bs-list" id="bsList"></div>
           </div>
         </div>

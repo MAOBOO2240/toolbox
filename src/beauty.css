@@ -464,7 +464,7 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
   font: 12px/14px "Microsoft JhengHei", "PingFang TC", sans-serif; letter-spacing: 0;
 }
 .b-nametag { top: 2px; }
-.b-balloon { top: -85px; }
+.b-balloon { top: -100px; }
 .b-nametag[hidden], .b-balloon[hidden] { display: none; }
 .b-nametag canvas, .b-balloon canvas { position: absolute; image-rendering: pixelated; }
 .nt-text, .bb-text { position: absolute; display: block; }

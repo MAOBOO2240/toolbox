@@ -464,10 +464,19 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 獎池表格 ---------- */
+  /** 箱子分頁：碎片夠開的時候亮起來，下面顯示可以開幾箱 */
+  const boxAvail = (pool) => Math.floor(st.stats.frags / C.BOX_COST[pool]);
   function renderTabs() {
     $$("#gTabs button").forEach((b) => {
       const p = b.dataset.pool;
       b.classList.toggle("on", p === st.tab);
+      const small = b.querySelector("small");
+      if (p === "apple") { small.textContent = "花錢抽"; b.classList.remove("ready", "empty"); return; }
+      const n = boxAvail(p);
+      small.textContent = n ? `可開 ${intFmt.format(n)} 箱` : `需 ${C.BOX_COST[p]} 碎片`;
+      b.classList.toggle("ready", n > 0);
+      b.classList.toggle("empty", n === 0);
+      b.title = `每 ${C.BOX_COST[p]} 個蘋果碎片可以開一次${C.POOL_NAME[p]}`;
     });
   }
 
@@ -579,12 +588,14 @@ if (typeof document !== "undefined") (() => {
     pEl.className = profit > 0 ? "pos" : profit < 0 ? "neg" : "";
     $("#sDraws").textContent = intFmt.format(s.draws);
     $("#sFrags").textContent = intFmt.format(s.frags);
-    for (const [pool, id] of [["silver", "#gOpenSilver"], ["gold", "#gOpenGold"]]) {
-      const need = C.BOX_COST[pool];
-      const btn = $(id);
-      btn.disabled = s.frags < need;
-      btn.querySelector("small").textContent = btn.disabled ? `碎片不足（需 ${need}）` : `消耗 ${need} 碎片`;
-    }
+    // 抽獎按鈕抽的是左邊選到的獎池：黃金蘋果花錢抽，箱子用碎片開
+    const pool = st.tab;
+    const avail = pool === "apple" ? Infinity : boxAvail(pool);
+    $$("[data-draw]").forEach((b) => (b.disabled = !avail));
+    $("#gDrawInfo").textContent = pool === "apple"
+      ? "目前抽：黃金蘋果・每抽獲得 1 個碎片・按住可連續抽"
+      : avail ? `目前開：${C.POOL_NAME[pool]}（剩 ${intFmt.format(avail)} 箱，每箱 ${C.BOX_COST[pool]} 碎片）` : `碎片不足，開${C.POOL_NAME[pool]}需要 ${C.BOX_COST[pool]} 個碎片`;
+    renderTabs();
   }
 
   const metric = (label, value, cls = "") => `<div class="g-metric"><span>${label}</span><b class="${cls}">${value}</b></div>`;
@@ -779,20 +790,20 @@ if (typeof document !== "undefined") (() => {
     if (msg) toast(msg);
   }
 
+  /** 抽左邊選到的獎池：黃金蘋果花錢抽；銀箱、金箱用碎片開，碎片不夠就停 */
   function drawN(n, fresh) {
-    if (!st.pools.apple.length) { toast("黃金蘋果獎池是空的"); return false; }
+    const pool = st.tab;
+    if (!st.pools[pool].length) { toast(`${C.POOL_NAME[pool]}獎池是空的`); return false; }
+    if (pool !== "apple") {
+      const avail = boxAvail(pool);
+      if (!avail) { toast(`碎片不足，開${C.POOL_NAME[pool]}需要 ${C.BOX_COST[pool]} 個碎片`); return false; }
+      n = Math.min(n, avail);
+    }
     if (fresh) beginBatch();
-    const draw = appleDrawer();
+    const draw = pool === "apple" ? appleDrawer() : boxOpener(pool);
     for (let i = 0; i < n; i++) draw();
     commit();
-  }
-
-  function openBox(pool, fresh) {
-    if (st.stats.frags < C.BOX_COST[pool]) return false;
-    if (!st.pools[pool].length) { toast(`${C.POOL_NAME[pool]}獎池是空的`); return false; }
-    if (fresh) beginBatch();
-    boxOpener(pool)();
-    commit();
+    if (pool !== "apple" && !boxAvail(pool)) return false; // 碎片用完，按住也停下來
   }
 
   function drawUntil(pool, name) {
@@ -841,7 +852,7 @@ if (typeof document !== "undefined") (() => {
   // 獎池分頁加上遊戲道具圖示
   const TAB_ITEM = { apple: "黃金蘋果", silver: "幸運的銀色箱子", gold: "幸運的金色箱子" };
   $$("#gTabs button").forEach((b) => b.prepend(ItemIcons.el(TAB_ITEM[b.dataset.pool])));
-  $$("#gTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
+  $$("#gTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); renderStats(); }));
 
   $("#gCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#gCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderAnalysis(); });
@@ -889,8 +900,6 @@ if (typeof document !== "undefined") (() => {
   });
 
   $$("[data-draw]").forEach((b) => holdable(b, (fresh) => drawN(Number(b.dataset.draw), fresh)));
-  holdable($("#gOpenSilver"), (fresh) => openBox("silver", fresh));
-  holdable($("#gOpenGold"), (fresh) => openBox("gold", fresh));
 
   $("#gReset").addEventListener("click", async () => {
     if (!(await confirmBox("確定要重置花費、價值、抽數、碎片與保管箱嗎？"))) return;
