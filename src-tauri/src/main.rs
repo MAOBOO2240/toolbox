@@ -203,9 +203,9 @@ fn set_frame(window: WebviewWindow, dark: bool) {
     #[cfg(windows)]
     {
         use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
-        const DWMWA_BORDER_COLOR: i32 = 34;
-        const DWMWA_CAPTION_COLOR: i32 = 35;
-        const DWMWA_TEXT_COLOR: i32 = 36;
+        const DWMWA_BORDER_COLOR: u32 = 34;
+        const DWMWA_CAPTION_COLOR: u32 = 35;
+        const DWMWA_TEXT_COLOR: u32 = 36;
         // COLORREF 是 0x00BBGGRR
         let rgb = |r: u32, g: u32, b: u32| (b << 16) | (g << 8) | r;
         let (caption, text, border) = if dark {
