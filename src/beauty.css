@@ -74,7 +74,39 @@
 .b-zoom.on { background: var(--blue); color: #fff; }
 .b-zoom svg { width: 1.3rem; height: 1.3rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 .b-colors { display: flex; flex-direction: column; gap: 0.4rem; }
-.b-color-row { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+.b-color-row { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+/* 色塊維持一行：空間不夠時色塊稍微縮小，不換行 */
+.b-color-row .b-swatches { flex-wrap: nowrap; gap: 0.35rem; }
+.b-color-row .b-sw { flex: 0 1 1.6rem; min-width: 1.05rem; height: auto; aspect-ratio: 1; }
+/* 最右邊的藍字「混染」；混染中前面多一個兩色小圓點 */
+.b-mix-link {
+  display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.1rem; border: 0; background: none; cursor: pointer;
+  color: var(--blue); font: inherit; font-size: 0.85rem; font-weight: 700; white-space: nowrap;
+}
+.b-mix-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.b-mix-link.on::before {
+  content: ""; width: 0.8rem; height: 0.8rem; border-radius: 50%;
+  background: linear-gradient(90deg, var(--a, #888) 50%, var(--b, #ccc) 50%);
+  box-shadow: 0 0 0 1.5px var(--card), 0 0 0 3px var(--blue);
+}
+/* 混染視窗 */
+.b-float.b-mix { width: min(27rem, calc(100vw - 3rem)); }
+.b-mix .b-swatches { flex-wrap: nowrap; }
+.b-mix-row { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr); align-items: center; gap: 0.5rem; font-size: 0.82rem; font-weight: 600; color: var(--text-2); }
+.b-mix .b-sw:disabled { opacity: 0.25; cursor: not-allowed; transform: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--sep); }
+.b-mix-rate { display: flex; flex-direction: column; gap: 0.35rem; }
+.b-mix-labels { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+#bMixRate {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 0.6rem; border-radius: 1rem;
+  background: linear-gradient(90deg, var(--a, #888), var(--b, #ccc));
+  box-shadow: inset 0 0 0 1px var(--sep);
+}
+#bMixRate::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35), 0 0 0 2px var(--blue); cursor: pointer;
+}
+.b-mix .b-float-foot { align-items: center; }
+.b-mix .b-float-foot .spacer { flex: 1; }
 .b-swatches { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .b-sw {
   width: 1.6rem; height: 1.6rem; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
@@ -232,7 +264,15 @@
   gap: 0.35rem; align-content: start; padding: 0.15rem;
 }
 .b-fav-grid .g-empty { grid-column: 1 / -1; grid-row: span 2; }
-.b-fav-hint { margin: 0.5rem 0 0; font-size: 0.72rem; line-height: 1.45; }
+/* 收藏說明：明顯一點，告訴使用者可以拖曳或右鍵收藏 */
+.b-fav-hint {
+  display: flex; align-items: center; justify-content: center; gap: 0.45rem;
+  margin: 0.55rem 0 0; padding: 0.55rem 0.8rem; border-radius: 0.75rem;
+  border: 1.5px dashed color-mix(in srgb, var(--blue) 55%, transparent);
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  color: var(--blue); font-size: 0.9rem; font-weight: 700; line-height: 1.4; text-align: center;
+}
+:root[data-theme="dark"] .b-fav-hint { color: color-mix(in srgb, var(--blue) 70%, #fff); }
 
 /* 拖曳 */
 .b-ghost {
@@ -351,7 +391,22 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 .b-modal-head input[type="text"]:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .b-modal-head .spacer { flex: 1; }
 /* 關閉鈕固定是正方形（標題列擠的時候也不會被壓扁） */
-.b-modal-head .b-x { flex: none; width: 2.2rem; height: 2.2rem; padding: 0; display: grid; place-items: center; font-size: 1.3rem; }
+.b-modal-head .b-x { flex: none; width: 1.85rem; height: 1.85rem; padding: 0; display: grid; place-items: center; }
+/* 正方形的關閉鈕：直角、× 置中 */
+.b-x.sq { aspect-ratio: 1; display: grid; place-items: center; border-radius: 0.3rem; }
+.b-x.sq svg { width: 62%; height: 62%; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+/* 搜尋框：右邊的叉叉一鍵清除 */
+.b-search { position: relative; display: inline-flex; align-items: center; flex: none; }
+.b-search input[type="text"] { padding-right: 2.1rem !important; }
+.b-search-x {
+  position: absolute; right: 0.35rem; top: 50%; transform: translateY(-50%);
+  width: 1.45rem; height: 1.45rem; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--text-2) 30%, transparent); color: var(--card);
+}
+.b-search-x:hover { background: var(--text-2); }
+.b-search-x[hidden] { display: none; }
+.b-search-x svg { width: 0.85rem; height: 0.85rem; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; }
 .b-style-grid {
   flex: 1; min-height: 0; overflow-y: auto;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 0.7rem;

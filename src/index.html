@@ -94,9 +94,9 @@
             <div class="set-row">
               <span>文字大小</span>
               <div class="seg" id="fontSeg">
-                <button data-font="s">小</button>
-                <button data-font="m">中</button>
                 <button data-font="l">大</button>
+                <button data-font="m">中</button>
+                <button data-font="s">小</button>
               </div>
             </div>
             <div class="set-row">
@@ -130,6 +130,13 @@
           <div class="card set-card">
             <h3>更新</h3>
             <div class="set-row"><span>目前版本</span><span class="muted" id="verText">1.0.0</span></div>
+            <div class="set-row">
+              <span>更新方式<small class="muted">選「手動檢查」的話，開啟程式時不會檢查，想更新時按下面的「檢查更新」</small></span>
+              <div class="seg" id="updSeg">
+                <button data-v="auto">每次開啟時檢查</button>
+                <button data-v="manual">手動檢查</button>
+              </div>
+            </div>
             <div class="set-row">
               <span class="muted" id="updStatus">程式開啟時會自動檢查一次</span>
               <button class="cbtn c-teal small" id="updCheck">檢查更新</button>
@@ -247,7 +254,7 @@
           <span class="nav-title">黃金蘋果轉蛋模擬器</span>
           <div class="g-pages" id="gPages">
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
-            <button class="cbtn c-purple" data-page="import">解析/垃圾</button>
+            <button class="cbtn c-amber pg-parse" data-page="import">解析道具/垃圾</button>
           </div>
         </nav>
 
@@ -354,7 +361,7 @@
           <span class="nav-title">美容美髮模擬器</span>
           <div class="g-pages" id="bPages">
             <button class="cbtn c-pink" data-page="sim">抽獎模擬</button>
-            <button class="cbtn c-purple" data-page="import">解析</button>
+            <button class="cbtn c-amber pg-parse" data-page="import">解析道具</button>
           </div>
         </nav>
 
@@ -435,8 +442,8 @@
               </div>
             </div>
             <div class="b-colors">
-              <div class="b-color-row"><span class="muted">髮色</span><div class="b-swatches" id="bHairColors"></div></div>
-              <div class="b-color-row"><span class="muted">瞳色</span><div class="b-swatches" id="bFaceColors"></div></div>
+              <div class="b-color-row"><span class="muted">髮色</span><div class="b-swatches" id="bHairColors"></div><button class="b-mix-link" id="bHairMix" data-kind="hair" title="髮色混染：基本顏色加上另一個顏色混合">混染</button></div>
+              <div class="b-color-row"><span class="muted">瞳色</span><div class="b-swatches" id="bFaceColors"></div><button class="b-mix-link" id="bFaceMix" data-kind="face" title="瞳色混染：基本顏色加上另一個顏色混合">混染</button></div>
             </div>
             <div class="b-wear" id="bWear"></div>
             <button class="cbtn c-purple b-dress-btn" id="bDress">變更點裝</button>
@@ -494,7 +501,7 @@
                   <button class="cbtn c-blue small solid" id="bSaveLook" title="把目前穿著的每一件點裝加入收藏">收藏目前裝備</button>
                 </div>
                 <div class="b-fav-grid" id="bSaved"></div>
-                <p class="b-fav-hint muted">把點裝拖到這裡、或按右鍵選「收藏」加入；拖到角色或目前裝備就能穿上</p>
+                <p class="b-fav-hint">可以把時裝拖曳到這邊做收藏喔，或是右鍵收藏也可以</p>
               </div>
               <div class="b-fpane" id="bFLook" hidden>
                 <div class="b-lf" id="bLookFavs"></div>
@@ -532,7 +539,7 @@
           <span class="nav-title">閃亮彗星</span>
           <div class="g-pages" id="cPages">
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
-            <button class="cbtn c-purple" data-page="import">解析</button>
+            <button class="cbtn c-amber pg-parse" data-page="import">解析道具</button>
           </div>
         </nav>
 
@@ -643,7 +650,7 @@
           <span class="nav-title">星光錦囊</span>
           <div class="g-pages" id="sPages">
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
-            <button class="cbtn c-purple" data-page="import">解析</button>
+            <button class="cbtn c-amber pg-parse" data-page="import">解析道具</button>
           </div>
         </nav>
 
@@ -985,7 +992,7 @@
   <div class="b-float" id="bDyeWin" hidden>
     <div class="b-float-head">
       <strong id="bDyeTitle">時裝染色</strong>
-      <button class="b-x" id="bDyeClose" title="關閉">×</button>
+      <button class="b-x sq" id="bDyeClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
     </div>
     <div class="b-dye-ranges" id="bDyeRanges"></div>
     <label class="b-slider"><span>色相</span><input type="range" id="bDyeHue" min="0" max="359" step="1" /><b id="bDyeHueV">0</b></label>
@@ -997,12 +1004,32 @@
     </div>
   </div>
 
+  <!-- 美容美髮：髮色／瞳色混染（和遊戲一樣：基本顏色＋另一個混合顏色，調整混合比例） -->
+  <div class="b-float b-mix" id="bMixWin" hidden>
+    <div class="b-float-head">
+      <strong id="bMixTitle">髮色混染</strong>
+      <button class="b-x sq" id="bMixClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+    </div>
+    <div class="b-mix-row"><span>基本顏色</span><div class="b-swatches" id="bMixBase"></div></div>
+    <div class="b-mix-row"><span>混合顏色</span><div class="b-swatches" id="bMixMix"></div></div>
+    <div class="b-mix-rate">
+      <div class="b-mix-labels"><span id="bMixBaseV"></span><span id="bMixMixV"></span></div>
+      <input type="range" id="bMixRate" min="1" max="99" step="1" />
+    </div>
+    <div class="b-float-foot">
+      <button class="cbtn c-silver small" id="bMixHalf" title="兩個顏色各一半">50 : 50</button>
+      <span class="spacer"></span>
+      <button class="cbtn c-red small" id="bMixOff">取消混染</button>
+      <button class="cbtn c-blue small solid" id="bMixDone">完成</button>
+    </div>
+  </div>
+
   <!-- 美容美髮：膚色／髮型／臉型（大視窗，置中） -->
   <div class="b-modal" id="bStyleWin" hidden>
     <div class="b-modal-box">
       <div class="b-modal-head">
         <strong id="bStyleTitle">變更膚色</strong>
-        <input type="text" id="bStyleSearch" placeholder="搜尋名稱或編號" />
+        <span class="b-search"><input type="text" id="bStyleSearch" placeholder="搜尋名稱或編號" /><button class="b-search-x" id="bStyleSearchX" title="清除搜尋文字" hidden><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>
         <span class="muted" id="bStyleCount"></span>
         <span class="spacer"></span>
         <button class="cbtn c-pink small" id="bStyleFavOnly" title="只顯示收藏的">只看收藏</button>
@@ -1011,7 +1038,7 @@
           <button class="cbtn c-blue small" data-size="m">中</button>
           <button class="cbtn c-blue small" data-size="s">小</button>
         </div>
-        <button class="b-x" id="bStyleClose" title="關閉">×</button>
+        <button class="b-x sq" id="bStyleClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
       </div>
       <div class="b-style-grid" id="bStyleGrid"></div>
     </div>

@@ -52,11 +52,13 @@ pub struct Settings {
     pub close_tray: bool,
     /// 第一次按關閉時已經問過要直接關閉還是縮小（只問一次）
     pub close_asked: bool,
+    /// 更新方式：false＝每次開啟程式檢查更新；true＝不自動檢查，想更新時自己按「檢查更新」
+    pub upd_manual: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: "system".into(), font: "m".into(), win_w: None, win_h: None, close_tray: false, close_asked: false }
+        Self { theme: "system".into(), font: "m".into(), win_w: None, win_h: None, close_tray: false, close_asked: false, upd_manual: false }
     }
 }
 

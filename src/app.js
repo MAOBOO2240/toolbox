@@ -134,6 +134,9 @@ document.addEventListener("wheel", (e) => {
 
 /* ---------- 外觀設定（齒輪） ---------- */
 let settings = { theme: "system", font: "m" };
+// 啟動時讀完設定才決定要不要自動檢查更新
+let settingsLoaded;
+const settingsReady = new Promise((r) => (settingsLoaded = r));
 
 const isCharTheme = () => String(settings.theme).startsWith("char");
 function effectiveTheme() {
@@ -267,6 +270,7 @@ function applySettings() {
   $$("#fontSeg button").forEach((b) => b.classList.toggle("on", b.dataset.font === settings.font));
   $$("#themeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.theme === (isCharTheme() ? settings.theme : theme)));
   $$("#closeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.v === (settings.close_tray ? "tray" : "exit")));
+  $$("#updSeg button").forEach((b) => b.classList.toggle("on", b.dataset.v === (settings.upd_manual ? "manual" : "auto")));
   api.setWindowTheme(theme);
   const tint = applyTint(theme === "dark");
   // 視窗外框（標題列與邊框）換成和程式內容有區別的顏色；角色色彩時跟著角色
@@ -275,7 +279,7 @@ function applySettings() {
 
 function saveSettings() {
   applySettings();
-  api.saveSettings({ theme: settings.theme, font: settings.font, close_tray: !!settings.close_tray, close_asked: !!settings.close_asked });
+  api.saveSettings({ theme: settings.theme, font: settings.font, close_tray: !!settings.close_tray, close_asked: !!settings.close_asked, upd_manual: !!settings.upd_manual });
 }
 
 $$("#fontSeg button").forEach((b) => b.addEventListener("click", () => { settings.font = b.dataset.font; saveSettings(); }));
@@ -283,6 +287,7 @@ $$("#themeSeg button").forEach((b) => b.addEventListener("click", () => { settin
 darkQuery.addEventListener("change", () => { if (settings.theme === "system") applySettings(); });
 
 $$("#closeSeg button").forEach((b) => b.addEventListener("click", () => { settings.close_tray = b.dataset.v === "tray"; settings.close_asked = true; saveSettings(); }));
+$$("#updSeg button").forEach((b) => b.addEventListener("click", () => { settings.upd_manual = b.dataset.v === "manual"; saveSettings(); window.Updater?.mode(); }));
 
 /* 第一次按右上角關閉：問要直接關閉還是縮小到右下角（只問一次，選了就照做） */
 {
@@ -1322,9 +1327,10 @@ $("#currentSerial").addEventListener("click", () =>
   if (!store.get("toolbox-font-v2", false)) {
     if (settings.font === "l") settings.font = "m";
     store.set("toolbox-font-v2", true);
-    api.saveSettings({ theme: settings.theme, font: settings.font, close_tray: !!settings.close_tray });
+    api.saveSettings({ theme: settings.theme, font: settings.font, close_tray: !!settings.close_tray, close_asked: !!settings.close_asked, upd_manual: !!settings.upd_manual });
   }
   applySettings();
+  settingsLoaded();
   state = st;
   $("#rawInput").value = st.raw || "";
   render();
@@ -1340,12 +1346,17 @@ $("#currentSerial").addEventListener("click", () =>
 window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
 
 /* ---------- 自動更新 ----------
- * 程式開啟時檢查一次；按「稍後」之後這次就不再提醒，下次開啟程式才會再跳出。
- * 設定裡的「檢查更新」可以手動再檢查。 */
+ * 更新方式（設定）：
+ * - 每次開啟時檢查：程式開啟時檢查一次；按「稍後」之後這次就不再提醒，下次開啟程式才會再跳出
+ * - 手動檢查：開啟時不檢查，想更新時按設定裡的「檢查更新」 */
 (() => {
+  const idle = () => (settings.upd_manual ? "不會自動檢查，想更新時按右邊的「檢查更新」" : "程式開啟時會自動檢查一次");
+  let shown = "";
+  const status = (t) => { shown = t || ""; $("#updStatus").textContent = shown || idle(); };
+  window.Updater = { mode: () => { if (!shown) status(""); } };
+  settingsReady.then(() => status(shown));
   if (!TAURI) return;
   let info = null, snoozed = false;
-  const status = (t) => { $("#updStatus").textContent = t || "程式開啟時會自動檢查一次"; };
 
   async function refresh() {
     try { info = await invoke("update_info"); } catch (_) { return; }
@@ -1386,5 +1397,7 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
   $("#updNow").addEventListener("click", install);
   $("#updLater").addEventListener("click", () => { snoozed = true; closeDialog(); });
 
-  refresh().then(() => check(false));
+  refresh();
+  // 選「手動檢查」就不在開啟時檢查
+  settingsReady.then(() => { if (!settings.upd_manual) check(false); });
 })();

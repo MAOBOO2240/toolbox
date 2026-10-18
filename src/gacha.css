@@ -216,6 +216,15 @@
 }
 .cbtn.solid:hover { filter: brightness(1.06); }
 :root[data-theme="dark"] .cbtn.on, :root[data-theme="dark"] .cbtn.solid { color: var(--ink); }
+/* 右上角「解析道具」：比一般分頁鈕明顯 */
+.cbtn.pg-parse:not(.on) {
+  background: color-mix(in srgb, var(--c) 26%, transparent);
+  border-color: color-mix(in srgb, var(--c) 80%, transparent);
+  color: color-mix(in srgb, var(--c) 62%, #000);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent), 0 2px 10px color-mix(in srgb, var(--c) 28%, transparent);
+}
+:root[data-theme="dark"] .cbtn.pg-parse:not(.on) { color: color-mix(in srgb, var(--c) 55%, #fff); }
+.cbtn.pg-parse:not(.on):hover { background: color-mix(in srgb, var(--c) 38%, transparent); }
 .c-blue { --c: #3b82f6; }
 .c-purple { --c: #8b5cf6; }
 .c-amber { --c: #f5a30b; --ink: #3b2600; }

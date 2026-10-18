@@ -379,21 +379,22 @@ if (typeof document !== "undefined") (() => {
     const h = currentHair(), f = currentFace();
     const g = charGender() || gender();
     // 選了下方的顏色就用那個顏色（不混染），否則保留角色原本的顏色與混染
-    const part = (cur, tried, pick) => {
-      const color = pick || cur?.color || null;
-      const mix = pick ? null : cur?.mix || null;
-      const rate = pick ? null : cur ? cur.rate : null;
+    // 自己設定的混染（mx）優先：基本顏色＋混合顏色＋混合比例
+    const part = (cur, tried, pick, mx) => {
+      const color = mx ? mx.base : pick || cur?.color || null;
+      const mix = mx ? mx.mix : pick ? null : cur?.mix || null;
+      const rate = mx ? mx.rate : pick ? null : cur ? cur.rate : null;
       if (tried) return { name: tried.name, id: tried.id || null, color, mix, rate, gender: poolGender(tried.pool) };
       if (cur) return { name: cur.name, color, mix, rate, gender: g };
-      if (pick) return { name: "", color, gender: g };
+      if (pick || mx) return { name: "", color, mix, rate, gender: g };
       return null;
     };
     return {
       game_dir: st.gamePath || null,
       skin: ch?.beauty?.character_skin?.skin_name || null,
       gender: g,
-      hair: part(h, tryH, st.hairColor),
-      face: part(f, tryF, st.faceColor),
+      hair: part(h, tryH, st.hairColor, st.hairMix),
+      face: part(f, tryF, st.faceColor, st.faceMix),
       mode,
       skin_id: st.skinId || null,
       items: mode !== "full" ? [] : st.outfit
@@ -645,14 +646,122 @@ if (typeof document !== "undefined") (() => {
         box.appendChild(b);
       }
     };
-    make($("#bHairColors"), HAIR_SW, st.hairColor, (v) => (st.hairColor = v));
-    make($("#bFaceColors"), FACE_SW, st.faceColor, (v) => (st.faceColor = v));
+    // 選單一顏色就不混染
+    make($("#bHairColors"), HAIR_SW, st.hairMix ? null : st.hairColor, (v) => { st.hairColor = v; st.hairMix = null; if (mixKind === "hair") closeMix(); });
+    make($("#bFaceColors"), FACE_SW, st.faceMix ? null : st.faceColor, (v) => { st.faceColor = v; st.faceMix = null; if (mixKind === "face") closeMix(); });
+    for (const kind of ["hair", "face"]) {
+      const mx = st[MIX_KEY[kind]];
+      const link = $(kind === "hair" ? "#bHairMix" : "#bFaceMix");
+      link.classList.toggle("on", !!mx);
+      if (mx) {
+        link.style.setProperty("--a", mixHex(kind, mx.base));
+        link.style.setProperty("--b", mixHex(kind, mx.mix));
+        link.title = `${MIX_TITLE[kind]}中：${mx.base} ${100 - mx.rate}%＋${mx.mix} ${mx.rate}%（點一下調整）`;
+      } else link.title = `${MIX_TITLE[kind]}：基本顏色加上另一個顏色混合`;
+    }
   }
+
+  /* ---------- 髮色／瞳色混染 ----------
+   * 和遊戲裡的混染一樣：先選一個基本顏色，再從其他顏色選一個混合顏色，最後調整混合比例 */
+  const MIX_KEY = { hair: "hairMix", face: "faceMix" };
+  const MIX_TITLE = { hair: "髮色混染", face: "瞳色混染" };
+  // 遊戲裡混染的瞳色只有 8 種（沒有白色）
+  const MIX_SW = { hair: HAIR_SW, face: FACE_SW.filter(([n]) => n !== "白色") };
+  const mixHex = (kind, name) => (MIX_SW[kind].find(([n]) => n === name) || [, "#888"])[1];
+  let mixKind = null, mixTimer = null;
+  /** API 或使用者選的顏色名稱對到混染的顏色 */
+  function mixName(kind, s) {
+    if (!s) return null;
+    const names = MIX_SW[kind].map(([n]) => n);
+    return names.find((n) => s === n) || names.find((n) => s.includes(n.replace(/色$/, ""))) || (/棕/.test(s) ? "褐色" : null);
+  }
+  function openMix(kind) {
+    $("#bDyeWin").hidden = true;
+    if (styleKind) closeStyle();
+    mixKind = kind;
+    const key = MIX_KEY[kind];
+    if (!st[key]) {
+      // 從目前的顏色開始：選過的顏色 → 角色原本的顏色與混染 → 黑色
+      const cur = kind === "hair" ? currentHair() : currentFace();
+      const pick = kind === "hair" ? st.hairColor : st.faceColor;
+      const names = MIX_SW[kind].map(([n]) => n);
+      const base = mixName(kind, pick) || mixName(kind, cur?.color) || names[0];
+      let mix = !pick && cur?.mix && cur.rate ? mixName(kind, cur.mix) : null;
+      if (!mix || mix === base) mix = names.find((n) => n !== base);
+      const rate = !pick && cur?.mix && cur.rate ? Math.min(99, Math.max(1, Math.round(cur.rate))) : 50;
+      st[key] = { base, mix, rate };
+      if (kind === "hair") st.hairColor = null; else st.faceColor = null;
+      applyMix(true);
+    }
+    $("#bMixTitle").textContent = MIX_TITLE[kind];
+    $("#bMixWin").hidden = false;
+    renderMix();
+  }
+  function closeMix() { $("#bMixWin").hidden = true; mixKind = null; }
+  function renderMix() {
+    if (!mixKind) return;
+    const mx = st[MIX_KEY[mixKind]];
+    if (!mx) return closeMix();
+    const sw = (box, pickName, disabledName, onPick) => {
+      box.innerHTML = "";
+      for (const [name, hex] of MIX_SW[mixKind]) {
+        const b = document.createElement("button");
+        b.className = "b-sw" + (pickName === name ? " on" : "");
+        b.style.setProperty("--c", hex);
+        b.title = name === disabledName ? `${name}（已經是基本顏色）` : name;
+        b.disabled = name === disabledName;
+        b.addEventListener("click", () => onPick(name));
+        box.appendChild(b);
+      }
+    };
+    sw($("#bMixBase"), mx.base, null, (n) => {
+      mx.base = n;
+      if (mx.mix === n) mx.mix = MIX_SW[mixKind].map(([x]) => x).find((x) => x !== n);
+      renderMix(); applyMix(true);
+    });
+    sw($("#bMixMix"), mx.mix, mx.base, (n) => { mx.mix = n; renderMix(); applyMix(true); });
+    const r = $("#bMixRate");
+    if (document.activeElement !== r) r.value = mx.rate;
+    r.style.setProperty("--a", mixHex(mixKind, mx.base));
+    r.style.setProperty("--b", mixHex(mixKind, mx.mix));
+    $("#bMixBaseV").textContent = `${mx.base} ${100 - mx.rate}%`;
+    $("#bMixMixV").textContent = `${mx.mix} ${mx.rate}%`;
+  }
+  /** 套用到紙娃娃（拉桿拖動時稍微等一下再畫） */
+  function applyMix(now) {
+    save();
+    renderSwatches();
+    clearTimeout(mixTimer);
+    const go = () => { renderDoll(); renderRight(); };
+    if (now) go(); else mixTimer = setTimeout(go, 120);
+  }
+  $("#bMixRate").addEventListener("input", (e) => {
+    const mx = mixKind && st[MIX_KEY[mixKind]];
+    if (!mx) return;
+    mx.rate = Math.min(99, Math.max(1, Number(e.target.value) || 50));
+    renderMix(); applyMix(false);
+  });
+  $("#bMixHalf").addEventListener("click", () => {
+    const mx = mixKind && st[MIX_KEY[mixKind]];
+    if (!mx) return;
+    mx.rate = 50;
+    $("#bMixRate").value = 50;
+    renderMix(); applyMix(true);
+  });
+  $("#bMixOff").addEventListener("click", () => {
+    if (!mixKind) return;
+    st[MIX_KEY[mixKind]] = null;
+    closeMix();
+    applyMix(true);
+  });
+  $("#bMixDone").addEventListener("click", closeMix);
+  $("#bMixClose").addEventListener("click", closeMix);
+  $$(".b-mix-link").forEach((b) => b.addEventListener("click", () => (mixKind === b.dataset.kind ? closeMix() : openMix(b.dataset.kind))));
 
   function renderDoll() {
     const tryH = st.tryHair, tryF = st.tryFace;
     applyNameTag();
-    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.skinId && !st.outfit?.length)) { showDoll(null); announceQueue(null); }
+    if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.hairMix && !st.faceMix && !st.skinId && !st.outfit?.length)) { showDoll(null); announceQueue(null); }
     else {
       const req = lookReq(tryH, tryF, "full");
       showDoll({ ...req, action: act });
@@ -664,10 +773,10 @@ if (typeof document !== "undefined") (() => {
     wear.innerHTML = "";
     const h = currentHair(), f = currentFace();
     const skin = ch?.beauty?.character_skin?.skin_name;
-    const hc = st.hairColor || h?.color || "", fc = st.faceColor || f?.color || "";
+    const hc = st.hairMix?.base || st.hairColor || h?.color || "", fc = st.faceMix?.base || st.faceColor || f?.color || "";
     const hairText = tryH ? (hc ? `${hc}${C.stripColor(tryH.name)}` : tryH.name) : h ? `${hc}${h.name}` : "預設髮型";
     const faceText = tryF ? (fc ? `${tryF.name}（${fc}）` : tryF.name) : f ? `${f.name}（${fc}）` : "預設臉型";
-    const mixText = (x, pick) => (!pick && x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
+    const mixText = (x, pick, mx) => (mx ? `混染 ${mx.mix} ${mx.rate}%` : !pick && x && x.mix && x.rate ? `混染 ${x.mix} ${x.rate}%` : "");
     // 髮型、臉型、膚色都是藍字，點了開大視窗挑選
     const linkLine = (label, text, extra, kind) => {
       const row = wearLine(label, "", extra);
@@ -679,8 +788,8 @@ if (typeof document !== "undefined") (() => {
       row.children[1].replaceWith(link);
       return row;
     };
-    wear.append(linkLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor), "hair"));
-    wear.append(linkLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor), "face"));
+    wear.append(linkLine("髮型", hairText, tryH ? "試穿中" : mixText(h, st.hairColor, st.hairMix), "hair"));
+    wear.append(linkLine("臉型", faceText, tryF ? "試穿中" : mixText(f, st.faceColor, st.faceMix), "face"));
     wear.append(linkLine("膚色", curSkinName(), st.skinId ? "試穿中" : "", "skin"));
   }
 
@@ -877,7 +986,8 @@ if (typeof document !== "undefined") (() => {
   $("#bLookup").addEventListener("click", () => lookup(false));
   $("#bName").addEventListener("keydown", (e) => { if (e.key === "Enter") lookup(false); });
   $("#bRestore").addEventListener("click", () => {
-    st.tryHair = st.tryFace = st.hairColor = st.faceColor = null;
+    st.tryHair = st.tryFace = st.hairColor = st.faceColor = st.hairMix = st.faceMix = null;
+    closeMix();
     st.outfit = null;
     st.skinId = null;
     closeFloat();
@@ -1343,7 +1453,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   /* ---------- 浮動視窗：染色、膚色 ---------- */
-  function closeFloat() { $("#bDyeWin").hidden = true; if (styleKind) closeStyle(); dyeId = null; }
+  function closeFloat() { $("#bDyeWin").hidden = true; closeMix(); if (styleKind) closeStyle(); dyeId = null; }
 
   const RANGES = [["全色系", "c-silver"], ["紅色系", "c-red"], ["黃色系", "c-amber"], ["綠色系", "c-green"], ["青色系", "c-teal"], ["藍色系", "c-blue"], ["紫色系", "c-purple"]];
   let dyeId = null;
@@ -1354,6 +1464,7 @@ if (typeof document !== "undefined") (() => {
     const it = dyeItem();
     if (!it) return;
     if (styleKind) closeStyle();
+    closeMix();
     $("#bDyeTitle").textContent = `染色：${it.name}`;
     const box = $("#bDyeRanges");
     if (!box.childElementCount) {
@@ -1409,10 +1520,13 @@ if (typeof document !== "undefined") (() => {
   async function openStyle(kind) {
     closeCtx();
     $("#bDyeWin").hidden = true;
+    closeMix();
     styleKind = kind;
     styleShown = STYLE_PAGE;
     $("#bStyleTitle").textContent = STYLE_TITLE[kind];
-    $("#bStyleSearch").value = "";
+    // 搜尋文字依視窗種類記住，關掉再開也還在（按搜尋框右邊的叉叉才清除）
+    $("#bStyleSearch").value = (st.styleSearch ||= {})[kind] || "";
+    syncSearchX();
     $("#bStyleWin").hidden = false;
     const grid = $("#bStyleGrid");
     if (!TAURI) { grid.innerHTML = '<div class="g-empty">預覽模式無法讀取遊戲資料</div>'; return; }
@@ -1677,7 +1791,15 @@ if (typeof document !== "undefined") (() => {
   }
 
   let styleSearchTimer;
-  $("#bStyleSearch").addEventListener("input", () => { clearTimeout(styleSearchTimer); styleSearchTimer = setTimeout(() => { styleShown = STYLE_PAGE; renderStyles(); }, 200); });
+  function syncSearchX() { $("#bStyleSearchX").hidden = !$("#bStyleSearch").value; }
+  function searchChanged() {
+    syncSearchX();
+    if (styleKind) { (st.styleSearch ||= {})[styleKind] = $("#bStyleSearch").value; save(); }
+    clearTimeout(styleSearchTimer);
+    styleSearchTimer = setTimeout(() => { styleShown = STYLE_PAGE; renderStyles(); }, 200);
+  }
+  $("#bStyleSearch").addEventListener("input", searchChanged);
+  $("#bStyleSearchX").addEventListener("click", () => { $("#bStyleSearch").value = ""; searchChanged(); $("#bStyleSearch").focus(); });
   $("#bStyleClose").addEventListener("click", closeStyle);
   $("#bStyleWin").addEventListener("pointerdown", (e) => { if (e.target === $("#bStyleWin")) closeStyle(); });
   $$("#bStyleSize button").forEach((b) => b.addEventListener("click", () => { st.styleSize = b.dataset.size; save(); applyStyleSize(); }));
