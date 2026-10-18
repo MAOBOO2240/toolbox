@@ -354,13 +354,105 @@ if (typeof document !== "undefined") (() => {
     if (C.ICON[b.name] != null) ic.style.setProperty("--i", C.ICON[b.name]);
     return ic;
   }
-  function nameCell(b, sub) {
+  /** BOSS 名稱（藍字，點一下看詳細資料）與下面一行說明 */
+  function nameCell(b, sub, label, pick) {
     const name = document.createElement("div");
     name.className = "bs-name";
-    name.innerHTML = `<span></span><small class="muted"></small>`;
-    name.children[0].textContent = b.name;
+    name.innerHTML = `<button class="bs-name-btn" type="button"></button><small class="muted"></small>`;
+    const btn = name.children[0];
+    btn.textContent = label || b.name;
+    btn.title = `${b.name} 的詳細資料`;
+    btn.addEventListener("click", (e) => { e.stopPropagation(); showInfo(b, typeof pick === "function" ? pick() : pick); });
     name.children[1].textContent = sub || "";
     return name;
+  }
+
+  /* ---------- BOSS 詳細資料：資料夾分頁切換難度 ---------- */
+  const TYPE_NAME = { day: "每日王", week: "每週王", month: "每月王" };
+  const RESET_NAME = { day: "每日", week: "每週", month: "每月" };
+  /** 血量：1京 2345兆 → 1京2345兆；小於一萬直接顯示 */
+  function hpText(n) {
+    if (!(n > 0)) return "—";
+    const units = [[1e16, "京"], [1e12, "兆"], [1e8, "億"], [1e4, "萬"]];
+    for (const [u, nm] of units) if (n >= u) return `${+(n / u).toFixed(n / u >= 100 ? 0 : 2)}${nm}`;
+    return intFmt.format(n);
+  }
+  let infoBox = null;
+  function showInfo(b, pick) {
+    const all = (window.BOSS_INFO || {})[b.key] || {};
+    const meta = (window.BOSS_META || {})[b.name] || {};
+    const ch = cur();
+    const sel = ch.sel[b.key];
+    let tab = pick != null && b.diffs[pick] ? pick : sel && b.diffs[sel.d] ? sel.d : b.diffs.length - 1;
+    infoBox?.remove();
+    const back = document.createElement("div");
+    back.className = "bs-info-back";
+    const card = document.createElement("div");
+    card.className = "bs-info";
+    back.append(card);
+    const close = () => { back.remove(); infoBox = null; document.removeEventListener("keydown", onKey, true); };
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+    back.addEventListener("click", (e) => { if (e.target === back) close(); });
+    document.addEventListener("keydown", onKey, true);
+    const draw = () => {
+      const [diff, price] = b.diffs[tab];
+      const d = all[diff] || {};
+      const mp = C.maxParty(b.name, diff);
+      card.innerHTML = "";
+      // 標題
+      const head = document.createElement("div");
+      head.className = "bs-info-head";
+      const t = document.createElement("div");
+      t.className = "bs-info-title";
+      t.innerHTML = `<b></b><small class="muted"></small>`;
+      t.children[0].textContent = b.name;
+      t.children[1].textContent = TYPE_NAME[b.type] || "";
+      const x = document.createElement("button");
+      x.className = "b-x";
+      x.textContent = "×";
+      x.title = "關閉";
+      x.addEventListener("click", close);
+      const ic = icon(b);
+      ic.classList.add("big");
+      head.append(ic, t, x);
+      // 資料夾分頁：每個難度一個
+      const tabs = document.createElement("div");
+      tabs.className = "bs-ftabs";
+      b.diffs.forEach(([dn], i) => {
+        const tb = document.createElement("button");
+        tb.className = `bs-ftab ${DIFF_COLOR[dn] || "c-silver"}` + (i === tab ? " on" : "");
+        tb.textContent = dn;
+        tb.addEventListener("click", () => { tab = i; draw(); });
+        tabs.appendChild(tb);
+      });
+      // 內容
+      const body = document.createElement("div");
+      body.className = `bs-fpanel ${DIFF_COLOR[diff] || "c-silver"}`;
+      const cells = [];
+      const add = (k, v, sub = "") => cells.push(`<div class="bs-stat"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ""}</div>`);
+      add("等級", d.lv ? `Lv.${String(d.lv).replace(/\//g, "／")}` : "—", String(d.lv || "").includes("/") ? "各階段不同" : "");
+      add("防禦率", d.def != null ? `${d.def}%` : "—");
+      add(meta.forceType === "AUT" ? "需要的真實符文力量" : meta.forceType === "ARC" ? "需要的神秘力量" : "需要的符文力量", d.force ? `${meta.forceType || ""} ${String(d.force).replace(/\//g, "／")}`.trim() : "不需要", String(d.force || "").includes("/") ? "各階段不同" : "");
+      add("組隊上限", `${mp} 人`);
+      if (meta.time) add("時間限制", `${meta.time} 分鐘`);
+      add("重置", RESET_NAME[b.type] || "—");
+      add("結晶價格", zh(price), mp > 1 ? `${mp} 人平分每人 ${zh(C.share(price, mp, mp))}` : "");
+      if (d.erda) add("靈魂艾爾達氣息", `${d.erda} 個`);
+      const hp = d.hp || [];
+      const total = d.total || null;
+      const phases = hp.length
+        ? `<div class="bs-hp"><div class="bs-hp-head"><span>血量</span><b>${total ? hpText(total) : hp.length === 1 ? hp[0] : ""}</b>${total ? "<small>總血量</small>" : ""}</div>` +
+          (hp.length > 1 ? `<ol>${hp.map((h, i) => `<li><span>第 ${i + 1} 階段</span><b>${h.replace(/x(\d+)/g, " × $1").replace(/\+/g, " ＋ ")}</b></li>`).join("")}</ol>` : "") + "</div>"
+        : `<div class="bs-hp"><div class="bs-hp-head"><span>血量</span><b>尚無資料</b></div></div>`;
+      body.innerHTML = `<div class="bs-stats">${cells.join("")}</div>${phases}`;
+      const note = document.createElement("p");
+      note.className = "bs-info-note muted";
+      note.textContent = "資料來源：Maple Kit（TMS v281.5）；結晶價格為一個人打的價格";
+      card.append(head, tabs, body, note);
+    };
+    draw();
+    document.body.appendChild(back);
+    infoBox = back;
   }
 
   /** 結晶圖示：每週王、每月王用內建的圖，每日王讀遊戲資料 */
@@ -498,7 +590,7 @@ if (typeof document !== "undefined") (() => {
       val.textContent = "—";
       val.classList.add("muted");
     }
-    const name = nameCell({ name: `${b.name}（重製）` }, sub);
+    const name = nameCell(b, sub, `${b.name}（重製）`, () => cur().rs?.[b.key]?.d);
     row.append(ic, name, diffs, party, val);
     return row;
   }

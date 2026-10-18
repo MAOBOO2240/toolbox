@@ -411,6 +411,7 @@ fn main() {
             timers::pick_sound_file,
             maple_api::maple_lookup,
             patches::version_list,
+            patches::version_hubs,
             patches::open_bulletin,
             maple_api::exp_track,
             avatar::beauty_render,
