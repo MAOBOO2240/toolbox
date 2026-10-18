@@ -530,7 +530,6 @@
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">閃亮彗星</span>
           <div class="g-pages" id="cPages">
-            <button class="cbtn c-amber" data-page="auto">自動分解</button>
             <button class="cbtn c-blue" data-page="sim">抽獎模擬</button>
             <button class="cbtn c-purple" data-page="import">解析</button>
           </div>
@@ -544,8 +543,8 @@
           </div>
           <div class="card g-pool">
             <div class="g-tabs c-tabs" id="cTabs">
-              <button class="cbtn c-teal" data-pool="shiny">閃亮彗星</button>
-              <button class="cbtn c-purple" data-pool="bright">璀璨彗星</button>
+              <button class="cbtn c-teal" data-pool="shiny">閃亮彗星<small></small></button>
+              <button class="cbtn c-purple" data-pool="bright">璀璨彗星<small></small></button>
             </div>
             <div class="g-toolbar">
               <label class="g-cost">閃亮彗星每顆價格<input type="text" inputmode="decimal" id="cCost" placeholder="0" /></label>
@@ -581,13 +580,11 @@
                 <button class="pill primary" data-cdraw="10">10 抽</button>
                 <button class="pill primary" data-cdraw="100">100 抽</button>
               </div>
-              <div class="g-box-row">
-                <button class="g-box c-ex-shiny" id="cExShiny"><span>碎片換閃亮彗星</span><small>消耗 20 碎片</small></button>
-                <button class="g-box c-ex-bright" id="cExBright"><span>開啟璀璨彗星</span><small>消耗 80 碎片</small></button>
-              </div>
-              <div class="g-actions-foot">
-                <button class="cbtn c-amber small solid" id="cAutoBtn" title="到「解析」頁設定自動分解">自動分解設定</button>
-                <span class="muted c-auto-info" id="cAutoInfo"></span>
+              <div class="g-actions-foot c-foot">
+                <span class="muted s-draw-info" id="cDrawInfo"></span>
+                <span class="spacer"></span>
+                <label class="c-keep" title="開啟：碎片留著，可以在左邊選「璀璨彗星」開璀璨彗星。關閉：碎片滿 20 個就自動換成閃亮彗星抽掉。"><span>保留碎片</span><span class="switch sm"><input type="checkbox" id="cKeepFrags" /><span class="slider"></span></span></label>
+                <button class="cbtn c-amber small solid" id="cAutoBtn">自動分解</button>
                 <button class="cbtn c-red small solid" id="cReset">重置統計</button>
               </div>
             </div>

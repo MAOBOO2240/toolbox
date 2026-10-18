@@ -58,7 +58,11 @@
 .bs-warn { margin: 0; padding: 0.4rem 0.6rem; border-radius: 0.6rem; font-size: 0.78rem; color: #c2410c; background: color-mix(in srgb, #f97316 12%, transparent); }
 .bs-kvs { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0.4rem; }
 .bs-kv { display: flex; flex-direction: column; gap: 0.05rem; padding: 0.4rem 0.55rem; border-radius: 0.6rem; background: var(--card-2); }
-.bs-kv span { font-size: 0.74rem; font-weight: 600; color: var(--text-2); }
+.bs-kv > span { display: flex; align-items: center; flex-wrap: wrap; gap: 0.1rem 0.25rem; font-size: 0.74rem; font-weight: 600; color: var(--text-2); }
+.bs-kv em { font-style: normal; color: #0d9488; }
+:root[data-theme="dark"] .bs-kv em { color: #5eead4; }
+.bs-kv-ic { height: 0.95rem; width: auto; image-rendering: pixelated; }
+.bs-kv-day:empty { display: none; }
 .bs-kv b { font-size: 0.98rem; font-variant-numeric: tabular-nums; }
 .bs-kv small { font-size: 0.68rem; color: var(--text-2); }
 .bs-card .bs-total { margin: 0; padding: 0.55rem 0.7rem; }
@@ -85,6 +89,7 @@
 }
 .bs-thead .r { display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem; }
 .bs-thead .item-ic { width: 1.25rem; height: 1.25rem; display: inline-grid; place-items: center; }
+.bs-thead .item-ic img { image-rendering: pixelated; }
 .bs-thead .item-ic img { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
 .bs-thead .item-ic.none { display: none; }
 /* BOSS 圖示：assets/boss.webp 裡一格 56×56 */

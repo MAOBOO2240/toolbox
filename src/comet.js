@@ -436,8 +436,24 @@ B	愛心守護者短杖	1.30%`;
     return b;
   }
 
+  /** 璀璨彗星分頁：碎片夠開的時候亮起來，下面顯示可以抽幾抽 */
+  const brightAvail = () => Math.floor(st.stats.frags / C.BRIGHT_FRAG);
+  function renderTabs() {
+    $$("#cTabs button").forEach((b) => {
+      const p = b.dataset.pool;
+      b.classList.toggle("on", p === st.tab);
+      const small = b.querySelector("small");
+      if (p === "shiny") { small.textContent = "花錢抽"; b.classList.remove("ready", "empty"); return; }
+      const n = brightAvail();
+      small.textContent = n ? `可抽 ${intFmt.format(n)} 抽` : `需 ${C.BRIGHT_FRAG} 碎片`;
+      b.classList.toggle("ready", n > 0);
+      b.classList.toggle("empty", n === 0);
+      b.title = `每 ${C.BRIGHT_FRAG} 個彗星碎片可以開一顆璀璨彗星`;
+    });
+  }
+
   function renderPool() {
-    $$("#cTabs button").forEach((b) => b.classList.toggle("on", b.dataset.pool === st.tab));
+    renderTabs();
     const items = st.pools[st.tab];
     const total = C.sum(items);
     const warn = $("#cWarn");
@@ -512,18 +528,21 @@ B	愛心守護者短杖	1.30%`;
     pEl.className = profit > 0 ? "pos" : profit < 0 ? "neg" : "";
     $("#cDraws").textContent = s.bright ? `${intFmt.format(s.draws)}＋${intFmt.format(s.bright)}` : intFmt.format(s.draws);
     $("#cFrags").textContent = intFmt.format(s.frags);
-    const ex = [["#cExShiny", C.SHINY_FRAG], ["#cExBright", C.BRIGHT_FRAG]];
-    for (const [id, need] of ex) {
-      const btn = $(id);
-      btn.disabled = s.frags < need;
-      btn.querySelector("small").textContent = btn.disabled ? `碎片不足（需 ${need}）` : `消耗 ${need} 碎片`;
-    }
+    // 抽獎按鈕抽的是左邊選到的獎池：閃亮彗星花錢抽，璀璨彗星用碎片開
+    const avail = st.tab === "bright" ? brightAvail() : Infinity;
+    $$("[data-cdraw]").forEach((b) => (b.disabled = !avail));
+    $("#cDrawInfo").textContent = st.tab === "shiny"
+      ? `目前抽：閃亮彗星・${st.keepFrags ? "碎片保留" : `碎片滿 ${C.SHINY_FRAG} 個自動換閃亮彗星`}`
+      : avail ? `目前開：璀璨彗星（剩 ${intFmt.format(avail)} 顆，每顆 ${C.BRIGHT_FRAG} 碎片）`
+      : st.keepFrags ? `碎片不足，開璀璨彗星需要 ${C.BRIGHT_FRAG} 個碎片` : "要開璀璨彗星請打開「保留碎片」";
+    $("#cKeepFrags").checked = !!st.keepFrags;
     const ag = C.GRADES.filter((g) => st.auto.grades[g]);
     const ai = Object.keys(st.auto.items).filter((k) => st.auto.items[k]).length;
     const ak = Object.keys(st.auto.keep).filter((k) => st.auto.keep[k] && st.auto.grades[gradeOf(...splitKey(k))]).length;
-    $("#cAutoInfo").textContent = ag.length || ai
+    $("#cAutoBtn").title = ag.length || ai
       ? `自動分解：${[ag.length ? ag.join("、") + " 級" : "", ai ? `指定 ${ai} 件` : ""].filter(Boolean).join("＋")}${ak ? `（保留 ${ak} 件）` : ""}`
-      : "自動分解：未設定";
+      : "自動分解：未設定（點一下設定）";
+    renderTabs();
   }
 
   const metric = (label, value, cls = "") => `<div class="g-metric"><span>${label}</span><b class="${cls}">${value}</b></div>`;
@@ -565,8 +584,10 @@ B	愛心守護者短杖	1.30%`;
     const split = Object.values(st.batchSplit).reduce((a, b) => a + b, 0);
     if (split) parts.push(`自動分解 ${intFmt.format(split)} 件`);
     $("#cBatchBadge").textContent = parts.join("・");
-    const keys = sortedKeys(st.batch);
-    if (!keys.length) { box.innerHTML = '<span class="g-chip-empty">按下抽獎後，這裡會顯示這次的結果</span>'; return; }
+    // 分解掉的不顯示，只列留下來的
+    const kept = (k) => st.batch[k] - (st.batchSplit[k] || 0);
+    const keys = sortedKeys(st.batch).filter((k) => kept(k) > 0);
+    if (!keys.length) { box.innerHTML = `<span class="g-chip-empty">${Object.keys(st.batch).length ? "這次抽到的都分解了" : "按下抽獎後，這裡會顯示這次的結果"}</span>`; return; }
     for (const k of keys) {
       const [pool, name] = splitKey(k);
       const g = gradeOf(pool, name);
@@ -574,14 +595,8 @@ B	愛心守護者短杖	1.30%`;
       chip.className = "g-chip c-chip" + (g === topGrade(pool) || g === "S" ? " rare" : "");
       chip.append(gradeBadge(g), ItemIcons.el(name), document.createTextNode(name));
       const n = document.createElement("b");
-      n.textContent = `×${st.batch[k]}`;
+      n.textContent = `×${kept(k)}`;
       chip.append(n);
-      if (st.batchSplit[k]) {
-        const s = document.createElement("small");
-        s.className = "c-split";
-        s.textContent = `分解 ${st.batchSplit[k]}`;
-        chip.append(s);
-      }
       box.appendChild(chip);
     }
   }
@@ -593,8 +608,9 @@ B	愛心守護者短杖	1.30%`;
     // 抽到過的道具都列出；數量是目前還留著的
     const drawn = { ...st.hist };
     for (const [k, n] of Object.entries(st.batch)) drawn[k] = (drawn[k] || 0) + n;
-    const keys = sortedKeys(drawn);
-    if (!keys.length) { box.innerHTML = '<div class="g-empty">保管箱還是空的</div>'; return; }
+    // 分解光的道具不顯示
+    const keys = sortedKeys(drawn).filter((k) => (st.owned[k] || 0) > 0);
+    if (!keys.length) { box.innerHTML = `<div class="g-empty">${Object.keys(drawn).length ? "保管箱裡的道具都分解了" : "保管箱還是空的"}</div>`; return; }
     let lastPool = null;
     for (const k of keys) {
       const [pool, name] = splitKey(k);
@@ -761,26 +777,37 @@ B	愛心守護者短杖	1.30%`;
     if (msg) toast(msg);
   }
 
-  function drawN(n, fresh) {
-    if (!st.pools.shiny.length) { toast("閃亮彗星獎池是空的"); return false; }
-    if (fresh) beginBatch();
-    const d = shinyDrawer(false);
-    for (let i = 0; i < n; i++) d();
-    commit();
+  /** 沒有保留碎片時：碎片滿 20 個就自動換成閃亮彗星抽掉；回傳換到的道具 */
+  function autoExchange() {
+    const got = [];
+    if (st.keepFrags || !st.pools.shiny.length) return got;
+    const d = shinyDrawer(true);
+    for (let guard = 0; st.stats.frags >= C.SHINY_FRAG && guard < 1e5; guard++) got.push(d());
+    return got;
   }
-  function exchange(kind, fresh) {
-    const need = kind === "shiny" ? C.SHINY_FRAG : C.BRIGHT_FRAG;
-    if (st.stats.frags < need) return false;
-    if (!st.pools[kind].length) { toast(`${C.POOL_NAME[kind]}獎池是空的`); return false; }
+  /** 抽左邊選到的獎池：閃亮彗星花錢抽；璀璨彗星用碎片開，碎片不夠就停 */
+  function drawN(n, fresh) {
+    const pool = st.tab;
+    if (!st.pools[pool].length) { toast(`${C.POOL_NAME[pool]}獎池是空的`); return false; }
+    if (pool === "bright") {
+      const avail = brightAvail();
+      if (!avail) { toast(st.keepFrags ? `碎片不足，開璀璨彗星需要 ${C.BRIGHT_FRAG} 個碎片` : "要開璀璨彗星請先打開「保留碎片」"); return false; }
+      n = Math.min(n, avail);
+    }
     if (fresh) beginBatch();
-    (kind === "shiny" ? shinyDrawer(true) : brightOpener())();
+    const d = pool === "bright" ? brightOpener() : shinyDrawer(false);
+    for (let i = 0; i < n; i++) { d(); autoExchange(); }
     commit();
+    if (pool === "bright" && !brightAvail()) return false; // 碎片用完，按住也停下來
   }
   function drawUntil(pool, name) {
     if (pool === "shiny") {
       beginBatch();
       const d = shinyDrawer(false);
-      for (let i = 0; i < DRAW_CAP; i++) if (d().name === name) return commit(`抽到「${name}」，共 ${intFmt.format(i + 1)} 抽`);
+      for (let i = 0; i < DRAW_CAP; i++) {
+        const hit = d().name === name;
+        if (autoExchange().some((it) => it.name === name) || hit) return commit(`抽到「${name}」，共 ${intFmt.format(i + 1)} 抽`);
+      }
       return commit(`已達 ${intFmt.format(DRAW_CAP)} 抽上限仍未抽到`);
     }
     if (st.stats.frags < C.BRIGHT_FRAG) return toast(`碎片不足，開璀璨彗星需要 ${C.BRIGHT_FRAG} 個碎片`);
@@ -877,7 +904,7 @@ B	愛心守護者短杖	1.30%`;
     back: () => { if (st.page === "sim") return false; st.page = "sim"; save(); renderAll(); return true; },
   };
   $$("#cTabs button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.pool === "shiny" ? "閃亮彗星" : "璀璨彗星")));
-  $$("#cTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); }));
+  $$("#cTabs button").forEach((b) => b.addEventListener("click", () => { st.tab = b.dataset.pool; save(); renderPool(); renderAnalysis(); renderStats(); }));
   $("#cCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#cCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); renderRight(); });
   $("#cAutoPrice").addEventListener("click", async () => {
@@ -916,8 +943,11 @@ B	愛心守護者短杖	1.30%`;
   });
 
   $$("[data-cdraw]").forEach((b) => holdable(b, (fresh) => drawN(Number(b.dataset.cdraw), fresh)));
-  holdable($("#cExShiny"), (fresh) => exchange("shiny", fresh));
-  holdable($("#cExBright"), (fresh) => exchange("bright", fresh));
+  $("#cKeepFrags").addEventListener("change", (e) => {
+    st.keepFrags = e.target.checked;
+    save(); renderRight();
+    toast(st.keepFrags ? "已保留碎片：可以選「璀璨彗星」開璀璨彗星" : `碎片滿 ${C.SHINY_FRAG} 個會自動換成閃亮彗星`);
+  });
 
   $("#cReset").addEventListener("click", async () => {
     if (!(await confirmBox("確定要重置花費、抽數、碎片與保管箱嗎？"))) return;

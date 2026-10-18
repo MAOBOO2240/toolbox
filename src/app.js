@@ -316,8 +316,8 @@ $("#gearBtn").addEventListener("click", () => {
 }
 
 /* ---------- 道具圖示（依名稱從遊戲檔找，黃金蘋果、閃亮彗星共用） ---------- */
-/** 每週 BOSS 的結晶（同名的結晶有好幾種，選說明裡寫每週的那一個） */
-const CRYSTAL_ITEM = ["每週BOSS結晶", "強烈的力量結晶#每週|週BOSS|週王"];
+/** BOSS 結晶圖示：每週、每月用內建的圖；每日王的結晶讀遊戲資料（強烈的力量結晶） */
+const CRYSTAL = { week: "assets/crystal/weekly.png", month: "assets/crystal/monthly.png", dayItem: "強烈的力量結晶" };
 
 const ItemIcons = (() => {
   const cache = new Map(); // 名稱 → data URL 或 null
@@ -405,7 +405,7 @@ const CATS = {
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
-      { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", item: CRYSTAL_ITEM },
+      { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", img: "assets/crystal/monthly.png" },
     ],
   },
   tools: {
@@ -453,6 +453,17 @@ function toolIcon(t) {
   box.className = `cat-icon ${t.color}`;
   box.style.setProperty("--accent", TILE_ACCENT[t.color] || "#4c8dff");
   box.innerHTML = ICONS[t.icon];
+  // 內建的道具圖（例如 BOSS 結晶）
+  if (t.img) {
+    box.classList.add("item");
+    box.innerHTML = "";
+    const img = new Image();
+    img.src = t.img;
+    img.alt = "";
+    img.draggable = false;
+    box.append(img);
+    return box;
+  }
   if (t.item) firstIcon(t.item).then((png) => {
     if (!png) return;
     box.classList.add("item");

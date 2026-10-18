@@ -122,19 +122,6 @@
 .g-actions { padding: 0.8rem; }
 .g-draw-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
 .g-draw-row .pill { padding: 0.6rem 0.5rem; }
-.g-box-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
-.g-box {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: 0.85rem;
-  font-weight: 700;
-  font-size: 0.9rem;
-  transition: transform 0.12s, filter 0.15s;
-}
-.g-box small { font-size: 0.72rem; font-weight: 700; opacity: 0.75; }
-.g-box:hover { filter: brightness(1.05); }
-.g-box:active { transform: scale(0.97); }
-.g-box:disabled { background: var(--card-2); color: var(--text-2); pointer-events: none; }
 /* 箱子分頁：碎片夠開時亮起來（動畫沿用星光錦囊），不夠時變淡 */
 #gTabs .cbtn.empty:not(.on) { opacity: 0.5; }
 #gTabs .cbtn.ready:not(.on) { animation: s-ready 1.8s ease-in-out infinite; }

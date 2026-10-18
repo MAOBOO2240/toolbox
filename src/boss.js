@@ -177,19 +177,19 @@ const BossCore = (() => {
     const monthPool = per.flatMap((c) => c.month);
     const monthReset = per.flatMap((c) => c.monthReset);
     const normal = sell(weekPool);
-    const withMonth = sell([...weekPool, ...monthPool]);
-    // 用每月重製票券再打一次黑魔法師：放在另一週賣（同一週會擠到帳號 90 顆）
-    const withReset = monthReset.length ? sell([...weekPool, ...monthReset]) : null;
-    const bmWeeks = (monthPool.length ? 1 : 0) + (withReset ? 1 : 0);
-    const monthly = normal.value * (4 - bmWeeks) + (monthPool.length ? withMonth.value : 0) + (withReset ? withReset.value : 0);
+    // 黑魔法師（含用每月重製票券再打的那一次）都在同一週打、同一週賣
+    const bm = [...monthPool, ...monthReset];
+    const withMonth = sell([...weekPool, ...bm]);
+    const bmWeeks = bm.length ? 1 : 0;
+    const monthly = normal.value * (4 - bmWeeks) + (bmWeeks ? withMonth.value : 0);
     const part = (list) => list.reduce((a, x) => a + x.value, 0);
     return {
       per: per.map((c) => ({
         week: part(c.week), day: part(c.day), month: part(c.month),
         weekCount: c.week.length + c.weekOver.length, over: c.weekOver.length, crystals: c.week.length + c.day.length,
-        resets: [...c.week, ...c.weekOver].filter((x) => x.reset).length,
+        resets: [...c.week, ...c.weekOver].filter((x) => x.reset).length, dayCount: c.day.length,
       })),
-      normal, withMonth, withReset, monthly, bmWeeks,
+      normal, withMonth, monthly, bmWeeks, monthReset: monthReset.length,
       byType: {
         week: part(per.flatMap((c) => c.week)), day: part(per.flatMap((c) => c.day)), month: part(monthPool),
         reset: part(per.flatMap((c) => c.week.filter((x) => x.reset))),
@@ -363,6 +363,17 @@ if (typeof document !== "undefined") (() => {
     return name;
   }
 
+  /** 結晶圖示：每週王、每月王用內建的圖，每日王讀遊戲資料 */
+  function crystalIcon(type) {
+    const ic = document.createElement("span");
+    ic.className = "item-ic bs-cr";
+    const src = type === "month" ? CRYSTAL.month : type === "day" ? null : CRYSTAL.week;
+    const put = (url) => { const im = new Image(); im.src = url; im.alt = ""; im.draggable = false; ic.append(im); };
+    if (src) put(src);
+    else { ic.classList.add("none"); ItemIcons.get(CRYSTAL.dayItem).then((png) => { if (png) { put(png); ic.classList.remove("none"); } }); }
+    return ic;
+  }
+
   /** 最上面一列：說明每一欄是什麼 */
   function headRow(cols) {
     const row = document.createElement("div");
@@ -370,10 +381,7 @@ if (typeof document !== "undefined") (() => {
     cols.forEach((t, i) => {
       const c = cell(i === cols.length - 1 ? "r" : "", "");
       if (i === cols.length - 1) {
-        const ic = document.createElement("span");
-        ic.className = "item-ic none";
-        firstIcon(CRYSTAL_ITEM).then((png) => { if (png) { const im = new Image(); im.src = png; im.alt = ""; ic.append(im); ic.classList.remove("none"); } });
-        c.append(ic, document.createTextNode(t));
+        c.append(crystalIcon(st.page), document.createTextNode(t));
         c.title = "一顆強烈的力量結晶賣給收藏家的楓幣（組隊時是平分後的價值）";
       } else c.textContent = t;
       row.appendChild(c);
@@ -602,21 +610,24 @@ if (typeof document !== "undefined") (() => {
   function renderSum(sum) {
     const r = ratio();
     const nt = (v) => `NT$ ${intFmt.format(Math.round(v / (r * 1e4)))}`;
-    const kv = (k, v, s = "") => `<div class="bs-kv"><span>${k}</span><b>${v}</b>${s ? `<small>${s}</small>` : ""}</div>`;
+    const kv = (type, k, v, sub = "") => `<div class="bs-kv"><span>${type ? `<img class="bs-kv-ic" src="${type === "month" ? CRYSTAL.month : CRYSTAL.week}" alt="" />` : ""}${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ""}</div>`;
     const n = sum.normal, m = sum.withMonth;
-    const hasMonth = sum.byType.month > 0;
+    const hasMonth = !!sum.bmWeeks;
+    const hasDay = sum.per.some((p) => p.dayCount > 0);
     $("#bsSum").innerHTML =
       `<div class="bs-sum-top"><div><div class="f-big-label">每週收入</div><div class="bs-big">${eText(n.value)}</div></div>` +
       `<div class="bs-sum-nt"><b>約 ${nt(n.value)}</b><small>${zh(n.value)}</small></div></div>` +
       `<div class="bs-cap"><div class="bs-bar"><i style="width:${Math.min(100, (n.count / C.WORLD_CAP) * 100)}%"></i></div><span>帳號每週結晶 <b>${n.count + n.left.length}</b> / ${C.WORLD_CAP}</span></div>` +
       (n.left.length ? `<p class="bs-warn">超過 ${C.WORLD_CAP} 顆：價值最低的 ${n.left.length} 顆賣不掉（少 ${zh(n.left.reduce((a, x) => a + x.value, 0))}）</p>` : "") +
       '<div class="bs-kvs">' +
-      kv("每週王", eText(sum.byType.week), sum.byType.reset ? `含重製卷 ${eText(sum.byType.reset)}` : "") +
-      kv("每日王", eText(sum.byType.day)) +
-      (hasMonth ? kv("黑魔法師那週", eText(m.value), m.left.length ? `${m.left.length} 顆賣不掉` : "") : "") +
-      (sum.withReset ? kv("重製黑魔法師那週", eText(sum.withReset.value), sum.withReset.left.length ? `${sum.withReset.left.length} 顆賣不掉` : "") : "") +
+      kv("week", "每週王", eText(sum.byType.week), sum.byType.reset ? `含重製卷 ${eText(sum.byType.reset)}` : "") +
+      (hasDay ? `<div class="bs-kv"><span><span class="bs-kv-day"></span>每日王</span><b>${eText(sum.byType.day)}</b></div>` : "") +
+      (hasMonth ? kv("month", `黑魔法師週${sum.monthReset ? "<em>+重製黑魔法師</em>" : ""}`, eText(m.value), m.left.length ? `${m.left.length} 顆賣不掉` : "") : "") +
       "</div>" +
-      `<div class="f-line total pos bs-total" title="台幣依「送禮買賣」的楓幣比率（${intFmt.format(r)} 萬楓幣 = 1 台幣）"><span>每月收入<small>4 週${sum.bmWeeks ? `，其中 ${sum.bmWeeks} 週打黑魔法師` : ""}・約 ${nt(sum.monthly)}</small></span><b>${eText(sum.monthly)}</b></div>`;
+      `<div class="f-line total pos bs-total" title="台幣依「送禮買賣」的楓幣比率（${intFmt.format(r)} 萬楓幣 = 1 台幣）"><span>每月收入<small>4 週${hasMonth ? "，其中一週打黑魔法師" : ""}・約 ${nt(sum.monthly)}</small></span><b>${eText(sum.monthly)}</b></div>`;
+    // 每日王的結晶圖示讀遊戲資料
+    const dayIc = $("#bsSum .bs-kv-day");
+    if (dayIc) ItemIcons.get(CRYSTAL.dayItem).then((png) => { if (png && dayIc.isConnected) dayIc.innerHTML = `<img class="bs-kv-ic" src="${png}" alt="" />`; });
   }
 
   function render() {
