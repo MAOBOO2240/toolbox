@@ -75,7 +75,9 @@
 }
 /* 每月王、每週王、每日王共用同一組欄位（難度、人數、天數、結晶錢都是固定寬度），
    切換分頁或選了 BOSS 出現輸入框時，位置都不會跑；每月、每週王的天數欄是空的 */
-.bs-list.cols-main { grid-template-columns: auto minmax(5rem, 1fr) 14rem 5rem 5rem 8rem; }
+.bs-list.cols-main { grid-template-columns: auto minmax(3.6rem, 8.5rem) minmax(3.4rem, 13.4rem) 4.2rem 4.2rem minmax(5rem, 1fr); }
+/* 人數、天數的標題和下面的輸入框一樣置中 */
+.bs-list.cols-main .bs-thead > :nth-child(4), .bs-list.cols-main .bs-thead > :nth-child(5) { text-align: center; }
 /* BOSS重製卷頁面 */
 .bs-list.cols-reset { grid-template-columns: auto minmax(5.5rem, 1fr) auto auto minmax(6.5rem, auto); }
 .bs-row {
