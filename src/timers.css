@@ -77,9 +77,10 @@
 .icon-btn:hover { background: rgba(255, 59, 48, 0.12); color: var(--red); }
 .icon-btn svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
-.tc-clock { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.4rem 0 0.7rem; }
+/* 卡片太窄放不下時，開始／結束換到下一行，不會蓋到 CD */
+.tc-clock { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem 0.6rem; margin: 0.4rem 0 0.7rem; }
 /* 時間與 CD 並排，CD 在時間右下角 */
-.tc-time-wrap { display: flex; align-items: flex-end; gap: 0.45rem; min-width: 0; }
+.tc-time-wrap { flex: none; display: flex; align-items: flex-end; gap: 0.45rem; }
 
 .tc-time {
   --heat: 0;
@@ -155,7 +156,7 @@
 .tc-cd input:hover, .tc-cd input:focus { background: var(--card-2); }
 .tc-cd.cooling { color: var(--orange); opacity: 1; }
 
-.tc-actions { flex: none; display: flex; flex-direction: row; gap: 0.45rem; }
+.tc-actions { flex: 1 0 auto; display: flex; flex-direction: row; justify-content: flex-end; gap: 0.45rem; }
 .tc-actions .pill { min-width: 5.2rem; }
 .tc-opts { padding-top: 0.3rem; border-top: 0.5px solid var(--sep); }
 
@@ -314,3 +315,12 @@
 .val-in::-webkit-inner-spin-button { -webkit-appearance: none; }
 .val-in:hover { background: var(--card-2); }
 .val-in:focus { background: var(--card-2); box-shadow: 0 0 0 2px var(--blue-soft); }
+/* 卡片比較窄時（四欄或字比較大），時間和按鈕縮小一點，盡量維持同一行 */
+.tcard { container-type: inline-size; }
+@container (max-width: 27rem) {
+  .tc-time, .tc-edit input { font-size: 2.3rem; }
+  .tc-edit span { font-size: 1.9rem; }
+  .tc-cd { font-size: 1rem; padding-bottom: 0.38rem; }
+  .tc-actions { gap: 0.35rem; }
+  .tc-actions .pill { min-width: 3.2rem; padding-left: 0.7rem; padding-right: 0.7rem; }
+}
