@@ -418,7 +418,7 @@ const ICONS = {
 };
 
 // 滑過磁磚時的光暈顏色（與圖示漸層同色系）
-const TILE_ACCENT = { red: "#ff5a5f", purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", star: "#a78bfa", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f", crystal: "#7c5cff", teal: "#14b8a6", indigo: "#5865f2" };
+const TILE_ACCENT = { red: "#ff5a5f", purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", star: "#a78bfa", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f", crystal: "#f2b10c", teal: "#14b8a6", indigo: "#5865f2" };
 
 const CATS = {
   maple: {
@@ -440,7 +440,7 @@ const CATS = {
       { id: "serial", name: "序號複製", desc: "擷取序號，Ctrl+V 後自動換下一組", color: "blue", icon: "copy" },
       { id: "watch", name: "斷線通知", desc: "新楓之谷斷線、回到登入畫面或關閉時通知", color: "red", icon: "plug" },
       { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
-      { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 30 天平均與預計升級日", color: "indigo", icon: "trend" },
+      { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 7／30 天平均與預計升級日", color: "indigo", icon: "trend" },
       { id: "patch", name: "版本更新", desc: "新楓之谷歷次大版本更新的官網公告，依年份查看", color: "orange", icon: "news" },
     ],
   },
