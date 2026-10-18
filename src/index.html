@@ -223,6 +223,7 @@
               <option value="beep1">柔和木琴</option>
               <option value="beep2">柔和鐘聲</option>
               <option value="beep3">溫和雙音</option>
+              <option value="thud">撞到木櫃</option>
               <option value="tts">語音唸出計時器名稱</option>
               <option value="file">自訂音效檔…</option>
             </select>
@@ -429,15 +430,19 @@
               </div>
               <div class="b-chatbar" id="bChatBar">
                 <input type="text" id="bChat" maxlength="70" placeholder="輸入文字讓角色說話" title="按 Enter 送出；空白送出會收起對話框" autocomplete="off" spellcheck="false" />
-                <select class="b-act" id="bAct" title="角色動作">
-                  <option value="stand">站立</option>
-                  <option value="attack">普通攻擊</option>
-                  <option value="walk">走路</option>
-                  <option value="ladder">爬梯子</option>
-                  <option value="prone">趴下</option>
-                  <option value="sit">坐下</option>
-                  <option value="jump">跳躍</option>
-                </select>
+                <div class="b-act-wrap">
+                  <button class="b-act" id="bAct" title="角色動作（再按一次收起選單）"><span id="bActText">站立</span><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg></button>
+                  <!-- 動作選單：選了動作不會收起，再按一次上面的按鈕才收起 -->
+                  <div class="b-act-menu" id="bActMenu" hidden>
+                    <button class="cbtn small c-blue" data-v="stand">站立</button>
+                    <button class="cbtn small c-red" data-v="attack">普通攻擊</button>
+                    <button class="cbtn small c-green" data-v="walk">走路</button>
+                    <button class="cbtn small c-amber" data-v="ladder">爬梯子</button>
+                    <button class="cbtn small c-teal" data-v="prone">趴下</button>
+                    <button class="cbtn small c-pink" data-v="sit">坐下</button>
+                    <button class="cbtn small c-purple" data-v="jump">跳躍</button>
+                  </div>
+                </div>
                 <button class="b-act-reset" id="bActReset" title="回到站立"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg></button>
               </div>
             </div>
@@ -774,8 +779,11 @@
         </nav>
         <div class="pt-page">
           <div class="card pt-bar">
-            <label class="pt-filter">年份<select class="sel" id="ptYear"></select></label>
-            <span class="muted" id="ptStatus"></span>
+            <div class="pt-bar-top">
+              <span class="pt-search"><svg class="pt-search-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input type="text" id="ptSearch" placeholder="搜尋版本或更新內容，例如 V282、HEXA、芙莉蓮" autocomplete="off" spellcheck="false" /><button class="pt-search-x" id="ptSearchX" title="清除搜尋文字" hidden><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>
+              <span class="muted" id="ptStatus"></span>
+            </div>
+            <div class="pt-years" id="ptYears"></div>
           </div>
           <div class="pt-list" id="ptList"></div>
         </div>
@@ -791,6 +799,10 @@
           <div class="card tk-add">
             <div class="f-input"><input type="text" id="tkName" placeholder="輸入角色名稱" autocomplete="off" spellcheck="false" /></div>
             <button class="cbtn c-green solid" id="tkAddBtn">新增角色</button>
+            <div class="tk-period" id="tkPeriod" title="平均每天與預計升級用幾天的資料計算">
+              <button class="cbtn c-teal" data-days="7">7 天平均</button>
+              <button class="cbtn c-indigo" data-days="30">30 天平均</button>
+            </div>
             <span class="muted" id="tkStatus"></span>
           </div>
           <div class="tk-list" id="tkList"></div>
@@ -944,6 +956,7 @@
                     <option value="beep1">柔和木琴</option>
                     <option value="beep2">柔和鐘聲</option>
                     <option value="beep3">溫和雙音</option>
+              <option value="thud">撞到木櫃</option>
                     <option value="tts">語音唸出通知</option>
                     <option value="file">自訂音效檔…</option>
                   </select>

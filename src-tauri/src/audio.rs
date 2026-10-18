@@ -11,6 +11,8 @@ use std::sync::OnceLock;
 pub const BEEP1: &[u8] = include_bytes!("../sounds/beep1.wav");
 pub const BEEP2: &[u8] = include_bytes!("../sounds/beep2.wav");
 pub const BEEP3: &[u8] = include_bytes!("../sounds/beep3.wav");
+/// 撞到木櫃：兩下低沉的「咚、咚」
+pub const THUD: &[u8] = include_bytes!("../sounds/thud.wav");
 
 enum Src {
     Bytes(&'static [u8]),
@@ -32,11 +34,12 @@ pub fn init() {
     std::thread::spawn(move || worker(rx));
 }
 
-/// 播放音效。sound："beep1" | "beep2" | "beep3" | "tts" | "file"；volume：0–200
+/// 播放音效。sound："beep1" | "beep2" | "beep3" | "thud" | "tts" | "file"；volume：0–200
 pub fn play(sound: &str, file: &str, name: &str, volume: u32) {
     let src = match sound {
         "beep2" => Src::Bytes(BEEP2),
         "beep3" => Src::Bytes(BEEP3),
+        "thud" => Src::Bytes(THUD),
         "tts" if !name.trim().is_empty() => Src::Speak(name.to_string()),
         "file" if !file.is_empty() => Src::File(file.to_string()),
         _ => Src::Bytes(BEEP1),

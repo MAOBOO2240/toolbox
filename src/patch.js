@@ -83,29 +83,73 @@ if (typeof document !== "undefined") (() => {
   const C = PatchCore;
   const KEY = "patch-v1";
   let year = (() => { try { return localStorage.getItem(KEY) || "all"; } catch (_) { return "all"; } })();
+  let q = "";
   let base = [], list = [], hubs = {}, busy = false, loaded = false, gen = 0;
+  // 年份按鈕各自的顏色（輪流）
+  const YEAR_COLORS = ["c-blue", "c-teal", "c-green", "c-amber", "c-orange", "c-pink", "c-purple", "c-indigo", "c-red", "c-silver"];
+  const EV_URL = "https://maplestory-event.beanfun.com/eventad/eventad?eventadid=";
 
   /** 公告標題去掉「新楓之谷」與書名號，比較好讀 */
   const clean = (t) => String(t).replace(/^新楓之谷\s*/, "").replace(/^《|》$/g, "").replace(/^新楓之谷\s*/, "").trim();
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const pending = (x) => x.cands.some((id) => !(id in hubs));
+  /** 只列更新內容：有改版頁面的版本；沒有改版頁面時只留改版內容／更新公告，不列完整程式、手動更新這類下載檔案 */
+  const content = (x) => !!x.hub || C.rank(x.title) <= 1 || pending(x);
+  const words = () => q.toLowerCase().split(/\s+/).filter(Boolean);
+  function hay(x) {
+    const parts = [`v${x.v}`, `v${String(x.v).padStart(3, "0")}`, x.date];
+    if (x.hub) parts.push(x.hub.title, ...x.hub.sections.map((s) => s[1]));
+    else parts.push(clean(x.title));
+    return parts.join(" ").toLowerCase();
+  }
+  const matches = (x) => { const w = words(); if (!w.length) return true; const h = hay(x); return w.every((t) => h.includes(t.replace(/^v0*/, "v"))) || w.every((t) => h.includes(t)); };
+  /** 搜尋到的字標出來 */
+  function hl(text) {
+    const w = words();
+    let html = esc(text);
+    if (!w.length) return html;
+    const re = new RegExp(`(${w.map((t) => esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+    return html.replace(re, "<mark>$1</mark>");
+  }
 
-  function renderYears() {
-    const sel = $("#ptYear");
-    const years = [...new Set(list.map((x) => x.year))].sort((a, b) => b - a);
-    if (year !== "all" && !years.includes(year)) year = "all";
-    sel.innerHTML = `<option value="all">全部年份（${list.length} 個版本）</option>` +
-      years.map((y) => `<option value="${y}">${y} 年（${list.filter((x) => x.year === y).length}）</option>`).join("");
-    sel.value = year;
+  function renderYears(rows) {
+    const box = $("#ptYears");
+    const years = [...new Set(rows.map((x) => x.year))].sort((a, b) => b - a);
+    if (year !== "all" && loaded && !years.includes(year)) year = "all";
+    box.innerHTML = "";
+    const chip = (label, val, color) => {
+      const b = document.createElement("button");
+      b.className = `cbtn small ${color}` + (year === val ? " on" : "");
+      b.textContent = label;
+      b.addEventListener("click", () => {
+        year = val;
+        try { localStorage.setItem(KEY, year); } catch (_) {}
+        render();
+        $("#ptList").parentElement.scrollTop = 0;
+      });
+      box.appendChild(b);
+      return b;
+    };
+    chip("全部", "all", "c-silver");
+    years.forEach((y, i) => chip(y, y, YEAR_COLORS[i % YEAR_COLORS.length]));
+    box.querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function open(url) {
+    if (!TAURI) return toast("預覽模式無法開啟網址");
+    invoke("open_bulletin", { url }).catch((e) => toast(String(e)));
   }
 
   function render() {
     list = C.attach(base, hubs);
-    renderYears();
+    const shown = list.filter(content);
+    renderYears(shown);
     const box = $("#ptList");
     const top = box.parentElement.scrollTop;
     box.innerHTML = "";
-    const rows = year === "all" ? list : list.filter((x) => x.year === year);
+    const rows = shown.filter((x) => (year === "all" || x.year === year) && matches(x));
     if (!rows.length) {
-      box.innerHTML = `<div class="card g-empty pt-empty">${loaded ? "沒有找到版本更新" : "讀取中…"}</div>`;
+      box.innerHTML = `<div class="card g-empty pt-empty">${!loaded ? "讀取中…" : q ? "沒有符合搜尋的版本" : "沒有找到版本更新"}</div>`;
       return;
     }
     let lastYear = null;
@@ -117,22 +161,30 @@ if (typeof document !== "undefined") (() => {
         h.textContent = `${r.year} 年`;
         box.appendChild(h);
       }
-      const row = document.createElement("button");
+      const row = document.createElement("div");
       row.className = "card pt-row" + (r.hub ? " hub" : "");
+      row.tabIndex = 0;
       const url = r.hub ? r.hub.url : r.url;
-      row.title = r.hub ? `開啟改版頁面：${r.hub.title}` : `開啟官網公告：${r.title}`;
-      row.innerHTML = `<span class="pt-ver"></span><span class="pt-date muted"></span><span class="pt-main"><span class="pt-title"></span><small class="pt-sub muted"></small></span><span class="pt-go"></span>`;
-      row.querySelector(".pt-ver").textContent = `V${r.v}`;
-      row.querySelector(".pt-date").textContent = r.date;
-      row.querySelector(".pt-title").textContent = r.hub ? r.hub.title : clean(r.title);
-      row.querySelector(".pt-sub").textContent = r.hub
-        ? r.hub.sections.slice(1).map((s) => s[1]).join("・")
-        : r.cands.length && r.cands.some((id) => !(id in hubs)) ? "改版頁面讀取中…" : "官網已經沒有這個版本的改版頁面，改開當時的版本公告";
-      row.querySelector(".pt-go").textContent = r.hub ? "改版頁面" : "版本公告";
-      row.addEventListener("click", () => {
-        if (!TAURI) return toast("預覽模式無法開啟網址");
-        invoke("open_bulletin", { url }).catch((e) => toast(String(e)));
-      });
+      row.title = r.hub ? `開啟改版頁面：${r.hub.title}` : `開啟官網公告：${clean(r.title)}`;
+      const sub = r.hub ? "" : pending(r) ? "改版頁面讀取中…" : "官網已經沒有這個版本的改版頁面，改開當時的版本公告";
+      row.innerHTML = `<span class="pt-ver">${hl(`V${r.v}`)}</span><span class="pt-date muted">${esc(r.date)}</span>` +
+        `<span class="pt-main"><span class="pt-title">${hl(r.hub ? r.hub.title : clean(r.title))}</span>` +
+        (r.hub ? `<span class="pt-secs"></span>` : `<small class="pt-sub muted">${esc(sub)}</small>`) +
+        `</span><span class="pt-go">${r.hub ? "改版頁面" : "版本公告"}</span>`;
+      // 改版頁面裡的每個項目：點一下直接開那一頁
+      if (r.hub) {
+        const secs = row.querySelector(".pt-secs");
+        for (const [id, name] of r.hub.sections.slice(1)) {
+          const b = document.createElement("button");
+          b.className = "pt-sec";
+          b.innerHTML = hl(name);
+          b.title = `開啟「${name}」`;
+          b.addEventListener("click", (e) => { e.stopPropagation(); open(EV_URL + id); });
+          secs.appendChild(b);
+        }
+      }
+      row.addEventListener("click", () => open(url));
+      row.addEventListener("keydown", (e) => { if (e.key === "Enter") open(url); });
       box.appendChild(row);
     }
     box.parentElement.scrollTop = top;
@@ -190,12 +242,21 @@ if (typeof document !== "undefined") (() => {
     }
   }
 
-  $("#ptYear").addEventListener("change", (e) => {
-    year = e.target.value;
-    try { localStorage.setItem(KEY, year); } catch (_) {}
-    render();
-    $("#ptList").parentElement.scrollTop = 0;
+  let qTimer;
+  const syncX = () => { $("#ptSearchX").hidden = !$("#ptSearch").value; };
+  $("#ptSearch").addEventListener("input", (e) => {
+    syncX();
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { q = e.target.value.trim(); render(); $("#ptList").parentElement.scrollTop = 0; }, 150);
   });
+  $("#ptSearchX").addEventListener("click", () => { $("#ptSearch").value = ""; q = ""; syncX(); render(); $("#ptSearch").focus(); });
+  // 年份列：滑鼠滾輪左右捲動
+  $("#ptYears").addEventListener("wheel", (e) => {
+    const el = e.currentTarget;
+    if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    el.scrollLeft += e.deltaY;
+  }, { passive: false });
   $("#ptRefresh").addEventListener("click", () => refresh(true));
 
   render();

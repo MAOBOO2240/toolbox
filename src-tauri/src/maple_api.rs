@@ -318,9 +318,12 @@ pub struct TrackOut {
     yesterday: Option<Snap>,
     /// 今天第一次查到的資料（昨天的資料還沒出來時當作基準）
     first_today: Option<Snap>,
-    /// 幾天前的資料（算平均成長速度）
+    /// 幾天前的資料（算 30 天平均成長速度）
     past: Option<Snap>,
     past_days: u32,
+    /// 7 天前的資料（算 7 天平均成長速度）
+    past7: Option<Snap>,
+    past7_days: u32,
     error: Option<String>,
 }
 
@@ -416,26 +419,24 @@ fn track_one(name: &str, force: bool) -> Result<TrackOut, String> {
         Some(e.1.clone())
     };
     let yesterday = hist_snap(&ocid, 1);
-    // 平均成長：優先用 30 天前；角色太新查不到就用比較近的日子
-    let mut past = None;
-    let mut past_days = 0;
-    for d in [30u64, 14, 7, 3] {
-        if let Some(s) = hist_snap(&ocid, d) {
-            past = Some(s);
-            past_days = d as u32;
-            break;
+    // 平均成長：優先用 30 天（或 7 天）前；角色太新查不到就用比較近的日子，再不行用昨天
+    let pick = |days: &[u64]| -> (Option<Snap>, u32) {
+        for &d in days {
+            if let Some(s) = hist_snap(&ocid, d) {
+                return (Some(s), d as u32);
+            }
         }
-    }
-    if past.is_none() {
-        if let Some(y) = &yesterday {
-            past = Some(y.clone());
-            past_days = 1;
+        match &yesterday {
+            Some(y) => (Some(y.clone()), 1),
+            None => (None, 0),
         }
-    }
-    Ok(TrackOut { name: name.to_string(), fetched_at, now: Some(cur), yesterday, first_today, past, past_days, error: None })
+    };
+    let (past, past_days) = pick(&[30, 14, 7, 3]);
+    let (past7, past7_days) = pick(&[7, 3]);
+    Ok(TrackOut { name: name.to_string(), fetched_at, now: Some(cur), yesterday, first_today, past, past_days, past7, past7_days, error: None })
 }
 
-/// 經驗追蹤：每隻角色的最新等級與經驗、昨天與 30 天前的資料
+/// 經驗追蹤：每隻角色的最新等級與經驗、昨天、7 天前與 30 天前的資料
 #[tauri::command]
 pub async fn exp_track(names: Vec<String>, force: bool) -> Vec<TrackOut> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -451,6 +452,8 @@ pub async fn exp_track(names: Vec<String>, force: bool) -> Vec<TrackOut> {
                     first_today: None,
                     past: None,
                     past_days: 0,
+                    past7: None,
+                    past7_days: 0,
                     error: Some(e),
                 })
             })

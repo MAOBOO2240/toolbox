@@ -1,8 +1,26 @@
 /* ---------- 版本更新 ---------- */
 .pt-page { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
-.pt-bar { display: flex; align-items: center; gap: 0.9rem; padding: 0.65rem 0.9rem; max-width: 56rem; width: 100%; margin: 0 auto; }
-.pt-bar .muted { font-size: 0.8rem; margin-left: auto; text-align: right; }
-.pt-filter { display: inline-flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; font-weight: 700; color: var(--text-2); }
+.pt-bar { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem 0.9rem; max-width: 56rem; width: 100%; margin: 0 auto; }
+.pt-bar-top { display: flex; align-items: center; gap: 0.9rem; }
+.pt-bar-top .muted { font-size: 0.8rem; margin-left: auto; text-align: right; flex: none; }
+/* 搜尋框 */
+.pt-search { position: relative; flex: 1 1 22rem; max-width: 30rem; display: flex; align-items: center; }
+.pt-search input {
+  width: 100%; padding: 0.55rem 2.2rem 0.55rem 2.2rem; border: 0; border-radius: 0.7rem;
+  background: var(--card-2); color: var(--text); font: inherit; font-size: 0.9rem; outline: none;
+}
+.pt-search input:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
+.pt-search-ic { position: absolute; left: 0.7rem; width: 1rem; height: 1rem; fill: none; stroke: var(--text-2); stroke-width: 2.2; stroke-linecap: round; pointer-events: none; }
+.pt-search-x {
+  position: absolute; right: 0.45rem; width: 1.45rem; height: 1.45rem; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; background: color-mix(in srgb, var(--text-2) 30%, transparent); color: var(--card);
+}
+.pt-search-x:hover { background: var(--text-2); }
+.pt-search-x[hidden] { display: none; }
+.pt-search-x svg { width: 0.85rem; height: 0.85rem; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; }
+/* 年份：一排小按鈕，太多時左右捲動（滑鼠滾輪也可以） */
+.pt-years { display: flex; gap: 0.35rem; overflow-x: auto; padding: 0.15rem 0.1rem 0.35rem; scrollbar-width: thin; }
+.pt-years .cbtn { flex: none; padding: 0.3rem 0.7rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .pt-list { display: flex; flex-direction: column; gap: 0.4rem; max-width: 56rem; width: 100%; margin: 0 auto; }
 .pt-year { margin: 0.5rem 0 0.1rem 0.3rem; font-size: 0.8rem; font-weight: 800; color: var(--text-2); }
 .pt-year:first-child { margin-top: 0; }
@@ -22,7 +40,15 @@
 .pt-main { min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
 .pt-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem; font-weight: 700; }
 .pt-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74rem; }
-.pt-row.hub .pt-sub { white-space: normal; line-height: 1.45; }
+/* 改版頁面裡的項目：一個一個小標籤，點了直接開那一頁 */
+.pt-secs { display: flex; flex-wrap: wrap; gap: 0.25rem 0.3rem; margin-top: 0.2rem; }
+.pt-sec {
+  padding: 0.1rem 0.5rem; border: 0; border-radius: 0.45rem; cursor: pointer;
+  background: var(--card-2); color: var(--text-2); font: inherit; font-size: 0.74rem; font-weight: 600;
+}
+.pt-sec:hover { background: color-mix(in srgb, #ff7a2f 18%, var(--card-2)); color: var(--text); }
+.pt-row mark { background: color-mix(in srgb, #ffd43b 55%, transparent); color: inherit; border-radius: 0.2rem; padding: 0 0.05rem; }
+.pt-row:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .pt-go { font-size: 0.78rem; font-weight: 700; color: var(--text-2); white-space: nowrap; }
 .pt-row.hub .pt-go { color: #e8590c; }
 :root[data-theme="dark"] .pt-row.hub .pt-go { color: #ffa94d; }

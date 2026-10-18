@@ -150,7 +150,8 @@
 
 /* ---------- 經驗追蹤 ---------- */
 .tk-page { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
-.tk-add { display: grid; grid-template-columns: minmax(0, 22rem) auto 1fr; align-items: center; gap: 0.6rem; padding: 0.7rem 0.9rem; }
+.tk-add { display: grid; grid-template-columns: minmax(0, 22rem) auto auto 1fr; align-items: center; gap: 0.6rem; padding: 0.7rem 0.9rem; }
+.tk-period { display: flex; gap: 0.35rem; }
 .tk-add .muted { font-size: 0.8rem; text-align: right; }
 .tk-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .tk-row {

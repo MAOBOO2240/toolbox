@@ -27,7 +27,7 @@ pub struct WatchCfg {
     pub threshold: u64,
     /// 通知時播放音效
     pub sound: bool,
-    /// 音效：beep1 / beep2 / beep3 / tts / file
+    /// 音效：beep1 / beep2 / beep3 / thud / tts / file
     pub sound_name: String,
     pub sound_file: String,
     /// 音量 0–200

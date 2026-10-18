@@ -727,13 +727,15 @@ if (typeof document !== "undefined") (() => {
     $("#bMixBaseV").textContent = `${mx.base} ${100 - mx.rate}%`;
     $("#bMixMixV").textContent = `${mx.mix} ${mx.rate}%`;
   }
-  /** 套用到紙娃娃（拉桿拖動時稍微等一下再畫） */
+  /** 套用到紙娃娃：拉桿拖動時也一直更新（畫圖的佇列只留最新的一張，不會塞車） */
+  let mixFrame = 0;
   function applyMix(now) {
     save();
     renderSwatches();
     clearTimeout(mixTimer);
-    const go = () => { renderDoll(); renderRight(); };
-    if (now) go(); else mixTimer = setTimeout(go, 120);
+    if (now) { cancelAnimationFrame(mixFrame); mixFrame = 0; renderDoll(); renderRight(); return; }
+    if (!mixFrame) mixFrame = requestAnimationFrame(() => { mixFrame = 0; renderDoll(); });
+    mixTimer = setTimeout(renderRight, 200);
   }
   $("#bMixRate").addEventListener("input", (e) => {
     const mx = mixKind && st[MIX_KEY[mixKind]];
@@ -1045,14 +1047,23 @@ if (typeof document !== "undefined") (() => {
     say(e.target.value.trim());
     e.target.value = "";
   });
-  // 動作：下拉選單直接選；右邊的按鈕回到站立
+  // 動作：選單選了不會收起，再按一次動作按鈕才收起；右邊的按鈕回到站立
   const setAct = (v) => {
     act = v || "stand";
-    $("#bAct").value = act;
+    const b = $(`#bActMenu [data-v="${act}"]`);
+    $("#bActText").textContent = b ? b.textContent : "站立";
+    $$("#bActMenu .cbtn").forEach((x) => x.classList.toggle("on", x === b));
     $("#bActReset").disabled = act === "stand";
     renderDoll();
   };
-  $("#bAct").addEventListener("change", (e) => setAct(e.target.value));
+  const actMenu = (open) => {
+    $("#bActMenu").hidden = !open;
+    $("#bAct").classList.toggle("open", open);
+  };
+  $("#bAct").addEventListener("click", () => actMenu($("#bActMenu").hidden));
+  $$("#bActMenu .cbtn").forEach((b) => b.addEventListener("click", () => setAct(b.dataset.v)));
+  $$("#bActMenu .cbtn").forEach((b) => b.classList.toggle("on", b.dataset.v === act));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#bActMenu").hidden) actMenu(false); });
   $("#bActReset").addEventListener("click", () => setAct("stand"));
   $("#bActReset").disabled = true;
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });

@@ -3,7 +3,7 @@
 /* ==========================================================
  * 經驗追蹤
  * - 一隻角色一排：目前等級、經驗 %、今天練了多少（每天 00:00 重新計算）
- * - 近 30 天的平均成長速度，推算哪一天升級
+ * - 近 30 天（或切換成近 7 天）的平均成長速度，推算哪一天升級
  * - 資料來自 Nexon API（Rust 端快取，最新資料 10 分鐘內不重查，歷史資料查過就記住）
  * ========================================================== */
 
@@ -93,7 +93,8 @@ if (typeof module !== "undefined") module.exports = { ExpCore, TrackCore };
 if (typeof document !== "undefined") (() => {
   const C = TrackCore, E = ExpCore;
   const KEY = "track-v1";
-  let st = (() => { try { return { names: [], data: {}, sort: null, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null }; } })();
+  let st = (() => { try { return { names: [], data: {}, sort: null, days: 30, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null, days: 30 }; } })();
+  if (st.days !== 7) st.days = 30;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} };
   let busy = false, timer = null;
 
@@ -111,10 +112,13 @@ if (typeof document !== "undefined") (() => {
     const now = r?.now;
     // 今天的起點：昨天的資料；凌晨 Nexon 還沒準備好時，用今天第一次查到的資料
     const t = C.today(now, r?.yesterday || r?.first_today);
-    const daily = C.perDay(now, r?.past, r?.past_days, hoursToday());
+    // 7 天平均：舊資料還沒有 7 天前的資料時，先用 30 天的
+    const seven = st.days === 7 && r?.past7;
+    const past = seven ? r.past7 : r?.past, pastDays = seven ? r.past7_days : r?.past_days;
+    const daily = C.perDay(now, past, pastDays, hoursToday());
     const eta = C.eta(now, daily);
     const dailyPct = daily != null && now ? (daily / Math.max(1, E.need(now.level))) * 100 : null;
-    return { r, now, t, daily, eta, dailyPct };
+    return { r, now, t, daily, eta, dailyPct, pastDays };
   }
 
   /* ---------- 排序：點表頭 大到小 → 小到大 → 自己排的順序 ---------- */
@@ -129,6 +133,7 @@ if (typeof document !== "undefined") (() => {
     ["", null], ["", null], ["角色", null], ["等級", "level"], ["經驗", "exp"], ["今天", "today"],
     ["平均每天<small>(30天)</small>", "avg"], ["預計升級<small>(看看就好)</small>", "eta"], ["", null],
   ];
+  const headLabel = (label, key) => (key === "avg" ? `平均每天<small>(${st.days}天)</small>` : label);
   function ordered() {
     const s = st.sort;
     if (!s || !SORTS[s.key]) return [...st.names];
@@ -150,6 +155,7 @@ if (typeof document !== "undefined") (() => {
   }
 
   function render() {
+    $$("#tkPeriod .cbtn").forEach((b) => b.classList.toggle("on", Number(b.dataset.days) === st.days));
     const box = $("#tkList");
     box.innerHTML = "";
     if (!st.names.length) {
@@ -160,7 +166,7 @@ if (typeof document !== "undefined") (() => {
     head.className = "tk-row tk-head";
     for (const [label, key] of HEAD) {
       const c = document.createElement(key ? "button" : "span");
-      c.innerHTML = label;
+      c.innerHTML = headLabel(label, key);
       if (key) {
         c.className = "tk-sort" + (st.sort?.key === key ? ` on ${st.sort.dir}` : "");
         c.title = "點一下：大到小；再點：小到大；再點：恢復自己排的順序";
@@ -170,7 +176,7 @@ if (typeof document !== "undefined") (() => {
     }
     box.appendChild(head);
     for (const name of ordered()) {
-      const { r, now, t, eta, dailyPct } = stats(name);
+      const { r, now, t, eta, dailyPct, pastDays } = stats(name);
       const row = document.createElement("div");
       row.className = "card tk-row";
       row.dataset.name = name;
@@ -202,8 +208,9 @@ if (typeof document !== "undefined") (() => {
       // 一天超過一級時改顯示幾級，不顯示好幾百 %
       const avgText = dailyPct == null ? "—" : dailyPct >= 100 ? `+${(dailyPct / 100).toFixed(2)} 級` : `+${fmtPct(dailyPct)}`;
       const avg = cell(avgText, dailyPct > 0 ? "up" : "");
-      if (r?.past_days === 1) avg.title = "只查得到昨天的資料，先用今天練的量估計";
-      else if (r?.past_days && r.past_days < 30) avg.title = `角色資料只查得到近 ${r.past_days} 天`;
+      if (pastDays === 1) avg.title = "只查得到昨天的資料，先用今天練的量估計";
+      else if (pastDays && pastDays < st.days) avg.title = `角色資料只查得到近 ${pastDays} 天`;
+      else if (pastDays) avg.title = `近 ${pastDays} 天的平均`;
       let etaText = "—";
       if (now?.level >= E.MAX) etaText = "已滿級";
       else if (eta?.far) etaText = `兩年以上 Lv.${eta.level}`;
@@ -298,6 +305,12 @@ if (typeof document !== "undefined") (() => {
   $("#tkAddBtn").addEventListener("click", add);
   $("#tkName").addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
   $("#tkRefresh").addEventListener("click", () => refresh(true));
+  // 7 天／30 天平均切換：資料都已經有了，直接重算；舊資料沒有 7 天前的就補查
+  $$("#tkPeriod .cbtn").forEach((b) => b.addEventListener("click", () => {
+    st.days = Number(b.dataset.days);
+    save(); render();
+    if (st.days === 7 && st.names.some((n) => st.data[n]?.now && st.data[n].past7 === undefined)) refresh(false);
+  }));
 
   render();
   window.Track = {
