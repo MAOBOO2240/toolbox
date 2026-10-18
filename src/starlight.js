@@ -748,18 +748,23 @@ if (typeof document !== "undefined") (() => {
   });
 
   // 解析頁
-  $("#sParse").addEventListener("click", () => {
-    const parsed = C.parse($("#sPaste").value);
-    const got2 = C.LEVELS.filter((lv) => parsed[lv].length);
-    if (!got2.length) { $("#sParseResult").textContent = "沒有解析到任何「名稱 機率%」的道具"; return; }
+  /** 套用解析結果（貼上解析與官網更新共用） */
+  function applyPools(parsed) {
+    const got2 = C.LEVELS.filter((lv) => parsed[lv] && parsed[lv].length);
+    if (!got2.length) return null;
     for (const lv of got2) st.pools[lv] = parsed[lv];
     if (!got2.includes(st.tab)) st.tab = got2[0];
     pickers = null;
     save(); renderAll();
-    const msg = got2.map((lv) => `${C.LEVEL_NAME[lv]} ${parsed[lv].length} 項`).join("、");
+    return got2.map((lv) => `${C.LEVEL_NAME[lv]} ${parsed[lv].length} 項`).join("、");
+  }
+  $("#sParse").addEventListener("click", () => {
+    const msg = applyPools(C.parse($("#sPaste").value));
+    if (!msg) { $("#sParseResult").textContent = "沒有解析到任何「名稱 機率%」的道具"; return; }
     $("#sParseResult").textContent = `已套用：${msg}`;
     toast(`已套用：${msg}`);
   });
+  OfficialPools.register("star", { card: $("#sPaste").closest(".card"), parse: C.parse, apply: applyPools });
 
   renderAll();
   window.Starlight = { onShow: renderAll };

@@ -911,21 +911,23 @@ if (typeof document !== "undefined") (() => {
   });
 
   // 第二頁
-  $("#gParse").addEventListener("click", () => {
-    const parsed = C.parse($("#gPaste").value);
-    const got = C.POOLS.filter((p) => parsed[p].length);
-    if (!got.length) {
-      $("#gParseResult").textContent = "沒有解析到任何「名稱 + 機率%」的道具";
-      return;
-    }
+  /** 套用解析結果（貼上解析與官網更新共用）；回傳說明文字，沒有道具時回傳 null */
+  function applyPools(parsed) {
+    const got = C.POOLS.filter((p) => parsed[p] && parsed[p].length);
+    if (!got.length) return null;
     for (const p of got) st.pools[p] = parsed[p];
     if (!got.includes(st.tab)) st.tab = got[0];
     save();
     renderAll();
-    const msg = got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+    return got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+  }
+  $("#gParse").addEventListener("click", () => {
+    const msg = applyPools(C.parse($("#gPaste").value));
+    if (!msg) { $("#gParseResult").textContent = "沒有解析到任何「名稱 + 機率%」的道具"; return; }
     $("#gParseResult").textContent = `已套用：${msg}`;
     toast(`已套用：${msg}`);
   });
+  OfficialPools.register("gacha", { card: $("#gPaste").closest(".card"), parse: C.parse, apply: applyPools });
   $("#gJunk").addEventListener("input", (e) => { st.junk = e.target.value; save(); renderJunkMatch(); });
   $("#gMarker").addEventListener("input", (e) => { st.jackpotMarker = e.target.value.trim(); save(); renderMarkerInfo(); renderPool(); renderRight(); });
   $("#gJunkReset").addEventListener("click", async () => {

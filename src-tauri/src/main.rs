@@ -413,6 +413,7 @@ fn main() {
             patches::version_list,
             patches::version_hubs,
             patches::open_bulletin,
+            patches::pool_page,
             maple_api::exp_track,
             avatar::beauty_render,
             avatar::beauty_tags,

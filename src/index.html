@@ -431,8 +431,8 @@
               <div class="b-chatbar" id="bChatBar">
                 <input type="text" id="bChat" maxlength="70" placeholder="輸入文字讓角色說話" title="按 Enter 送出；空白送出會收起對話框" autocomplete="off" spellcheck="false" />
                 <div class="b-act-wrap">
-                  <button class="b-act" id="bAct" title="角色動作（再按一次收起選單）"><span id="bActText">站立</span><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></svg></button>
-                  <!-- 動作選單：選了動作不會收起，再按一次上面的按鈕才收起 -->
+                  <button class="b-act" id="bAct" title="角色動作（再按一次收起選單）"><span id="bActText">站立</span><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+                  <!-- 動作選單：往下打開；選了動作不會收起，再按一次動作按鈕才收起 -->
                   <div class="b-act-menu" id="bActMenu" hidden>
                     <button class="cbtn small c-blue" data-v="stand">站立</button>
                     <button class="cbtn small c-red" data-v="attack">普通攻擊</button>
@@ -797,8 +797,10 @@
         </nav>
         <div class="tk-page">
           <div class="card tk-add">
-            <div class="f-input"><input type="text" id="tkName" placeholder="輸入角色名稱" autocomplete="off" spellcheck="false" /></div>
-            <button class="cbtn c-green solid" id="tkAddBtn">新增角色</button>
+            <div class="tk-add-left">
+              <div class="f-input"><input type="text" id="tkName" placeholder="輸入角色名稱" autocomplete="off" spellcheck="false" /></div>
+              <button class="cbtn c-green solid" id="tkAddBtn">新增角色</button>
+            </div>
             <div class="tk-period" id="tkPeriod" title="平均每天與預計升級用幾天的資料計算">
               <button class="cbtn c-teal" data-days="7">7 天平均</button>
               <button class="cbtn c-indigo" data-days="30">30 天平均</button>
@@ -1095,6 +1097,7 @@
   </div>
 
   <script src="app.js"></script>
+  <script src="official.js"></script>
   <script src="timers.js"></script>
   <script src="gacha.js"></script>
   <script src="beauty.js"></script>

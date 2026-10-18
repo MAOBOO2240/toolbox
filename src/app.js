@@ -1153,6 +1153,8 @@ function showView(name) {
   currentView = name;
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
   $("#gearBtn").classList.toggle("on", name === "settings");
+  // 讓各工具知道換頁了（例如離開美容美髮時收起浮動視窗）
+  document.dispatchEvent(new CustomEvent("viewchange", { detail: name }));
 }
 
 /** 各工具可以接管返回按鈕：在子頁面（例如解析）時顯示「上一頁」並回到抽獎模擬 */
@@ -1192,6 +1194,8 @@ function openTool(id) {
   if (id === "boss" && window.Boss) window.Boss.onShow();
   if (id === "track" && window.Track) window.Track.onShow();
   if (id === "patch" && window.Patches) window.Patches.onShow();
+  // 抽獎模擬器：檢查官網有沒有換獎池
+  if (typeof OfficialPools !== "undefined") OfficialPools.onOpen(id);
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));

@@ -150,8 +150,11 @@
 
 /* ---------- 經驗追蹤 ---------- */
 .tk-page { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
-.tk-add { display: grid; grid-template-columns: minmax(0, 22rem) auto auto 1fr; align-items: center; gap: 0.6rem; padding: 0.7rem 0.9rem; }
-.tk-period { display: flex; gap: 0.35rem; }
+/* 左：輸入與新增；中間：7 天／30 天切換；右：更新時間 */
+.tk-add { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.8rem; padding: 0.7rem 0.9rem; }
+.tk-add-left { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.tk-add-left .f-input { flex: 1 1 auto; min-width: 6rem; max-width: 22rem; }
+.tk-period { display: flex; gap: 0.35rem; justify-self: center; }
 .tk-add .muted { font-size: 0.8rem; text-align: right; }
 .tk-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .tk-row {

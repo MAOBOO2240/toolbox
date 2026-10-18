@@ -298,3 +298,15 @@
   background: var(--card); box-shadow: inset 0 -2px 0 var(--sep), 0 0 0 1px var(--sep);
   color: var(--text); font: inherit; font-size: 0.76rem; font-weight: 700; line-height: 1.5; text-align: center;
 }
+
+/* ---------- 官網獎池（解析頁「文字解析」上方） ---------- */
+.off-bar {
+  display: flex; align-items: center; gap: 0.7rem; margin: 0.15rem 0 0.7rem; padding: 0.6rem 0.75rem;
+  border-radius: 0.8rem; background: color-mix(in srgb, #12a594 10%, var(--card-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #12a594 30%, transparent);
+}
+.off-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.off-main b { font-size: 0.9rem; }
+.off-main small { font-size: 0.76rem; line-height: 1.4; }
+.off-auto { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.off-bar .cbtn { flex: none; }

@@ -21,13 +21,24 @@ const CometCore = (() => {
    * 解析官網的機率表。每行「等級 名稱 機率%」，以 Tab 或空白分隔。
    * 遇到含「璀璨彗星」的標題行後，之後的道具放進璀璨彗星獎池。
    * 兩件共用一個機率（機率寫在兩件中間那一行）時，兩件平分這個機率（各一半）。
+   * 機率格跨兩列（「S 道具A 2%」下一行是沒有機率的「S 道具B」）時，也是兩件平分。
    */
   function parse(text) {
     const out = { shiny: [], bright: [] };
     let pool = "shiny";
     let pending = []; // 還沒有機率的道具
     let partnerProb = null; // 剛剛那一行單獨的機率，下一件沒有機率的道具也用它
-    const push = (grade, name, prob) => out[pool].push({ grade, name, prob });
+    let lastPushed = null; // 上一件有自己機率的道具（下面緊接著沒有機率的道具時，和它們平分）
+    const push = (grade, name, prob) => { const it = { grade, name, prob }; out[pool].push(it); return it; };
+    const flushShared = () => {
+      if (pending.length && lastPushed) {
+        const share = +(lastPushed.prob / (pending.length + 1)).toFixed(6);
+        lastPushed.prob = share;
+        for (const it of pending) push(it.grade, it.name, share);
+      }
+      pending = [];
+      lastPushed = null;
+    };
     for (const raw of String(text).split(/\r?\n/)) {
       const line = raw.replace(/　/g, " ").trim();
       if (!line) continue;
@@ -45,12 +56,14 @@ const CometCore = (() => {
           partnerProb = half;
         }
         pending = [];
+        lastPushed = null;
         continue;
       }
       const m = /^([SABC])\s+(.+?)(?:\s+(\d+(?:\.\d+)?)\s*%)?$/.exec(line);
       if (!m) {
         // 標題列：切換獎池
         if (!/%/.test(line)) {
+          flushShared();
           if (line.includes("璀璨彗星")) pool = "bright";
           else if (line.includes("閃亮彗星")) pool = "shiny";
         }
@@ -61,9 +74,9 @@ const CometCore = (() => {
       if (!name || name === "道具名稱") continue;
       if (p !== undefined) {
         partnerProb = null;
-        pending = [];
+        flushShared();
         const prob = parseFloat(p);
-        if (prob > 0) push(grade, name, prob);
+        if (prob > 0) lastPushed = push(grade, name, prob);
       } else if (partnerProb !== null) {
         push(grade, name, partnerProb);
         partnerProb = null;
@@ -71,6 +84,7 @@ const CometCore = (() => {
         pending.push({ grade, name });
       }
     }
+    flushShared();
     return out;
   }
 
@@ -985,17 +999,22 @@ B	愛心守護者短杖	1.30%`;
   });
 
   // 解析頁
-  $("#cParse").addEventListener("click", () => {
-    const parsed = C.parse($("#cPaste").value);
-    const got = C.POOLS.filter((p) => parsed[p].length);
-    if (!got.length) { $("#cParseResult").textContent = "沒有解析到任何「等級 名稱 機率%」的道具"; return; }
+  /** 套用解析結果（貼上解析與官網更新共用） */
+  function applyPools(parsed) {
+    const got = C.POOLS.filter((p) => parsed[p] && parsed[p].length);
+    if (!got.length) return null;
     for (const p of got) st.pools[p] = parsed[p];
     if (!got.includes(st.tab)) st.tab = got[0];
     save(); renderAll();
-    const msg = got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+    return got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+  }
+  $("#cParse").addEventListener("click", () => {
+    const msg = applyPools(C.parse($("#cPaste").value));
+    if (!msg) { $("#cParseResult").textContent = "沒有解析到任何「等級 名稱 機率%」的道具"; return; }
     $("#cParseResult").textContent = `已套用：${msg}`;
     toast(`已套用：${msg}`);
   });
+  OfficialPools.register("comet", { card: $("#cPaste").closest(".card"), parse: C.parse, apply: applyPools });
 
   renderAll();
   window.Comet = { onShow: renderAll };

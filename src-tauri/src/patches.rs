@@ -242,6 +242,35 @@ fn fetch_hub(agent: &ureq::Agent, id: u32) -> Result<Option<Hub>, String> {
     Ok(parse_hub(&html))
 }
 
+/* ---------------- 抽獎模擬器的官網機率頁 ----------------
+ * 黃金蘋果、閃亮彗星、星光錦囊、皇家美容院的機率頁是固定的活動頁編號，
+ * 換新獎池時官網直接更新同一頁。這裡只負責把頁面 HTML 抓回來，
+ * 轉成文字與解析在前端做（和使用者全選複製貼上的結果一樣）。 */
+
+/// 閃亮彗星、黃金蘋果、星光錦囊、皇家美容院
+const POOL_PAGES: [u32; 4] = [8368, 8369, 8370, 8372];
+
+fn pool_page_blocking(id: u32) -> Result<String, String> {
+    let resp = agent()
+        .get(&format!("{EVENT_SITE}/eventad/eventad?eventadid={id}"))
+        .call()
+        .map_err(|e| format!("官網機率頁讀取失敗：{e}"))?;
+    // 轉址後也必須還在官網
+    if !host_ok(resp.get_url()) {
+        return Err("官網機率頁轉到其他網站，已停止讀取".into());
+    }
+    resp.into_string().map_err(|e| format!("官網機率頁讀取失敗：{e}"))
+}
+
+/// 讀取抽獎模擬器的官網機率頁（只接受固定的幾個頁面）
+#[tauri::command]
+pub async fn pool_page(id: u32) -> Result<String, String> {
+    if !POOL_PAGES.contains(&id) {
+        return Err("不支援的頁面".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || pool_page_blocking(id)).await.map_err(|e| e.to_string())?
+}
+
 /// 只開官網（beanfun.com）的網址
 pub fn host_ok(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("https://") else { return false };

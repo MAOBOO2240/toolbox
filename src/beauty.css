@@ -550,9 +550,9 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 .b-act:focus-visible, .b-act.open { box-shadow: 0 0 0 3px color-mix(in srgb, #8b5cf6 30%, transparent); }
 .b-act svg { width: 0.95rem; height: 0.95rem; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s; }
 .b-act.open svg { transform: rotate(180deg); }
-/* 往上打開的動作選單 */
+/* 往下打開的動作選單（放在 body 底下，位置由程式依按鈕計算） */
 .b-act-menu {
-  position: absolute; right: 0; bottom: calc(100% + 0.45rem); z-index: 5;
+  position: fixed; z-index: 950;
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; width: 13rem;
   padding: 0.5rem; border-radius: 0.85rem;
   background: var(--card); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3), inset 0 0 0 1px var(--sep);

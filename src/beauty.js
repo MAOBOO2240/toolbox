@@ -677,6 +677,7 @@ if (typeof document !== "undefined") (() => {
   }
   function openMix(kind) {
     $("#bDyeWin").hidden = true;
+    if (!$("#bActMenu").hidden) actMenu(false);
     if (styleKind) closeStyle();
     mixKind = kind;
     const key = MIX_KEY[kind];
@@ -757,6 +758,24 @@ if (typeof document !== "undefined") (() => {
     applyMix(true);
   });
   $("#bMixDone").addEventListener("click", closeMix);
+  // 按了其他會叫出介面的按鈕（變更點裝、動作、解析道具、髮型臉型…）就收起混染視窗；
+  // 混染視窗本身、髮色瞳色那兩行、紙娃娃不算
+  document.addEventListener("pointerdown", (e) => {
+    if (!mixKind) return;
+    const t = e.target;
+    if (t.closest("#bMixWin, .b-colors")) return;
+    if (t.closest("button, .b-link, select, [data-page], .b-ftab")) closeMix();
+  }, true);
+  // 離開美容美髮（回到主頁面或開其他工具）：收起所有浮動視窗
+  document.addEventListener("viewchange", (e) => {
+    if (e.detail === "beauty") return;
+    closeMix();
+    $("#bDyeWin").hidden = true;
+    dyeId = null;
+    if (styleKind) closeStyle();
+    actMenu(false);
+    closeCtx();
+  });
   $("#bMixClose").addEventListener("click", closeMix);
   $$(".b-mix-link").forEach((b) => b.addEventListener("click", () => (mixKind === b.dataset.kind ? closeMix() : openMix(b.dataset.kind))));
 
@@ -1056,10 +1075,26 @@ if (typeof document !== "undefined") (() => {
     $("#bActReset").disabled = act === "stand";
     renderDoll();
   };
+  // 選單搬到 body 底下，才不會被紙娃娃框切掉；往下打開，下面放不下時才改往上
+  document.body.appendChild($("#bActMenu"));
+  function placeActMenu() {
+    const m = $("#bActMenu");
+    if (m.hidden) return;
+    const r = $("#bAct").getBoundingClientRect();
+    const gap = 6, w = m.offsetWidth, h = m.offsetHeight;
+    const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w));
+    let top = r.bottom + gap;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - gap - h);
+    m.style.left = `${left}px`;
+    m.style.top = `${top}px`;
+  }
   const actMenu = (open) => {
     $("#bActMenu").hidden = !open;
     $("#bAct").classList.toggle("open", open);
+    placeActMenu();
   };
+  window.addEventListener("resize", placeActMenu);
+  document.addEventListener("scroll", placeActMenu, true);
   $("#bAct").addEventListener("click", () => actMenu($("#bActMenu").hidden));
   $$("#bActMenu .cbtn").forEach((b) => b.addEventListener("click", () => setAct(b.dataset.v)));
   $$("#bActMenu .cbtn").forEach((b) => b.classList.toggle("on", b.dataset.v === act));
@@ -1089,16 +1124,21 @@ if (typeof document !== "undefined") (() => {
     for (const p of C.POOLS) st.pools[p] = [];
     save(); renderAll();
   });
-  $("#bParse").addEventListener("click", () => {
-    const parsed = C.parse($("#bPaste").value);
-    const got = C.POOLS.filter((p) => parsed[p].length);
-    if (!got.length) { $("#bParseResult").textContent = "沒有解析到任何「名稱 + 機率%」的造型"; return; }
+  /** 套用解析結果（貼上解析與官網更新共用） */
+  function applyPools(parsed) {
+    const got = C.POOLS.filter((p) => parsed[p] && parsed[p].length);
+    if (!got.length) return null;
     for (const p of got) st.pools[p] = parsed[p];
     save(); renderAll();
-    const msg = got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+    return got.map((p) => `${C.POOL_NAME[p]} ${parsed[p].length} 項`).join("、");
+  }
+  $("#bParse").addEventListener("click", () => {
+    const msg = applyPools(C.parse($("#bPaste").value));
+    if (!msg) { $("#bParseResult").textContent = "沒有解析到任何「名稱 + 機率%」的造型"; return; }
     $("#bParseResult").textContent = `已套用：${msg}`;
     toast(`已套用：${msg}`);
   });
+  OfficialPools.register("beauty", { card: $("#bPaste").closest(".card"), parse: C.parse, apply: applyPools });
   async function checkWz() {
     if (!TAURI) return;
     const box = $("#bWzStatus");
