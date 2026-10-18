@@ -524,6 +524,12 @@ textarea:focus { box-shadow: 0 0 0 3px var(--blue-soft); }
 .alert-actions button:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .alert-actions .btn-yes { background: #a8c7fa; color: #000; }
 .alert-actions .btn-no { background: #ff0033; color: #fff; }
+/* 第一次關閉時的詢問 */
+.close-ask { width: 420px; }
+.close-ask .alert-msg { margin-bottom: 0.5rem; }
+.close-ask-note { margin: 0 0 1.1rem; font-size: 0.82rem; line-height: 1.6; color: var(--text-2); }
+.close-ask .alert-actions { gap: 0.8rem; }
+.close-ask .alert-actions .cbtn { border: 0; font-size: 0.98rem; padding: 0.55em 1.1em; }
 
 /* 道具圖示（黃金蘋果、閃亮彗星） */
 .item-ic {

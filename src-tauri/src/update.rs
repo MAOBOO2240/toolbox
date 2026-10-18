@@ -130,42 +130,6 @@ fn github(url: &str, token: &str, accept: &str) -> Result<ureq::Response, String
         })
 }
 
-#[derive(Serialize)]
-pub struct GhRate {
-    limit: u64,
-    remaining: u64,
-    /// 重置時間（Unix 秒）
-    reset: u64,
-    /// 是否用更新權杖查（沒有權杖時是每小時 60 次的匿名額度）
-    token: bool,
-}
-
-/// GitHub API 剩餘次數（查詢 rate_limit 本身不算次數）
-#[tauri::command]
-pub async fn github_rate() -> Result<GhRate, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        let tk = token().ok();
-        let mut req = ureq::get("https://api.github.com/rate_limit")
-            .set("Accept", "application/vnd.github+json")
-            .set("User-Agent", "MAOBOO-updater")
-            .set("X-GitHub-Api-Version", "2022-11-28")
-            .timeout(Duration::from_secs(20));
-        if let Some(t) = &tk {
-            req = req.set("Authorization", &format!("Bearer {t}"));
-        }
-        let v: serde_json::Value = req.call().map_err(|e| format!("無法連線到 GitHub：{e}"))?.into_json().map_err(|e| e.to_string())?;
-        let core = &v["resources"]["core"];
-        Ok(GhRate {
-            limit: core["limit"].as_u64().unwrap_or(0),
-            remaining: core["remaining"].as_u64().unwrap_or(0),
-            reset: core["reset"].as_u64().unwrap_or(0),
-            token: tk.is_some(),
-        })
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
 fn release(token: &str) -> Result<serde_json::Value, String> {
     github(&format!("https://api.github.com/repos/{REPO}/releases/tags/v1.0.0"), token, "application/vnd.github+json")?
         .into_json::<serde_json::Value>()

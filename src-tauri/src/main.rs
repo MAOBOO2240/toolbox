@@ -157,25 +157,6 @@ fn close_choice(app: AppHandle, ctx: Ctx, tray: bool) {
     }
 }
 
-/// 用預設瀏覽器開啟網址（只允許固定的幾個網站）
-#[tauri::command]
-fn open_url(url: String) -> Result<(), String> {
-    const ALLOW: [&str; 2] = ["https://openapi.nexon.com/", "https://github.com/MAOBOO2240/"];
-    if !ALLOW.iter().any(|p| url.starts_with(p)) {
-        return Err("不支援的網址".into());
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        std::process::Command::new("rundll32")
-            .args(["url.dll,FileProtocolHandler", &url])
-            .creation_flags(0x0800_0000)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
 /// 背景執行緒：收到 Ctrl+V 通知後，確認剪貼簿確實是目前序號才切換到下一組
 fn paste_worker(app: AppHandle, shared: Arc<Shared>, rx: mpsc::Receiver<()>) {
     while rx.recv().is_ok() {
@@ -414,11 +395,6 @@ fn main() {
             clear_list,
             save_settings,
             close_choice,
-            open_url,
-            maple_api::api_usage,
-            maple_api::api_key_set,
-            update::github_rate,
-            watch::discord_sent,
             timers::get_timers,
             timers::update_timer,
             timers::update_prefs,

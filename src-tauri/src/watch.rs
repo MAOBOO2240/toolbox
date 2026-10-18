@@ -83,31 +83,8 @@ fn user_id(s: &str) -> Option<&str> {
     (s.len() >= 15 && s.len() <= 21 && s.bytes().all(|b| b.is_ascii_digit())).then_some(s)
 }
 
-/// 今天（台灣時間）送出的 Discord 通知數，給「API 剩餘」顯示（只記在記憶體）
-static SENT: std::sync::Mutex<(u64, u32)> = std::sync::Mutex::new((0, 0));
-fn tw_day() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| (d.as_secs() + 8 * 3600) / 86400).unwrap_or(0)
-}
-
-#[tauri::command]
-pub fn discord_sent() -> u32 {
-    let s = SENT.lock().unwrap_or_else(|e| e.into_inner());
-    if s.0 == tw_day() { s.1 } else { 0 }
-}
-
-fn discord_send(url: &str, user: &str, title: &str, body: &str) -> Result<(), String> {
-    let r = discord_send_raw(url, user, title, body);
-    if r.is_ok() {
-        let mut s = SENT.lock().unwrap_or_else(|e| e.into_inner());
-        let d = tw_day();
-        if s.0 != d { *s = (d, 0); }
-        s.1 += 1;
-    }
-    r
-}
-
 /// 用 Discord Webhook 發一則訊息；有填使用者 ID 就只提及那個人
-fn discord_send_raw(url: &str, user: &str, title: &str, body: &str) -> Result<(), String> {
+fn discord_send(url: &str, user: &str, title: &str, body: &str) -> Result<(), String> {
     let url = url.trim();
     if !is_webhook(url) {
         return Err("這不是 Discord Webhook 網址".into());

@@ -409,7 +409,6 @@ const ICONS = {
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
   crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
-  gauge: '<svg viewBox="0 0 24 24"><path d="M3.5 17a8.5 8.5 0 1 1 17 0"/><path d="M12 17l4.2-5.2"/><circle cx="12" cy="17" r="1.2"/><path d="M6.4 11.4l1.2 1M12 8v1.5M17.6 11.4l-1.2 1"/></svg>',
 };
 
 // 滑過磁磚時的光暈顏色（與圖示漸層同色系）
@@ -436,7 +435,6 @@ const CATS = {
       { id: "watch", name: "斷線通知", desc: "新楓之谷斷線、回到登入畫面或關閉時通知", color: "red", icon: "plug" },
       { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
       { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 30 天平均與預計升級日", color: "indigo", icon: "trend" },
-      { id: "api", name: "API 剩餘", desc: "用到的每個 API 今天還剩多少次；可以換成自己的金鑰", color: "teal", icon: "gauge" },
     ],
   },
   // 我的最愛：內容由使用者收藏決定
@@ -1186,7 +1184,6 @@ function openTool(id) {
   if (id === "watch" && window.Watch) window.Watch.onShow();
   if (id === "boss" && window.Boss) window.Boss.onShow();
   if (id === "track" && window.Track) window.Track.onShow();
-  if (id === "api" && window.ApiUsage) window.ApiUsage.onShow();
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));
