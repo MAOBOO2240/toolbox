@@ -1099,7 +1099,8 @@ if (typeof document !== "undefined") (() => {
   $$("#bActMenu .cbtn").forEach((b) => b.addEventListener("click", () => setAct(b.dataset.v)));
   $$("#bActMenu .cbtn").forEach((b) => b.classList.toggle("on", b.dataset.v === act));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#bActMenu").hidden) actMenu(false); });
-  $("#bActReset").addEventListener("click", () => setAct("stand"));
+  // 回到站立：同時收起動作選單
+  $("#bActReset").addEventListener("click", () => { setAct("stand"); actMenu(false); });
   $("#bActReset").disabled = true;
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });

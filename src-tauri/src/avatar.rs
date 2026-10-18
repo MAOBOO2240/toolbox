@@ -936,24 +936,39 @@ impl Ctx {
         self.data.pixels_of(rel, img, node).ok()
     }
 
-    /// 道具特效（Effect/ItemEff.img/編號/effect/動作）
-    fn item_effect(&mut self, id: u32, action: &str, dye: Option<Dye>) -> Option<EffTrack> {
+    /// ItemEff.img 裡這個道具的節點（查過就記住）
+    fn eff_node(&mut self, id: u32) -> Option<(String, std::sync::Arc<Node>)> {
         let rel = self.img_rel("Effect", "ItemEff.img")?;
-        let img = "ItemEff.img";
-        let (key, child) = match self.eff_nodes.get(&id) {
-            Some(v) => v.clone()?,
+        match self.eff_nodes.get(&id) {
+            Some(v) => v.clone(),
             None => {
                 let mut got = None;
                 for key in [id.to_string(), format!("{id:08}")] {
-                    if let Ok(Some(n)) = self.data.img_child(&rel, img, &key) {
+                    if let Ok(Some(n)) = self.data.img_child(&rel, "ItemEff.img", &key) {
                         got = Some((key, std::sync::Arc::new(n)));
                         break;
                     }
                 }
                 self.eff_nodes.insert(id, got.clone());
-                got?
+                got
             }
-        };
+        }
+    }
+
+    /// 這件道具有沒有自己的攻擊特效（effect 底下有攻擊動作的畫格）
+    fn has_attack_effect(&mut self, id: u32, action: &str) -> bool {
+        let Some((_, child)) = self.eff_node(id) else { return false };
+        if resolve(&child, &format!("effect/{action}/0"), 0).is_some() {
+            return true;
+        }
+        ATTACK_ACTIONS.iter().any(|a| resolve(&child, &format!("effect/{a}/0"), 0).is_some())
+    }
+
+    /// 道具特效（Effect/ItemEff.img/編號/effect/動作）
+    fn item_effect(&mut self, id: u32, action: &str, dye: Option<Dye>) -> Option<EffTrack> {
+        let rel = self.img_rel("Effect", "ItemEff.img")?;
+        let img = "ItemEff.img";
+        let (key, child) = self.eff_node(id)?;
         child.get("effect")?;
         // 依動作找；沒有就用 default；有些特效直接把畫格放在 effect 底下
         let act_path = [format!("effect/{action}"), "effect/default".to_string(), "effect".to_string()]
@@ -1428,7 +1443,10 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
         } else {
             1
         };
-        let after = if want.as_deref() == Some("attack") { ctx.afterimage(&look, &action) } else { HashMap::new() };
+        // 普通攻擊的殘影；武器有自己的攻擊特效時不畫（和遊戲一樣只顯示武器的特效）
+        let weapon_fx = want.as_deref() == Some("attack")
+            && look.equips.iter().filter(|(_, c, _)| *c == "Weapon").map(|(id, _, _)| *id).collect::<Vec<_>>().into_iter().any(|id| ctx.has_attack_effect(id, &action));
+        let after = if want.as_deref() == Some("attack") && !weapon_fx { ctx.afterimage(&look, &action) } else { HashMap::new() };
         let mut frames: Vec<AnimFrame> = Vec::new();
         let mut first: Option<Composed> = None;
         for i in 0..count {

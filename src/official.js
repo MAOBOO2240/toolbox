@@ -3,18 +3,22 @@
 /* ==========================================================
  * 官網獎池：黃金蘋果、美容美髮、閃亮彗星、星光錦囊
  * - 官網的機率頁是固定的活動頁（換獎池時直接更新同一頁）
- * - 打開工具時檢查（3 小時內查過就不再查；活動時間結束後一打開就查）
+ * - 打開工具時決定要不要檢查：
+ *   · 已經知道活動結束時間：結束當天起才查（3 小時內查過就不再查），讀到新的活動時間就停
+ *   · 官網「活動」公告出現新的同名公告（例如新的黃金蘋果公告）：馬上查
+ *   · 還不知道活動時間：3 小時內查過就不再查
  * - 頁面轉成文字的方式和「全選複製貼上」一樣，再用各工具原本的解析
  * - 內容和上次套用的不同才換獎池；按「從官網更新」一定重新套用
  * ========================================================== */
 
 const OfficialPools = (() => {
   const SITE = "https://maplestory-event.beanfun.com";
+  // words：官網「活動」公告標題裡要找的名稱
   const PAGES = {
-    gacha: { id: 8369, name: "黃金蘋果" },
-    beauty: { id: 8372, name: "皇家美容院" },
-    comet: { id: 8368, name: "閃亮彗星" },
-    star: { id: 8370, name: "星光錦囊" },
+    gacha: { id: 8369, name: "黃金蘋果", words: ["黃金蘋果"] },
+    beauty: { id: 8372, name: "皇家美容院", words: ["皇家美容院", "皇家美髮", "皇家整形"] },
+    comet: { id: 8368, name: "閃亮彗星", words: ["閃亮彗星", "璀璨彗星"] },
+    star: { id: 8370, name: "星光錦囊", words: ["星光錦囊"] },
   };
   const KEY = "official-pools-v1";
   const GAP = 3 * 3600 * 1000;
@@ -71,7 +75,11 @@ const OfficialPools = (() => {
     const m = /活動時間[^\d]{0,40}?(\d{4}\/\d{1,2}\/\d{1,2})(?:\s+\d{1,2}:\d{2})?\s*[~～\-－至]\s*(\d{4}\/\d{1,2}\/\d{1,2})(?:\s+(\d{1,2}:\d{2}))?/.exec(text || "");
     return m ? { start: m[1], end: m[2], endTime: m[3] || "23:59" } : null;
   }
-  const endedAt = (p) => (p ? new Date(`${p.end.replace(/\//g, "-")}T${p.endTime.padStart(5, "0")}:00+08:00`).getTime() : 0);
+  /** 某天 00:00（台灣時間） */
+  const dayStart = (ymd) => {
+    const [y, m, d] = String(ymd).split("/").map(Number);
+    return Date.UTC(y, (m || 1) - 1, d || 1) - 8 * 3600 * 1000;
+  };
   const count = (parsed) => Object.values(parsed || {}).reduce((a, l) => a + (Array.isArray(l) ? l.length : 0), 0);
 
   /** 有樣式的版本為主；樣式藏起來的獎池（例如要切換分頁才看得到）用沒有樣式的版本補上 */
@@ -94,6 +102,7 @@ const OfficialPools = (() => {
       if (r.period) parts.push(`活動時間 ${r.period.start} ~ ${r.period.end}`);
       if (r.summary) parts.push(`官網獎池：${r.summary}`);
       if (r.checked) parts.push(`${fmtTime(r.checked)} 檢查`);
+      if (r.period && r.auto !== false) parts.push(Date.now() >= dayStart(r.period.end) ? "活動已到結束日，打開工具時會檢查新獎池" : `${r.period.end.slice(5)} 活動結束當天起自動檢查`);
       if (!parts.length) parts.push(r.auto !== false ? "打開工具時會自動檢查官網有沒有換獎池" : "自動更新已關閉，可以按「從官網更新」");
     }
     t.status.textContent = parts.join("・");
@@ -135,14 +144,36 @@ const OfficialPools = (() => {
     }
   }
 
-  /** 打開工具時：自動更新開著，而且超過 3 小時沒查或活動時間已經結束，就查一次 */
-  function onOpen(tool) {
+  /** 官網「活動」公告裡最新一則同名公告（用版本更新工具同一份公告資料，6 小時內不重查官網） */
+  async function latestBulletin(tool) {
+    try {
+      const out = await invoke("version_list", { force: false });
+      const p = PAGES[tool];
+      const hits = (out?.items || []).filter((it) => it.kind === "72" && (it.ev === p.id || p.words.some((w) => String(it.title).includes(w))));
+      hits.sort((a, b) => (a.date === b.date ? Number(b.id) - Number(a.id) : a.date < b.date ? 1 : -1));
+      return hits[0] || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /** 打開工具時：依活動結束時間與官網公告決定要不要查 */
+  async function onOpen(tool) {
     if (!tools[tool] || !TAURI) return;
     const r = rec(tool);
-    if (r.auto === false) return;
-    const ended = r.period && Date.now() > endedAt(r.period);
-    if (!ended && r.checked && Date.now() - r.checked < GAP) return;
-    sync(tool, false);
+    if (r.auto === false || busy[tool]) return;
+    const now = Date.now();
+    const fresh = r.checked && now - r.checked < GAP;
+    // 已經知道活動時間：結束當天起才查；還不知道：3 小時查一次
+    let due = r.period ? now >= dayStart(r.period.end) && !fresh : !fresh;
+    const top = await latestBulletin(tool);
+    if (top && top.id !== r.bul) {
+      // 出現新的同名活動公告（第一次只記下來）
+      if (r.bul) due = true;
+      r.bul = top.id;
+      save();
+    }
+    if (due) sync(tool, false);
   }
 
   /**
