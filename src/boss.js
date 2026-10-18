@@ -500,8 +500,8 @@ if (typeof document !== "undefined") (() => {
     if (st.page === "reset") return renderResets(ch);
 
     const isDay = st.page === "day";
-    box.className = `bs-list ${isDay ? "cols-6" : "cols-5"}`;
-    box.appendChild(headRow(isDay ? ["", "名稱", "難度", "人數", "天數", "結晶錢"] : ["", "名稱", "難度", "人數", "結晶錢"]));
+    box.className = "bs-list cols-main";
+    box.appendChild(headRow(["", "名稱", "難度", "人數", isDay ? "天數" : "", "結晶錢"]));
     for (const b of C.LIST.filter((x) => x.type === st.page)) {
       const s = ch.sel[b.key];
       const row = document.createElement("div");
@@ -540,7 +540,7 @@ if (typeof document !== "undefined") (() => {
         const mps = [...new Set(b.diffs.map(([d]) => C.maxParty(b.name, d)))];
         if (mps.some((m) => m < 6)) sub = b.diffs.map(([d]) => C.maxParty(b.name, d)).every((m) => m === mps[0]) ? `最多 ${mps[0]} 人` : b.diffs.filter(([d]) => C.maxParty(b.name, d) < 6).map(([d]) => `${d}最多 ${C.maxParty(b.name, d)} 人`).join("・");
       }
-      row.append(icon(b), nameCell(b, sub), diffs, party, ...(isDay ? [days] : []), val);
+      row.append(icon(b), nameCell(b, sub), diffs, party, days, val);
       box.appendChild(row);
       // 用 BOSS重製卷再打一次：下面多一列，難度、人數另外選
       if (!isDay && ch.rs?.[b.key]) box.appendChild(resetRow(ch, b, mine));
@@ -588,7 +588,7 @@ if (typeof document !== "undefined") (() => {
       val.classList.add("muted");
     }
     const name = nameCell(b, sub, `${b.name}（重製）`, () => cur().rs?.[b.key]?.d);
-    row.append(ic, name, diffs, party, val);
+    row.append(ic, name, diffs, party, cell("bs-c"), val);
     return row;
   }
 
@@ -608,7 +608,7 @@ if (typeof document !== "undefined") (() => {
    */
   function renderResets(ch) {
     const box = $("#bsList");
-    box.className = "bs-list cols-5";
+    box.className = "bs-list cols-reset";
     const use = C.ticketUse(st.chars);
     // 票券：用了幾張／每週（每月）幾張
     const bar = document.createElement("div");
