@@ -409,6 +409,7 @@ const ICONS = {
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
   crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  news: '<svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3zM8 7.2v1.7h8V7.2zm0 4v1.7h8v-1.7zm0 4v1.7h5v-1.7z"/></svg>',
 };
 
 // 滑過磁磚時的光暈顏色（與圖示漸層同色系）
@@ -435,6 +436,7 @@ const CATS = {
       { id: "watch", name: "斷線通知", desc: "新楓之谷斷線、回到登入畫面或關閉時通知", color: "red", icon: "plug" },
       { id: "gift", name: "送禮買賣", desc: "買賣送禮試算、儲值成本與 VIP 回饋；楓幣台幣換算", color: "green", icon: "gift" },
       { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 30 天平均與預計升級日", color: "indigo", icon: "trend" },
+      { id: "patch", name: "版本更新", desc: "新楓之谷歷次大版本更新的官網公告，依年份查看", color: "orange", icon: "news" },
     ],
   },
   // 我的最愛：內容由使用者收藏決定
@@ -1184,6 +1186,7 @@ function openTool(id) {
   if (id === "watch" && window.Watch) window.Watch.onShow();
   if (id === "boss" && window.Boss) window.Boss.onShow();
   if (id === "track" && window.Track) window.Track.onShow();
+  if (id === "patch" && window.Patches) window.Patches.onShow();
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));

@@ -7,6 +7,7 @@ mod avatar;
 mod fg;
 mod input;
 mod maple_api;
+mod patches;
 mod notify;
 mod update;
 mod watch;
@@ -316,6 +317,7 @@ fn main() {
 
             audio::init();
             maple_api::init(dir.join("maple_cache.json"));
+            patches::init(dir.join("patches.json"));
             timers::init(app.handle(), dir.join("timers.json"));
             update::init(dir.join("update.json"));
             toast::init(dir.clone());
@@ -408,6 +410,8 @@ fn main() {
             timers::preview_sound,
             timers::pick_sound_file,
             maple_api::maple_lookup,
+            patches::version_list,
+            patches::open_bulletin,
             maple_api::exp_track,
             avatar::beauty_render,
             avatar::beauty_tags,
