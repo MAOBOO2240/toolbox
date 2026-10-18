@@ -407,6 +407,8 @@
   function renderPrefs() {
     const p = file.prefs;
     $$("#prefNotify button").forEach((b) => b.classList.toggle("on", b.dataset.v === p.notify));
+    // 移除的音效（撞到木櫃）改回柔和木琴
+    if (![...$("#prefSound").options].some((o) => o.value === p.sound)) p.sound = "beep1";
     $("#prefSound").value = p.sound;
     $("#prefFileRow").hidden = p.sound !== "file";
     $("#prefFileName").textContent = p.sound_file ? p.sound_file.split(/[\\/]/).pop() : "尚未選擇";

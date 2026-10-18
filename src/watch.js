@@ -63,6 +63,7 @@ if (typeof document !== "undefined") (() => {
     $("#wTh").value = cfg.threshold;
     $("#wThV").textContent = `${cfg.threshold} 秒`;
     $$("#wMode button").forEach((b) => b.classList.toggle("on", b.dataset.v === cfg.mode));
+    if (![...$("#wSoundName").options].some((o) => o.value === cfg.sound_name)) cfg.sound_name = "beep1";
     $("#wSoundName").value = cfg.sound_name;
     $("#wPick").hidden = cfg.sound_name !== "file";
     $("#wFileName").textContent = cfg.sound_name === "file" ? `音效檔：${cfg.sound_file ? cfg.sound_file.split(/[\\/]/).pop() : "尚未選擇"}` : "";

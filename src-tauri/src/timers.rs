@@ -46,7 +46,7 @@ impl Default for Overlay {
 pub struct Prefs {
     /// "short" | "long"
     pub notify: String,
-    /// "beep1" | "beep2" | "beep3" | "thud" | "tts" | "file"
+    /// "beep1" | "beep2" | "beep3" | "tts" | "file"
     pub sound: String,
     pub sound_file: String,
     /// 0 ~ 200（%）
