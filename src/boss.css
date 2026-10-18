@@ -240,4 +240,4 @@
 .bs-hp li { display: flex; justify-content: space-between; gap: 0.8rem; padding-top: 0.2rem; border-top: 0.5px solid var(--sep); font-size: 0.84rem; }
 .bs-hp li span { color: var(--text-2); }
 .bs-hp li b { font-variant-numeric: tabular-nums; text-align: right; }
-.bs-info-note { margin: 0.6rem 0 0; font-size: 0.7rem; }
+.bs-info-head .b-x { width: 2rem; height: 2rem; }

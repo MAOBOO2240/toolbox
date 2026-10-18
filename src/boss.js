@@ -408,8 +408,8 @@ if (typeof document !== "undefined") (() => {
       t.children[0].textContent = b.name;
       t.children[1].textContent = TYPE_NAME[b.type] || "";
       const x = document.createElement("button");
-      x.className = "b-x";
-      x.textContent = "×";
+      x.className = "b-x sq";
+      x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>';
       x.title = "關閉";
       x.addEventListener("click", close);
       const ic = icon(b);
@@ -445,10 +445,7 @@ if (typeof document !== "undefined") (() => {
           (hp.length > 1 ? `<ol>${hp.map((h, i) => `<li><span>第 ${i + 1} 階段</span><b>${h.replace(/x(\d+)/g, " × $1").replace(/\+/g, " ＋ ")}</b></li>`).join("")}</ol>` : "") + "</div>"
         : `<div class="bs-hp"><div class="bs-hp-head"><span>血量</span><b>尚無資料</b></div></div>`;
       body.innerHTML = `<div class="bs-stats">${cells.join("")}</div>${phases}`;
-      const note = document.createElement("p");
-      note.className = "bs-info-note muted";
-      note.textContent = "資料來源：Maple Kit（TMS v281.5）；結晶價格為一個人打的價格";
-      card.append(head, tabs, body, note);
+      card.append(head, tabs, body);
     };
     draw();
     document.body.appendChild(back);
