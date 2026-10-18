@@ -261,4 +261,6 @@ if (typeof document !== "undefined") (() => {
 
   render();
   window.Patches = { onShow: () => refresh(false) };
+  // 程式一打開就先在背景讀取，點進來時已經準備好
+  if (TAURI) setTimeout(() => refresh(false), 1500);
 })();

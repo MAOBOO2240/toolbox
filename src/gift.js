@@ -11,6 +11,8 @@
 
 const GiftCore = (() => {
   // 官方 VIP：每送禮 1 樂豆點獲得的 VIP 點數
+  /** VIP 點數換楓點：官方固定 300 點 = 1 楓點 */
+  const VIP_PER = 300;
   const VIP = {
     silver: { name: "VIP 銀牌", gift: 16 },
     gold: { name: "VIP 金牌", gift: 24 },
@@ -102,7 +104,7 @@ const GiftCore = (() => {
 
   /**
    * 賣送禮試算
-   * s = { price, disc, pay, card, vip, fengPerE（1 億楓幣 = 幾楓點）, ratio（幾萬楓幣 = 1 台幣）, vipPer（幾 VIP 點數 = 1 楓點） }
+   * s = { price, disc, pay, card, vip, fengPerE（1 億楓幣 = 幾楓點）, ratio（幾萬楓幣 = 1 台幣） }
    */
   function sell(s) {
     const d = discount(s.disc);
@@ -111,7 +113,7 @@ const GiftCore = (() => {
     const receive = price * d;
     const cost = price * pointCost(s.pay, s.card);
     const vipPts = price * (VIP[s.vip] || VIP.silver).gift;
-    const feng = s.vipPer > 0 ? vipPts / s.vipPer : 0;
+    const feng = vipPts / VIP_PER;
     const meso = s.fengPerE > 0 ? (feng * 1e8) / s.fengPerE : 0;
     const rebate = s.ratio > 0 ? meso / (s.ratio * 1e4) : 0;
     const profit = receive - cost + rebate;
@@ -124,7 +126,7 @@ const GiftCore = (() => {
     return { pay: s.price * d, save: s.price * (1 - d), disc: d };
   }
 
-  return { VIP, READER_BONUS, discount, amount, calc, isFormula, pointCost, sell, buy };
+  return { VIP, VIP_PER, READER_BONUS, discount, amount, calc, isFormula, pointCost, sell, buy };
 })();
 
 if (typeof module !== "undefined") module.exports = GiftCore;
@@ -137,7 +139,7 @@ if (typeof document !== "undefined") (() => {
   const KEY = "gift-v1";
   const defaults = () => ({
     page: "gift", mode: "buy", disc: "", price: "", pay: "direct", card: "92", vip: "silver",
-    fengPerE: 4, ratio: 2800, vipPer: 300, fxMode: "meso", fxAmount: "",
+    fengPerE: 4, ratio: 2800, fxMode: "meso", fxAmount: "",
   });
   let st = (() => {
     try { return { ...defaults(), ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return defaults(); }
@@ -190,7 +192,6 @@ if (typeof document !== "undefined") (() => {
     set("#fFengPerE", st.fengPerE);
     set("#fRatio", st.ratio);
     set("#fRatio2", st.ratio);
-    set("#fVipPer", st.vipPer);
     set("#fFxAmount", st.fxAmount);
     $$("#fMode button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.mode));
     $$("#fPay button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.pay));
@@ -259,7 +260,7 @@ if (typeof document !== "undefined") (() => {
       out.innerHTML = row("道具原價", `${ICON.bean()}${intFmt.format(price)} 點`) + row("折扣", discText(r.disc)) + row("比原價省下", nt(r.save), "", "pos");
       return;
     }
-    const r = G.sell({ price, disc: st.disc, pay: st.pay, card: st.card, vip: st.vip, fengPerE: num(st.fengPerE), ratio: num(st.ratio), vipPer: num(st.vipPer) });
+    const r = G.sell({ price, disc: st.disc, pay: st.pay, card: st.card, vip: st.vip, fengPerE: num(st.fengPerE), ratio: num(st.ratio) });
     $("#fBigLabel").textContent = "客戶要給多少錢";
     if (!r) { $("#fBig").textContent = "—"; out.innerHTML = '<p class="f-empty">輸入折扣與道具原價就會算出來</p>'; return; }
     $("#fBig").textContent = nt(r.receive);
@@ -269,7 +270,7 @@ if (typeof document !== "undefined") (() => {
     out.innerHTML =
       row("你的成本", nt(r.cost), `${payName}・每點 ${ntFmt.format(G.pointCost(st.pay, st.card))} 元`) +
       row("VIP 回饋點數", `${ICON.vip()}${intFmt.format(r.vipPts)} 點`, `${vip.name}・送禮每 1 點拿 ${vip.gift} 點`) +
-      row("換成楓點", `${ntFmt.format(r.feng)} 楓點`, `${intFmt.format(num(st.vipPer))} VIP 點數 = 1 楓點`) +
+      row("換成楓點", `${ntFmt.format(r.feng)} 楓點`, `${intFmt.format(G.VIP_PER)} VIP 點數 = 1 楓點`) +
       row("換成楓幣", `${ICON.meso()}${m.main}`, m.zh) +
       row("回饋價值", nt(r.rebate), `${intFmt.format(num(st.ratio))} 萬遊戲幣 = 1 台幣`) +
       row("淨賺", nt(r.profit), `利潤率 ${(r.margin * 100).toFixed(1)}%`, r.profit >= 0 ? "pos total" : "neg total") +
@@ -346,7 +347,6 @@ if (typeof document !== "undefined") (() => {
   bindInput("#fFengPerE", "fengPerE");
   bindInput("#fRatio", "ratio");
   bindInput("#fRatio2", "ratio");
-  bindInput("#fVipPer", "vipPer");
   bindInput("#fFxAmount", "fxAmount");
   /* 游標放在輸入框上用滾輪調整：折扣類一次 ±1（8 折會先換成 80 再加減），其他依各自的單位 */
   function wheel(id, field, step, kind) {
@@ -377,7 +377,6 @@ if (typeof document !== "undefined") (() => {
   wheel("#fFengPerE", "fengPerE", 1);
   wheel("#fRatio", "ratio", 50);
   wheel("#fRatio2", "ratio", 50);
-  wheel("#fVipPer", "vipPer", 10);
 
   $("#fReset").addEventListener("click", () => {
     st = { ...defaults(), page: st.page, mode: st.mode };

@@ -208,7 +208,11 @@ fn install_blocking() -> Result<PathBuf, String> {
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<(), String> {
     let exe = tauri::async_runtime::spawn_blocking(install_blocking).await.map_err(|e| e.to_string())??;
-    std::process::Command::new(&exe).spawn().map_err(|e| format!("新版本已下載，但無法自動開啟：{e}"))?;
+    // 告訴新版本要等這個舊版本結束（只能開一個的檢查）
+    std::process::Command::new(&exe)
+        .arg(format!("--after-update={}", std::process::id()))
+        .spawn()
+        .map_err(|e| format!("新版本已下載，但無法自動開啟：{e}"))?;
     app.exit(0);
     Ok(())
 }

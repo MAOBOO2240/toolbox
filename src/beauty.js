@@ -998,7 +998,8 @@ if (typeof document !== "undefined") (() => {
     save(); renderPage();
     if (st.page === "import") checkWz();
   }));
-  $$("#bKind button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.kind === "hair" ? "皇家美髮券" : "皇家整形券")));
+  // 用一般的皇家美髮券／整形券圖示（同名的選擇型排除；說明有「隨機」的優先）
+  $$("#bKind button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.kind === "hair" ? "皇家美髮券#隨機|!選擇|!自選|!挑選" : "皇家整形券#隨機|!選擇|!自選|!挑選")));
   $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); renderRight(); }));
   $$("#bGender button").forEach((b) => b.addEventListener("click", () => {
     st.gender = b.dataset.g;

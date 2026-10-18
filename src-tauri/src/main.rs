@@ -301,8 +301,33 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+/// 自動更新後新版本會帶 --after-update=舊版本的程序編號 開啟：先等舊版本完全結束，
+/// 否則「只能開一個」的檢查會以為程式已經開著而直接關掉新版本
+fn wait_after_update() {
+    let Some(pid) = std::env::args().find_map(|a| a.strip_prefix("--after-update=").and_then(|p| p.parse::<u32>().ok())) else { return };
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
+        let h = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if !h.is_null() {
+            WaitForSingleObject(h, 15_000);
+            CloseHandle(h);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = pid;
+}
+
 fn main() {
+    wait_after_update();
     tauri::Builder::default()
+        // 只能開一個：已經開著時再開一次，就把原本的視窗叫到最前面（開機自動啟動的不叫出來）
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|a| a == autostart::ARG) {
+                show_main(app);
+            }
+        }))
         .setup(|app| {
             let dir = app.path().app_data_dir().expect("無法取得資料夾");
             let path = dir.join("state.json");

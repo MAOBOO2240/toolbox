@@ -19,6 +19,9 @@
   background: var(--card-2); box-shadow: inset 0 0 0 1px var(--sep);
   transition: box-shadow 0.15s;
 }
+/* 固定不能改的數值 */
+.f-input.f-fixed { cursor: default; background: color-mix(in srgb, var(--text-2) 8%, var(--card-2)); }
+.f-input.f-fixed b { flex: 1; min-width: 0; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
 .f-input:focus-within { box-shadow: inset 0 0 0 1px var(--blue), 0 0 0 3px var(--blue-soft); }
 .f-input input {
   flex: 1; min-width: 0; padding: 0.55rem 0; border: 0; outline: none; background: transparent;

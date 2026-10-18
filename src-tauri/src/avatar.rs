@@ -1964,14 +1964,19 @@ impl Ctx {
             }
         }
         if let Some(h) = &hint {
-            let hs: Vec<String> = h.split('|').map(norm_name).filter(|x| !x.is_empty()).collect();
-            let (mut good, mut rest) = (Vec::new(), Vec::new());
+            // 說明文字含提示字的排前面；「!字」表示含這個字的排最後（例如 !選擇 → 不要選擇型）
+            let parts: Vec<String> = h.split('|').map(norm_name).filter(|x| !x.is_empty()).collect();
+            let pos: Vec<&str> = parts.iter().filter(|x| !x.starts_with('!')).map(|x| x.as_str()).collect();
+            let neg: Vec<&str> = parts.iter().filter_map(|x| x.strip_prefix('!')).filter(|x| !x.is_empty()).collect();
+            let mut scored: Vec<(u8, (&'static str, u32))> = Vec::new();
             for c in cands {
-                let hit = self.item_desc(c.0, c.1).map(|d| norm_name(&d)).is_some_and(|d| hs.iter().any(|x| d.contains(x.as_str())));
-                if hit { good.push(c) } else { rest.push(c) }
+                let d = self.item_desc(c.0, c.1).map(|d| norm_name(&d)).unwrap_or_default();
+                let good = !pos.is_empty() && pos.iter().any(|x| d.contains(x));
+                let bad = neg.iter().any(|x| d.contains(x));
+                scored.push((if bad { 2 } else if good || pos.is_empty() { 0 } else { 1 }, c));
             }
-            good.extend(rest);
-            cands = good;
+            scored.sort_by_key(|(k, _)| *k);
+            cands = scored.into_iter().map(|(_, c)| c).collect();
         }
         let mut found = None;
         for (folder, id) in cands.into_iter().take(12) {

@@ -93,8 +93,10 @@ if (typeof module !== "undefined") module.exports = { ExpCore, TrackCore };
 if (typeof document !== "undefined") (() => {
   const C = TrackCore, E = ExpCore;
   const KEY = "track-v1";
-  let st = (() => { try { return { names: [], data: {}, sort: null, days: 30, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null, days: 30 }; } })();
-  if (st.days !== 7) st.days = 30;
+  let st = (() => { try { return { names: [], data: {}, sort: null, days: 7, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null, days: 7 }; } })();
+  // 預設改成 7 天平均（舊設定也換一次）
+  if (!st.days7) { st.days = 7; st.days7 = true; }
+  if (st.days !== 30) st.days = 7;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} };
   let busy = false, timer = null;
 
