@@ -52,6 +52,12 @@ struct Cache {
     /// 本機今天已使用的呼叫次數（日期 YYYY-MM-DD）
     calls_day: String,
     calls: u32,
+    /// 使用者自己的 API 金鑰（空白 = 用內建的）與每日上限、今天用了幾次
+    user_key: String,
+    user_limit: u32,
+    user_calls: u32,
+    /// Nexon 回應裡和次數限制有關的標頭（有的話）
+    rate_hdr: HashMap<String, String>,
     /// 經驗追蹤：OCID → (查詢時間, 最新資料)
     track_now: HashMap<String, (u64, Snap)>,
     /// 經驗追蹤：OCID → 日期 → 那天的資料（None = 那天查不到，例如角色還沒建立）
@@ -162,6 +168,37 @@ enum ApiErr {
     Other(String),
 }
 
+/// 金鑰的每日上限：開發階段（test_）1,000 次；正式（live_）2,000 萬次
+fn default_limit(key: &str) -> u32 {
+    if key.starts_with("live_") { 20_000_000 } else { 1_000 }
+}
+
+/// 遮住大部分的金鑰（只用在使用者自己的金鑰）
+fn mask(key: &str) -> String {
+    let n = key.chars().count();
+    let head: String = key.chars().take(6.min(n)).collect();
+    let tail: String = key.chars().skip(n.saturating_sub(4)).collect();
+    if n <= 10 { "*".repeat(n) } else { format!("{head}…{tail}") }
+}
+
+/// 記下回應標頭裡和次數限制有關的資訊
+fn keep_rate_headers(resp: &ureq::Response) {
+    let mut found = HashMap::new();
+    for name in resp.headers_names() {
+        let low = name.to_ascii_lowercase();
+        if low.contains("ratelimit") || low.contains("rate-limit") || low.contains("quota") {
+            if let Some(v) = resp.header(&name) {
+                found.insert(low, v.to_string());
+            }
+        }
+    }
+    if !found.is_empty() {
+        if let Some(st) = STORE.get() {
+            st.lock().unwrap().cache.rate_hdr = found;
+        }
+    }
+}
+
 fn get(path: &str, query: &[(&str, &str)]) -> Result<Value, ApiErr> {
     // 每秒最多 5 次：兩次呼叫之間至少隔 0.22 秒
     {
@@ -176,24 +213,34 @@ fn get(path: &str, query: &[(&str, &str)]) -> Result<Value, ApiErr> {
         }
         *last = Some(std::time::Instant::now());
     }
-    {
+    // 有設定自己的金鑰就用自己的，次數分開算
+    let user_key = {
         let mut s = STORE.get().unwrap().lock().unwrap();
         let today = today_tw();
         if s.cache.calls_day != today {
             s.cache.calls_day = today;
             s.cache.calls = 0;
+            s.cache.user_calls = 0;
         }
-        s.cache.calls += 1;
-    }
+        let k = s.cache.user_key.trim().to_string();
+        if k.is_empty() { s.cache.calls += 1 } else { s.cache.user_calls += 1 }
+        k
+    };
+    let key = if user_key.is_empty() { api_key() } else { user_key };
     let mut req = ureq::get(&format!("{BASE}{path}"))
         .timeout(Duration::from_secs(15))
-        .set("x-nxopen-api-key", &api_key());
+        .set("x-nxopen-api-key", &key);
+    drop(key);
     for (k, v) in query {
         req = req.query(k, v);
     }
     match req.call() {
-        Ok(resp) => resp.into_json::<Value>().map_err(|e| ApiErr::Other(e.to_string())),
+        Ok(resp) => {
+            keep_rate_headers(&resp);
+            resp.into_json::<Value>().map_err(|e| ApiErr::Other(e.to_string()))
+        }
         Err(ureq::Error::Status(code, resp)) => {
+            keep_rate_headers(&resp);
             let body: Value = resp.into_json().unwrap_or(Value::Null);
             let name = body["error"]["name"].as_str().unwrap_or("").to_string();
             // OPENAPI00004：參數錯誤（多半是角色名稱不存在）
@@ -295,6 +342,101 @@ fn lookup_blocking(name: String, force: bool) -> Result<Lookup, String> {
         basic: data.basic, beauty: data.beauty, cash: data.cash,
         calls_today: s.cache.calls,
     })
+}
+
+/* ---------------- API 剩餘次數 ---------------- */
+
+#[derive(Serialize)]
+pub struct NexonUsage {
+    /// 是否使用自己的金鑰
+    own_key: bool,
+    /// 自己的金鑰（遮住大部分）；內建金鑰永遠不回傳
+    key_mask: Option<String>,
+    used: u32,
+    limit: u32,
+    day: String,
+    /// Nexon 回應裡和次數限制有關的標頭（有的話）
+    headers: HashMap<String, String>,
+}
+
+fn usage_now() -> NexonUsage {
+    let s = STORE.get().unwrap().lock().unwrap();
+    let today = today_tw();
+    let fresh = s.cache.calls_day == today;
+    let own = !s.cache.user_key.trim().is_empty();
+    let builtin_limit = default_limit(&api_key());
+    NexonUsage {
+        own_key: own,
+        key_mask: own.then(|| mask(s.cache.user_key.trim())),
+        used: if !fresh { 0 } else if own { s.cache.user_calls } else { s.cache.calls },
+        limit: if own { if s.cache.user_limit > 0 { s.cache.user_limit } else { default_limit(s.cache.user_key.trim()) } } else { builtin_limit },
+        day: today,
+        headers: s.cache.rate_hdr.clone(),
+    }
+}
+
+#[tauri::command]
+pub fn api_usage() -> NexonUsage {
+    usage_now()
+}
+
+/// 檢查金鑰能不能用：查一個不存在的角色，回「找不到角色」代表金鑰有效
+fn check_key(key: &str) -> Result<(), String> {
+    let r = ureq::get(&format!("{BASE}/id"))
+        .timeout(Duration::from_secs(15))
+        .set("x-nxopen-api-key", key)
+        .query("character_name", "金鑰測試ZZ")
+        .call();
+    match r {
+        Ok(_) => Ok(()),
+        Err(ureq::Error::Status(code, resp)) => {
+            let body: Value = resp.into_json().unwrap_or(Value::Null);
+            match body["error"]["name"].as_str().unwrap_or("") {
+                "OPENAPI00004" | "OPENAPI00009" => Ok(()),
+                "OPENAPI00005" | "OPENAPI00006" => Err("金鑰無效或已過期，請確認有選「新楓之谷」的金鑰".into()),
+                "OPENAPI00007" => Err("這個金鑰今天的次數已經用完".into()),
+                n => Err(format!("無法確認金鑰（{code} {n}）")),
+            }
+        }
+        Err(e) => Err(format!("無法連線到 Nexon API：{e}")),
+    }
+}
+
+/// 設定自己的 API 金鑰（空白 = 改回內建金鑰）；limit 是每日上限（不填依金鑰種類）
+#[tauri::command]
+pub async fn api_key_set(key: Option<String>, limit: Option<u32>) -> Result<NexonUsage, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = key.map(|k| k.trim().to_string()).unwrap_or_default();
+        let store = STORE.get().ok_or("尚未初始化")?;
+        if key.is_empty() {
+            let mut s = store.lock().unwrap();
+            if let Some(l) = limit.filter(|_| !s.cache.user_key.is_empty()) {
+                s.cache.user_limit = l;
+            } else {
+                s.cache.user_key.clear();
+                s.cache.user_limit = 0;
+                s.cache.user_calls = 0;
+            }
+            save(&s);
+        } else {
+            if key.len() < 20 || key.chars().any(|c| c.is_whitespace()) {
+                return Err("金鑰格式不對".into());
+            }
+            check_key(&key)?;
+            let mut s = store.lock().unwrap();
+            if s.cache.user_key != key {
+                s.cache.user_calls = 0;
+            }
+            s.cache.user_key = key;
+            s.cache.user_limit = limit.unwrap_or(0);
+            // 檢查那一次也算
+            s.cache.user_calls += 1;
+            save(&s);
+        }
+        Ok(usage_now())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

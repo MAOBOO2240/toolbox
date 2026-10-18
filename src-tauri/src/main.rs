@@ -133,8 +133,47 @@ fn save_settings(ctx: Ctx, settings: Settings) {
     let mut st = ctx.state.lock().unwrap();
     // 視窗大小由後端管理，前端送來的不採用
     let (w, h) = (st.settings.win_w, st.settings.win_h);
-    st.settings = Settings { win_w: w, win_h: h, ..settings };
+    // 問過一次就不再問（前端沒送也保留）
+    let asked = st.settings.close_asked || settings.close_asked;
+    st.settings = Settings { win_w: w, win_h: h, close_asked: asked, ..settings };
     st.save(&ctx.path);
+}
+
+/// 第一次關閉時的選擇：記住後直接照選的做（縮小到右下角或結束程式）
+#[tauri::command]
+fn close_choice(app: AppHandle, ctx: Ctx, tray: bool) {
+    {
+        let mut st = ctx.state.lock().unwrap();
+        st.settings.close_tray = tray;
+        st.settings.close_asked = true;
+        st.save(&ctx.path);
+    }
+    if tray {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.hide();
+        }
+    } else {
+        app.exit(0);
+    }
+}
+
+/// 用預設瀏覽器開啟網址（只允許固定的幾個網站）
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    const ALLOW: [&str; 2] = ["https://openapi.nexon.com/", "https://github.com/MAOBOO2240/"];
+    if !ALLOW.iter().any(|p| url.starts_with(p)) {
+        return Err("不支援的網址".into());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", &url])
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// 背景執行緒：收到 Ctrl+V 通知後，確認剪貼簿確實是目前序號才切換到下一組
@@ -336,12 +375,19 @@ fn main() {
                     }
                     // 關閉主視窗：設定為縮小時藏到右下角；否則連同浮動視窗一起結束程式
                     WindowEvent::CloseRequested { api, .. } => {
-                        let to_tray = window
+                        let (to_tray, asked) = window
                             .app_handle()
                             .try_state::<Arc<Shared>>()
-                            .map(|s| s.state.lock().unwrap().settings.close_tray)
-                            .unwrap_or(false);
-                        if to_tray {
+                            .map(|s| {
+                                let st = s.state.lock().unwrap();
+                                (st.settings.close_tray, st.settings.close_asked)
+                            })
+                            .unwrap_or((false, true));
+                        if !asked {
+                            // 第一次關閉：先問要直接關閉還是縮小到右下角
+                            api.prevent_close();
+                            let _ = window.emit("ask-close", ());
+                        } else if to_tray {
                             api.prevent_close();
                             let _ = window.hide();
                         } else {
@@ -367,6 +413,12 @@ fn main() {
             copy_text,
             clear_list,
             save_settings,
+            close_choice,
+            open_url,
+            maple_api::api_usage,
+            maple_api::api_key_set,
+            update::github_rate,
+            watch::discord_sent,
             timers::get_timers,
             timers::update_timer,
             timers::update_prefs,

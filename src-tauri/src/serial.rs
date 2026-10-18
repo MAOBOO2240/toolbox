@@ -50,11 +50,13 @@ pub struct Settings {
     pub win_h: Option<u32>,
     /// 按右上角關閉時縮小到右下角（系統匣），而不是結束程式
     pub close_tray: bool,
+    /// 第一次按關閉時已經問過要直接關閉還是縮小（只問一次）
+    pub close_asked: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: "system".into(), font: "m".into(), win_w: None, win_h: None, close_tray: false }
+        Self { theme: "system".into(), font: "m".into(), win_w: None, win_h: None, close_tray: false, close_asked: false }
     }
 }
 

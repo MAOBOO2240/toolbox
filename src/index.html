@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="gift.css" />
   <link rel="stylesheet" href="watch.css" />
   <link rel="stylesheet" href="boss.css" />
+  <link rel="stylesheet" href="api.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -758,6 +759,43 @@
         </div>
       </section>
 
+      <section class="view" id="view-api">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">API 剩餘</span>
+          <div class="g-pages">
+            <button class="cbtn c-blue" id="apiRefresh">重新整理</button>
+            <button class="cbtn c-teal" id="apiSetBtn">設定</button>
+          </div>
+        </nav>
+        <div class="api-page" id="apiPageList">
+          <div class="api-list" id="apiList"></div>
+          <p class="muted api-foot" id="apiFoot"></p>
+        </div>
+        <div class="api-page" id="apiPageSet" hidden>
+          <div class="card api-set">
+            <h3>使用自己的 Nexon API 金鑰</h3>
+            <p class="hint">內建金鑰是所有使用這個工具箱的人共用，每天次數有限。換成自己的金鑰後，美容美髮、經驗追蹤、側欄角色都會改用你的金鑰，次數不會跟別人搶。</p>
+            <ol class="api-steps">
+              <li><button class="link-btn" id="apiOpenSite">開啟 Nexon Open API 網站</button>，用 Nexon 帳號登入</li>
+              <li>到「我的應用程式」新增一個應用程式，遊戲選「新楓之谷」</li>
+              <li>複製 API Key，貼到下面按「儲存」</li>
+            </ol>
+            <div class="api-set-row">
+              <div class="f-input"><input type="password" id="apiKeyIn" placeholder="貼上 API Key（test_ 或 live_ 開頭）" autocomplete="off" spellcheck="false" /></div>
+              <label class="api-limit">每日上限<input type="text" inputmode="numeric" id="apiLimitIn" placeholder="自動" autocomplete="off" /></label>
+            </div>
+            <p class="muted api-now" id="apiKeyNow"></p>
+            <div class="api-set-foot">
+              <span class="muted" id="apiSetMsg"></span>
+              <span class="spacer"></span>
+              <button class="cbtn c-red small" id="apiKeyDel">改回內建金鑰</button>
+              <button class="cbtn c-green small solid" id="apiKeySave">儲存</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-track">
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
@@ -1018,6 +1056,16 @@
   <div class="toast" id="toast"></div>
 
   <!-- 確認對話框（倉儲管理器樣式） -->
+  <div class="alert-backdrop" id="closeAsk">
+    <div class="alert close-ask" role="alertdialog" aria-modal="true">
+      <h3 class="alert-msg">按右上角關閉時要怎麼做？</h3>
+      <p class="close-ask-note">縮小到右下角時，計時器與斷線通知會繼續運作。之後可以在「設定 → 視窗」更改，這個提示只會出現一次。</p>
+      <div class="alert-actions">
+        <button id="closeAskTray" class="cbtn c-teal solid">縮小到右下角</button>
+        <button id="closeAskExit" class="cbtn c-red solid">直接關閉</button>
+      </div>
+    </div>
+  </div>
   <div class="alert-backdrop" id="alertBackdrop">
     <div class="alert" role="alertdialog" aria-modal="true">
       <h3 class="alert-msg" id="alertMsg">確定執行此操作嗎？</h3>
@@ -1038,5 +1086,6 @@
   <script src="boss.js"></script>
   <script src="track.js"></script>
   <script src="watch.js"></script>
+  <script src="api.js"></script>
 </body>
 </html>
