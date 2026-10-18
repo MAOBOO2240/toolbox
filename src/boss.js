@@ -478,6 +478,14 @@ if (typeof document !== "undefined") (() => {
     return row;
   }
 
+  /** 列表寬度不夠放完整欄位時改用精簡排版（每月、每週、每日王一起切換，位置仍然一致） */
+  function fitList() {
+    const l = $("#bsList");
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    $(".bs-main").classList.toggle("compact", l.clientWidth > 0 && l.clientWidth < 46.8 * rem);
+  }
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(fitList).observe($("#bsList"));
+
   function renderList(sum) {
     const ch = cur();
     const box = $("#bsList");

@@ -73,9 +73,14 @@
   display: grid; align-content: start; row-gap: 0.35rem; column-gap: 0.7rem;
   margin: 0 -0.3rem; padding: 0 0.3rem 0.2rem;
 }
-/* 每月王、每週王、每日王共用同一組欄位（難度、人數、天數、結晶錢都是固定寬度），
-   切換分頁或選了 BOSS 出現輸入框時，位置都不會跑；每月、每週王的天數欄是空的 */
-.bs-list.cols-main { grid-template-columns: auto minmax(3.6rem, 8.5rem) minmax(3.4rem, 13.4rem) 4.2rem 4.2rem minmax(5rem, 1fr); }
+/* 每月王、每週王、每日王共用同一組欄位，欄寬不看內容，切換分頁或選了 BOSS 出現輸入框時位置都不會跑；
+   每月、每週王的天數欄是空的。
+   寬度夠時：名稱放得下最長的「守護天使綠水靈（重製）」，難度放得下四顆按鈕，多的空間依比例平均分給每一欄 */
+.bs-list.cols-main { grid-template-columns: auto minmax(10.6rem, 1fr) minmax(13.4rem, 1.2fr) minmax(4.4rem, 0.55fr) minmax(4.4rem, 0.55fr) minmax(5.8rem, 0.8fr); }
+/* 視窗很窄時（程式依寬度加上 compact）：名稱改成換行顯示（不會被截掉），難度按鈕也會換行 */
+.bs-main.compact .bs-list.cols-main { grid-template-columns: auto minmax(4.4rem, 1fr) minmax(3.4rem, 1.2fr) 4.2rem 4.2rem minmax(5rem, 0.8fr); column-gap: 0.4rem; }
+.bs-main.compact .bs-list.cols-main .bs-name-btn { white-space: normal; overflow: visible; }
+.bs-main.compact .bs-list.cols-main .bs-val { white-space: normal; }
 /* 人數、天數的標題和下面的輸入框一樣置中 */
 .bs-list.cols-main .bs-thead > :nth-child(4), .bs-list.cols-main .bs-thead > :nth-child(5) { text-align: center; }
 /* BOSS重製卷頁面 */
