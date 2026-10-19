@@ -552,8 +552,6 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     let app = app.clone();
     std::thread::spawn(move || {
         let mut applied: Option<OvApplied> = None;
-        // 同一個計時器的通知視窗 10 秒內不重複跳（「長」通知每 3 秒響一次）
-        let mut popped: HashMap<String, Instant> = HashMap::new();
         let mut last_save = Instant::now();
         loop {
             std::thread::sleep(TICK);
@@ -589,12 +587,9 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 (names, snaps, prefs, master, want, to_save)
             };
 
+            // 時間到只播音效，不跳通知視窗
             for name in names {
                 audio::play(&prefs.sound, &prefs.sound_file, &name, prefs.volume);
-                if popped.get(&name).map(|t| t.elapsed() >= Duration::from_secs(10)).unwrap_or(true) {
-                    popped.insert(name.clone(), Instant::now());
-                    crate::notify::show(&app, &name, "時間到了！", "timer");
-                }
             }
             sync_overlay(&app, &mut applied, want, &prefs.overlay);
             let listening = master && !info.is_self && (!game_only || info.is_game);
