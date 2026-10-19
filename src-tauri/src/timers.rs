@@ -390,6 +390,27 @@ fn set_overlay_visible(w: &WebviewWindow, visible: bool) {
     let _ = if visible { w.show() } else { w.hide() };
 }
 
+/// 浮動視窗的 HWND（第一次查到就記住，之後每 0.1 秒核對時不用再問主執行緒）
+static OVERLAY_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+/// 浮動視窗實際上有沒有顯示（Windows 才查得到；查不到時回傳 None）
+fn overlay_shown(w: &WebviewWindow) -> Option<bool> {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{IsWindow, IsWindowVisible};
+        let mut h = OVERLAY_HWND.load(Ordering::Relaxed);
+        if h == 0 || unsafe { IsWindow(h as _) } == 0 {
+            h = w.hwnd().map(|x| x.0 as isize).unwrap_or(0);
+            OVERLAY_HWND.store(h, Ordering::Relaxed);
+        }
+        if h != 0 {
+            return Some(unsafe { IsWindowVisible(h as _) } != 0);
+        }
+    }
+    let _ = w;
+    None
+}
+
 fn create_overlay(app: &AppHandle, o: &Overlay) -> Result<WebviewWindow, String> {
     let w = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("overlay.html".into()))
         .title("計時器浮動視窗")
@@ -469,11 +490,18 @@ fn sync_overlay(app: &AppHandle, applied: &mut Option<OvApplied>, want: OvApplie
         None => return,
     };
     let prev = applied.clone();
+    let was_visible = prev.as_ref().map(|p| p.visible);
     if prev.as_ref().map(|p| p.locked) != Some(want.locked) {
         let _ = win.set_ignore_cursor_events(want.locked);
     }
-    if prev.as_ref().map(|p| p.visible) != Some(want.visible) {
-        if want.visible {
+    // 切換鎖定（滑鼠穿透）時 Tauri 會重設視窗樣式，順便把視窗藏起來（它不知道我們自己顯示過）；
+    // 所以每次都核對實際有沒有顯示，不一樣就補回來
+    let mismatch = match overlay_shown(&win) {
+        Some(shown) => shown != want.visible,
+        None => was_visible != Some(want.visible),
+    };
+    if mismatch {
+        if want.visible && was_visible != Some(true) {
             ensure_on_screen(&win);
         }
         set_overlay_visible(&win, want.visible);
