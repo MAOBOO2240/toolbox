@@ -14,6 +14,9 @@
     }
     .ov {
       --bg: 0.35;
+      /* 文字大小由程式依視窗大小計算（放大縮小都跟著視窗） */
+      --fs: 34px;
+      font-size: var(--fs);
       position: absolute;
       inset: 0;
       display: flex;
@@ -29,20 +32,20 @@
     }
     /* 未鎖定：可拖曳，右下角顯示縮放把手（不顯示邊框） */
     .ov.unlocked { cursor: move; }
-    /* 文字固定大小，不隨視窗大小改變；視窗太小時會自動加大到放得下 */
+    /* 文字跟著視窗大小縮放，永遠完整顯示（不會變成「…」） */
     .row {
       flex: none;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 14px;
-      padding: 2px 0;
+      gap: 0.4em;
+      padding: 0.05em 0;
+      line-height: 1.15;
     }
-    /* 文字不截斷，太長時由視窗自動加寬 */
     .name {
       flex: none;
-      font-size: 34px;
-      font-weight: 700;
+      font-size: 1em;
+      font-weight: 600;
       color: #fff;
       white-space: nowrap;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.6);
@@ -50,8 +53,8 @@
     .time {
       --heat: 0;
       flex: none;
-      font-size: 34px;
-      font-weight: 700;
+      font-size: 1em;
+      font-weight: 600;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
       line-height: 1;
@@ -78,7 +81,7 @@
       background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.85) 50%, rgba(255,255,255,.85) 60%, transparent 60%, transparent 72%, rgba(255,255,255,.85) 72%, rgba(255,255,255,.85) 82%, transparent 82%);
     }
     .ov.unlocked .grip { display: block; }
-    .hint { padding: 4px 6px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.8); white-space: nowrap; }
+    .hint { display: inline-block; align-self: center; padding: 0.1em 0.15em; font-size: max(12px, 0.42em); font-weight: 500; color: rgba(255, 255, 255, 0.8); white-space: nowrap; }
     .hint[hidden] { display: none; }
   </style>
 </head>
@@ -143,33 +146,37 @@
         }
         r.time.style.setProperty("--heat", heat.toFixed(3));
       });
-      fitWidth();
+      fitText();
     });
 
-    // 文字放不下時加寬視窗，並把最小寬度設成剛好放得下的大小
-    const LogicalSize = (T.window && T.window.LogicalSize) || (T.dpi && T.dpi.LogicalSize);
-    let minW = 0;
-    let minH = 0;
-    function fitWidth() {
-      if (!LogicalSize || rows.size === 0) return;
-      // 只量文字本身的寬高（scrollWidth 不會小於目前寬度，用它會讓視窗越變越寬）
-      let need = 0, needH = 0;
-      for (const r of rows.values()) {
-        const gap = parseFloat(getComputedStyle(r.el).columnGap) || 0;
-        need = Math.max(need, r.name.offsetWidth + gap + r.time.offsetWidth);
-        needH += r.el.offsetHeight;
-      }
-      need = Math.ceil(need + 36); // 左右內距 + 邊框
-      needH = Math.ceil(needH + 10); // 上下內距
-      if (Math.abs(need - minW) > 2 || Math.abs(needH - minH) > 2) {
-        minW = need;
-        minH = needH;
-        win.setMinSize(new LogicalSize(minW, Math.max(50, minH))).catch(() => {});
-      }
-      if (window.innerWidth + 1 < need || window.innerHeight + 1 < needH) {
-        win.setSize(new LogicalSize(Math.max(need, window.innerWidth), Math.max(needH, window.innerHeight))).catch(() => {});
+    // 文字大小跟著視窗：算出剛好塞滿視窗（寬、高都放得下）的字級，視窗變大字就變大，變小字就變小
+    const hint = document.getElementById("hint");
+    let fs = 34;
+    function fitText() {
+      const items = [...rows.values()].map((r) => r.el);
+      if (!hint.hidden) items.push(hint);
+      if (!items.length) return;
+      const cs = getComputedStyle(ov);
+      const W = ov.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+      const H = ov.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2;
+      if (W <= 0 || H <= 0) return;
+      // 兩次就會收斂（字寬與字級成正比）
+      for (let pass = 0; pass < 2; pass++) {
+        let needW = 0, needH = 0;
+        for (const el of items) {
+          if (el === hint) { needW = Math.max(needW, el.scrollWidth); needH += el.offsetHeight; continue; }
+          const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+          needW = Math.max(needW, el.firstChild.offsetWidth + gap + el.lastChild.offsetWidth);
+          needH += el.offsetHeight;
+        }
+        if (!needW || !needH) return;
+        const next = Math.max(10, Math.min(260, Math.floor(fs * Math.min(W / needW, H / needH) * 2) / 2));
+        if (Math.abs(next - fs) < 0.5) break;
+        fs = next;
+        ov.style.setProperty("--fs", `${fs}px`);
       }
     }
+    window.addEventListener("resize", fitText);
 
     // 未鎖定時：拖曳移動、右下角縮放
     ov.addEventListener("mousedown", (e) => {

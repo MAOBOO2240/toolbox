@@ -393,7 +393,9 @@ fn set_overlay_visible(w: &WebviewWindow, visible: bool) {
 /// 浮動視窗的 HWND（第一次查到就記住，之後每 0.1 秒核對時不用再問主執行緒）
 static OVERLAY_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
-/// 浮動視窗實際上有沒有顯示（Windows 才查得到；查不到時回傳 None）
+/// 浮動視窗實際上有沒有顯示（Windows 才查得到；查不到時回傳 None）。
+/// 順便拿掉系統標題列與最小化／最大化／關閉鈕的樣式：無框視窗其實還帶著這些樣式，
+/// 拖曳時系統會把醜醜的標題列畫出來；Tauri 重設樣式（例如切換鎖定）後會再加回來，所以每次都檢查
 fn overlay_shown(w: &WebviewWindow) -> Option<bool> {
     #[cfg(windows)]
     {
@@ -404,11 +406,36 @@ fn overlay_shown(w: &WebviewWindow) -> Option<bool> {
             OVERLAY_HWND.store(h, Ordering::Relaxed);
         }
         if h != 0 {
+            strip_frame(h);
             return Some(unsafe { IsWindowVisible(h as _) } != 0);
         }
     }
     let _ = w;
     None
+}
+
+#[cfg(windows)]
+fn strip_frame(h: isize) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
+    };
+    let bad = (WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX) as isize;
+    unsafe {
+        let style = GetWindowLongPtrW(h as _, GWL_STYLE);
+        if style & bad != 0 {
+            SetWindowLongPtrW(h as _, GWL_STYLE, style & !bad);
+            SetWindowPos(
+                h as _,
+                std::ptr::null_mut(),
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE,
+            );
+        }
+    }
 }
 
 fn create_overlay(app: &AppHandle, o: &Overlay) -> Result<WebviewWindow, String> {
@@ -421,6 +448,8 @@ fn create_overlay(app: &AppHandle, o: &Overlay) -> Result<WebviewWindow, String>
         .skip_taskbar(true)
         .resizable(true)
         .focused(false)
+        // 點擊、拖曳都不會搶走遊戲的焦點；也不會因為被啟用而畫出系統標題列
+        .focusable(false)
         .visible(false)
         .min_inner_size(140.0, 50.0)
         .build()
