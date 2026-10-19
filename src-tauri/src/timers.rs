@@ -393,9 +393,7 @@ fn set_overlay_visible(w: &WebviewWindow, visible: bool) {
 /// 浮動視窗的 HWND（第一次查到就記住，之後每 0.1 秒核對時不用再問主執行緒）
 static OVERLAY_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
-/// 浮動視窗實際上有沒有顯示（Windows 才查得到；查不到時回傳 None）。
-/// 順便拿掉系統標題列與最小化／最大化／關閉鈕的樣式：無框視窗其實還帶著這些樣式，
-/// 拖曳時系統會把醜醜的標題列畫出來；Tauri 重設樣式（例如切換鎖定）後會再加回來，所以每次都檢查
+/// 浮動視窗實際上有沒有顯示（Windows 才查得到；查不到時回傳 None）
 fn overlay_shown(w: &WebviewWindow) -> Option<bool> {
     #[cfg(windows)]
     {
@@ -406,7 +404,6 @@ fn overlay_shown(w: &WebviewWindow) -> Option<bool> {
             OVERLAY_HWND.store(h, Ordering::Relaxed);
         }
         if h != 0 {
-            strip_frame(h);
             return Some(unsafe { IsWindowVisible(h as _) } != 0);
         }
     }
@@ -414,28 +411,41 @@ fn overlay_shown(w: &WebviewWindow) -> Option<bool> {
     None
 }
 
+/// 無框視窗其實還帶著系統標題列與邊框的樣式，拖曳、切換鎖定或被系統重畫時，
+/// Windows 會把舊式的標題列與邊框畫在浮動視窗上。這裡直接攔下「畫標題列／邊框」的訊息，整個視窗都當作內容區
 #[cfg(windows)]
-fn strip_frame(h: isize) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-        SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
-    };
-    let bad = (WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX) as isize;
-    unsafe {
-        let style = GetWindowLongPtrW(h as _, GWL_STYLE);
-        if style & bad != 0 {
-            SetWindowLongPtrW(h as _, GWL_STYLE, style & !bad);
-            SetWindowPos(
-                h as _,
-                std::ptr::null_mut(),
-                0,
-                0,
-                0,
-                0,
-                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE,
-            );
-        }
+unsafe extern "system" fn overlay_subclass(
+    hwnd: windows_sys::Win32::Foundation::HWND,
+    msg: u32,
+    wp: windows_sys::Win32::Foundation::WPARAM,
+    lp: windows_sys::Win32::Foundation::LPARAM,
+    _id: usize,
+    _data: usize,
+) -> windows_sys::Win32::Foundation::LRESULT {
+    use windows_sys::Win32::UI::Shell::DefSubclassProc;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCPAINT};
+    match msg {
+        // 不畫標題列與邊框（0xAE、0xAF 是佈景主題直接畫標題列與邊框用的訊息）
+        WM_NCPAINT | 0x00AE | 0x00AF => 0,
+        // 啟用狀態改變時不重畫標題列（回傳 TRUE 讓系統照常切換）
+        WM_NCACTIVATE => 1,
+        // 整個視窗都是內容區，沒有標題列與邊框的空間
+        WM_NCCALCSIZE if wp != 0 => 0,
+        _ => unsafe { DefSubclassProc(hwnd, msg, wp, lp) },
     }
+}
+
+/// 在主執行緒（視窗所屬的執行緒）裝上上面的攔截
+fn install_overlay_subclass(app: &AppHandle, w: &WebviewWindow) {
+    #[cfg(windows)]
+    if let Ok(h) = w.hwnd() {
+        let h = h.0 as isize;
+        let _ = app.run_on_main_thread(move || unsafe {
+            windows_sys::Win32::UI::Shell::SetWindowSubclass(h as _, Some(overlay_subclass), 0x4D42_4F56, 0);
+        });
+    }
+    #[cfg(not(windows))]
+    let _ = (app, w);
 }
 
 fn create_overlay(app: &AppHandle, o: &Overlay) -> Result<WebviewWindow, String> {
@@ -454,6 +464,7 @@ fn create_overlay(app: &AppHandle, o: &Overlay) -> Result<WebviewWindow, String>
         .min_inner_size(140.0, 50.0)
         .build()
         .map_err(|e| format!("浮動視窗建立失敗：{e}"))?;
+    install_overlay_subclass(app, &w);
     let _ = w.set_size(PhysicalSize::new(o.w.max(140), o.h.max(50)));
     let _ = w.set_position(PhysicalPosition::new(o.x, o.y));
     Ok(w)
@@ -600,12 +611,12 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 let snaps = e.snapshot(now);
                 let prefs = e.file.prefs.clone();
                 let master = e.file.master_on;
-                // 有計時器正在倒數或超時才顯示浮動視窗；沒鎖定時（要調整位置）沒在倒數也顯示
+                // 有計時器正在倒數或超時才顯示浮動視窗
                 let any_running = snaps.iter().any(|s| s.active && matches!(s.phase, "running" | "over"));
                 let o = &prefs.overlay;
                 // 只在新楓之谷時：遊戲或本程式在前景才顯示，其他程式在前景就隱藏
                 let in_place = !game_only || game_fg || info.is_self;
-                let want = OvApplied { visible: o.show && master && (any_running || !o.locked) && in_place, locked: o.locked };
+                let want = OvApplied { visible: o.show && master && any_running && in_place, locked: o.locked };
                 let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_millis(800) {
                     e.dirty = false;
                     last_save = now;

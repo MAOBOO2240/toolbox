@@ -81,12 +81,10 @@
       background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.85) 50%, rgba(255,255,255,.85) 60%, transparent 60%, transparent 72%, rgba(255,255,255,.85) 72%, rgba(255,255,255,.85) 82%, transparent 82%);
     }
     .ov.unlocked .grip { display: block; }
-    .hint { display: inline-block; align-self: center; padding: 0.1em 0.15em; font-size: max(12px, 0.42em); font-weight: 500; color: rgba(255, 255, 255, 0.8); white-space: nowrap; }
-    .hint[hidden] { display: none; }
   </style>
 </head>
 <body>
-  <div class="ov" id="ov"><div class="hint" id="hint" hidden>沒有倒數中的計時器・拖曳調整位置</div><div class="grip" id="grip"></div></div>
+  <div class="ov" id="ov"><div class="grip" id="grip"></div></div>
   <script>
     "use strict";
     const T = window.__TAURI__;
@@ -124,13 +122,11 @@
       // 只顯示正在倒數或超時的計時器，依原本順序排列
       const list = p.timers.filter((s) => s.active && (s.phase === "running" || s.phase === "over"));
       ov.style.setProperty("--n", Math.max(1, list.length));
-      // 沒鎖定（調整位置中）而且沒有倒數中的計時器：顯示提示，讓視窗看得到
-      document.getElementById("hint").hidden = !(list.length === 0 && !locked);
       const keep = new Set(list.map((s) => s.id));
       for (const [id, r] of rows) if (!keep.has(id)) { r.el.remove(); rows.delete(id); }
       list.forEach((s, i) => {
         const r = rowFor(s.id);
-        if (ov.children[i + 1] !== r.el) ov.insertBefore(r.el, ov.children[i + 1] || grip);
+        if (ov.children[i] !== r.el) ov.insertBefore(r.el, ov.children[i] || grip);
         if (r.name.textContent !== s.name) r.name.textContent = s.name;
         let text;
         if (s.phase === "over") text = "+" + fmt(Math.floor(s.over_ms / 1000));
@@ -150,11 +146,9 @@
     });
 
     // 文字大小跟著視窗：算出剛好塞滿視窗（寬、高都放得下）的字級，視窗變大字就變大，變小字就變小
-    const hint = document.getElementById("hint");
     let fs = 34;
     function fitText() {
       const items = [...rows.values()].map((r) => r.el);
-      if (!hint.hidden) items.push(hint);
       if (!items.length) return;
       const cs = getComputedStyle(ov);
       const W = ov.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
@@ -164,7 +158,6 @@
       for (let pass = 0; pass < 2; pass++) {
         let needW = 0, needH = 0;
         for (const el of items) {
-          if (el === hint) { needW = Math.max(needW, el.scrollWidth); needH += el.offsetHeight; continue; }
           const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
           needW = Math.max(needW, el.firstChild.offsetWidth + gap + el.lastChild.offsetWidth);
           needH += el.offsetHeight;
