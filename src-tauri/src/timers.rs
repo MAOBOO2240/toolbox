@@ -390,7 +390,7 @@ fn set_overlay_visible(w: &WebviewWindow, visible: bool) {
     let _ = if visible { w.show() } else { w.hide() };
 }
 
-fn create_overlay(app: &AppHandle, o: &Overlay) -> Option<WebviewWindow> {
+fn create_overlay(app: &AppHandle, o: &Overlay) -> Result<WebviewWindow, String> {
     let w = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("overlay.html".into()))
         .title("計時器浮動視窗")
         .decorations(false)
@@ -403,22 +403,69 @@ fn create_overlay(app: &AppHandle, o: &Overlay) -> Option<WebviewWindow> {
         .visible(false)
         .min_inner_size(140.0, 50.0)
         .build()
-        .ok()?;
+        .map_err(|e| format!("浮動視窗建立失敗：{e}"))?;
     let _ = w.set_size(PhysicalSize::new(o.w.max(140), o.h.max(50)));
     let _ = w.set_position(PhysicalPosition::new(o.x, o.y));
-    Some(w)
+    Ok(w)
 }
+
+/// 浮動視窗跑到所有螢幕外面（例如換過螢幕、螢幕解析度變了）時，移回主螢幕左上附近
+fn ensure_on_screen(win: &WebviewWindow) {
+    let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else { return };
+    let Ok(monitors) = win.available_monitors() else { return };
+    if monitors.is_empty() {
+        return;
+    }
+    // 至少有 60×30 像素在某個螢幕裡才算看得到
+    let seen = monitors.iter().any(|m| {
+        let (mp, ms) = (m.position(), m.size());
+        let x1 = pos.x.max(mp.x);
+        let y1 = pos.y.max(mp.y);
+        let x2 = (pos.x + size.width as i32).min(mp.x + ms.width as i32);
+        let y2 = (pos.y + size.height as i32).min(mp.y + ms.height as i32);
+        x2 - x1 >= 60 && y2 - y1 >= 30
+    });
+    if seen {
+        return;
+    }
+    let base = win.primary_monitor().ok().flatten().map(|m| *m.position()).unwrap_or(PhysicalPosition::new(0, 0));
+    let (x, y) = (base.x + 120, base.y + 160);
+    let _ = win.set_position(PhysicalPosition::new(x, y));
+    let mut e = eng();
+    e.file.prefs.overlay.x = x;
+    e.file.prefs.overlay.y = y;
+    e.dirty = true;
+}
+
+/// 建立失敗時的錯誤（同一個錯誤只通知一次，5 秒內不重試）
+static OVERLAY_ERR: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 
 fn sync_overlay(app: &AppHandle, applied: &mut Option<OvApplied>, want: OvApplied, o: &Overlay) {
     let win = match app.get_webview_window(OVERLAY_LABEL) {
         Some(w) => w,
-        None if want.visible => match create_overlay(app, o) {
-            Some(w) => {
-                *applied = None;
-                w
+        None if want.visible => {
+            {
+                let last = OVERLAY_ERR.lock().unwrap_or_else(|e| e.into_inner());
+                if last.as_ref().is_some_and(|(_, t)| t.elapsed() < Duration::from_secs(5)) {
+                    return;
+                }
             }
-            None => return,
-        },
+            match create_overlay(app, o) {
+                Ok(w) => {
+                    *OVERLAY_ERR.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                    *applied = None;
+                    w
+                }
+                Err(msg) => {
+                    let mut last = OVERLAY_ERR.lock().unwrap_or_else(|e| e.into_inner());
+                    if last.as_ref().map(|(m, _)| m != &msg).unwrap_or(true) {
+                        let _ = app.emit("overlay-error", msg.clone());
+                    }
+                    *last = Some((msg, Instant::now()));
+                    return;
+                }
+            }
+        }
         None => return,
     };
     let prev = applied.clone();
@@ -426,6 +473,9 @@ fn sync_overlay(app: &AppHandle, applied: &mut Option<OvApplied>, want: OvApplie
         let _ = win.set_ignore_cursor_events(want.locked);
     }
     if prev.as_ref().map(|p| p.visible) != Some(want.visible) {
+        if want.visible {
+            ensure_on_screen(&win);
+        }
         set_overlay_visible(&win, want.visible);
     }
     *applied = Some(want);
@@ -495,12 +545,12 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 let snaps = e.snapshot(now);
                 let prefs = e.file.prefs.clone();
                 let master = e.file.master_on;
-                // 有計時器正在倒數或超時才顯示浮動視窗
+                // 有計時器正在倒數或超時才顯示浮動視窗；沒鎖定時（要調整位置）沒在倒數也顯示
                 let any_running = snaps.iter().any(|s| s.active && matches!(s.phase, "running" | "over"));
                 let o = &prefs.overlay;
                 // 只在新楓之谷時：遊戲或本程式在前景才顯示，其他程式在前景就隱藏
                 let in_place = !game_only || game_fg || info.is_self;
-                let want = OvApplied { visible: o.show && master && any_running && in_place, locked: o.locked };
+                let want = OvApplied { visible: o.show && master && (any_running || !o.locked) && in_place, locked: o.locked };
                 let to_save = if e.dirty && now.duration_since(last_save) >= Duration::from_millis(800) {
                     e.dirty = false;
                     last_save = now;

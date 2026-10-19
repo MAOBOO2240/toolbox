@@ -446,6 +446,8 @@
   });
   $("#prefOvTransVal").addEventListener("blur", (e) => (e.target.value = Math.round((1 - file.prefs.overlay.bg) * 100)));
   $("#prefOvReset").addEventListener("click", () => run(() => tapi.resetOverlay()));
+  // 浮動視窗建立失敗時顯示原因
+  if (TAURI) listen("overlay-error", (e) => toast(String(e.payload)));
 
   /* ---------- 上方與左下控制 ---------- */
   $("#masterBtn").addEventListener("click", () => run(async () => {
