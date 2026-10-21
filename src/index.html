@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="watch.css" />
   <link rel="stylesheet" href="boss.css" />
   <link rel="stylesheet" href="patch.css" />
+  <link rel="stylesheet" href="itemup.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -788,6 +789,26 @@
         </div>
       </section>
 
+      <!-- 更新道具：遊戲改版後新增了哪些道具 -->
+      <section class="view" id="view-itemup">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">更新道具</span>
+          <div class="g-pages"><button class="cbtn c-blue" id="iuRefresh">重新檢查</button></div>
+        </nav>
+        <div class="iu-page" id="iuPage">
+          <div class="card iu-bar">
+            <div class="iu-vers" id="iuVers" hidden></div>
+            <span class="muted iu-status" id="iuStatus"></span>
+            <div class="iu-tools" id="iuTools" hidden>
+              <div class="iu-cats" id="iuCats"></div>
+              <span class="pt-search iu-search"><svg class="pt-search-ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input type="text" id="iuSearch" placeholder="搜尋道具名稱或編號" autocomplete="off" spellcheck="false" /><button class="pt-search-x" id="iuSearchX" title="清除搜尋文字" hidden><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>
+            </div>
+          </div>
+          <div class="card iu-grid" id="iuGrid"></div>
+        </div>
+      </section>
+
       <section class="view" id="view-track">
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
@@ -930,8 +951,10 @@
             <div class="card w-set">
               <h3>通知設定</h3>
               <label class="w-row"><span>斷線時通知<small class="muted">遊戲還開著，但連線中斷超過設定秒數</small></span><span class="switch sm"><input type="checkbox" id="wOnDisc" /><span class="slider"></span></span></label>
-              <label class="w-row"><span>回到登入畫面時通知<small class="muted">離開電腦時被送回登入畫面：照下面設定的秒數通知<br />正在操作時回到登入畫面（多半是自己登出）：待滿 5 分鐘才通知</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
-              <label class="w-row"><span>遊戲關閉時不通知<small class="muted">打開：新楓之谷關閉時一律不通知<br />關掉：關閉前 5 分鐘內都沒操作電腦才通知（有操作就當作是你自己關的）</small></span><span class="switch sm"><input type="checkbox" id="wOnClose" /><span class="slider"></span></span></label>
+              <label class="w-row"><span>回到登入畫面時通知<small class="muted">被送回登入畫面超過下面設定的秒數時通知</small></span><span class="switch sm"><input type="checkbox" id="wOnLogin" /><span class="slider"></span></span></label>
+              <div class="w-row"><span>有在用電腦時不通知<small class="muted">斷線、回到登入畫面或遊戲關閉前這段時間內有動滑鼠或鍵盤，就當作是你自己弄的，不通知；拉到最左邊（關閉）就一律通知</small></span>
+                <span class="w-th"><input type="range" class="range" id="wSelf" min="0" max="60" step="1" /><b id="wSelfV">5 分鐘</b></span>
+              </div>
               <div class="w-row"><span>週三維護不通知<small class="muted">可以複選；選到的時間前 5 分鐘到後 30 分鐘內斷線或關閉都不通知</small></span>
                 <div class="w-quiet" id="wQuiet">
                   <button class="cbtn c-purple small" data-h="0">00:00</button>
@@ -950,8 +973,8 @@
                 <span id="wWarnText">Windows 已關閉這個程式的通知</span>
                 <button class="cbtn c-amber small solid" id="wOpenSettings">開啟通知設定</button>
               </div>
-              <label class="w-row"><span>播放音效</span><span class="switch sm"><input type="checkbox" id="wSound" /><span class="slider"></span></span></label>
-              <div class="w-row w-sound-row"><span>音效</span>
+              <label class="w-row w-snd"><span>播放音效</span><span class="switch sm"><input type="checkbox" id="wSound" /><span class="slider"></span></span></label>
+              <div class="w-row w-sound-row w-snd"><span>音效</span>
                 <span class="w-inline">
                   <select class="sel" id="wSoundName">
                     <option value="beep1">柔和木琴</option>
@@ -964,13 +987,13 @@
                   <button class="link-btn" id="wPreview">試聽</button>
                 </span>
               </div>
-              <div class="w-row"><span>音量</span>
+              <div class="w-row w-snd"><span>音量</span>
                 <span class="w-th"><input type="range" class="range" id="wVol" min="0" max="200" step="1" /><b id="wVolV">100%</b></span>
               </div>
               <div class="w-row"><span>中斷多久算斷線<small class="muted">換頻道、進出商城時連線會短暫切換</small></span>
                 <span class="w-th"><input type="range" class="range" id="wTh" min="5" max="120" step="5" /><b id="wThV">20 秒</b></span>
               </div>
-              <p class="hint" id="wFileName"></p>
+              <p class="hint w-snd" id="wFileName"></p>
               <div class="w-dc" id="wDcBox">
                 <h3 class="w-sub">Discord 通知</h3>
                 <label class="w-lbl">Webhook 網址</label>
@@ -1045,6 +1068,11 @@
         <span class="b-search"><input type="text" id="bStyleSearch" placeholder="搜尋名稱或編號" /><button class="b-search-x" id="bStyleSearchX" title="清除搜尋文字" hidden><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>
         <span class="muted" id="bStyleCount"></span>
         <span class="spacer"></span>
+        <div class="b-style-g" id="bStyleG" title="依遊戲的造型編號分男女（聯名等共用的兩邊都會列出）">
+          <button class="cbtn c-silver small" data-g="">全部</button>
+          <button class="cbtn c-red small" data-g="F">女</button>
+          <button class="cbtn c-blue small" data-g="M">男</button>
+        </div>
         <button class="cbtn c-pink small" id="bStyleFavOnly" title="只顯示收藏的">只看收藏</button>
         <div class="b-style-size" id="bStyleSize">
           <button class="cbtn c-blue small" data-size="l">大</button>
@@ -1058,6 +1086,18 @@
   </div>
 
   <div class="b-ctx" id="bCtx" hidden></div>
+
+  <!-- 更新道具：道具名稱與說明 -->
+  <div class="iu-modal" id="iuModal" hidden>
+    <div class="iu-modal-box">
+      <div class="iu-modal-head">
+        <span class="iu-ic iu-big" id="iuDetIc"></span>
+        <div class="iu-modal-title"><strong id="iuDetName"></strong><small class="muted" id="iuDetMeta"></small></div>
+        <button class="b-x sq" id="iuDetClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+      </div>
+      <div class="iu-desc" id="iuDetDesc"></div>
+    </div>
+  </div>
 
   <!-- 發現新版本 -->
   <div class="alert-backdrop" id="updBackdrop">
@@ -1107,5 +1147,6 @@
   <script src="track.js"></script>
   <script src="watch.js"></script>
   <script src="patch.js"></script>
+  <script src="itemup.js"></script>
 </body>
 </html>

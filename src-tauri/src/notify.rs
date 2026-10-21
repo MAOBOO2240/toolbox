@@ -1,12 +1,15 @@
 //! 程式自己的通知：螢幕右下角的置頂小視窗（不搶焦點），遊戲在視窗化或無邊框全螢幕時也看得到。
+//! Windows 通知發不出去時才會用到；樣子照 Windows 11 的通知（notify.html）。
 
+use crate::scale;
 use serde::Serialize;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const LABEL: &str = "notify";
-const W: f64 = 380.0;
-const H: f64 = 118.0;
+/// 視窗大小（畫面像素，含四周 10 的陰影空間；跟螢幕等比例換算成實際像素）
+const W: f64 = 384.0;
+const H: f64 = 182.0;
 
 #[derive(Serialize, Clone)]
 pub struct Note {
@@ -39,7 +42,7 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
     if let Some(w) = app.get_webview_window(LABEL) {
         return Some(w);
     }
-    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("notify.html".into()))
+    let w = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("notify.html".into()))
         .title("工具箱通知")
         .decorations(false)
         .transparent(true)
@@ -48,23 +51,31 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
         .skip_taskbar(true)
         .resizable(false)
         .focused(false)
+        // 點通知不會搶走遊戲的焦點；也不會因為被啟用而畫出系統標題列
+        .focusable(false)
         .visible(false)
         .inner_size(W, H)
         .build()
-        .ok()
+        .ok()?;
+    // 和計時器浮動視窗一樣，攔下系統畫標題列（右上角 - 口 x）與邊框的訊息
+    crate::timers::install_overlay_subclass(app, &w);
+    Some(w)
 }
 
-/// 放到主螢幕右下角（工作列上方）
+/// 放到主螢幕右下角（工作列上方），大小跟螢幕等比例
 fn place(app: &AppHandle, w: &WebviewWindow) {
     let Ok(Some(m)) = app.primary_monitor() else { return };
-    let scale = m.scale_factor();
-    let (mw, mh) = (m.size().width as i32, m.size().height as i32);
-    let (mx, my) = (m.position().x, m.position().y);
-    let (ww, wh) = ((W * scale) as i32, (H * scale) as i32);
-    let margin = (16.0 * scale) as i32;
-    let taskbar = (52.0 * scale) as i32;
+    let r = scale::ratio(&m);
+    let wa = *m.work_area();
+    let (ww, wh) = ((W * r).round() as i32, (H * r).round() as i32);
+    // 卡片四周已經有 10 的透明空間，再留 2 → 卡片離螢幕邊緣 12（和 Windows 通知一樣）
+    let margin = (2.0 * r).round() as i32;
     let _ = w.set_size(PhysicalSize::new(ww as u32, wh as u32));
-    let _ = w.set_position(PhysicalPosition::new(mx + mw - ww - margin, my + mh - wh - margin - taskbar));
+    let _ = w.set_position(PhysicalPosition::new(
+        wa.position.x + wa.size.width as i32 - ww - margin,
+        wa.position.y + wa.size.height as i32 - wh - margin,
+    ));
+    scale::apply(w.as_ref());
 }
 
 /// 跳出通知
@@ -79,7 +90,11 @@ pub fn show(app: &AppHandle, title: &str, body: &str, kind: &str) {
     let Some(w) = window(app) else { return };
     place(app, &w);
     let _ = app.emit_to(LABEL, "notify", note);
-    show_no_activate(&w, true);
+    // 在主執行緒顯示：排在攔截標題列的設定之後，第一次跳出時也不會畫出 - 口 x
+    let w2 = w.clone();
+    if app.run_on_main_thread(move || show_no_activate(&w2, true)).is_err() {
+        show_no_activate(&w, true);
+    }
 }
 
 /// 通知頁面剛載入時取回最新一則（視窗第一次建立時，事件可能比頁面早到）

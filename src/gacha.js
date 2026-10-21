@@ -473,7 +473,7 @@ if (typeof document !== "undefined") (() => {
       const small = b.querySelector("small");
       if (p === "apple") { small.textContent = "花錢抽"; b.classList.remove("ready", "empty"); return; }
       const n = boxAvail(p);
-      small.textContent = n ? `可開 ${intFmt.format(n)} 箱` : `需 ${C.BOX_COST[p]} 碎片`;
+      small.textContent = n ? `可開 ${intFmt.format(n)} 箱` : "";
       b.classList.toggle("ready", n > 0);
       b.classList.toggle("empty", n === 0);
       b.title = `每 ${C.BOX_COST[p]} 個蘋果碎片可以開一次${C.POOL_NAME[p]}`;

@@ -1,0 +1,71 @@
+/* ---------- 更新道具 ---------- */
+.iu-page { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.iu-bar { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.75rem 0.9rem; max-width: 64rem; width: 100%; margin: 0 auto; }
+.iu-vers { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.iu-vers[hidden] { display: none; }
+.iu-vers .cbtn { font-variant-numeric: tabular-nums; }
+.iu-status { font-size: 0.82rem; }
+.iu-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 0.9rem; }
+.iu-tools[hidden] { display: none; }
+.iu-cats { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.iu-cats .cbtn small { margin-left: 0.3rem; font-size: 0.72rem; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.iu-search { flex: 1 1 14rem; max-width: 22rem; margin-left: auto; }
+
+/* 道具圖示格 */
+.iu-grid { max-width: 64rem; width: 100%; margin: 0 auto; padding: 0.8rem 0.9rem 1rem; }
+.iu-sec { display: flex; align-items: baseline; gap: 0.45rem; margin: 0.9rem 0 0.45rem 0.15rem; font-size: 0.85rem; font-weight: 800; }
+.iu-sec:first-child { margin-top: 0.1rem; }
+.iu-sec span { color: color-mix(in srgb, var(--c) 80%, var(--text)); }
+.iu-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.4rem, 1fr)); gap: 0.4rem; }
+.iu-item {
+  aspect-ratio: 1; padding: 0; border: 0; border-radius: 0.7rem; cursor: pointer;
+  display: grid; place-items: center;
+  background: var(--card-2);
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+.iu-item:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #14b8a6 70%, transparent); }
+.iu-item:active { transform: scale(0.95); }
+.iu-ic { width: 2.6rem; height: 2.6rem; display: grid; place-items: center; }
+.iu-ic img { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+.iu-ic.none::after { content: "?"; color: var(--text-2); font-weight: 800; }
+.iu-first { display: flex; flex-direction: column; align-items: center; gap: 0.45rem; line-height: 1.6; }
+.iu-first b { font-size: 1rem; color: var(--text); }
+
+/* 道具名稱與說明 */
+.iu-modal {
+  position: fixed; inset: 0; z-index: 950;
+  display: grid; place-items: center;
+  background: rgba(8, 10, 16, 0.5);
+  backdrop-filter: blur(3px);
+}
+.iu-modal[hidden] { display: none; }
+.iu-modal-box {
+  width: min(30rem, 92vw); max-height: 80vh;
+  display: flex; flex-direction: column; gap: 0.8rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border-radius: 1.1rem;
+  background: var(--card);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45), inset 0 0 0 1px var(--sep);
+}
+.iu-modal-head { display: flex; align-items: center; gap: 0.8rem; }
+.iu-big { flex: none; width: 4rem; height: 4rem; border-radius: 0.8rem; background: var(--card-2); }
+.iu-big img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.iu-modal-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.iu-modal-title strong { font-size: 1.1rem; line-height: 1.35; }
+.iu-modal-title small { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.iu-modal-head .b-x { flex: none; width: 1.85rem; height: 1.85rem; padding: 0; display: grid; place-items: center; align-self: start; }
+.iu-desc {
+  min-height: 0; overflow-y: auto;
+  padding: 0.75rem 0.85rem; border-radius: 0.8rem;
+  background: var(--card-2); color: var(--text);
+  font-size: 0.9rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+}
+.iu-desc .d-orange { color: #e8590c; }
+.iu-desc .d-blue { color: #1c7ed6; }
+.iu-desc .d-red { color: #e03131; }
+.iu-desc .d-green { color: #2f9e44; }
+.iu-desc .d-bold { font-weight: 800; }
+:root[data-theme="dark"] .iu-desc .d-orange { color: #ffa94d; }
+:root[data-theme="dark"] .iu-desc .d-blue { color: #74c0fc; }
+:root[data-theme="dark"] .iu-desc .d-red { color: #ff8787; }
+:root[data-theme="dark"] .iu-desc .d-green { color: #8ce99a; }

@@ -6,9 +6,11 @@ mod autostart;
 mod avatar;
 mod fg;
 mod input;
+mod itemup;
 mod maple_api;
 mod patches;
 mod notify;
+mod scale;
 mod update;
 mod watch;
 #[allow(dead_code)]
@@ -22,7 +24,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, PhysicalSize, State, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
 
 struct Shared {
     state: Mutex<AppState>,
@@ -31,7 +33,7 @@ struct Shared {
 
 type Ctx<'a> = State<'a, Arc<Shared>>;
 
-/// 主視窗被使用者調整的大小，背景執行緒每秒寫入一次
+/// 主視窗被使用者調整的大小（畫面像素），背景執行緒每秒寫入一次
 static PENDING_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 
 fn set_clipboard(text: &str) -> Result<(), String> {
@@ -133,10 +135,10 @@ fn clear_list(ctx: Ctx) -> AppState {
 fn save_settings(ctx: Ctx, settings: Settings) {
     let mut st = ctx.state.lock().unwrap();
     // 視窗大小由後端管理，前端送來的不採用
-    let (w, h) = (st.settings.win_w, st.settings.win_h);
+    let (w, h) = (st.settings.view_w, st.settings.view_h);
     // 問過一次就不再問（前端沒送也保留）
     let asked = st.settings.close_asked || settings.close_asked;
-    st.settings = Settings { win_w: w, win_h: h, close_asked: asked, ..settings };
+    st.settings = Settings { view_w: w, view_h: h, close_asked: asked, ..settings };
     st.save(&ctx.path);
 }
 
@@ -186,34 +188,15 @@ fn paste_worker(app: AppHandle, shared: Arc<Shared>, rx: mpsc::Receiver<()>) {
 
 /* ---------------- 主視窗大小 ---------------- */
 
-/// 依螢幕解析度（實際像素）決定預設視窗大小
-fn default_size(win: &WebviewWindow) -> (u32, u32) {
-    let monitor = win.current_monitor().ok().flatten().or_else(|| win.primary_monitor().ok().flatten());
-    let Some(m) = monitor else { return (1366, 768) };
-    let (sw, sh) = (m.size().width, m.size().height);
-    let (w, h) = if sw >= 3840 {
-        (1920, 1080)
-    } else if sw >= 2560 {
-        (1600, 900)
-    } else if sw >= 1920 {
-        (1366, 768)
-    } else {
-        (sw * 4 / 5, sh * 4 / 5)
-    };
-    (w.min(sw * 95 / 100), h.min(sh * 90 / 100))
-}
-
 fn setup_main_window(app: &tauri::App, st: &AppState) {
     let Some(win) = app.get_webview_window("main") else { return };
     #[cfg(windows)]
     if let Ok(h) = win.hwnd() {
         fg::set_main_hwnd(h.0 as isize);
     }
-    let size = match (st.settings.win_w, st.settings.win_h) {
-        (Some(w), Some(h)) if w >= 600 && h >= 400 => (w, h),
-        _ => default_size(&win),
-    };
-    let _ = win.set_size(PhysicalSize::new(size.0, size.1));
+    // 跟螢幕等比例：大小用畫面像素記錄（HD 和 4K 上看起來一樣）
+    let saved = st.settings.view_w.zip(st.settings.view_h);
+    scale::setup_main(&win, saved);
     let _ = win.center();
     // 開機自動啟動時只放在右下角，不打開主視窗
     if !autostart::launched_at_boot() {
@@ -343,6 +326,7 @@ fn main() {
             audio::init();
             maple_api::init(dir.join("maple_cache.json"));
             patches::init(dir.join("patches.json"));
+            itemup::init(dir.join("item_updates.json"));
             timers::init(app.handle(), dir.join("timers.json"));
             update::init(dir.join("update.json"));
             toast::init(dir.clone());
@@ -364,12 +348,16 @@ fn main() {
                 let pending = PENDING_SIZE.lock().unwrap().take();
                 if let Some((w, h)) = pending {
                     let mut st = shared.state.lock().unwrap();
-                    st.settings.win_w = Some(w);
-                    st.settings.win_h = Some(h);
+                    st.settings.view_w = Some(w);
+                    st.settings.view_h = Some(h);
                     st.save(&shared.path);
                 }
             });
             Ok(())
+        })
+        // 跟螢幕等比例：每個頁面載入時套用縮放
+        .on_page_load(|webview, _payload| {
+            scale::apply(webview);
         })
         .on_window_event(|window, event| {
             let label = window.label();
@@ -377,10 +365,18 @@ fn main() {
                 match event {
                     WindowEvent::Resized(size) => {
                         let normal = !window.is_minimized().unwrap_or(false) && !window.is_maximized().unwrap_or(false);
-                        if normal && size.width >= 600 && size.height >= 400 {
-                            *PENDING_SIZE.lock().unwrap() = Some((size.width, size.height));
+                        if normal {
+                            if let Some(w) = window.app_handle().get_webview_window("main") {
+                                if let Some((cw, ch)) = scale::main_resized(&w, *size) {
+                                    if cw as f64 >= scale::MIN_W - 1.0 && ch as f64 >= scale::MIN_H - 1.0 {
+                                        *PENDING_SIZE.lock().unwrap() = Some((cw, ch));
+                                    }
+                                }
+                            }
                         }
                     }
+                    // 換到別的螢幕：重新套用等比例縮放
+                    WindowEvent::Moved(_) | WindowEvent::ScaleFactorChanged { .. } => scale::main_moved(window.app_handle()),
                     // 關閉主視窗：設定為縮小時藏到右下角；否則連同浮動視窗一起結束程式
                     WindowEvent::CloseRequested { api, .. } => {
                         let (to_tray, asked) = window
@@ -409,6 +405,12 @@ fn main() {
                     WindowEvent::Moved(p) => timers::overlay_moved(p.x, p.y),
                     WindowEvent::Resized(s) => timers::overlay_resized(s.width, s.height),
                     _ => {}
+                }
+            }
+            // 浮動視窗、通知換到別的螢幕：重新套用等比例縮放
+            if label != "main" && matches!(event, WindowEvent::Moved(_) | WindowEvent::ScaleFactorChanged { .. }) {
+                if let Some(w) = window.app_handle().get_webview_window(label) {
+                    scale::check(w.as_ref());
                 }
             }
         })
@@ -449,6 +451,9 @@ fn main() {
             avatar::beauty_skins,
             avatar::beauty_styles,
             avatar::item_icons,
+            avatar::item_icons_by_id,
+            avatar::item_text,
+            itemup::item_updates,
             notify::notify_pending,
             notify::notify_hide,
             notify::notify_open,

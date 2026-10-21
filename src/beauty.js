@@ -993,6 +993,7 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 事件 ---------- */
   $$("#bPages button").forEach((b) => b.addEventListener("click", () => {
+    if (!$("#bActMenu").hidden) actMenu(false); // 換頁時收起動作選單
     st.page = b.dataset.page;
     if (st.page === "sim") st.dress = false;
     save(); renderPage();
@@ -1001,6 +1002,21 @@ if (typeof document !== "undefined") (() => {
   // 用一般的皇家美髮券／整形券圖示（同名的選擇型排除；說明有「隨機」的優先）
   $$("#bKind button").forEach((b) => b.prepend(ItemIcons.el(b.dataset.kind === "hair" ? "皇家美髮券#隨機|!選擇|!自選|!挑選" : "皇家整形券#隨機|!選擇|!自選|!挑選")));
   $$("#bKind button").forEach((b) => b.addEventListener("click", () => { st.kind = b.dataset.kind; save(); renderPool(); renderRight(); }));
+  /* 視窗小時皇家美髮／整形會蓋到女／男：先讓女／男換到下一行，還是不夠就拿掉券的圖示 */
+  function fitTabs() {
+    const tabs = $("#bPool .b-tabs"), kind = $("#bKind");
+    if (!tabs || !tabs.clientWidth) return;
+    tabs.classList.remove("stack", "no-ic");
+    const gap = parseFloat(getComputedStyle(tabs).columnGap) || 0;
+    if (kind.scrollWidth <= kind.clientWidth + Math.max(0, gap - 2)) return;
+    tabs.classList.add("stack");
+    if (kind.scrollWidth > kind.clientWidth + 1) tabs.classList.add("no-ic");
+  }
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(fitTabs);
+    ro.observe($("#bPool .b-tabs"));
+    $$("#bKind button").forEach((b) => ro.observe(b));
+  }
   $$("#bGender button").forEach((b) => b.addEventListener("click", () => {
     st.gender = b.dataset.g;
     save(); renderPool();
@@ -1323,6 +1339,7 @@ if (typeof document !== "undefined") (() => {
     showMenu(x, y, item.name, opts);
   }
   function showMenu(x, y, name, opts) {
+    if (!$("#bActMenu").hidden) actMenu(false); // 叫出其他介面時收起動作選單
     const m = $("#bCtx");
     m.innerHTML = "";
     const title = document.createElement("div");
@@ -1512,6 +1529,7 @@ if (typeof document !== "undefined") (() => {
   let dyeId = null;
   function dyeItem() { return curOutfit().find((x) => x.id === dyeId); }
   function openDye(id) {
+    if (!$("#bActMenu").hidden) actMenu(false); // 叫出其他介面時收起動作選單
     if (!st.outfit) st.outfit = curOutfit(); // 先把角色原本的套組變成可以修改的清單
     dyeId = id;
     const it = dyeItem();
@@ -1571,12 +1589,14 @@ if (typeof document !== "undefined") (() => {
   const famOf = (kind, id) => (kind === "hair" ? Math.floor(id / 10) * 10 : kind === "face" ? id - (Math.floor(id / 100) % 10) * 100 : id);
 
   async function openStyle(kind) {
+    if (!$("#bActMenu").hidden) actMenu(false); // 叫出其他介面時收起動作選單
     closeCtx();
     $("#bDyeWin").hidden = true;
     closeMix();
     styleKind = kind;
     styleShown = STYLE_PAGE;
     $("#bStyleTitle").textContent = STYLE_TITLE[kind];
+    $("#bStyleG").hidden = kind === "skin";
     // 搜尋文字依視窗種類記住，關掉再開也還在（按搜尋框右邊的叉叉才清除）
     $("#bStyleSearch").value = (st.styleSearch ||= {})[kind] || "";
     syncSearchX();
@@ -1714,6 +1734,8 @@ if (typeof document !== "undefined") (() => {
     const list = styleKind === "skin" ? skins || [] : styleLists[styleKind] || [];
     const q = $("#bStyleSearch").value.trim();
     let out = q ? list.filter((x) => x.name.includes(q) || String(x.id).includes(q)) : list;
+    // 全部／女／男（聯名等共用的兩邊都列出）
+    if (styleKind !== "skin" && st.styleG) out = out.filter((x) => !x.g || x.g === st.styleG);
     if (st.styleFavOnly) out = out.filter((x) => isStyleFav(styleKind, x.id));
     else if (styleFavs(styleKind).length) {
       // 收藏的排在最前面
@@ -1727,6 +1749,8 @@ if (typeof document !== "undefined") (() => {
     $("#bStyleGrid").className = `b-style-grid size-${size}`;
     $$("#bStyleSize button").forEach((b) => b.classList.toggle("on", b.dataset.size === size));
     $("#bStyleFavOnly").classList.toggle("on", !!st.styleFavOnly);
+    $("#bStyleG").hidden = styleKind === "skin";
+    $$("#bStyleG button").forEach((b) => b.classList.toggle("on", b.dataset.g === (st.styleG || "")));
     $$("#bStyleGrid .b-style-pic img").forEach((img) => { if (img.naturalWidth) img.style.width = `${img.naturalWidth * THUMB_SCALE[size]}px`; });
   }
   function currentStyleId() {
@@ -1857,8 +1881,10 @@ if (typeof document !== "undefined") (() => {
   $("#bStyleWin").addEventListener("pointerdown", (e) => { if (e.target === $("#bStyleWin")) closeStyle(); });
   $$("#bStyleSize button").forEach((b) => b.addEventListener("click", () => { st.styleSize = b.dataset.size; save(); applyStyleSize(); }));
   $("#bStyleFavOnly").addEventListener("click", () => { st.styleFavOnly = !st.styleFavOnly; styleShown = STYLE_PAGE; save(); renderStyles(); });
+  $$("#bStyleG button").forEach((b) => b.addEventListener("click", () => { st.styleG = b.dataset.g; styleShown = STYLE_PAGE; save(); renderStyles(); }));
 
   $("#bDress").addEventListener("click", () => {
+    if (!$("#bActMenu").hidden) actMenu(false); // 換頁時收起動作選單
     st.dress = !st.dress;
     if (!st.dress) closeFloat();
     save(); renderPage(); renderPick(); renderEquipped();
@@ -1881,6 +1907,7 @@ if (typeof document !== "undefined") (() => {
     label: () => (st.page === "import" || st.dress ? "上一頁" : null),
     back: () => {
       if (st.page !== "import" && !st.dress) return false;
+      if (!$("#bActMenu").hidden) actMenu(false);
       st.page = "sim"; st.dress = false; save(); renderAll(); return true;
     },
   };

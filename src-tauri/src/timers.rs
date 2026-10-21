@@ -435,8 +435,8 @@ unsafe extern "system" fn overlay_subclass(
     }
 }
 
-/// 在主執行緒（視窗所屬的執行緒）裝上上面的攔截
-fn install_overlay_subclass(app: &AppHandle, w: &WebviewWindow) {
+/// 在主執行緒（視窗所屬的執行緒）裝上上面的攔截（通知視窗也用）
+pub(crate) fn install_overlay_subclass(app: &AppHandle, w: &WebviewWindow) {
     #[cfg(windows)]
     if let Ok(h) = w.hwnd() {
         let h = h.0 as isize;

@@ -4,7 +4,7 @@
  * 斷線通知：顯示 Rust 背景監看的狀態與設定
  * ========================================================== */
 if (typeof document !== "undefined") (() => {
-  let cfg = { on_close: true, on_disconnect: true, threshold: 20, sound: true, sound_name: "beep2", sound_file: "", volume: 100, mode: "windows", on_login: true, discord_url: "", discord_user: "", quiet: [] };
+  let cfg = { on_disconnect: true, threshold: 20, self_mins: 5, sound: true, sound_name: "beep2", sound_file: "", volume: 100, mode: "windows", on_login: true, discord_url: "", discord_user: "", quiet: [] };
   let status = { running: false, conns: 0, state: "off", at_login: false, lost_secs: 0, notify_in: 0, active_loss: false, events: [] };
 
   const STATE = {
@@ -28,10 +28,11 @@ if (typeof document !== "undefined") (() => {
     if (status.state === "online") detail = `遊戲中（${status.conns} 條連線）`;
     if (status.state === "waiting" && status.at_login) detail = "在登入畫面，進入遊戲後開始監看";
     if (status.state === "lost") {
-      detail = status.at_login
-        ? `回到登入畫面 ${status.lost_secs} 秒，${status.notify_in} 秒後通知`
-        : `已中斷 ${status.lost_secs} 秒，${status.notify_in} 秒後通知`;
+      const what = status.at_login ? `回到登入畫面 ${status.lost_secs} 秒` : `已中斷 ${status.lost_secs} 秒`;
+      detail = status.active_loss ? `${what}（之前有在用電腦，不會通知）` : `${what}，${status.notify_in} 秒後通知`;
     }
+    // 之前有在用電腦：當作是自己弄的，沒有通知
+    if ((status.state === "down" || status.state === "login") && status.active_loss) detail = "之前有在用電腦，當作是你自己弄的，沒有通知；重新進入遊戲後會自動恢復監看";
     $("#wStatus").className = `card w-status ${cls}`;
     $("#wState").textContent = title;
     $("#wDetail").textContent = detail;
@@ -53,7 +54,6 @@ if (typeof document !== "undefined") (() => {
 
   function renderCfg() {
     $("#wOnDisc").checked = cfg.on_disconnect;
-    $("#wOnClose").checked = !cfg.on_close; // 開關是「遊戲關閉時不通知」
     $("#wOnLogin").checked = cfg.on_login;
     if (document.activeElement !== $("#wDcUrl")) $("#wDcUrl").value = cfg.discord_url;
     if (document.activeElement !== $("#wDcUser")) $("#wDcUser").value = cfg.discord_user;
@@ -62,6 +62,8 @@ if (typeof document !== "undefined") (() => {
     $("#wSound").checked = cfg.sound;
     $("#wTh").value = cfg.threshold;
     $("#wThV").textContent = `${cfg.threshold} 秒`;
+    $("#wSelf").value = cfg.self_mins;
+    $("#wSelfV").textContent = selfText(cfg.self_mins);
     $$("#wMode button").forEach((b) => b.classList.toggle("on", b.dataset.v === cfg.mode));
     if (![...$("#wSoundName").options].some((o) => o.value === cfg.sound_name)) cfg.sound_name = "beep1";
     $("#wSoundName").value = cfg.sound_name;
@@ -70,7 +72,10 @@ if (typeof document !== "undefined") (() => {
     $("#wVol").value = cfg.volume;
     $("#wVolV").textContent = `${cfg.volume}%`;
     $$(".w-sound-row, #wVol").forEach((el) => el.classList.toggle("dim", !cfg.sound));
+    // 只用 Discord 通知時不播音效，音效相關設定也收起來
+    $$(".w-snd").forEach((el) => { el.hidden = cfg.mode === "discord"; });
   }
+  const selfText = (m) => (m > 0 ? `${m} 分鐘` : "關閉");
 
   const saveCfg = () => { if (TAURI) invoke("watch_set", { cfg }).catch(() => {}); };
 
@@ -81,7 +86,7 @@ if (typeof document !== "undefined") (() => {
     policy: "通知被系統原則停用了（公司或學校電腦常見）。",
   };
   async function checkToast(announce) {
-    const uses = cfg.mode !== "discord" && (cfg.on_disconnect || cfg.on_close || cfg.on_login);
+    const uses = cfg.mode !== "discord"; // 遊戲關閉一定會檢查要不要通知
     if (!TAURI || !uses) { $("#wWarn").hidden = true; return; }
     const st = await invoke("toast_status").catch(() => "unknown");
     const msg = WARN[st];
@@ -93,7 +98,6 @@ if (typeof document !== "undefined") (() => {
   }
 
   $("#wOnDisc").addEventListener("change", (e) => { cfg.on_disconnect = e.target.checked; saveCfg(); checkToast(false); });
-  $("#wOnClose").addEventListener("change", (e) => { cfg.on_close = !e.target.checked; saveCfg(); checkToast(false); });
   $("#wOnLogin").addEventListener("change", (e) => { cfg.on_login = e.target.checked; saveCfg(); checkToast(false); });
   $$("#wQuiet button").forEach((b) => b.addEventListener("click", () => {
     const h = Number(b.dataset.h);
@@ -138,6 +142,7 @@ if (typeof document !== "undefined") (() => {
   $("#wVol").addEventListener("input", (e) => { cfg.volume = Number(e.target.value); $("#wVolV").textContent = `${cfg.volume}%`; saveCfg(); });
   $("#wOpenSettings").addEventListener("click", () => { if (TAURI) invoke("open_notify_settings").catch(() => {}); });
   $("#wTh").addEventListener("input", (e) => { cfg.threshold = Number(e.target.value); $("#wThV").textContent = `${cfg.threshold} 秒`; saveCfg(); });
+  $("#wSelf").addEventListener("input", (e) => { cfg.self_mins = Number(e.target.value); $("#wSelfV").textContent = selfText(cfg.self_mins); saveCfg(); });
   $("#wTest").addEventListener("click", () => { if (TAURI) invoke("watch_test").catch(() => {}); else toast("預覽模式無法顯示通知"); });
   $("#wClear").addEventListener("click", async () => {
     if (TAURI) await invoke("watch_clear_log").catch(() => {});

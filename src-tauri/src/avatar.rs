@@ -2002,6 +2002,22 @@ pub async fn item_icons(game_dir: Option<String>, names: Vec<String>) -> Result<
 pub struct StyleOut {
     pub id: u32,
     pub name: String,
+    /// "M"（男）、"F"（女）、""（聯名等共用）
+    pub g: &'static str,
+}
+
+/// 遊戲資料沒有髮型、臉型的性別欄位，照編號的千位數判斷（同名的男女版本幾乎都符合這個規則）：
+/// 髮型 0、3、5、6 是男，1、4、7、8 是女；臉型 0、3、5、7 是男，1、4、6、8 是女；2、9 多半是聯名等共用
+fn style_gender(hair: bool, id: u32) -> &'static str {
+    let d = id / 1000 % 10;
+    let (male, female): (&[u32], &[u32]) = if hair { (&[0, 3, 5, 6], &[1, 4, 7, 8]) } else { (&[0, 3, 5, 7], &[1, 4, 6, 8]) };
+    if male.contains(&d) {
+        "M"
+    } else if female.contains(&d) {
+        "F"
+    } else {
+        ""
+    }
 }
 
 /// 遊戲資料裡所有的髮型或臉型（同一個造型的不同顏色只列一筆），新的在前面
@@ -2025,7 +2041,7 @@ pub async fn beauty_styles(game_dir: Option<String>, kind: String) -> Result<Vec
                 }
                 seen.insert(fam);
                 let name = if hair { strip_hair_color(&name).to_string() } else { name };
-                out.push(StyleOut { id, name });
+                out.push(StyleOut { id, name, g: style_gender(hair, id) });
             }
             out.sort_by(|a, b| b.id.cmp(&a.id));
             ctx.styles.insert(kind.clone(), out.clone());
@@ -2114,6 +2130,103 @@ pub async fn pick_game_dir() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/* ---------------- 更新道具（itemup.rs 用） ---------------- */
+
+/// 遊戲資料夾（找不到時為 None）
+pub(crate) fn game_dir(hint: Option<&str>) -> Option<PathBuf> {
+    find_game_dir(hint)
+}
+
+/// 遊戲裡所有道具的（編號, 資料夾, 名稱）與遊戲版本（String 的 WZ 版本，例如 282）。髮型、臉型、膚色不算道具
+pub(crate) fn all_items(hint: Option<&str>) -> Result<(u32, Vec<(u32, &'static str, String)>), String> {
+    with_ctx(hint, |ctx| {
+        let version = ctx.data.package("String")?.files.first().map(|f| f.version).unwrap_or(0);
+        let mut out: Vec<(u32, &'static str, String)> = Vec::new();
+        if let Ok(eqp) = ctx.data.img("String", "Eqp.img") {
+            if let Some(e) = eqp.get("Eqp") {
+                for (cat, items) in e.children() {
+                    let Some(folder) = eqp_folder(cat) else { continue };
+                    for (id, item) in items.children() {
+                        if let (Ok(id), Some(name)) = (id.parse::<u32>(), item.get("name").and_then(|v| v.as_str())) {
+                            out.push((id, folder, name.trim().to_string()));
+                        }
+                    }
+                }
+            }
+        }
+        for (img, sub, folder) in [
+            ("Consume.img", "", "Item/Consume"),
+            ("Etc.img", "Etc", "Item/Etc"),
+            ("Ins.img", "", "Item/Install"),
+            ("Cash.img", "", "Item/Cash"),
+            ("Pet.img", "", "Item/Pet"),
+        ] {
+            if let Ok(root) = ctx.data.img("String", img) {
+                let node = if sub.is_empty() { Some(root.as_ref()) } else { root.get(sub) };
+                for (id, item) in node.map(|n| n.children()).unwrap_or(&[]) {
+                    if let (Ok(id), Some(name)) = (id.parse::<u32>(), item.get("name").and_then(|v| v.as_str())) {
+                        out.push((id, folder, name.trim().to_string()));
+                    }
+                }
+            }
+        }
+        Ok((version, out))
+    })
+}
+
+/// 依編號取得道具圖示（items：[資料夾, 編號]），找不到的回傳 null
+#[tauri::command]
+pub async fn item_icons_by_id(game_dir: Option<String>, items: Vec<(String, u32)>) -> Result<Vec<Option<String>>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_ctx(game_dir.as_deref(), |ctx| Ok(items.iter().map(|(folder, id)| ctx.item_icon(folder, *id)).collect()))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize)]
+pub struct ItemText {
+    pub name: String,
+    pub desc: String,
+}
+
+/// 道具在遊戲裡的名稱與說明
+#[tauri::command]
+pub async fn item_text(game_dir: Option<String>, folder: String, id: u32) -> Result<ItemText, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_ctx(game_dir.as_deref(), |ctx| {
+            let key = id.to_string();
+            let node: Option<Node> = if let Some(cat) = folder.strip_prefix("Character/") {
+                // 騎寵的資料夾叫 TamingMob，字串裡叫 Taming
+                let cat = if cat == "TamingMob" { "Taming" } else { cat };
+                ctx.data.img("String", "Eqp.img").ok().and_then(|e| e.path(&format!("Eqp/{cat}/{key}")).cloned())
+            } else {
+                let (img, sub) = match folder.as_str() {
+                    "Item/Consume" => ("Consume.img", ""),
+                    "Item/Etc" => ("Etc.img", "Etc"),
+                    "Item/Install" => ("Ins.img", ""),
+                    "Item/Cash" => ("Cash.img", ""),
+                    "Item/Pet" => ("Pet.img", ""),
+                    _ => ("", ""),
+                };
+                if img.is_empty() {
+                    None
+                } else {
+                    ctx.data.img("String", img).ok().and_then(|r| {
+                        let n = if sub.is_empty() { Some(r.as_ref()) } else { r.get(sub) };
+                        n.and_then(|n| n.get(&key)).cloned()
+                    })
+                }
+            };
+            let n = node.ok_or("遊戲資料裡找不到這個道具")?;
+            let text = |k: &str| n.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            Ok(ItemText { name: text("name").trim().to_string(), desc: text("desc") })
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2127,6 +2240,20 @@ mod tests {
         assert_eq!(face_color_idx("紫水晶"), Some(7));
         assert_eq!(face_color_idx("綠色"), Some(3));
         assert_eq!(strip_hair_color("黑色餘韻髮型"), "餘韻髮型");
+    }
+
+    #[test]
+    fn style_genders() {
+        assert_eq!(style_gender(true, 30000), "M");
+        assert_eq!(style_gender(true, 31000), "F");
+        assert_eq!(style_gender(true, 36670), "M");
+        assert_eq!(style_gender(true, 48450), "F");
+        assert_eq!(style_gender(true, 42280), "");
+        assert_eq!(style_gender(false, 20000), "M");
+        assert_eq!(style_gender(false, 21000), "F");
+        assert_eq!(style_gender(false, 27000), "M");
+        assert_eq!(style_gender(false, 26000), "F");
+        assert_eq!(style_gender(false, 22035), "");
     }
 
     #[test]

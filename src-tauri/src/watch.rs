@@ -19,12 +19,12 @@ use tauri::{AppHandle, Emitter};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct WatchCfg {
-    /// 遊戲關閉時通知
-    pub on_close: bool,
     /// 斷線時通知
     pub on_disconnect: bool,
     /// 連線中斷幾秒才算斷線
     pub threshold: u64,
+    /// 斷線、回到登入畫面或遊戲關閉前這麼多分鐘內有碰鍵盤滑鼠，就當作是自己弄的，不通知（0＝一律通知）
+    pub self_mins: u64,
     /// 通知時播放音效
     pub sound: bool,
     /// 音效：beep1 / beep2 / beep3 / tts / file
@@ -48,9 +48,9 @@ pub struct WatchCfg {
 impl Default for WatchCfg {
     fn default() -> Self {
         Self {
-            on_close: true,
             on_disconnect: true,
             threshold: 20,
+            self_mins: 5,
             sound: true,
             sound_name: "beep2".into(),
             sound_file: String::new(),
@@ -66,7 +66,8 @@ impl Default for WatchCfg {
 }
 
 fn play(cfg: &WatchCfg, speech: &str) {
-    if cfg.sound {
+    // 只用 Discord 通知時不播音效
+    if cfg.sound && cfg.mode != "discord" {
         audio::play(&cfg.sound_name, &cfg.sound_file, speech, cfg.volume.min(200));
     }
 }
@@ -115,9 +116,10 @@ fn discord_send(url: &str, user: &str, title: &str, body: &str) -> Result<(), St
         })
 }
 
-/// Windows 通知；失敗時改用程式右下角的小視窗
+/// Windows 通知；失敗時改用程式右下角的小視窗（樣子和 Windows 通知一樣），並把原因記在紀錄裡
 fn windows_notify(app: &AppHandle, title: &str, body: &str) {
-    if toast::show(title, body).is_err() {
+    if let Err(e) = toast::show(title, body) {
+        log(format!("Windows 通知發不出去（{e}），改用工具箱的通知視窗"));
         notify::show(app, title, body, "warn");
     }
 }
@@ -171,7 +173,7 @@ pub struct WatchStatus {
     pub at_login: bool,
     /// 中斷計時中：再過幾秒會通知
     pub notify_in: u64,
-    /// 中斷時你正在操作電腦（自己登出的可能性高，登入畫面要待滿 5 分鐘才通知）
+    /// 中斷前設定的分鐘數內有操作電腦：當作是自己弄的，不通知
     pub active_loss: bool,
     pub lost_secs: u64,
     pub events: Vec<WatchEvent>,
@@ -256,13 +258,10 @@ fn in_maintenance(quiet: &[u8], (dow, h, m): (u32, u32, u32)) -> bool {
     })
 }
 
-/// 遊戲關閉前這麼多秒內有碰鍵盤滑鼠，就當作是自己關的，不通知
-const SELF_CLOSE_SECS: u64 = 300;
-
-/// 自己登出時，登入畫面要待多久才通知
-const LOGIN_WAIT: u64 = 300;
-/// 中斷前這麼多秒都沒有碰鍵盤滑鼠，就當作不是自己登出的（離開電腦時被送回登入畫面）
-const AFK_SECS: u64 = 60;
+/// 事情發生時鍵盤滑鼠已經 idle 秒沒動：在設定的分鐘數內有動過就當作是自己弄的
+fn self_caused(cfg: &WatchCfg, idle: u64) -> bool {
+    cfg.self_mins > 0 && idle < cfg.self_mins.saturating_mul(60)
+}
 
 /* ---------------- Windows：找遊戲程式、數連線 ---------------- */
 
@@ -392,7 +391,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let mut login_port: Option<u16> = None;
         let mut had_game = false;
         let mut lost_since: Option<Instant> = None;
-        // 中斷的那一刻是否正在操作電腦、是否在週三維護時間
+        // 中斷的那一刻鍵盤滑鼠已經多久沒動、是否在週三維護時間
+        let mut idle_at_loss = u64::MAX;
         let mut active_loss = false;
         let mut maint_loss = false;
         let mut fired = false;
@@ -418,17 +418,18 @@ pub fn init(app: &AppHandle, path: PathBuf) {
 
             let state;
             if !running {
-                if was_running && cfg.on_close {
+                if was_running {
                     let maint = in_maintenance(&cfg.quiet, local_now()) || (lost_since.is_some() && maint_loss);
-                    if !maint && idle_secs() < SELF_CLOSE_SECS {
-                        // 關閉前 5 分鐘內有在操作電腦：當作是自己關的
-                        log("新楓之谷已關閉（關閉前有在操作電腦，當作是自己關的，不通知）".into());
+                    if !maint && self_caused(&cfg, idle_secs()) {
+                        // 關閉前設定的分鐘數內有在操作電腦：當作是自己關的
+                        log(format!("新楓之谷已關閉（關閉前 {} 分鐘內有操作電腦，當作是自己關的，不通知）", cfg.self_mins));
                     } else {
                         alert(&app, "新楓之谷已關閉", "遊戲程式已結束。", maint);
                     }
                 }
                 had_game = false;
                 lost_since = None;
+                active_loss = false;
                 fired = false;
                 state = "off";
             } else if game_conns > 0 {
@@ -439,6 +440,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 }
                 had_game = true;
                 lost_since = None;
+                active_loss = false;
                 fired = false;
                 state = "online";
             } else if !had_game {
@@ -446,24 +448,28 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             } else {
                 if lost_since.is_none() {
                     lost_since = Some(Instant::now());
-                    active_loss = idle_secs() < AFK_SECS;
+                    idle_at_loss = idle_secs();
                     maint_loss = in_maintenance(&cfg.quiet, local_now());
                 }
+                // 中斷前設定的分鐘數內有在操作電腦：當作是自己弄的（自己登出、換角色等），不通知
+                active_loss = self_caused(&cfg, idle_at_loss);
                 let since = lost_since.unwrap_or_else(Instant::now);
                 let secs = cfg.threshold.max(5);
-                // 回到登入畫面時，若中斷前你正在操作電腦（多半是自己登出），要在登入畫面待滿 5 分鐘才通知
-                let wait = if at_login && active_loss { LOGIN_WAIT.max(secs) } else { secs };
                 let elapsed = since.elapsed().as_secs();
-                notify_in = wait.saturating_sub(elapsed);
-                if elapsed >= wait {
+                notify_in = secs.saturating_sub(elapsed);
+                if elapsed >= secs {
                     if !fired {
-                        if at_login {
-                            if cfg.on_login {
-                                let body = if active_loss { "已經在登入畫面待了 5 分鐘。".to_string() } else { format!("已經 {secs} 秒沒有連到遊戲伺服器。") };
-                                alert(&app, "新楓之谷回到登入畫面", &body, maint_loss);
+                        let (enabled, title, body) = if at_login {
+                            (cfg.on_login, "新楓之谷回到登入畫面", format!("已經 {secs} 秒沒有連到遊戲伺服器。"))
+                        } else {
+                            (cfg.on_disconnect, "新楓之谷斷線了", format!("連線已中斷 {secs} 秒。"))
+                        };
+                        if enabled {
+                            if active_loss {
+                                log(format!("{title}（之前 {} 分鐘內有操作電腦，當作是自己弄的，不通知）", cfg.self_mins));
+                            } else {
+                                alert(&app, title, &body, maint_loss);
                             }
-                        } else if cfg.on_disconnect {
-                            alert(&app, "新楓之谷斷線了", &format!("連線已中斷 {secs} 秒。"), maint_loss);
                         }
                     }
                     fired = true;
@@ -504,7 +510,7 @@ pub fn watch_set(cfg: WatchCfg) {
     let mut quiet: Vec<u8> = cfg.quiet.iter().copied().filter(|h| *h < 24).collect();
     quiet.sort_unstable();
     quiet.dedup();
-    g.cfg = WatchCfg { threshold: cfg.threshold.clamp(5, 600), volume: cfg.volume.min(200), quiet, ..cfg };
+    g.cfg = WatchCfg { threshold: cfg.threshold.clamp(5, 600), self_mins: cfg.self_mins.min(60), volume: cfg.volume.min(200), quiet, ..cfg };
     if let Ok(s) = serde_json::to_string_pretty(&g.cfg) {
         let _ = std::fs::write(&g.path, s);
     }
@@ -558,6 +564,26 @@ mod tests {
         assert!(!in_maintenance(&q, (3, 8, 5))); // 沒選 08:00
         assert!(!in_maintenance(&q, (4, 0, 10))); // 週四
         assert!(!in_maintenance(&[], (3, 0, 0)));
+    }
+
+    #[test]
+    fn self_caused_minutes() {
+        let mut c = WatchCfg::default(); // 預設 5 分鐘
+        assert!(self_caused(&c, 0));
+        assert!(self_caused(&c, 299));
+        assert!(!self_caused(&c, 300));
+        assert!(!self_caused(&c, u64::MAX));
+        c.self_mins = 0; // 關閉：一律通知
+        assert!(!self_caused(&c, 0));
+        c.self_mins = 30;
+        assert!(self_caused(&c, 1799));
+    }
+
+    #[test]
+    fn old_config_gets_default_minutes() {
+        let c: WatchCfg = serde_json::from_str(r#"{"on_close":false,"threshold":30}"#).unwrap();
+        assert_eq!(c.self_mins, 5);
+        assert_eq!(c.threshold, 30);
     }
 
     #[test]

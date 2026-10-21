@@ -45,9 +45,9 @@ pub struct Settings {
     pub theme: String,
     /// "s" | "m" | "l"
     pub font: String,
-    /// 使用者調整過的主視窗大小（實際像素）
-    pub win_w: Option<u32>,
-    pub win_h: Option<u32>,
+    /// 使用者調整過的主視窗大小（畫面像素，跟螢幕等比例；舊版的實際像素大小不再使用）
+    pub view_w: Option<u32>,
+    pub view_h: Option<u32>,
     /// 按右上角關閉時縮小到右下角（系統匣），而不是結束程式
     pub close_tray: bool,
     /// 第一次按關閉時已經問過要直接關閉還是縮小（只問一次）
@@ -58,7 +58,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { theme: "system".into(), font: "m".into(), win_w: None, win_h: None, close_tray: false, close_asked: false, upd_manual: false }
+        Self { theme: "system".into(), font: "m".into(), view_w: None, view_h: None, close_tray: false, close_asked: false, upd_manual: false }
     }
 }
 
