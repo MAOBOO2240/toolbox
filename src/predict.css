@@ -7,9 +7,15 @@
 .pd-cats .cbtn small { margin-left: 0.3rem; font-size: 0.72rem; opacity: 0.8; font-variant-numeric: tabular-nums; }
 
 .pd-list { max-width: 56rem; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem; }
-.pd-card { padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; }
-/* 日期 ｜ 活動名稱 ｜ 分類與信心 */
-.pd-head { display: grid; grid-template-columns: minmax(10rem, auto) minmax(0, 1fr) auto; align-items: center; gap: 0.9rem; }
+/* 下一次大改版：版本號 ＋ 預計日期 */
+.pd-next { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 1.2rem; padding: 1rem 1.2rem; }
+.pd-ver { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding-right: 1.2rem; border-right: 0.5px solid var(--sep); }
+.pd-ver small { font-size: 0.74rem; white-space: nowrap; }
+.pd-ver b { font-size: 1.9rem; line-height: 1.1; color: #8b5cf6; font-variant-numeric: tabular-nums; }
+:root[data-theme="dark"] .pd-ver b { color: #c4b5fd; }
+.pd-next .pd-when b { font-size: 1.25rem; }
+.pd-sec { margin: 0.5rem 0 0 0.2rem; font-size: 0.86rem; font-weight: 800; color: var(--text-2); }
+.pd-card { padding: 0.65rem 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 0.9rem; }
 .pd-when { display: flex; flex-direction: column; gap: 0.1rem; }
 .pd-when b { font-size: 1rem; font-variant-numeric: tabular-nums; }
 .pd-when small { font-size: 0.75rem; }
@@ -26,12 +32,10 @@
 :root[data-theme="dark"] .pd-mid { color: #fbbf24; }
 :root[data-theme="dark"] .pd-low { color: #a8b4c6; }
 /* 過去出現的日期 */
-.pd-past { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding-top: 0.45rem; border-top: 0.5px solid var(--sep); }
-.pd-past .muted { font-size: 0.74rem; margin-right: 0.15rem; }
-.pd-day { padding: 0.15em 0.5em; border-radius: 0.4rem; background: var(--card-2); color: var(--text-2); font-size: 0.74rem; font-variant-numeric: tabular-nums; }
 .pd-note { text-align: center; margin: 0.3rem 0 0; }
 
 @media (max-width: 860px) {
-  .pd-head { grid-template-columns: minmax(0, 1fr); gap: 0.3rem; }
-  .pd-tags { justify-content: flex-start; }
+  .pd-next { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .pd-ver { align-items: flex-start; padding-right: 0; border-right: 0; }
+  .pd-card { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
 }

@@ -202,9 +202,9 @@ if (typeof document !== "undefined") (() => {
       if (r?.error) who.children[1].classList.add("bad");
       const cell = (text, cls = "") => { const s = document.createElement("span"); s.className = `tk-cell ${cls}`; s.textContent = text; return s; };
       const del = document.createElement("button");
-      del.className = "b-x";
+      del.className = "b-x sq";
       del.title = "移除";
-      del.textContent = "×";
+      del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>';
       del.addEventListener("click", async () => {
         if (!(await confirmBox(`確定不再追蹤「${name}」嗎？`))) return;
         st.names = st.names.filter((n) => n !== name);
@@ -296,9 +296,9 @@ if (typeof document !== "undefined") (() => {
       grip.innerHTML = "<i></i><i></i><i></i><i></i><i></i><i></i>";
       grip.addEventListener("pointerdown", (e) => startCardDrag(e, card));
       const del = document.createElement("button");
-      del.className = "b-x";
+      del.className = "b-x sq";
       del.title = "移除";
-      del.textContent = "×";
+      del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>';
       del.addEventListener("click", async () => {
         if (!(await confirmBox(`確定不再追蹤「${name}」嗎？`))) return;
         st.names = st.names.filter((n) => n !== name);
@@ -342,32 +342,59 @@ if (typeof document !== "undefined") (() => {
     box.append(grid);
   }
 
-  /** 卡片的拖曳排序：左右上下都能換位置 */
+  /** 卡片的拖曳排序：抓著的卡片跟著游標跑，經過哪一張就插到那裡 */
   function startCardDrag(e, card) {
     if (e.button !== 0) return;
     e.preventDefault();
     const grid = card.parentElement;
-    card.classList.add("dragging");
-    try { card.setPointerCapture(e.pointerId); } catch (_) {}
+    const r = card.getBoundingClientRect();
+    const ox = e.clientX - r.left, oy = e.clientY - r.top;
+    const ghost = card.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px` });
+    document.body.append(ghost);
+    card.classList.add("drag-src");
+    document.body.classList.add("tool-dragging");
+    const at = (ev) => { ghost.style.transform = `translate(${ev.clientX - ox}px, ${ev.clientY - oy}px) rotate(-1.5deg)`; };
+    at(e);
     const move = (ev) => {
+      at(ev);
+      // 找游標底下的卡片（自己先不擋住，才找得到別人）
+      card.style.pointerEvents = "none";
       const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".tk-card");
-      if (!over || over === card || over.parentElement !== grid) return;
-      const b = over.getBoundingClientRect();
-      // 游標在對方右半邊就排到它後面
-      grid.insertBefore(card, ev.clientX > b.left + b.width / 2 ? over.nextSibling : over);
+      card.style.pointerEvents = "";
+      if (!over || over === card || over.parentElement !== grid || over.getAnimations().length) return;
+      const kids = [...grid.children];
+      const after = kids.indexOf(over) > kids.indexOf(card);
+      flipCards(grid, () => grid.insertBefore(card, after ? over.nextSibling : over));
     };
     const up = () => {
-      card.removeEventListener("pointermove", move);
-      card.removeEventListener("pointerup", up);
-      card.removeEventListener("pointercancel", up);
-      card.classList.remove("dragging");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      ghost.remove();
+      card.classList.remove("drag-src");
+      card.style.pointerEvents = "";
+      document.body.classList.remove("tool-dragging");
       const order = [...grid.querySelectorAll(".tk-card")].map((c) => c.dataset.name);
       if (order.join("\n") !== ordered().join("\n")) { st.names = order; st.sort = null; save(); }
       render();
     };
-    card.addEventListener("pointermove", move);
-    card.addEventListener("pointerup", up);
-    card.addEventListener("pointercancel", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }
+
+  /** 換位置後讓其他卡片滑過去 */
+  function flipCards(box, mutate) {
+    const kids = [...box.children];
+    const before = new Map(kids.map((k) => [k, k.getBoundingClientRect()]));
+    mutate();
+    for (const k of kids) {
+      const a = before.get(k), b = k.getBoundingClientRect();
+      const dx = a.left - b.left, dy = a.top - b.top;
+      if (dx || dy) k.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    }
   }
 
   /* ---------- 拖曳排序：按住左邊的六個點 ---------- */
