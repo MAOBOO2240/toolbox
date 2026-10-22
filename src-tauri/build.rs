@@ -3,8 +3,8 @@ fn main() {
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     println!("cargo:rerun-if-env-changed=GITHUB_RUN_NUMBER");
     embed_update_token();
-    // 發行版要求以系統管理員身分執行（讓全域按鍵監聽在遊戲中也有效）。
-    // 測試與開發版不套用，避免 cargo test 需要提權。
+    // 發行版的設定檔（一般權限啟動，程式自己再要求系統管理員權限，見 elevate.rs；
+    // 這樣 Windows 的「啟動」清單才能在登入時開啟程式）。測試與開發版不套用。
     let release = std::env::var("PROFILE").map(|p| p == "release").unwrap_or(false);
     if release {
         let windows = tauri_build::WindowsAttributes::new().app_manifest(include_str!("app.manifest"));

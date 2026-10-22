@@ -1,89 +1,95 @@
-//! 開機自動啟動：用 Windows「工作排程器」在登入時啟動程式。
-//! 程式需要系統管理員權限，Windows 不會從「啟動」（Run 機碼）提權開啟這種程式（會直接被略過），
-//! 所以改用工作排程器的「以最高權限執行」。開機時帶 --autostart 參數啟動，只在右下角背景執行（斷線通知、計時器照常運作）。
+//! 開機自動啟動：寫在 Windows 的「啟動」清單（目前使用者的 Run 機碼），登入後以一般權限開啟，
+//! 程式再自己要求系統管理員權限（elevate.rs，會跳出權限確認視窗，按「是」才會開）。
+//! 開機時帶 --autostart 參數啟動，只在右下角背景執行（斷線通知、計時器照常運作）。
+//!
+//! 舊版用工作排程器建立「登入時以最高權限執行」的工作，會被 Windows Defender 誤判成惡意程式；
+//! 現在不再使用工作排程器，舊版留下的排程工作會在程式開啟時移除，並改成「啟動」清單。
 
 pub const ARG: &str = "--autostart";
 #[cfg(windows)]
-const TASK: &str = "MAOBOO_Toolbox";
-/// 舊版用的 Run 機碼（提權的程式不會從這裡啟動），開啟或關閉時一律清掉
+const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 #[cfg(windows)]
-const OLD_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+const NAME: &str = "MAOBOO_Toolbox";
+/// 舊版建立的排程工作名稱
 #[cfg(windows)]
-const OLD_NAME: &str = "MAOBOO_Toolbox";
+const OLD_TASK: &str = "MAOBOO_Toolbox";
 
-fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&apos;")
+/// 「啟動」清單裡的命令列
+#[cfg_attr(not(windows), allow(dead_code))]
+fn command_line(exe: &str) -> String {
+    format!("\"{exe}\" {ARG}")
 }
 
-/// 工作排程器的工作內容：登入後 10 秒以最高權限啟動；不限制執行時間、用電池時也會啟動
-fn task_xml(user: &str, exe: &str, dir: &str) -> String {
-    let (user, exe, dir) = (xml_escape(user), xml_escape(exe), xml_escape(dir));
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>工具箱：登入時自動啟動（只在右下角背景執行）</Description>
-  </RegistrationInfo>
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-      <UserId>{user}</UserId>
-      <Delay>PT10S</Delay>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <UserId>{user}</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <StartWhenAvailable>false</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <IdleSettings>
-      <StopOnIdleEnd>false</StopOnIdleEnd>
-      <RestartOnIdle>false</RestartOnIdle>
-    </IdleSettings>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <Priority>4</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>"{exe}"</Command>
-      <Arguments>{ARG}</Arguments>
-      <WorkingDirectory>{dir}</WorkingDirectory>
-    </Exec>
-  </Actions>
-</Task>
-"#
-    )
+/// 直接呼叫 Windows 的登錄檔函式（不另外開 reg.exe）
+#[cfg(windows)]
+mod reg {
+    use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
+    use windows_sys::Win32::System::Registry::{
+        RegCloseKey, RegDeleteValueW, RegGetValueW, RegOpenKeyExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
+    };
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    /// 讀 HKCU\sub 的字串值
+    pub fn get(sub: &str, name: &str) -> Option<String> {
+        let (sub, name) = (wide(sub), wide(name));
+        unsafe {
+            let mut len: u32 = 0;
+            if RegGetValueW(HKEY_CURRENT_USER, sub.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), std::ptr::null_mut(), &mut len) != ERROR_SUCCESS {
+                return None;
+            }
+            let mut buf = vec![0u16; len as usize / 2 + 1];
+            let mut len = (buf.len() * 2) as u32;
+            if RegGetValueW(HKEY_CURRENT_USER, sub.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut len) != ERROR_SUCCESS {
+                return None;
+            }
+            let text = &buf[..(len as usize / 2).min(buf.len())];
+            let end = text.iter().position(|&c| c == 0).unwrap_or(text.len());
+            Some(String::from_utf16_lossy(&text[..end]))
+        }
+    }
+
+    fn open(sub: &str) -> Option<HKEY> {
+        let sub = wide(sub);
+        let mut key: HKEY = std::ptr::null_mut();
+        let r = unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, sub.as_ptr(), 0, KEY_SET_VALUE, &mut key) };
+        (r == ERROR_SUCCESS).then_some(key)
+    }
+
+    /// 寫入 HKCU\sub 的字串值
+    pub fn set(sub: &str, name: &str, value: &str) -> bool {
+        let Some(key) = open(sub) else { return false };
+        let (name, data) = (wide(name), wide(value));
+        unsafe {
+            let ok = RegSetValueExW(key, name.as_ptr(), 0, REG_SZ, data.as_ptr().cast(), (data.len() * 2) as u32) == ERROR_SUCCESS;
+            RegCloseKey(key);
+            ok
+        }
+    }
+
+    /// 刪除 HKCU\sub 的值（本來就沒有也算成功）
+    pub fn delete(sub: &str, name: &str) -> bool {
+        let Some(key) = open(sub) else { return false };
+        let name = wide(name);
+        unsafe {
+            let r = RegDeleteValueW(key, name.as_ptr());
+            RegCloseKey(key);
+            r == ERROR_SUCCESS || r == ERROR_FILE_NOT_FOUND
+        }
+    }
 }
 
-/// 呼叫系統程式（不顯示主控台視窗），回傳是否成功
 #[cfg(windows)]
-fn run(cmd: &str, args: &[&str]) -> bool {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    std::process::Command::new(cmd)
-        .args(args)
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+fn current_command() -> Result<String, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    Ok(command_line(&exe.display().to_string()))
 }
 
 #[cfg(windows)]
 fn enabled() -> bool {
-    run("schtasks", &["/Query", "/TN", TASK])
+    reg::get(RUN_KEY, NAME).is_some()
 }
 
 #[cfg(not(windows))]
@@ -91,45 +97,33 @@ fn enabled() -> bool {
     false
 }
 
-/// 舊版的 Run 機碼還在嗎（開過舊版的開機啟動）
+/// 舊版建立的排程工作還在嗎
 #[cfg(windows)]
-fn old_enabled() -> bool {
-    run("reg", &["query", OLD_KEY, "/v", OLD_NAME])
+fn old_task_exists() -> bool {
+    let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+    std::path::Path::new(&root).join("System32").join("Tasks").join(OLD_TASK).exists()
 }
 
+/// 移除舊版的排程工作（只有還在時才動作）
 #[cfg(windows)]
-fn remove_old() {
-    if old_enabled() {
-        run("reg", &["delete", OLD_KEY, "/v", OLD_NAME, "/f"]);
+fn remove_old_task() {
+    if !old_task_exists() {
+        return;
     }
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let _ = std::process::Command::new("schtasks").args(["/Delete", "/TN", OLD_TASK, "/F"]).creation_flags(CREATE_NO_WINDOW).output();
 }
 
 #[cfg(windows)]
 fn write(on: bool) -> Result<(), String> {
-    remove_old();
+    remove_old_task();
     if on {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let dir = exe.parent().map(|p| p.display().to_string()).unwrap_or_default();
-        let user = match (std::env::var("USERDOMAIN"), std::env::var("USERNAME")) {
-            (Ok(d), Ok(u)) if !d.is_empty() => format!("{d}\\{u}"),
-            (_, Ok(u)) => u,
-            _ => return Err("無法取得目前的使用者名稱".into()),
-        };
-        // 工作排程器的 XML 要用 UTF-16 存檔
-        let xml = task_xml(&user, &exe.display().to_string(), &dir);
-        let mut bytes = vec![0xFF, 0xFE];
-        for u in xml.encode_utf16() {
-            bytes.extend_from_slice(&u.to_le_bytes());
+        if !reg::set(RUN_KEY, NAME, &current_command()?) {
+            return Err("無法加入 Windows 的啟動清單".into());
         }
-        let path = std::env::temp_dir().join(format!("maoboo_autostart_{}.xml", std::process::id()));
-        std::fs::write(&path, bytes).map_err(|e| format!("無法寫入開機啟動設定：{e}"))?;
-        let ok = run("schtasks", &["/Create", "/TN", TASK, "/XML", &path.display().to_string(), "/F"]);
-        let _ = std::fs::remove_file(&path);
-        if !ok {
-            return Err("無法建立開機啟動的排程工作".into());
-        }
-    } else if enabled() && !run("schtasks", &["/Delete", "/TN", TASK, "/F"]) {
-        return Err("無法移除開機啟動的排程工作".into());
+    } else if !reg::delete(RUN_KEY, NAME) {
+        return Err("無法從 Windows 的啟動清單移除".into());
     }
     Ok(())
 }
@@ -144,13 +138,24 @@ pub fn launched_at_boot() -> bool {
     std::env::args().any(|a| a == ARG)
 }
 
-/// 程式啟動時：已開啟就更新成目前程式的位置（程式搬到別的資料夾也能正常開機啟動）；
-/// 開過舊版（Run 機碼）的開機啟動，改成工作排程器
+/// 程式啟動時：舊版的排程工作移除並改成「啟動」清單；程式搬到別的資料夾時更新位置。
+/// 內容沒變就不寫入
 pub fn refresh() {
     #[cfg(windows)]
     {
-        if enabled() || old_enabled() {
-            let _ = write(true);
+        let had_task = old_task_exists();
+        if had_task {
+            remove_old_task();
+        }
+        let Ok(want) = current_command() else { return };
+        match reg::get(RUN_KEY, NAME) {
+            Some(v) if v != want => {
+                reg::set(RUN_KEY, NAME, &want);
+            }
+            None if had_task => {
+                reg::set(RUN_KEY, NAME, &want);
+            }
+            _ => {}
         }
     }
 }
@@ -175,13 +180,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn task_xml_escapes_and_runs_elevated() {
-        let x = task_xml(r"PC\小明", r"C:\Games & Tools\MAOBOO.exe", r"C:\Games & Tools");
-        assert!(x.contains(r"<UserId>PC\小明</UserId>"));
-        assert!(x.contains(r#"<Command>"C:\Games &amp; Tools\MAOBOO.exe"</Command>"#));
-        assert!(x.contains("<Arguments>--autostart</Arguments>"));
-        assert!(x.contains("<RunLevel>HighestAvailable</RunLevel>"));
-        assert!(x.contains("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"));
-        assert!(x.contains("<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>"));
+    fn startup_command_quotes_path() {
+        assert_eq!(command_line(r"C:\Games & Tools\MAOBOO.exe"), r#""C:\Games & Tools\MAOBOO.exe" --autostart"#);
     }
 }

@@ -317,7 +317,7 @@ $$("#updSeg button").forEach((b) => b.addEventListener("click", () => { settings
     const want = box.checked;
     try {
       box.checked = await invoke("autostart_set", { on: want });
-      toast(box.checked ? "已開啟開機自動啟動" : "已關閉開機自動啟動");
+      toast(box.checked ? "已開啟開機自動啟動（開機時會跳出權限確認，按「是」即可）" : "已關閉開機自動啟動");
     } catch (e) {
       box.checked = !want;
       toast(String(e));

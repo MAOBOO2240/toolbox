@@ -4,6 +4,7 @@
 mod audio;
 mod autostart;
 mod avatar;
+mod elevate;
 mod fg;
 mod input;
 mod itemup;
@@ -303,6 +304,11 @@ fn wait_after_update() {
 }
 
 fn main() {
+    // 發行版：沒有系統管理員權限時，用「以系統管理員身分執行」重新開一次（開機自動啟動也是）
+    #[cfg(all(windows, not(debug_assertions)))]
+    if elevate::relaunch_if_needed() {
+        return;
+    }
     wait_after_update();
     tauri::Builder::default()
         // 只能開一個：已經開著時再開一次，就把原本的視窗叫到最前面（開機自動啟動的不叫出來）
