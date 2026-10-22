@@ -176,6 +176,8 @@ pub struct WatchStatus {
     /// 中斷前設定的分鐘數內有操作電腦：當作是自己弄的，不通知
     pub active_loss: bool,
     pub lost_secs: u64,
+    /// 兩個通知開關都關掉：完全不檢查遊戲程序與連線
+    pub paused: bool,
     pub events: Vec<WatchEvent>,
 }
 
@@ -397,12 +399,37 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let mut maint_loss = false;
         let mut fired = false;
         let mut notify_in = 0u64;
+        // 上一輪是不是停著（從停止恢復時重新開始算，不會馬上誤報「已關閉」）
+        let mut was_paused = false;
         loop {
             std::thread::sleep(Duration::from_secs(2));
+            let cfg = inner().cfg.clone();
+            // 斷線與登入畫面通知都關掉時，完全不檢查遊戲程序與連線
+            if !cfg.on_disconnect && !cfg.on_login {
+                if !was_paused {
+                    was_paused = true;
+                    first = true;
+                    was_running = false;
+                    had_game = false;
+                    saw_start = false;
+                    login_port = None;
+                    lost_since = None;
+                    active_loss = false;
+                    fired = false;
+                    let status = {
+                        let mut g = inner();
+                        g.status = WatchStatus { state: "off".into(), paused: true, events: g.status.events.clone(), ..Default::default() };
+                        g.status.clone()
+                    };
+                    let _ = app.emit("watch-status", status);
+                }
+                std::thread::sleep(Duration::from_secs(3));
+                continue;
+            }
+            was_paused = false;
             let pids = game_pids();
             let running = !pids.is_empty();
             let conns = if running { connections(&pids) } else { Vec::new() };
-            let cfg = inner().cfg.clone();
 
             if running && !was_running {
                 saw_start = !first;
@@ -491,6 +518,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 g.status.active_loss = active_loss;
                 g.status.state = state.into();
                 g.status.lost_secs = lost_since.map(|s| s.elapsed().as_secs()).unwrap_or(0);
+                g.status.paused = false;
                 g.status.clone()
             };
             let _ = app.emit("watch-status", status);

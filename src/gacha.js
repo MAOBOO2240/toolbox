@@ -512,8 +512,15 @@ if (typeof document !== "undefined") (() => {
       drawBtn.className = "g-draw";
       drawBtn.textContent = "抽";
       drawBtn.title = st.tab === "apple" ? "一直抽到這個道具為止" : "用現有碎片一直開箱到這個道具為止";
-      const name = textInput("g-name", it.name, { disabled: it.filler });
-      const prob = textInput("g-prob", it.filler ? `${decFmt.format(it.prob)}%` : `${it.prob}%`, { decimal: true, disabled: it.filler });
+      // 名稱與機率照官網的獎池，不可更改（要改請用上方的新增或到「解析」重新貼上）
+      const name = document.createElement("span");
+      name.className = "g-name";
+      name.textContent = it.name;
+      if (!it.filler) makeCopyable(name, it.name);
+      const prob = document.createElement("span");
+      prob.className = "r g-prob";
+      // 非補足列保留官網原本的位數（例如 0.0015%）
+      prob.textContent = it.filler ? `${decFmt.format(it.prob)}%` : `${it.prob}%`;
       const v = st.values[it.name];
       const val = textInput("g-val", it.filler ? "0" : typeof v === "number" ? intFmt.format(v) : "", { decimal: true, placeholder: "—", disabled: it.filler });
       // 名稱左邊顯示道具圖示
@@ -536,21 +543,6 @@ if (typeof document !== "undefined") (() => {
 
       drawBtn.addEventListener("click", () => drawUntil(st.tab, it.name));
       del.addEventListener("click", () => { st.pools[st.tab].splice(idx, 1); save(); renderPool(); renderRight(); });
-      name.addEventListener("change", () => {
-        const nn = name.value.trim();
-        if (!nn || nn === it.name) { name.value = it.name; return; }
-        if (!(nn in st.values) && it.name in st.values) st.values[nn] = st.values[it.name];
-        it.name = nn;
-        save(); renderRight();
-      });
-      prob.addEventListener("focus", () => { prob.value = String(it.prob); prob.select(); });
-      prob.addEventListener("input", () => {
-        const n = parseNum(prob.value);
-        if (n === null || n < 0) return;
-        it.prob = n;
-        save(); renderRight();
-      });
-      prob.addEventListener("blur", () => renderPool());
       val.addEventListener("focus", () => { const x = st.values[it.name]; val.value = typeof x === "number" ? String(x) : ""; val.select(); });
       val.addEventListener("input", () => {
         st.values[it.name] = val.value.trim() === "" ? null : parseNum(val.value);

@@ -99,6 +99,7 @@ const OfficialPools = (() => {
       if (r.summary) parts.push(`官網獎池：${r.summary}`);
       if (r.checked) parts.push(`${fmtTime(r.checked)} 檢查`);
       if (r.held) parts.push(`官網機率加總 ${r.held.sum}%，沒有自動套用（按「從官網更新」可以套用）`);
+      if (periodEnd(r.period) && Date.now() >= periodEnd(r.period)) parts.push("活動已結束，開啟程式時會檢查新獎池");
       parts.push(r.auto !== false ? `每週三 ${weekStartHour()}:00～18:00 自動檢查` : "自動更新已關閉，可以按「從官網更新」");
     }
     t.status.textContent = parts.join("・");
@@ -173,6 +174,36 @@ const OfficialPools = (() => {
     const prevWed = tw(now + (ahead - 7) * 24 * HOUR).ymd;
     return sched().found === prevWed ? 12 : 0;
   }
+  /** 活動結束的時間（毫秒）；沒有活動時間時為 0 */
+  function periodEnd(p) {
+    if (!p || !p.end) return 0;
+    const [y, m, d] = String(p.end).split("/").map(Number);
+    const [hh, mm] = String(p.endTime || "23:59").split(":").map(Number);
+    if (!y || !m || !d) return 0;
+    return Date.UTC(y, m - 1, d, hh || 0, mm || 0) - 8 * HOUR;
+  }
+
+  /**
+   * 開啟程式時：活動期間已經過了就檢查一次官網有沒有換新獎池。
+   * 同一次活動結束後只查一次（查不到時下次開程式會再試）
+   */
+  async function expiredCheck() {
+    if (!TAURI) return;
+    for (const tool of Object.keys(tools)) {
+      const r = rec(tool);
+      if (r.auto === false) continue;
+      const end = periodEnd(r.period);
+      if (!end || Date.now() < end) continue;
+      const key = r.period.end;
+      if (r.expiredAt === key) continue; // 這次活動結束後已經查過
+      if (r.checked && Date.now() - r.checked < 10 * 60 * 1000) continue; // 剛才才查過
+      const before = r.checked || 0;
+      await sync(tool, false);
+      const now = rec(tool);
+      if ((now.checked || 0) > before) { now.expiredAt = key; save(); }
+    }
+  }
+
   /** 現在要不要自動檢查 */
   function due(now = Date.now()) {
     const t = tw(now), s = sched();
@@ -192,9 +223,10 @@ const OfficialPools = (() => {
     }
     if (found) { sched().found = tw(Date.now()).ymd; save(); }
   }
-  // 開著的時候每分鐘看一次是不是該檢查了（不是週三的檢查時間就什麼都不做）
-  setTimeout(autoCheck, 5000);
-  setInterval(autoCheck, 60 * 1000);
+  // 開啟程式時：先看活動有沒有過期，再看是不是週三的檢查時間
+  setTimeout(() => expiredCheck().then(autoCheck), 5000);
+  // 開著的時候每 5 分鐘看一次（不是週三的檢查時間就什麼都不做）
+  setInterval(autoCheck, 5 * 60 * 1000);
   /** 舊版打開工具時會檢查；現在只在週三的檢查時間自動檢查 */
   function onOpen() {}
 
@@ -222,7 +254,7 @@ const OfficialPools = (() => {
     renderStatus(tool);
   }
 
-  return { register, onOpen, sync, periodOf, due, weekStartHour, PAGES };
+  return { register, onOpen, sync, periodOf, periodEnd, due, weekStartHour, PAGES };
 })();
 
 if (typeof module !== "undefined") module.exports = OfficialPools;

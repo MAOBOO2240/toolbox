@@ -14,6 +14,8 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Webview
 
 const LONG_NOTIFY_INTERVAL: Duration = Duration::from_secs(3);
 const TICK: Duration = Duration::from_millis(100);
+/// 沒有計時器在用的時候改用這個間隔（總開關關著、或所有計時器都停用，而且沒有在倒數）
+const IDLE_TICK: Duration = Duration::from_millis(1000);
 pub const OVERLAY_LABEL: &str = "overlay";
 
 /* ---------------- 設定（會保存） ---------------- */
@@ -593,8 +595,9 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     std::thread::spawn(move || {
         let mut applied: Option<OvApplied> = None;
         let mut last_save = Instant::now();
+        let mut wait = TICK;
         loop {
-            std::thread::sleep(TICK);
+            std::thread::sleep(wait);
             let now = Instant::now();
             let info = fg::current();
             // 自己的浮動視窗在前景（例如正在拖曳）時，維持原本的遊戲判定
@@ -605,7 +608,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             let game_only = GAME_ONLY.load(Ordering::SeqCst);
 
             // 鎖內只做計算；視窗操作與音效都在解鎖後進行，避免與主執行緒互相等待
-            let (names, snaps, prefs, master, want, to_save, any_running) = {
+            let (names, snaps, prefs, master, want, to_save, any_running, any_enabled) = {
                 let mut e = eng();
                 let names = e.tick(now);
                 let snaps = e.snapshot(now);
@@ -624,7 +627,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 } else {
                     None
                 };
-                (names, snaps, prefs, master, want, to_save, any_running)
+                let any_enabled = e.file.timers.iter().any(|t| t.enabled);
+                (names, snaps, prefs, master, want, to_save, any_running, any_enabled)
             };
 
             // 時間到只播音效，不跳通知視窗
@@ -650,6 +654,9 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             if let Some((path, file)) = to_save {
                 save(&path, &file);
             }
+            // 沒有計時器在倒數，而且總開關關著或沒有啟用的計時器：放慢檢查（主視窗打開著時維持原本的流暢度）
+            let idle = !any_running && (!master || !any_enabled);
+            wait = if idle && !fg::main_shown() { IDLE_TICK } else { TICK };
         }
     });
 }

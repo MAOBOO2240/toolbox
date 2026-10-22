@@ -229,13 +229,14 @@ if (typeof document !== "undefined") (() => {
       const name = document.createElement("span");
       name.className = "b-name";
       name.textContent = it.name;
+      makeCopyable(name, it.name);
       if (feat.has(it.name)) {
         const tag = document.createElement("em");
         tag.className = "b-tag";
         tag.textContent = "主打";
         name.appendChild(tag);
       }
-      row.title = "點一下直接試穿";
+      row.title = "點一下直接試穿（點名稱是複製名稱）";
       row.addEventListener("click", (e) => { if (!e.target.closest(".g-draw")) tryOn(pool, it.name); });
       const prob = document.createElement("span");
       prob.className = "r b-prob";

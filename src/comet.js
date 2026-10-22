@@ -491,7 +491,8 @@ B	愛心守護者短杖	1.30%`;
       const nm = document.createElement("span");
       nm.className = "c-name";
       nm.textContent = it.name;
-      nm.title = `${it.name}（${it.grade} 級・分解得 ${C.FRAG[it.grade]} 碎片）`;
+      makeCopyable(nm, it.name);
+      nm.title = `${it.name}（${it.grade} 級・分解得 ${C.FRAG[it.grade]} 碎片，點一下複製名稱）`;
       cell.append(gradeBadge(it.grade), ItemIcons.el(it.name), nm);
       if (isAuto(st.tab, it)) {
         const a = document.createElement("small");

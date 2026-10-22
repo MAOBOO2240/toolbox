@@ -374,7 +374,7 @@ if (typeof document !== "undefined") (() => {
       const nm = document.createElement("span");
       nm.className = "s-name";
       nm.textContent = it.name;
-      nm.title = it.name;
+      makeCopyable(nm, it.name);
       cell.append(ItemIcons.el(it.name), nm);
       const tag = boxTag(it.name);
       if (tag) cell.append(tag);

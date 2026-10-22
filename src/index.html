@@ -824,7 +824,13 @@
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
           <span class="nav-title">經驗追蹤</span>
-          <div class="g-pages"><button class="cbtn c-blue" id="tkRefresh">重新整理</button></div>
+          <div class="g-pages">
+            <div class="tk-views" id="tkViews">
+              <button class="cbtn c-amber tk-view-btn" data-view="row" title="列表排版"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="3.6" height="3.6" rx="1.1"/><rect x="3" y="10.2" width="3.6" height="3.6" rx="1.1"/><rect x="3" y="15.4" width="3.6" height="3.6" rx="1.1"/><path d="M9.8 6.8h11.2M9.8 12h11.2M9.8 17.2h8.4"/></svg></button>
+              <button class="cbtn c-purple tk-view-btn" data-view="card" title="卡片排版"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.7"/><rect x="13" y="4" width="7" height="7" rx="1.7"/><rect x="4" y="13" width="7" height="7" rx="1.7"/><rect x="13" y="13" width="7" height="7" rx="1.7"/></svg></button>
+            </div>
+            <button class="cbtn c-blue" id="tkRefresh">重新整理</button>
+          </div>
         </nav>
         <div class="tk-page">
           <div class="card tk-add">

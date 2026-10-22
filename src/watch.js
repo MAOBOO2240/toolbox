@@ -23,6 +23,14 @@ if (typeof document !== "undefined") (() => {
   }
 
   function renderStatus() {
+    // 兩個通知都關掉：完全不監測（不檢查遊戲程序與連線）
+    if (status.paused) {
+      $("#wStatus").className = "card w-status off";
+      $("#wState").textContent = "已停止監測";
+      $("#wDetail").textContent = "上面兩個通知都關掉了，不會檢查遊戲；打開任一個就會恢復";
+      renderLog();
+      return;
+    }
     const [title, detail0, cls] = STATE[status.state] || STATE.off;
     let detail = detail0;
     if (status.state === "online") detail = `遊戲中（${status.conns} 條連線）`;
@@ -36,6 +44,10 @@ if (typeof document !== "undefined") (() => {
     $("#wStatus").className = `card w-status ${cls}`;
     $("#wState").textContent = title;
     $("#wDetail").textContent = detail;
+    renderLog();
+  }
+
+  function renderLog() {
     const log = $("#wLog");
     log.innerHTML = "";
     if (!status.events.length) { log.innerHTML = '<div class="g-empty">還沒有任何紀錄</div>'; return; }

@@ -70,7 +70,12 @@
 #view-gacha .g-row input[type="text"] { background: transparent; padding: 0.3rem 0.4rem; }
 #view-gacha .g-row:hover input[type="text"], #view-gacha .g-row input[type="text"]:focus { background: var(--card); }
 #view-gacha .g-row .g-val, #view-comet .g-row .g-val, #view-star .g-row .g-val { background: var(--card-2); }
-.g-row .g-name { font-size: 0.88rem; }
+.g-row .g-name { font-size: 0.88rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 點一下複製名稱 */
+.g-copy { cursor: pointer; }
+.g-copy:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
+.g-copy:active { opacity: 0.6; }
 .g-row .g-prob { text-align: right; color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .g-row .g-val { text-align: right; font-variant-numeric: tabular-nums; }
 

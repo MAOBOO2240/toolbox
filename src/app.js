@@ -422,6 +422,31 @@ const ItemIcons = (() => {
 })();
 window.ItemIcons = ItemIcons;
 
+/* 點道具名稱複製（四個抽獎模擬器共用） */
+async function copyItemName(name) {
+  const text = String(name || "").trim();
+  if (!text) return;
+  try {
+    if (TAURI) await invoke("copy_text", { text });
+    else await navigator.clipboard.writeText(text);
+    toast(`已複製「${text}」`);
+  } catch (e) {
+    toast(`複製失敗：${e}`);
+  }
+}
+/** 讓道具名稱可以點一下複製 */
+function makeCopyable(el, name) {
+  el.classList.add("g-copy");
+  el.title = `${name}（點一下複製名稱）`;
+  el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyItemName(name);
+  });
+  return el;
+}
+window.copyItemName = copyItemName;
+window.makeCopyable = makeCopyable;
+
 /* ---------- 分類與導覽 ---------- */
 const ICONS = {
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>',

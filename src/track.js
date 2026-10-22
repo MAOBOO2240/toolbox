@@ -93,7 +93,8 @@ if (typeof module !== "undefined") module.exports = { ExpCore, TrackCore };
 if (typeof document !== "undefined") (() => {
   const C = TrackCore, E = ExpCore;
   const KEY = "track-v1";
-  let st = (() => { try { return { names: [], data: {}, sort: null, days: 7, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null, days: 7 }; } })();
+  let st = (() => { try { return { names: [], data: {}, sort: null, days: 7, view: "row", ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (_) { return { names: [], data: {}, sort: null, days: 7, view: "row" }; } })();
+  if (st.view !== "card") st.view = "row";
   // 預設改成 7 天平均（舊設定也換一次）
   if (!st.days7) { st.days = 7; st.days7 = true; }
   if (st.days !== 30) st.days = 7;
@@ -158,12 +159,15 @@ if (typeof document !== "undefined") (() => {
 
   function render() {
     $$("#tkPeriod .cbtn").forEach((b) => b.classList.toggle("on", Number(b.dataset.days) === st.days));
+    $$("#tkViews .cbtn").forEach((b) => b.classList.toggle("on", b.dataset.view === st.view));
     const box = $("#tkList");
+    box.className = st.view === "card" ? "tk-cards" : "tk-list";
     box.innerHTML = "";
     if (!st.names.length) {
       box.innerHTML = '<div class="card g-empty tk-empty">輸入角色名稱新增要追蹤的角色</div>';
       return;
     }
+    if (st.view === "card") { renderCards(box); return; }
     const head = document.createElement("div");
     head.className = "tk-row tk-head";
     for (const [label, key] of HEAD) {
@@ -230,6 +234,140 @@ if (typeof document !== "undefined") (() => {
       );
       box.appendChild(row);
     }
+  }
+
+  /* ---------- 卡片排版：一格一格，內容和列表一樣 ---------- */
+  function renderCards(box) {
+    // 卡片排版沒有表頭可以點，排序放在上面一排
+    const bar = document.createElement("div");
+    bar.className = "tk-sortbar";
+    const lbl = document.createElement("span");
+    lbl.className = "muted";
+    lbl.textContent = "排序";
+    bar.append(lbl);
+    for (const [label, key] of HEAD) {
+      if (!key) continue;
+      const b = document.createElement("button");
+      b.className = "tk-sort" + (st.sort?.key === key ? ` on ${st.sort.dir}` : "");
+      b.innerHTML = headLabel(label, key);
+      b.title = "點一下：大到小；再點：小到大；再點：恢復自己排的順序";
+      b.addEventListener("click", () => clickSort(key));
+      bar.append(b);
+    }
+    box.append(bar);
+    const grid = document.createElement("div");
+    grid.className = "tk-grid";
+    for (const name of ordered()) {
+      const { r, now, t, eta, dailyPct, pastDays } = stats(name);
+      const card = document.createElement("div");
+      card.className = "card tk-card";
+      card.dataset.name = name;
+
+      // 像身分證：大頭貼在左上角，右邊是名字與等級
+      const head = document.createElement("div");
+      head.className = "tk-id";
+      const pic = document.createElement("span");
+      pic.className = "tk-pic tk-pic-id";
+      if (now?.image) { const img = new Image(); img.src = now.image; img.alt = ""; img.draggable = false; pic.append(img); }
+      const who = document.createElement("div");
+      who.className = "tk-id-info";
+      const nameEl = document.createElement("b");
+      nameEl.textContent = name;
+      const sub = document.createElement("small");
+      sub.className = "muted";
+      sub.textContent = r?.error ? r.error : [now?.world, now?.class].filter(Boolean).join("・");
+      if (r?.error) sub.classList.add("bad");
+      const lv = document.createElement("div");
+      lv.className = "tk-id-lv";
+      const lvA = document.createElement("span");
+      lvA.className = "tk-cell tk-lv";
+      lvA.textContent = now ? `Lv.${now.level}` : "—";
+      const lvB = document.createElement("span");
+      lvB.className = "tk-cell tk-id-exp";
+      lvB.textContent = now ? fmtPct(now.rate) : "—";
+      lv.append(lvA, lvB);
+      who.append(nameEl, sub, lv);
+
+      const tools = document.createElement("div");
+      tools.className = "tk-id-tools";
+      const grip = document.createElement("span");
+      grip.className = "tk-grip";
+      grip.title = "按住拖曳可以改變順序";
+      grip.innerHTML = "<i></i><i></i><i></i><i></i><i></i><i></i>";
+      grip.addEventListener("pointerdown", (e) => startCardDrag(e, card));
+      const del = document.createElement("button");
+      del.className = "b-x";
+      del.title = "移除";
+      del.textContent = "×";
+      del.addEventListener("click", async () => {
+        if (!(await confirmBox(`確定不再追蹤「${name}」嗎？`))) return;
+        st.names = st.names.filter((n) => n !== name);
+        delete st.data[name];
+        save(); render();
+      });
+      tools.append(grip, del);
+      head.append(pic, who, tools);
+
+      const rows = document.createElement("div");
+      rows.className = "tk-card-rows";
+      const line = (label, text, cls = "", tip = "") => {
+        const l = document.createElement("div");
+        l.className = "tk-card-row";
+        const x = document.createElement("span");
+        x.className = "muted";
+        x.textContent = label;
+        const y = document.createElement("span");
+        y.className = `tk-cell ${cls}`;
+        y.textContent = text;
+        if (tip) l.title = tip;
+        l.append(x, y);
+        rows.append(l);
+      };
+      const avgText = dailyPct == null ? "—" : dailyPct >= 100 ? `+${(dailyPct / 100).toFixed(2)} 級` : `+${fmtPct(dailyPct)}`;
+      let avgTip = "";
+      if (pastDays === 1) avgTip = "只查得到昨天的資料，先用今天練的量估計";
+      else if (pastDays && pastDays < st.days) avgTip = `角色資料只查得到近 ${pastDays} 天`;
+      else if (pastDays) avgTip = `近 ${pastDays} 天的平均`;
+      let etaText = "—";
+      if (now?.level >= E.MAX) etaText = "已滿級";
+      else if (eta?.far) etaText = `兩年以上 Lv.${eta.level}`;
+      else if (eta) etaText = `${dateText(eta.days)} Lv.${eta.level}`;
+      line("今天", !t ? "—" : t.levels ? `+${t.levels} 級` : `+${fmtPct(Math.min(100, t.pct))}`, t && (t.levels || t.pct > 0) ? "up" : "");
+      line(`平均每天(${st.days}天)`, avgText, dailyPct > 0 ? "up" : "", avgTip);
+      line("預計升級", etaText, eta && !eta.far ? "tk-eta" : "", eta ? `照近期的速度，大約 ${Math.ceil(eta.days)} 天後升到 Lv.${eta.level}` : "");
+
+      card.append(head, rows);
+      grid.append(card);
+    }
+    box.append(grid);
+  }
+
+  /** 卡片的拖曳排序：左右上下都能換位置 */
+  function startCardDrag(e, card) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const grid = card.parentElement;
+    card.classList.add("dragging");
+    try { card.setPointerCapture(e.pointerId); } catch (_) {}
+    const move = (ev) => {
+      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".tk-card");
+      if (!over || over === card || over.parentElement !== grid) return;
+      const b = over.getBoundingClientRect();
+      // 游標在對方右半邊就排到它後面
+      grid.insertBefore(card, ev.clientX > b.left + b.width / 2 ? over.nextSibling : over);
+    };
+    const up = () => {
+      card.removeEventListener("pointermove", move);
+      card.removeEventListener("pointerup", up);
+      card.removeEventListener("pointercancel", up);
+      card.classList.remove("dragging");
+      const order = [...grid.querySelectorAll(".tk-card")].map((c) => c.dataset.name);
+      if (order.join("\n") !== ordered().join("\n")) { st.names = order; st.sort = null; save(); }
+      render();
+    };
+    card.addEventListener("pointermove", move);
+    card.addEventListener("pointerup", up);
+    card.addEventListener("pointercancel", up);
   }
 
   /* ---------- 拖曳排序：按住左邊的六個點 ---------- */
@@ -308,6 +446,11 @@ if (typeof document !== "undefined") (() => {
   $("#tkName").addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
   $("#tkRefresh").addEventListener("click", () => refresh(true));
   // 7 天／30 天平均切換：資料都已經有了，直接重算；舊資料沒有 7 天前的就補查
+  $$("#tkViews .cbtn").forEach((b) => b.addEventListener("click", () => {
+    if (st.view === b.dataset.view) return;
+    st.view = b.dataset.view;
+    save(); render();
+  }));
   $$("#tkPeriod .cbtn").forEach((b) => b.addEventListener("click", () => {
     st.days = Number(b.dataset.days);
     save(); render();

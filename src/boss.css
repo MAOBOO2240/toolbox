@@ -207,6 +207,33 @@
 :root[data-theme="dark"] .tk-eta { color: #a5b4fc; }
 .tk-empty { text-align: center; padding: 2rem; }
 
+/* 經驗追蹤：卡片排版（像身分證，大頭貼在左上角） */
+.tk-views { display: flex; gap: 0.35rem; }
+.tk-view-btn { padding: 0.3em 0.6em; display: inline-flex; align-items: center; }
+.tk-view-btn svg { width: 1.05rem; height: 1.05rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linejoin: round; stroke-linecap: round; }
+.tk-cards { display: flex; flex-direction: column; gap: 0.6rem; }
+.tk-sortbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; padding: 0 0.2rem; font-size: 0.76rem; font-weight: 700; color: var(--text-2); }
+.tk-sortbar .muted { font-size: 0.76rem; }
+.tk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.6rem; }
+.tk-card { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.75rem 0.85rem 0.7rem; }
+.tk-card.dragging { z-index: 5; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22), inset 0 0 0 1.5px var(--blue); cursor: grabbing; }
+/* 上半：大頭貼 ＋ 名字、世界、等級 */
+.tk-id { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 0.7rem; }
+.tk-pic-id { width: 3.6rem; height: 4.4rem; border-radius: 0.6rem; }
+.tk-pic-id img { object-position: 50% 28%; transform: scale(1.5); transform-origin: 50% 32%; }
+.tk-id-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; padding-top: 0.1rem; }
+.tk-id-info b { font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-id-info small { font-size: 0.74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-id-info small.bad { color: #e5484d; }
+.tk-id-lv { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.15rem; }
+.tk-id-exp { font-size: 0.84rem; color: var(--text-2); }
+.tk-id-tools { display: flex; align-items: center; gap: 0.2rem; }
+/* 下半：今天、平均、預計升級 */
+.tk-card-rows { display: flex; flex-direction: column; gap: 0.22rem; padding-top: 0.5rem; border-top: 0.5px solid var(--sep); }
+.tk-card-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; font-size: 0.8rem; }
+.tk-card-row .muted { font-size: 0.76rem; white-space: nowrap; }
+.tk-card-row .tk-cell { font-size: 0.86rem; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---------- BOSS 詳細資料視窗 ---------- */
 .bs-info-back { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 1.5rem; background: rgba(0, 0, 0, 0.42); animation: bs-fade 0.15s ease; }
 @keyframes bs-fade { from { opacity: 0; } }
