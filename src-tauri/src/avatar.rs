@@ -2137,40 +2137,139 @@ pub(crate) fn game_dir(hint: Option<&str>) -> Option<PathBuf> {
     find_game_dir(hint)
 }
 
-/// 遊戲裡所有道具的（編號, 資料夾, 名稱）與遊戲版本（String 的 WZ 版本，例如 282）。髮型、臉型、膚色不算道具
+/// 遊戲檔有更新時丟掉之前讀好的遊戲資料，下次用到時重新讀（才不會讀到更新前的內容）
+pub(crate) fn reset_ctx() {
+    *CTX.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+/// 裝備資料夾（字串的分類對不到時，到這些資料夾找）
+pub(crate) const EQUIP_DIRS: [&str; 20] = [
+    "Character/Cap",
+    "Character/Accessory",
+    "Character/Coat",
+    "Character/Longcoat",
+    "Character/Pants",
+    "Character/Shoes",
+    "Character/Glove",
+    "Character/Cape",
+    "Character/Shield",
+    "Character/Weapon",
+    "Character/Ring",
+    "Character/Android",
+    "Character/PetEquip",
+    "Character/TamingMob",
+    "Character/Dragon",
+    "Character/Mechanic",
+    "Character/Bits",
+    "Character/ArcaneForce",
+    "Character/AuthenticForce",
+    "Character/Jewel",
+];
+
+/// 不是裝備的道具放在哪個資料夾（照編號）：2 消耗、3 裝飾、4 其他、5 特殊（500 開頭是寵物，一隻一個 img）
+fn item_folder_by_id(id: u32) -> Option<&'static str> {
+    match id / 1_000_000 {
+        2 => Some("Item/Consume"),
+        3 => Some("Item/Install"),
+        4 => Some("Item/Etc"),
+        5 if id / 10_000 == 500 => Some("Item/Pet"),
+        5 => Some("Item/Cash"),
+        _ => None,
+    }
+}
+
+/// 遊戲裡所有「有名稱、而且遊戲資料裡真的有」的道具：（編號, 資料夾, 名稱）與遊戲版本（String 的 WZ 版本，例如 282）。
+/// 只有名稱、沒有資料的（例如還沒開放的）不算；髮型、臉型、膚色不算道具
 pub(crate) fn all_items(hint: Option<&str>) -> Result<(u32, Vec<(u32, &'static str, String)>), String> {
     with_ctx(hint, |ctx| {
         let version = ctx.data.package("String")?.files.first().map(|f| f.version).unwrap_or(0);
-        let mut out: Vec<(u32, &'static str, String)> = Vec::new();
+        // 1. 字串裡的名稱（同一個編號在好幾個地方出現時只取第一個）
+        let mut named: Vec<(u32, Option<&'static str>, String)> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         if let Ok(eqp) = ctx.data.img("String", "Eqp.img") {
             if let Some(e) = eqp.get("Eqp") {
                 for (cat, items) in e.children() {
                     let Some(folder) = eqp_folder(cat) else { continue };
                     for (id, item) in items.children() {
                         if let (Ok(id), Some(name)) = (id.parse::<u32>(), item.get("name").and_then(|v| v.as_str())) {
-                            out.push((id, folder, name.trim().to_string()));
+                            if seen.insert(id) {
+                                named.push((id, Some(folder), name.trim().to_string()));
+                            }
                         }
                     }
                 }
             }
         }
-        for (img, sub, folder) in [
-            ("Consume.img", "", "Item/Consume"),
-            ("Etc.img", "Etc", "Item/Etc"),
-            ("Ins.img", "", "Item/Install"),
-            ("Cash.img", "", "Item/Cash"),
-            ("Pet.img", "", "Item/Pet"),
-        ] {
+        for (img, sub) in [("Consume.img", ""), ("Etc.img", "Etc"), ("Ins.img", ""), ("Cash.img", ""), ("Pet.img", "")] {
             if let Ok(root) = ctx.data.img("String", img) {
                 let node = if sub.is_empty() { Some(root.as_ref()) } else { root.get(sub) };
                 for (id, item) in node.map(|n| n.children()).unwrap_or(&[]) {
                     if let (Ok(id), Some(name)) = (id.parse::<u32>(), item.get("name").and_then(|v| v.as_str())) {
-                        out.push((id, folder, name.trim().to_string()));
+                        if seen.insert(id) {
+                            named.push((id, None, name.trim().to_string()));
+                        }
                     }
                 }
             }
         }
+        // 2. 遊戲資料裡真的有的才算（裝備：分類資料夾裡有這個 img；其他：前四碼的 img 裡有這個編號）
+        let dirs: Vec<&'static str> = EQUIP_DIRS.iter().copied().filter(|f| ctx.data.package(f).is_ok()).collect();
+        let mut keys: HashMap<(&'static str, u32), std::collections::HashSet<u32>> = HashMap::new();
+        let mut out = Vec::with_capacity(named.len());
+        for (id, eq_folder, name) in named {
+            let folder = if id / 1_000_000 == 1 {
+                let img = format!("{id:08}.img");
+                let mut found = None;
+                for f in eq_folder.into_iter().chain(dirs.iter().copied()) {
+                    if dirs.contains(&f) && ctx.data.package(f).map(|p| p.imgs.contains_key(&img)).unwrap_or(false) {
+                        found = Some(f);
+                        break;
+                    }
+                }
+                match found {
+                    Some(f) => f,
+                    None => continue,
+                }
+            } else {
+                let Some(f) = item_folder_by_id(id) else { continue };
+                let exists = if f == "Item/Pet" {
+                    ctx.data.package(f).map(|p| p.imgs.contains_key(&format!("{id}.img"))).unwrap_or(false)
+                } else {
+                    let prefix = id / 10_000;
+                    let data = &mut ctx.data;
+                    keys.entry((f, prefix))
+                        .or_insert_with(|| {
+                            data.img_keys(f, &format!("{prefix:04}.img")).map(|v| v.iter().filter_map(|k| k.parse().ok()).collect()).unwrap_or_default()
+                        })
+                        .contains(&id)
+                };
+                if !exists {
+                    continue;
+                }
+                f
+            };
+            out.push((id, folder, name));
+        }
         Ok((version, out))
+    })
+}
+
+/// 這些裝備是不是點裝（info/cash = 1）；items：（編號, 資料夾）
+pub(crate) fn cash_equips(hint: Option<&str>, items: &[(u32, String)]) -> Result<Vec<bool>, String> {
+    with_ctx(hint, |ctx| {
+        Ok(items
+            .iter()
+            .map(|(id, folder)| {
+                folder.starts_with("Character/")
+                    && ctx
+                        .data
+                        .img_child(folder, &format!("{id:08}.img"), "info")
+                        .ok()
+                        .flatten()
+                        .and_then(|i| i.get("cash").and_then(|v| v.as_int()))
+                        == Some(1)
+            })
+            .collect())
     })
 }
 
@@ -2199,7 +2298,12 @@ pub async fn item_text(game_dir: Option<String>, folder: String, id: u32) -> Res
             let node: Option<Node> = if let Some(cat) = folder.strip_prefix("Character/") {
                 // 騎寵的資料夾叫 TamingMob，字串裡叫 Taming
                 let cat = if cat == "TamingMob" { "Taming" } else { cat };
-                ctx.data.img("String", "Eqp.img").ok().and_then(|e| e.path(&format!("Eqp/{cat}/{key}")).cloned())
+                ctx.data.img("String", "Eqp.img").ok().and_then(|e| {
+                    e.path(&format!("Eqp/{cat}/{key}")).cloned().or_else(|| {
+                        // 字串的分類和資料所在的資料夾不一樣時，到其他分類找
+                        e.get("Eqp").and_then(|eq| eq.children().iter().find_map(|(_, items)| items.get(&key).cloned()))
+                    })
+                })
             } else {
                 let (img, sub) = match folder.as_str() {
                     "Item/Consume" => ("Consume.img", ""),

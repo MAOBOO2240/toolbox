@@ -354,6 +354,51 @@ pub fn parse_img_child(file: &WzFile, off: usize, key: &str) -> Result<Option<No
     Ok(None)
 }
 
+/// 只列出 img 最上層的屬性名稱，不解析內容（例如道具 img 裡有哪些道具編號）
+pub fn img_keys(file: &WzFile, off: usize) -> Result<Vec<String>, String> {
+    let d = file.data();
+    let mut r = Reader::new(d, off);
+    if str_block(&mut r, d, off)? != "Property" {
+        return Err("img 開頭不是 Property".into());
+    }
+    r.u16()?;
+    let n = r.cint()?;
+    let mut out = Vec::with_capacity(n.clamp(0, 500_000) as usize);
+    for _ in 0..n.clamp(0, 500_000) {
+        let name = str_block(&mut r, d, off)?;
+        match r.u8()? {
+            0 => {}
+            2 | 11 => {
+                r.i16()?;
+            }
+            3 | 19 => {
+                r.cint()?;
+            }
+            20 => {
+                r.clong()?;
+            }
+            4 => {
+                if r.u8()? == 0x80 {
+                    r.f32()?;
+                }
+            }
+            5 => {
+                r.f64()?;
+            }
+            8 => {
+                str_block(&mut r, d, off)?;
+            }
+            9 => {
+                let len = r.u32()? as usize;
+                r.p += len;
+            }
+            t => return Err(format!("屬性類型異常 {t}")),
+        }
+        out.push(name);
+    }
+    Ok(out)
+}
+
 fn str_block(r: &mut Reader, d: &[u8], img: usize) -> Result<String, String> {
     match r.u8()? {
         0x00 | 0x73 => r.wzstr(),
@@ -675,6 +720,13 @@ impl Data {
             return Ok((c.w, c.h, px));
         }
         Err(format!("{rel}/{img}/{inner} 不是圖片"))
+    }
+
+    /// 某個 img 最上層的屬性名稱（不解析內容、不快取）
+    pub fn img_keys(&mut self, rel: &str, name: &str) -> Result<Vec<String>, String> {
+        let pkg = self.package(rel)?;
+        let (fi, off) = *pkg.imgs.get(name).ok_or_else(|| format!("找不到 {name}"))?;
+        img_keys(&pkg.files[fi], off)
     }
 
     /// 只讀某個 img 最上層的一個屬性（不快取）

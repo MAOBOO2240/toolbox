@@ -990,8 +990,13 @@ const SideDoll = (() => {
   });
 }
 
-/* 並排數量：空白 = 依視窗寬度自動 */
-let perRow = Number(store.get("toolbox-perrow", 0)) || 0;
+/* 並排數量：預設 5；空白 = 依視窗寬度自動 */
+let perRow = Number(store.get("toolbox-perrow", 5)) || 0;
+// 改成預設 5 之前存的「自動」換成 5（只換一次，之後自己改回自動就照自己的設定）
+if (!store.get("toolbox-perrow-v2", false)) {
+  if (!perRow) { perRow = 5; store.set("toolbox-perrow", 5); }
+  store.set("toolbox-perrow-v2", true);
+}
 function applyPerRow() {
   // 欄寬要是固定值（不能是 minmax），方框的高度才算得出來；放不下時平均縮小
   const tiles = $("#tiles");

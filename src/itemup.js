@@ -3,6 +3,7 @@
 /* ==========================================================
  * 更新道具
  * - 程式記下遊戲裡所有道具的編號，遊戲改版後列出新增了哪些道具（例如 v282 → v283）
+ * - 大改版之後的小更新新增的道具也算在這次大改版裡，下一次大改版才整個換掉
  * - 程式一開啟就在背景檢查（遊戲檔沒變就不會重新讀）
  * - 點道具圖示：顯示遊戲裡的名稱與說明
  * ========================================================== */
@@ -10,23 +11,25 @@ if (typeof document !== "undefined") (() => {
   const CATS = [
     { id: "", name: "全部", color: "c-silver" },
     { id: "eqp", name: "裝備", color: "c-blue" },
+    { id: "outfit", name: "點裝", color: "c-pink" },
     { id: "use", name: "消耗", color: "c-red" },
     { id: "setup", name: "裝飾", color: "c-green" },
     { id: "etc", name: "其他", color: "c-amber" },
     { id: "cash", name: "特殊", color: "c-purple" },
   ];
-  const catOf = (folder) => {
-    if (folder.startsWith("Character/")) return "eqp";
-    if (folder === "Item/Consume") return "use";
-    if (folder === "Item/Install") return "setup";
-    if (folder === "Item/Etc") return "etc";
+  const catOf = (it) => {
+    if (it.folder.startsWith("Character/")) return it.cash ? "outfit" : "eqp";
+    if (it.folder === "Item/Consume") return "use";
+    if (it.folder === "Item/Install") return "setup";
+    if (it.folder === "Item/Etc") return "etc";
     return "cash"; // Item/Cash、Item/Pet
   };
   const catName = (c) => (CATS.find((x) => x.id === c) || CATS[0]).name;
   const nf = new Intl.NumberFormat("zh-TW");
   const gameDir = () => { try { return JSON.parse(localStorage.getItem("beauty-v1"))?.gamePath || null; } catch (_) { return null; } };
   const fmtDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`; };
-  const verText = (r) => (r.from === r.to ? `v${r.to} 小更新` : `v${r.from} → v${r.to}`);
+  const verText = (r) => (r.from === r.to ? `v${r.to}` : `v${r.from} → v${r.to}`);
+  const recSig = (d) => (d?.records || []).map((r) => `${r.from}-${r.to}-${r.items.length}`).join(",");
 
   let data = null; // { version, total, since, records }
   let error = "";
@@ -82,7 +85,7 @@ if (typeof document !== "undefined") (() => {
       const b = document.createElement("button");
       b.className = "cbtn small c-orange" + (i === sel ? " on" : "");
       b.textContent = verText(r);
-      b.title = `${fmtDay(r.at)} 發現，新增 ${nf.format(r.items.length)} 個道具`;
+      b.title = `新增 ${nf.format(r.items.length)} 個道具（最後更新 ${fmtDay(r.at)}）`;
       b.addEventListener("click", () => { sel = i; render(); $("#iuPage").scrollTop = 0; });
       box.append(b);
     });
@@ -139,13 +142,13 @@ if (typeof document !== "undefined") (() => {
     if (!recs.length) {
       tools.hidden = true;
       status.textContent = head;
-      grid.innerHTML = `<div class="g-empty iu-first"><b>已記錄 v${data.version} 的道具清單</b><span>遊戲大改版後打開這裡，就會列出新增了哪些道具。<br />程式開著時也會在背景自動檢查。</span></div>`;
+      grid.innerHTML = `<div class="g-empty iu-first"><b>已記錄 v${data.version} 的道具清單</b><span>遊戲大改版後打開這裡，就會列出新增了哪些道具。<br />程式開啟時也會自動檢查一次。</span></div>`;
       return;
     }
     const r = recs[sel];
-    status.textContent = `${verText(r)}：新增 ${nf.format(r.items.length)} 個（${fmtDay(r.at)} 發現）・${head}`;
+    status.textContent = `${verText(r)}：新增 ${nf.format(r.items.length)} 個（包含之後的小更新，最後更新 ${fmtDay(r.at)}）・${head}`;
     tools.hidden = false;
-    const all = r.items.map((it) => ({ ...it, cat: catOf(it.folder) }));
+    const all = r.items.map((it) => ({ ...it, cat: catOf(it) }));
     const needle = q.toLowerCase();
     const found = needle ? all.filter((it) => it.name.toLowerCase().includes(needle) || String(it.id).includes(needle)) : all;
     if (cat && !found.some((it) => it.cat === cat)) cat = "";
@@ -201,7 +204,7 @@ if (typeof document !== "undefined") (() => {
   async function openDetail(it) {
     const m = $("#iuModal");
     $("#iuDetName").textContent = it.name || `道具 ${it.id}`;
-    $("#iuDetMeta").textContent = `${catName(catOf(it.folder))}・編號 ${it.id}`;
+    $("#iuDetMeta").textContent = `${catName(catOf(it))}・編號 ${it.id}`;
     const ic = $("#iuDetIc");
     const key = `${it.folder}|${it.id}`;
     fillIcon(ic, icons.get(key) || null);
@@ -235,11 +238,14 @@ if (typeof document !== "undefined") (() => {
     $("#iuRefresh").disabled = true;
     if (!quiet) render();
     try {
-      const before = data?.records?.length || 0;
+      const before = recSig(data);
       data = await invoke("item_updates", { gameDir: gameDir(), force: !!force });
       error = "";
-      if (data.records.length > before && before) sel = 0;
-      if (force) toast(data.records.length > before ? `發現新的道具：${verText(data.records[0])}` : "道具沒有變化");
+      const changed = recSig(data) !== before;
+      if (changed) sel = 0;
+      // 遊戲檔更新或手動重新讀取後，圖示也重新讀（之前讀不到的可能已經有了）
+      if (changed || force) icons.clear();
+      if (force) toast(changed && data.records.length ? `道具有更新：${verText(data.records[0])} 共 ${nf.format(data.records[0].items.length)} 個` : "道具沒有變化");
     } catch (e) {
       error = String(e);
       if (force) toast(error);
