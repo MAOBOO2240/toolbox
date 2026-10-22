@@ -234,6 +234,38 @@ const EQUIP_CATS: [&str; 11] = ["Cap", "Accessory", "Coat", "Longcoat", "Pants",
 
 static CTX: Mutex<Option<Ctx>> = Mutex::new(None);
 
+/* ---------------- 閒置時放開遊戲檔 ----------------
+ * 讀好的遊戲資料（和開著的遊戲檔）在一段時間沒用之後放開，要用時再重新開；
+ * 工具箱縮在右下角時不會一直佔著遊戲檔與記憶體，遊戲更新也不會被擋 */
+const IDLE_RELEASE: std::time::Duration = std::time::Duration::from_secs(180);
+static EPOCH: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+/// 最後一次用到遊戲資料的時間（從 EPOCH 起算的毫秒，0 = 還沒用過）
+static LAST_USE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    EPOCH.get_or_init(std::time::Instant::now).elapsed().as_millis() as u64 + 1
+}
+
+fn touch() {
+    LAST_USE.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+    static WATCH: std::sync::Once = std::sync::Once::new();
+    WATCH.call_once(|| {
+        let _ = std::thread::Builder::new().name("wz-idle".into()).spawn(|| loop {
+            std::thread::sleep(std::time::Duration::from_secs(20));
+            let idle = |last: u64| last != 0 && now_ms().saturating_sub(last) >= IDLE_RELEASE.as_millis() as u64;
+            if !idle(LAST_USE.load(std::sync::atomic::Ordering::Relaxed)) {
+                continue;
+            }
+            // 正在使用中（拿不到鎖）就等下一輪
+            if let Ok(mut g) = CTX.try_lock() {
+                if g.is_some() && idle(LAST_USE.load(std::sync::atomic::Ordering::Relaxed)) {
+                    *g = None;
+                }
+            }
+        });
+    });
+}
+
 /* ---------------- 找遊戲資料夾 ---------------- */
 
 fn valid_dir(p: &Path) -> bool {
@@ -752,11 +784,14 @@ pub struct WzStatus {
 fn with_ctx<T>(hint: Option<&str>, f: impl FnOnce(&mut Ctx) -> Result<T, String>) -> Result<T, String> {
     let dir = find_game_dir(hint).ok_or("找不到新楓之谷安裝資料夾，請到「解析」頁選擇遊戲資料夾")?;
     let mut guard = CTX.lock().unwrap_or_else(|e| e.into_inner());
+    touch();
     if guard.as_ref().map(|c| c.dir != dir).unwrap_or(true) {
         *guard = None;
         *guard = Some(open_ctx(dir)?);
     }
-    f(guard.as_mut().unwrap())
+    let out = f(guard.as_mut().unwrap());
+    touch();
+    out
 }
 
 /// 解析好的角色外觀，畫每一格動作時共用

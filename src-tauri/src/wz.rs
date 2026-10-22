@@ -22,7 +22,8 @@ impl<'a> Reader<'a> {
         Self { d, p }
     }
     fn need(&self, n: usize) -> Result<(), String> {
-        if self.p + n > self.d.len() {
+        // 遊戲檔損壞時位置可能是亂的：用不會溢位的加法判斷
+        if self.p.checked_add(n).map_or(true, |e| e > self.d.len()) {
             Err(format!("讀取超出範圍 @{}", self.p))
         } else {
             Ok(())
@@ -83,7 +84,7 @@ impl<'a> Reader<'a> {
         }
         if n > 0 {
             let len = if n == 127 { self.i32()? as usize } else { n as usize };
-            self.need(len * 2)?;
+            self.need(len.saturating_mul(2))?;
             let mut mask: u16 = 0xAAAA;
             let mut units = Vec::with_capacity(len);
             for _ in 0..len {
@@ -390,7 +391,7 @@ pub fn img_keys(file: &WzFile, off: usize) -> Result<Vec<String>, String> {
             }
             9 => {
                 let len = r.u32()? as usize;
-                r.p += len;
+                r.p = r.p.saturating_add(len);
             }
             t => return Err(format!("屬性類型異常 {t}")),
         }
@@ -487,7 +488,15 @@ fn extended(r: &mut Reader, d: &[u8], img: usize) -> Result<Node, String> {
 /// 解出圖片像素（RGBA8，未預乘）
 pub fn canvas_rgba(file: &WzFile, c: &CanvasRef) -> Result<Vec<u8>, String> {
     let d = file.data();
-    let end = (c.data_off + c.data_len).min(d.len());
+    // 遊戲檔損壞或更新到一半：位置、大小不合理就當作讀不到（不閃退）
+    if c.data_off > d.len() {
+        return Err("圖片資料超出檔案範圍".into());
+    }
+    let (w, h) = (c.w as usize, c.h as usize);
+    if w == 0 || h == 0 || w > 8192 || h > 8192 {
+        return Err(format!("圖片大小不合理 {w}x{h}"));
+    }
+    let end = c.data_off.saturating_add(c.data_len).min(d.len());
     let raw = &d[c.data_off..end];
     let mut buf = Vec::new();
     let zlib_header = raw.len() >= 2 && raw[0] == 0x78 && matches!(raw[1], 0x01 | 0x5E | 0x9C | 0xDA);
@@ -498,15 +507,17 @@ pub fn canvas_rgba(file: &WzFile, c: &CanvasRef) -> Result<Vec<u8>, String> {
         let mut joined = Vec::new();
         let mut r = Reader::new(raw, 0);
         while r.p + 4 <= raw.len() {
-            let n = r.i32()? as usize;
+            let n = r.i32()?;
+            if n < 0 {
+                break;
+            }
             let s = r.p;
-            let e = (s + n).min(raw.len());
+            let e = s.saturating_add(n as usize).min(raw.len());
             joined.extend_from_slice(&raw[s..e]);
             r.p = e;
         }
         let _ = flate2::read::ZlibDecoder::new(&joined[..]).read_to_end(&mut buf);
     }
-    let (w, h) = (c.w as usize, c.h as usize);
     let mut px = vec![0u8; w * h * 4];
     match c.fmt {
         1 => {

@@ -49,6 +49,25 @@ struct Cache {
     items: Vec<Bulletin>,
     /// 活動編號 → 改版主頁（None = 活動頁已經沒有內容，例如很舊的活動）
     hubs: HashMap<u32, Option<Hub>>,
+    /// 查不到改版主頁的活動：（最後一次查的時間, 查過幾次）；官網暫時打不開或格式不對時過幾天再查，查 3 次都沒有才不再查
+    none_at: HashMap<u32, (u64, u8)>,
+}
+
+/// 查不到改版主頁的活動，隔幾天再查一次
+const NONE_RETRY_SECS: u64 = 3 * 86400;
+const NONE_MAX_TRIES: u8 = 3;
+
+/// 這個活動要不要（再）查改版主頁
+fn hub_due(c: &Cache, id: u32, now: u64) -> bool {
+    match c.hubs.get(&id) {
+        None => true,
+        Some(Some(_)) => false,
+        // 舊版存下來的「沒有」沒有記錄時間：當作查過一次，馬上再查一次
+        Some(None) => {
+            let (at, n) = c.none_at.get(&id).copied().unwrap_or((0, 1));
+            n < NONE_MAX_TRIES && now.saturating_sub(at) >= NONE_RETRY_SECS
+        }
+    }
 }
 
 static STORE: OnceLock<Mutex<(Cache, PathBuf)>> = OnceLock::new();
@@ -363,7 +382,8 @@ pub async fn version_hubs(ids: Vec<u32>) -> Result<HashMap<String, Option<Hub>>,
         let store = STORE.get().ok_or("尚未初始化")?;
         let need: Vec<u32> = {
             let g = store.lock().unwrap();
-            ids.iter().copied().filter(|id| !g.0.hubs.contains_key(id)).take(40).collect()
+            let t = now();
+            ids.iter().copied().filter(|&id| hub_due(&g.0, id, t)).take(40).collect()
         };
         if !need.is_empty() {
             let agent = agent();
@@ -379,14 +399,25 @@ pub async fn version_hubs(ids: Vec<u32>) -> Result<HashMap<String, Option<Hub>>,
                 }
             }
             let mut g = store.lock().unwrap();
+            let t = now();
+            let c = &mut g.0;
             for (id, h) in got {
                 // 選單裡的其他活動頁也是同一個改版主頁，一起記住
                 if let Some(hub) = &h {
                     for (sid, _) in &hub.sections {
-                        g.0.hubs.entry(*sid).or_insert_with(|| Some(hub.clone()));
+                        let e = c.hubs.entry(*sid).or_insert(None);
+                        if e.is_none() {
+                            *e = Some(hub.clone());
+                            c.none_at.remove(sid);
+                        }
                     }
+                    c.none_at.remove(&id);
+                } else {
+                    let was_none = matches!(c.hubs.get(&id), Some(None));
+                    let n = c.none_at.get(&id).map_or(if was_none { 1 } else { 0 }, |x| x.1);
+                    c.none_at.insert(id, (t, n.saturating_add(1)));
                 }
-                g.0.hubs.insert(id, h);
+                c.hubs.insert(id, h);
             }
             let (cache, path) = &*g;
             save(cache, path);
@@ -419,6 +450,23 @@ pub fn open_bulletin(url: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_hub_is_rechecked_a_few_times() {
+        let t = 1_800_000_000u64;
+        let mut c = Cache::default();
+        assert!(hub_due(&c, 1, t));
+        c.hubs.insert(1, None);
+        // 舊版存的「沒有」：馬上再查一次
+        assert!(hub_due(&c, 1, t));
+        c.none_at.insert(1, (t, 2));
+        assert!(!hub_due(&c, 1, t + NONE_RETRY_SECS - 1));
+        assert!(hub_due(&c, 1, t + NONE_RETRY_SECS));
+        c.none_at.insert(1, (t, NONE_MAX_TRIES));
+        assert!(!hub_due(&c, 1, t + 100 * NONE_RETRY_SECS));
+        c.hubs.insert(2, Some(Hub { id: 2, title: String::new(), url: String::new(), sections: Vec::new() }));
+        assert!(!hub_due(&c, 2, t));
+    }
 
     #[test]
     fn version_titles() {

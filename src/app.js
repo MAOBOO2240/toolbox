@@ -344,14 +344,27 @@ const CRYSTAL = { week: "assets/crystal/weekly.png", month: "assets/crystal/mont
 
 const ItemIcons = (() => {
   const cache = new Map(); // 名稱 → data URL 或 null
+  const failedAt = new Map(); // 讀不到的名稱 → 時間（過一陣子再讀一次，遊戲檔更新完就會自己好）
+  const RETRY = 5 * 60 * 1000;
   const want = new Set();
   const live = new Set(); // 等待圖示的元素
   const waiters = new Map(); // 名稱 → 等待結果的 Promise resolve
+  const idleWaiters = []; // 等所有圖示讀完
   let timer = null, busy = false;
   const gameDir = () => { try { return JSON.parse(localStorage.getItem("beauty-v1"))?.gamePath || null; } catch (_) { return null; } };
+  /** 讀不到的圖示過了 RETRY 就當作還沒讀過 */
+  function expire(name) {
+    const t = failedAt.get(name);
+    if (t !== undefined && Date.now() - t >= RETRY) { cache.delete(name); failedAt.delete(name); }
+  }
+  function settle() {
+    if (busy || timer || want.size) return;
+    while (idleWaiters.length) idleWaiters.shift()();
+  }
 
   function fill(el) {
     const name = el.dataset.name;
+    expire(name);
     if (!cache.has(name)) return false;
     const png = cache.get(name);
     el.innerHTML = "";
@@ -370,10 +383,12 @@ const ItemIcons = (() => {
       const pngs = await invoke("item_icons", { gameDir: gameDir(), names });
       names.forEach((n, i) => cache.set(n, pngs[i] || null));
     } catch (_) { names.forEach((n) => cache.set(n, null)); }
+    names.forEach((n) => { if (cache.get(n)) failedAt.delete(n); else failedAt.set(n, Date.now()); });
     busy = false;
     for (const n of names) { for (const r of waiters.get(n) || []) r(cache.get(n)); waiters.delete(n); }
     for (const el of [...live]) if (!el.isConnected || fill(el)) live.delete(el);
     if (want.size) flush();
+    else settle();
   }
   /** 回傳一個圖示格子，圖示讀到後自動填入 */
   function el(name) {
@@ -389,6 +404,7 @@ const ItemIcons = (() => {
   }
   /** 取得圖示的 data URL（沒有遊戲資料或找不到時為 null） */
   function get(name) {
+    expire(name);
     if (cache.has(name)) return Promise.resolve(cache.get(name));
     if (!TAURI) return Promise.resolve(null);
     return new Promise((resolve) => {
@@ -398,7 +414,11 @@ const ItemIcons = (() => {
       if (!timer) timer = setTimeout(flush, 30);
     });
   }
-  return { el, get };
+  /** 目前要讀的圖示都讀完時（主頁的圖示先讀完，其他讀遊戲檔的工作再開始） */
+  function idle() {
+    return new Promise((resolve) => { idleWaiters.push(resolve); settle(); });
+  }
+  return { el, get, idle };
 })();
 window.ItemIcons = ItemIcons;
 
@@ -1204,6 +1224,46 @@ function openTool(id) {
   if (id === "itemup" && window.ItemUpdates) window.ItemUpdates.onShow();
   // 抽獎模擬器：檢查官網有沒有換獎池
   if (typeof OfficialPools !== "undefined") OfficialPools.onOpen(id);
+}
+
+/* ---------- ESC：先關掉開著的視窗；沒有視窗時回上一頁（子頁面 → 工具 → 分類） ---------- */
+{
+  // 蓋在畫面上的視窗：開著嗎、要怎麼關（自己有處理 ESC 的不用給關法）
+  const shown = (sel) => { const el = document.querySelector(sel); return !!el && !el.hidden && el.getClientRects().length > 0; };
+  const OVERLAYS = [
+    { open: () => $("#alertBackdrop")?.classList.contains("show") },
+    { open: () => $("#closeAsk")?.classList.contains("show") },
+    { open: () => $("#updBackdrop")?.classList.contains("show"), close: () => $("#updLater")?.click() },
+    { open: () => !ctxMenu.hidden },
+    { open: () => shown("#bCtx") },
+    { open: () => shown("#bActMenu") },
+    { open: () => shown("#iuModal") },
+    { open: () => shown("#bMixWin"), close: () => $("#bMixClose")?.click() },
+    { open: () => shown("#bDyeWin"), close: () => $("#bDyeClose")?.click() },
+    { open: () => shown("#bStyleWin"), close: () => $("#bStyleClose")?.click() },
+    { open: () => !!document.querySelector(".bs-info-back") },
+  ];
+  const anyOpen = () => OVERLAYS.some((o) => { try { return o.open(); } catch (_) { return false; } });
+  const typing = (el) => !!el && (el.isContentEditable || el.tagName === "TEXTAREA" || el.tagName === "SELECT" ||
+    (el.tagName === "INPUT" && !["checkbox", "radio", "range", "button", "submit", "color"].includes(el.type)));
+  let hadOverlay = false;
+  // 其他地方處理 ESC 之前先記下有沒有開著的視窗（關掉視窗的那一下不要順便回上一頁）
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") hadOverlay = anyOpen(); }, true);
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.repeat || e.defaultPrevented) return;
+    if (hadOverlay || anyOpen()) {
+      // 還開著、而且自己不會處理 ESC 的視窗：關掉最上面那一個
+      for (const o of [...OVERLAYS].reverse()) if (o.close && o.open()) { o.close(); break; }
+      return;
+    }
+    // 正在輸入文字：先離開輸入框
+    if (typing(document.activeElement)) { document.activeElement.blur(); return; }
+    const view = document.querySelector(".view.active");
+    if (!view || view.id === "view-cat") return;
+    const back = view.querySelector("[data-back]");
+    if (back) back.click();
+    else showCat(currentCat);
+  });
 }
 
 $$(".cat").forEach((b) => b.addEventListener("click", () => showCat(b.dataset.cat)));

@@ -40,6 +40,12 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 圖示：看到才讀，一次讀一批 ---------- */
   const icons = new Map(); // "資料夾|編號" → data URL 或 null
+  const failedAt = new Map(); // 讀不到的圖示 → 時間（過 5 分鐘再讀一次）
+  const iconOf = (key) => {
+    const t = failedAt.get(key);
+    if (t !== undefined && Date.now() - t >= 5 * 60 * 1000) { icons.delete(key); failedAt.delete(key); }
+    return icons.has(key);
+  };
   const wantIcon = new Map(); // key → [元素]
   let iconTimer = null, iconBusy = false;
   function fillIcon(el, png) {
@@ -57,6 +63,7 @@ if (typeof document !== "undefined") (() => {
     try { pngs = await invoke("item_icons_by_id", { gameDir: gameDir(), items: keys.map((k) => { const [f, id] = k.split("|"); return [f, Number(id)]; }) }); } catch (_) {}
     keys.forEach((k, i) => {
       icons.set(k, pngs[i] || null);
+      if (pngs[i]) failedAt.delete(k); else failedAt.set(k, Date.now());
       for (const el of wantIcon.get(k) || []) if (el.isConnected) fillIcon(el, pngs[i] || null);
       wantIcon.delete(k);
     });
@@ -69,7 +76,7 @@ if (typeof document !== "undefined") (() => {
       io.unobserve(e.target);
       const key = e.target.dataset.key;
       const box = e.target.querySelector(".iu-ic");
-      if (icons.has(key)) { fillIcon(box, icons.get(key)); continue; }
+      if (iconOf(key)) { fillIcon(box, icons.get(key)); continue; }
       if (!wantIcon.has(key)) wantIcon.set(key, []);
       wantIcon.get(key).push(box);
       if (!iconTimer) iconTimer = setTimeout(flushIcons, 30);
@@ -116,7 +123,7 @@ if (typeof document !== "undefined") (() => {
     const ic = document.createElement("span");
     ic.className = "iu-ic";
     b.append(ic);
-    if (icons.has(b.dataset.key)) fillIcon(ic, icons.get(b.dataset.key));
+    if (iconOf(b.dataset.key)) fillIcon(ic, icons.get(b.dataset.key));
     else if (io) io.observe(b);
     b.addEventListener("click", () => openDetail(it));
     return b;
@@ -244,7 +251,7 @@ if (typeof document !== "undefined") (() => {
       const changed = recSig(data) !== before;
       if (changed) sel = 0;
       // 遊戲檔更新或手動重新讀取後，圖示也重新讀（之前讀不到的可能已經有了）
-      if (changed || force) icons.clear();
+      if (changed || force) { icons.clear(); failedAt.clear(); }
       if (force) toast(changed && data.records.length ? `道具有更新：${verText(data.records[0])} 共 ${nf.format(data.records[0].items.length)} 個` : "道具沒有變化");
     } catch (e) {
       error = String(e);
@@ -268,6 +275,6 @@ if (typeof document !== "undefined") (() => {
 
   render();
   window.ItemUpdates = { onShow: () => load(false) };
-  // 程式一打開就在背景檢查（遊戲改版後第一次開程式時記下新增的道具）
-  if (TAURI) setTimeout(() => load(false, true), 2500);
+  // 程式一打開就在背景檢查（遊戲改版後第一次開程式時記下新增的道具）；主頁的道具圖示先讀完
+  if (TAURI) setTimeout(() => (window.ItemIcons?.idle?.() || Promise.resolve()).then(() => load(false, true)), 2500);
 })();

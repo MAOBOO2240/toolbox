@@ -306,7 +306,7 @@ pub async fn maple_lookup(name: String, force: bool) -> Result<Lookup, String> {
 
 /* ---------------- 經驗追蹤 ---------------- */
 
-const TRACK_TTL_SECS: u64 = 10 * 60;
+const TRACK_TTL_SECS: u64 = 5 * 60;
 
 #[derive(Serialize)]
 pub struct TrackOut {
@@ -380,7 +380,7 @@ fn track_one(name: &str, force: bool) -> Result<TrackOut, String> {
     };
     store.lock().unwrap().cache.ocid.insert(name.to_string(), ocid.clone());
 
-    // 最新資料：10 分鐘內查過就不再查（按重新整理時 1 分鐘）
+    // 最新資料：5 分鐘內查過就不再查（按重新整理時 1 分鐘）
     let cached = store.lock().unwrap().cache.track_now.get(&ocid).cloned();
     let ttl = if force { 60 } else { TRACK_TTL_SECS };
     let (fetched_at, cur) = match cached {

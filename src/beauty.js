@@ -174,8 +174,12 @@ if (typeof document !== "undefined") (() => {
     saveTimer = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (_) {} }, 200);
   };
 
-  const HAIR_SW = [["黑色", "#2a2a2e"], ["紅色", "#d8433f"], ["橘色", "#ec8a34"], ["黃色", "#eac53a"], ["綠色", "#58a85c"], ["藍色", "#4677d6"], ["紫色", "#8c55cc"], ["褐色", "#8b5b3b"]];
-  const FACE_SW = [["黑色", "#2a2a2e"], ["藍色", "#3a6fe0"], ["紅色", "#d23344"], ["綠色", "#5bb032"], ["褐色", "#c8902a"], ["祖母綠", "#26b6c6"], ["紫色", "#8a3ad0"], ["紫水晶", "#d24aa8"], ["白色", "#e9e9ee"]];
+  // 顏色與順序和遊戲裡的選擇畫面相同（第一格黑色在遊戲裡是打勾的預設色）
+  const HAIR_SW = [["黑色", "#2a2a2e"], ["紅色", "#e95273"], ["橘色", "#f18d49"], ["黃色", "#f7d743"], ["綠色", "#8ecf1f"], ["藍色", "#419eeb"], ["紫色", "#aa5ce7"], ["褐色", "#a87056"]];
+  const FACE_SW = [["黑色", "#2a2a2e"], ["藍色", "#409be9"], ["紅色", "#e85072"], ["綠色", "#8acc1e"], ["褐色", "#a46b53"], ["祖母綠", "#35dff7"], ["紫色", "#a75ae4"], ["紫水晶", "#f483e3"]];
+  // 舊版有第 9 種「白色」瞳色，遊戲裡沒有，拿掉
+  if (st.faceColor === "白色") st.faceColor = null;
+  if (st.faceMix && (st.faceMix.base === "白色" || st.faceMix.mix === "白色")) st.faceMix = null;
   let ch = null; // 目前載入的角色（API 結果，不保存，重開時從 Rust 快取取回）
 
   const intFmt = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 });
@@ -665,8 +669,7 @@ if (typeof document !== "undefined") (() => {
    * 和遊戲裡的混染一樣：先選一個基本顏色，再從其他顏色選一個混合顏色，最後調整混合比例 */
   const MIX_KEY = { hair: "hairMix", face: "faceMix" };
   const MIX_TITLE = { hair: "髮色混染", face: "瞳色混染" };
-  // 遊戲裡混染的瞳色只有 8 種（沒有白色）
-  const MIX_SW = { hair: HAIR_SW, face: FACE_SW.filter(([n]) => n !== "白色") };
+  const MIX_SW = { hair: HAIR_SW, face: FACE_SW };
   const mixHex = (kind, name) => (MIX_SW[kind].find(([n]) => n === name) || [, "#888"])[1];
   let mixKind = null, mixTimer = null;
   /** API 或使用者選的顏色名稱對到混染的顏色 */

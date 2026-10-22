@@ -47,34 +47,62 @@ pub fn play(sound: &str, file: &str, name: &str, volume: u32) {
     }
 }
 
+/// 目前開著的輸出裝置
+struct Out {
+    name: String,
+    _stream: rodio::OutputStream,
+    handle: rodio::OutputStreamHandle,
+}
+
+/// 每次播放前用當下的預設輸出裝置：換了耳機／喇叭，或之前沒有音效裝置（例如開機時藍牙耳機還沒連上）就重新開
+fn current_output(out: &mut Option<Out>, reopen: bool) -> Option<&rodio::OutputStreamHandle> {
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    let Some(dev) = rodio::cpal::default_host().default_output_device() else {
+        *out = None;
+        return None;
+    };
+    let name = dev.name().unwrap_or_default();
+    if reopen || out.as_ref().map_or(true, |o| o.name != name) {
+        *out = None; // 先關掉舊的裝置
+        *out = rodio::OutputStream::try_from_device(&dev).ok().map(|(s, handle)| Out { name, _stream: s, handle });
+    }
+    out.as_ref().map(|o| &o.handle)
+}
+
+fn play_bytes(out: &mut Option<Out>, bytes: Vec<u8>, volume: f32) {
+    let sink = match current_output(out, false).map(rodio::Sink::try_new) {
+        Some(Ok(sink)) => sink,
+        // 裝置失效：重新開一次再試
+        _ => match current_output(out, true).map(rodio::Sink::try_new) {
+            Some(Ok(sink)) => sink,
+            _ => return,
+        },
+    };
+    match rodio::Decoder::new(Cursor::new(bytes)) {
+        Ok(src) => {
+            sink.set_volume(volume);
+            sink.append(src);
+            sink.detach();
+        }
+        Err(e) => eprintln!("無法解碼音效：{e}"),
+    }
+}
+
 fn worker(rx: Receiver<Cmd>) {
     // 輸出裝置必須留在同一個執行緒；沒有音效裝置時就靜默略過
-    let output = rodio::OutputStream::try_default().ok();
+    let mut out: Option<Out> = None;
     let mut tts = tts::Speaker::default();
-
-    let play_bytes = |bytes: Vec<u8>, volume: f32| {
-        let Some((_, handle)) = output.as_ref() else { return };
-        let Ok(sink) = rodio::Sink::try_new(handle) else { return };
-        match rodio::Decoder::new(Cursor::new(bytes)) {
-            Ok(src) => {
-                sink.set_volume(volume);
-                sink.append(src);
-                sink.detach();
-            }
-            Err(e) => eprintln!("無法解碼音效：{e}"),
-        }
-    };
 
     while let Ok(Cmd { src, volume }) = rx.recv() {
         match src {
-            Src::Bytes(b) => play_bytes(b.to_vec(), volume),
+            Src::Bytes(b) => play_bytes(&mut out, b.to_vec(), volume),
             Src::File(path) => match std::fs::read(&path) {
-                Ok(b) => play_bytes(b, volume),
-                Err(_) => play_bytes(BEEP1.to_vec(), volume),
+                Ok(b) => play_bytes(&mut out, b, volume),
+                Err(_) => play_bytes(&mut out, BEEP1.to_vec(), volume),
             },
             Src::Speak(text) => match tts.synthesize(&text) {
-                Some(wav) => play_bytes(wav, volume),
-                None => play_bytes(BEEP1.to_vec(), volume),
+                Some(wav) => play_bytes(&mut out, wav, volume),
+                None => play_bytes(&mut out, BEEP1.to_vec(), volume),
             },
         }
     }

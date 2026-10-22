@@ -605,7 +605,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             let game_only = GAME_ONLY.load(Ordering::SeqCst);
 
             // 鎖內只做計算；視窗操作與音效都在解鎖後進行，避免與主執行緒互相等待
-            let (names, snaps, prefs, master, want, to_save) = {
+            let (names, snaps, prefs, master, want, to_save, any_running) = {
                 let mut e = eng();
                 let names = e.tick(now);
                 let snaps = e.snapshot(now);
@@ -624,7 +624,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 } else {
                     None
                 };
-                (names, snaps, prefs, master, want, to_save)
+                (names, snaps, prefs, master, want, to_save, any_running)
             };
 
             // 時間到只播音效，不跳通知視窗
@@ -633,17 +633,20 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             }
             sync_overlay(&app, &mut applied, want, &prefs.overlay);
             let listening = master && !info.is_self && (!game_only || info.is_game);
-            let _ = app.emit(
-                "timer-tick",
-                TickPayload {
-                    fg: info,
-                    listening,
-                    last_key: input::last_key(),
-                    master_on: master,
-                    overlay: OverlayState { bg: prefs.overlay.bg.clamp(0.0, 1.0), locked: prefs.overlay.locked },
-                    timers: snaps,
-                },
-            );
+            // 有計時器在跑：每 0.1 秒更新；沒有在跑而且主視窗看不到（縮在右下角或最小化）時不更新畫面
+            if any_running || fg::main_shown() {
+                let _ = app.emit(
+                    "timer-tick",
+                    TickPayload {
+                        fg: info,
+                        listening,
+                        last_key: input::last_key(),
+                        master_on: master,
+                        overlay: OverlayState { bg: prefs.overlay.bg.clamp(0.0, 1.0), locked: prefs.overlay.locked },
+                        timers: snaps,
+                    },
+                );
+            }
             if let Some((path, file)) = to_save {
                 save(&path, &file);
             }

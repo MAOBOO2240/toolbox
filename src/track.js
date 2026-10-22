@@ -4,7 +4,7 @@
  * 經驗追蹤
  * - 一隻角色一排：目前等級、經驗 %、今天練了多少（每天 00:00 重新計算）
  * - 近 30 天（或切換成近 7 天）的平均成長速度，推算哪一天升級
- * - 資料來自 Nexon API（Rust 端快取，最新資料 10 分鐘內不重查，歷史資料查過就記住）
+ * - 資料來自 Nexon API（Rust 端快取，最新資料 5 分鐘內不重查，歷史資料查過就記住）
  * ========================================================== */
 
 /** 升級所需經驗值（KMS／TMS 相同） */
@@ -318,9 +318,9 @@ if (typeof document !== "undefined") (() => {
   window.Track = {
     onShow: () => {
       refresh(false);
-      // 開著的時候每 10 分鐘更新一次（Rust 端 10 分鐘內不會重查）
+      // 開著的時候每 5 分鐘更新一次（Rust 端 5 分鐘內不會重查）
       clearInterval(timer);
-      timer = setInterval(() => { if ($("#view-track").classList.contains("active")) refresh(false); else clearInterval(timer); }, 10 * 60 * 1000);
+      timer = setInterval(() => { if ($("#view-track").classList.contains("active")) refresh(false); else clearInterval(timer); }, 5 * 60 * 1000);
     },
   };
 })();

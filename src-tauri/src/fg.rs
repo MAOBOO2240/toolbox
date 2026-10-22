@@ -21,6 +21,23 @@ pub fn set_main_hwnd(h: isize) {
     MAIN_HWND.store(h, Ordering::SeqCst);
 }
 
+/// 主視窗看得到嗎（沒有縮到右下角、也沒有最小化）；還不知道主視窗時當作看得到
+#[cfg(windows)]
+pub fn main_shown() -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{IsIconic, IsWindowVisible};
+    let h = MAIN_HWND.load(Ordering::SeqCst);
+    if h == 0 {
+        return true;
+    }
+    let hwnd = h as windows_sys::Win32::Foundation::HWND;
+    unsafe { IsWindowVisible(hwnd) != 0 && IsIconic(hwnd) == 0 }
+}
+
+#[cfg(not(windows))]
+pub fn main_shown() -> bool {
+    true
+}
+
 /// 依執行檔名稱或視窗標題判斷是否為新楓之谷
 pub fn looks_like_game(exe: &str, title: &str) -> bool {
     exe.to_lowercase().contains("maplestory")
