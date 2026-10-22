@@ -321,6 +321,15 @@ if (typeof document !== "undefined") (() => {
     // 戒指也送去，名牌戒指、聊天戒指會改變名牌與對話框（其他戒指 Rust 會略過）
     return list.filter((x) => !/EXP|口袋|胸章|徽章/.test(x.cash_item_equipment_slot + x.cash_item_name));
   }
+  /** 一般裝備（非點裝）的披風：沒有點裝披風時才有，用來讓紙娃娃也穿上披風 */
+  function gearCape(c) {
+    const list = c?.gear?.item_equipment;
+    if (!Array.isArray(list)) return null;
+    const isCape = (x) => /披風|망토|cape/i.test(`${x.item_equipment_slot || ""}${x.item_equipment_part || ""}`);
+    const cape = list.find((x) => isCape(x) && x.item_name);
+    return cape ? { name: cape.item_name, dye: null } : null;
+  }
+
   /** 戒指（名牌戒指、聊天戒指會改變名牌與對話框的樣子）；外觀套組沒有戒指時看基本點裝 */
   function ringsOf(c) {
     if (!c?.cash) return [];
@@ -352,15 +361,20 @@ if (typeof document !== "undefined") (() => {
       face: part(c?.beauty?.character_face, "face_name"),
       mode: "full",
       skin_id: null,
-      items: cashListOf(c).map((x) => ({ name: x.cash_item_name, dye: prismToDye(x.cash_item_coloring_prism) })),
+      items: withCape(c, cashListOf(c).map((x) => ({ name: x.cash_item_name, dye: prismToDye(x.cash_item_coloring_prism) }))),
     };
+  }
+  /** 點裝裡沒有披風時，補上一般裝備的披風 */
+  function withCape(c, items) {
+    const cape = gearCape(c);
+    return cape ? [...items, cape] : items;
   }
   async function charLook(name) {
     const c = await invoke("maple_lookup", { name, force: false });
     try {
       const out = await invoke("beauty_render", { req: charReq(c) });
       const tags = await fetchTags({ ids: ringIdsOf(out.equips) });
-      return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy, tags };
+      return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy, anim: out.anim || null, tags };
     } catch (e) {
       // 讀不到遊戲資料時改用官方角色圖
       if (c?.basic?.character_image) return { name: c.name, png: c.basic.character_image, official: true, tags: await fetchTags({ rings: ringsOf(c) }) };
@@ -402,9 +416,10 @@ if (typeof document !== "undefined") (() => {
       face: part(f, tryF, st.faceColor, st.faceMix),
       mode,
       skin_id: st.skinId || null,
+      // 自己換過點裝時照自己的；沒換過就用角色目前的點裝（再補上一般裝備的披風）
       items: mode !== "full" ? [] : st.outfit
         ? st.outfit.map((x) => ({ id: x.id, dye: x.dye || null }))
-        : cashList().map((x) => ({ name: x.cash_item_name, dye: prismToDye(x.cash_item_coloring_prism) })),
+        : withCape(ch, cashList().map((x) => ({ name: x.cash_item_name, dye: prismToDye(x.cash_item_coloring_prism) }))),
     };
   }
 
@@ -414,7 +429,7 @@ if (typeof document !== "undefined") (() => {
     lastDoll = d;
     document.dispatchEvent(new CustomEvent("beauty-doll", { detail: d }));
   }
-  const dollOf = (out) => ({ name: st.charName, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy });
+  const dollOf = (out) => ({ name: st.charName, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy, anim: out.anim || null });
   const officialDoll = () => (ch?.basic?.character_image && !(st.tryHair || st.tryFace) ? { name: st.charName, png: ch.basic.character_image, official: true } : null);
   // 中間的角色在做其他動作時，側欄另外畫一張站姿
   const announceQueue = renderQueue((out) => announceDoll(out ? dollOf(out) : officialDoll()));
@@ -1394,7 +1409,7 @@ if (typeof document !== "undefined") (() => {
 
   function pickIcon(it) {
     const el = iconEl(it);
-    el.addEventListener("mouseenter", () => { $("#bPickHover").textContent = `${it.name}・${SLOT_NAME[it.slot] || ""}（${it.id}）`; });
+    el.addEventListener("mouseenter", () => showHover(it));
     el.addEventListener("click", () => wear(it));
     return el;
   }
@@ -1898,6 +1913,36 @@ if (typeof document !== "undefined") (() => {
   let searchTimer;
   $("#bPickSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { shown = PAGE; renderPick(); }, 200); });
   $("#bOutfitClear").addEventListener("click", () => { closeFloat(); setOutfit([]); });
+
+  /* ---------- 收放：選擇點裝、目前裝備 ---------- */
+  function renderFold() {
+    for (const [key, card, btn] of [["foldPick", "#bPick", "#bPickFold"], ["foldEq", ".b-equipped", "#bEqFold"]]) {
+      const el = document.querySelector(card), b = $(btn);
+      if (!el || !b) continue;
+      const on = !!st[key];
+      el.classList.toggle("folded", on);
+      b.classList.toggle("on", on);
+      b.title = on ? "展開" : "收起";
+    }
+  }
+  for (const [key, btn] of [["foldPick", "#bPickFold"], ["foldEq", "#bEqFold"]]) {
+    $(btn)?.addEventListener("click", () => { st[key] = !st[key]; save(); renderFold(); });
+  }
+  renderFold();
+
+  /* ---------- 下面那一行的道具名稱：點一下複製 ---------- */
+  function showHover(it) {
+    const box = $("#bPickHover");
+    box.innerHTML = "";
+    if (!it) { box.textContent = "滑鼠移到圖示上可以看名稱；點一下穿上，再點一次脫下"; return; }
+    const name = document.createElement("span");
+    name.className = "b-hover-name";
+    name.textContent = it.name;
+    makeCopyable(name, it.name);
+    const rest = document.createElement("span");
+    rest.textContent = `・${SLOT_NAME[it.slot] || ""}（${it.id}）`;
+    box.append(name, rest);
+  }
   $("#bSaveLook").addEventListener("click", () => {
     const add = curOutfit().filter((x) => !isFav(x.id));
     if (!add.length) return toast(curOutfit().length ? "目前裝備都已經收藏了" : "目前沒有穿任何點裝");
@@ -1924,6 +1969,15 @@ if (typeof document !== "undefined") (() => {
     current: () => ({ name: st.charName || "", doll: lastDoll, tags }),
     /** 側欄輸入角色名稱且開著同步時，直接查詢美容美髮的角色 */
     setName: async (name) => { $("#bName").value = name; await lookup(false); },
+    /** 從工具箱的「變更點裝」磁磚進來時直接切到變更點裝 */
+    setDress: (on) => {
+      if (!!st.dress === !!on) return;
+      if (!$("#bActMenu").hidden) actMenu(false);
+      st.dress = !!on;
+      if (!st.dress) closeFloat();
+      if (st.dress) st.page = "sim";
+      save(); renderPage(); renderPick(); renderEquipped();
+    },
     charLook,
   };
   document.dispatchEvent(new CustomEvent("beauty-ready"));

@@ -122,11 +122,20 @@ fn snap_of(v: &Value) -> Option<Snap> {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct CachedChar {
     fetched_at: u64,
     basic: Value,
     beauty: Value,
     cash: Value,
+    /// 一般裝備（只有沒有點裝披風時才查，用來顯示披風）
+    gear: Value,
+}
+
+impl Default for CachedChar {
+    fn default() -> Self {
+        Self { fetched_at: 0, basic: Value::Null, beauty: Value::Null, cash: Value::Null, gear: Value::Null }
+    }
 }
 
 struct Store {
@@ -258,12 +267,35 @@ fn fetch_ocid(name: &str) -> Result<String, String> {
     }
 }
 
+/// 點裝裡有沒有披風（有的話就不用再查一般裝備）
+fn has_cash_cape(cash: &Value) -> bool {
+    let preset = cash["preset_no"].as_i64().unwrap_or(0);
+    let lists = [format!("cash_item_equipment_preset_{preset}"), "cash_item_equipment_base".to_string()];
+    lists.iter().any(|k| {
+        cash[k.as_str()]
+            .as_array()
+            .map(|a| a.iter().any(|x| is_cape(x["cash_item_equipment_slot"].as_str().unwrap_or(""))))
+            .unwrap_or(false)
+    })
+}
+
+/// 欄位名稱是不是披風（台版「披風」、韓版「망토」、英文 Cape）
+pub fn is_cape(slot: &str) -> bool {
+    slot.contains("披風") || slot.contains("망토") || slot.to_ascii_lowercase().contains("cape")
+}
+
 fn fetch_char(ocid: &str) -> Result<CachedChar, ApiErr> {
     let q = [("ocid", ocid)];
     let basic = get("/character/basic", &q)?;
     let beauty = get("/character/beauty-equipment", &q)?;
     let cash = get("/character/cashitem-equipment", &q)?;
-    Ok(CachedChar { fetched_at: now(), basic, beauty, cash })
+    // 沒有點裝披風時才多查一般裝備，省下一次呼叫
+    let gear = if has_cash_cape(&cash) {
+        Value::Null
+    } else {
+        get("/character/item-equipment", &q).unwrap_or(Value::Null)
+    };
+    Ok(CachedChar { fetched_at: now(), basic, beauty, cash, gear })
 }
 
 #[derive(Serialize)]
@@ -275,6 +307,7 @@ pub struct Lookup {
     basic: Value,
     beauty: Value,
     cash: Value,
+    gear: Value,
     calls_today: u32,
 }
 
@@ -293,7 +326,7 @@ fn lookup_blocking(name: String, force: bool) -> Result<Lookup, String> {
             if now().saturating_sub(c.fetched_at) < DATA_TTL_SECS {
                 return Ok(Lookup {
                     name, ocid: ocid.clone(), fetched_at: c.fetched_at, from_cache: true,
-                    basic: c.basic.clone(), beauty: c.beauty.clone(), cash: c.cash.clone(),
+                    basic: c.basic.clone(), beauty: c.beauty.clone(), cash: c.cash.clone(), gear: c.gear.clone(),
                     calls_today: if s.cache.calls_day == today_tw() { s.cache.calls } else { 0 },
                 });
             }
@@ -326,7 +359,7 @@ fn lookup_blocking(name: String, force: bool) -> Result<Lookup, String> {
     save(&s);
     Ok(Lookup {
         name, ocid, fetched_at: data.fetched_at, from_cache: false,
-        basic: data.basic, beauty: data.beauty, cash: data.cash,
+        basic: data.basic, beauty: data.beauty, cash: data.cash, gear: data.gear,
         calls_today: s.cache.calls,
     })
 }

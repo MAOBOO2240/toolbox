@@ -217,6 +217,28 @@
 .b-icons .g-empty, .b-icons .b-more { grid-column: 1 / -1; }
 .b-more { margin-top: 0.3rem; }
 .b-pick-foot { font-size: 0.75rem; min-height: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 下面那一行的道具名稱：點一下複製 */
+.b-hover-name { color: var(--text); font-weight: 700; cursor: pointer; }
+.b-hover-name:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
+.b-hover-name:active { opacity: 0.6; }
+
+/* 收放按鈕（選擇點裝、目前裝備） */
+.b-fold {
+  flex: none; width: 1.75rem; height: 1.75rem; padding: 0; border: 0; border-radius: 0.45rem; cursor: pointer;
+  display: grid; place-items: center; background: var(--card-2); color: var(--text-2);
+}
+.b-fold:hover { background: color-mix(in srgb, var(--text-2) 22%, transparent); color: var(--text); }
+.b-fold svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; transform: rotate(180deg); transition: transform 0.18s; }
+.b-fold.on svg { transform: none; }
+/* 收起時只留標題那一行 */
+.b-pick.folded { flex: none; min-height: 0; align-self: start; }
+.b-pick.folded .b-slots,
+.b-pick.folded .b-pick-tools,
+.b-pick.folded .b-icons,
+.b-pick.folded .b-pick-foot { display: none; }
+.b-equipped.folded { flex: none; align-self: start; }
+.b-equipped.folded .b-card-head { margin-bottom: 0; }
+.b-equipped.folded .b-eq-list { display: none; }
 
 /* ---------- 變更點裝：右邊目前裝備與收藏 ---------- */
 .b-dress-side[hidden] { display: none; }

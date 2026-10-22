@@ -460,6 +460,7 @@ const ICONS = {
   crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   box: '<svg viewBox="0 0 24 24"><path d="M12 2.8 20 7v10l-8 4.2L4 17V7z"/><path d="M4 7l8 4.2L20 7M12 11.2v10"/><path d="M8 4.9l8 4.2"/></svg>',
+  shirt: '<svg viewBox="0 0 24 24"><path d="M9 3.5 5 5.5 3.5 10l2.8 1.1V20a1 1 0 0 0 1 1h9.4a1 1 0 0 0 1-1v-8.9l2.8-1.1L19 5.5l-4-2"/><path d="M9 3.5a3 3 0 0 0 6 0"/></svg>',
   news: '<svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3zM8 7.2v1.7h8V7.2zm0 4v1.7h8v-1.7zm0 4v1.7h5v-1.7z"/></svg>',
 };
 
@@ -473,8 +474,9 @@ const CATS = {
     tools: [
       { id: "gacha", name: "黃金蘋果", desc: "獎池解析、模擬抽獎與期望值分析", color: "gold", icon: "apple", item: "黃金蘋果" },
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
-      { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
+      { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
+      { id: "dress", name: "變更點裝", desc: "直接換上點裝看看效果（和美容美髮同一頁）", color: "purple", icon: "shirt", view: "beauty" },
       { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", img: "assets/crystal/monthly.png" },
     ],
   },
@@ -503,6 +505,12 @@ if (!CATS[currentCat]) currentCat = "maple";
 
 /* 自訂排序（每個分類各自一份）與我的最愛 */
 let tileOrder = store.get("toolbox-order", {}) || {};
+// 工具順序調整過：把之前自己拖曳過的順序重設一次（之後再拖就照自己的）
+if (!store.get("toolbox-order-v2", false)) {
+  tileOrder = {};
+  store.set("toolbox-order", tileOrder);
+  store.set("toolbox-order-v2", true);
+}
 let favs = (store.get("toolbox-favs", []) || []).filter((id) => TOOL[id]);
 const saveFavs = () => store.set("toolbox-favs", favs);
 const isFav = (id) => favs.includes(id);
@@ -847,6 +855,7 @@ const SideDoll = (() => {
   let doll = null, gen = 0;
   const saveCfg = () => store.set("side-doll", cfg);
   const img = $("#sideDollImg"), empty = $("#sideDollEmpty"), box = $("#sideDollPic"), inp = $("#sideName");
+  const cv = $("#sideDollAnim");
 
   /**
    * 找出角色本體的位置：在不透明像素最密集的地方放一個「角色大小」的框
@@ -879,20 +888,117 @@ const SideDoll = (() => {
       return { cx: cx.at + cx.k / 2, cy: cy.at + cy.k / 2 };
     } catch (_) { return null; }
   }
+  /** 目前要擺的是圖片還是動畫畫布，以及它的大小與角色本體的位置 */
+  function geom() {
+    const base = doll.box || { cx: doll.cx ?? doll.w / 2, cy: doll.cy ?? doll.h / 2 };
+    if (Anim.on()) {
+      // 動畫畫布的原點和靜態圖不一樣，把本體位置換算過去
+      const a = Anim.info();
+      const sx = doll.fx ?? doll.cx ?? 0, sy = doll.fy ?? doll.cy ?? 0;
+      return { el: cv, w: a.w, cx: base.cx - sx - a.x0, feet: -a.y0 };
+    }
+    return { el: img, w: doll.w, cx: base.cx, feet: doll.fy ?? base.cy + BODY_H / 2 };
+  }
   function fit() {
     const body = !!(doll && !doll.official && doll.w);
     img.classList.toggle("body", body);
-    if (!body || img.hidden) { img.style.width = img.style.left = img.style.top = ""; return; }
+    cv.classList.toggle("body", body);
+    if (!body || (img.hidden && cv.hidden)) {
+      for (const el of [img, cv]) el.style.width = el.style.left = el.style.top = "";
+      return;
+    }
+    const g = geom();
     const bw = box.clientWidth, bh = box.clientHeight;
     const room = Math.min((bw * 0.82) / BODY_W, (bh * 0.8) / BODY_H, 5);
     const scale = room >= 1 ? Math.floor(room) : Math.max(0.4, room);
-    img.style.width = `${Math.round(doll.w * scale)}px`;
     // 左右以角色本體置中；上下讓腳踩在框的下方（像站在地上），不是整個置中
-    const c = doll.box || { cx: doll.cx ?? doll.w / 2, cy: doll.cy ?? doll.h / 2 };
-    const feet = doll.fy ?? c.cy + BODY_H / 2;
     const ground = bh - Math.max(10, Math.round(bh * 0.1));
-    img.style.left = `${Math.round(bw / 2 - c.cx * scale)}px`;
-    img.style.top = `${Math.round(ground - feet * scale)}px`;
+    g.el.style.width = `${Math.round(g.w * scale)}px`;
+    g.el.style.left = `${Math.round(bw / 2 - g.cx * scale)}px`;
+    g.el.style.top = `${Math.round(ground - g.feet * scale)}px`;
+  }
+
+  /* ---------- 會動的樣子：點一下角色就動起來，再點一下變回圖片 ---------- */
+  const Anim = (() => {
+    let data = null;   // { fs, imgs, x0, y0, w, h }
+    let timer = null, i = 0, gen = 0, playing = false;
+    const ctx = cv.getContext("2d");
+    const on = () => playing && !!data;
+    const info = () => data;
+    /** 把每一格的圖讀進來，算出所有格子合起來的大小 */
+    async function prepare(anim) {
+      const fs = (anim?.frames || []).filter((f) => f && f.png);
+      if (fs.length < 2) return null;
+      const my = ++gen;
+      const imgs = await Promise.all(fs.map((f) => new Promise((res) => {
+        const im = new Image();
+        im.onload = () => res(im);
+        im.onerror = () => res(null);
+        im.src = f.png;
+      })));
+      if (my !== gen || imgs.some((x) => !x)) return null;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const f of fs) {
+        x0 = Math.min(x0, f.x); y0 = Math.min(y0, f.y);
+        x1 = Math.max(x1, f.x + f.w); y1 = Math.max(y1, f.y + f.h);
+      }
+      return { fs, imgs, x0, y0, w: x1 - x0, h: y1 - y0 };
+    }
+    function draw() {
+      const f = data.fs[i], im = data.imgs[i];
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      if (im) ctx.drawImage(im, f.x - data.x0, f.y - data.y0);
+    }
+    function step() {
+      draw();
+      const delay = Math.max(40, data.fs[i].delay || 100);
+      timer = setTimeout(() => { i = (i + 1) % data.fs.length; step(); }, delay);
+    }
+    function stop() {
+      clearTimeout(timer);
+      timer = null;
+      playing = false;
+      data = null;
+      gen++;
+      cv.hidden = true;
+      cv.style.width = cv.style.left = cv.style.top = "";
+      if (doll) img.hidden = false;
+      fit();
+    }
+    /** 有沒有可以播的動畫（至少兩格） */
+    const can = () => (doll?.anim?.frames || []).filter((f) => f && f.png).length > 1;
+    async function start() {
+      const d = await prepare(doll?.anim);
+      if (!d) return false;
+      data = d;
+      cv.width = d.w;
+      cv.height = d.h;
+      i = 0;
+      playing = true;
+      img.hidden = true;
+      cv.hidden = false;
+      fit();
+      step();
+      return true;
+    }
+    async function toggle() {
+      if (on()) { stop(); syncCursor(); return; }
+      if (!can()) { toast("這個造型沒有會動的資料"); return; }
+      if (!(await start())) toast("讀不到會動的資料");
+      syncCursor();
+    }
+    return { on, info, toggle, stop, can };
+  })();
+
+  // 點一下角色：在圖片和會動的樣子之間切換
+  box.addEventListener("click", (e) => {
+    if (e.target.closest("input, button")) return;
+    if (doll && !doll.official) Anim.toggle();
+  });
+  function syncCursor() {
+    const ok = !!doll && !doll.official && Anim.can();
+    box.style.cursor = ok ? "pointer" : "";
+    box.title = ok ? (Anim.on() ? "點一下變回圖片" : "點一下讓角色動起來") : "";
   }
   /** 名牌戒指：輸入框直接變成名牌的樣子（依名字長度拼出名牌，像素放大兩倍） */
   let nameSkin = null, paintGen = 0;
@@ -955,7 +1061,9 @@ const SideDoll = (() => {
   }
   inp.addEventListener("input", () => { if (nameSkin) paintName(); });
   function show(d) {
+    Anim.stop();
     doll = d && d.png ? d : null;
+    syncCursor();
     if (!doll) {
       img.hidden = true;
       empty.removeAttribute("hidden"); // SVG 沒有 hidden 屬性，要用 attribute
@@ -969,6 +1077,7 @@ const SideDoll = (() => {
     img.onload = () => {
       if (doll && !doll.official && !doll.box) doll.box = bodyBox(img);
       fit();
+      syncCursor();
       if (isCharTheme()) applySettings();
     };
     if (img.getAttribute("src") !== doll.png) img.src = doll.png;
@@ -1235,10 +1344,12 @@ function openTool(id) {
   ctxMenu.hidden = true;
   refreshBack();
   $("#app").classList.add("collapsed");
-  showView(id);
+  // 變更點裝和美容美髮是同一頁，只是直接切到變更點裝
+  window.Beauty?.setDress?.(id === "dress");
+  showView(TOOL[id]?.view || id);
   if (id === "timer" && window.Timers) window.Timers.onShow();
   if (id === "gacha" && window.Gacha) window.Gacha.onShow();
-  if (id === "beauty" && window.Beauty) window.Beauty.onShow();
+  if ((id === "beauty" || id === "dress") && window.Beauty) window.Beauty.onShow();
   if (id === "comet" && window.Comet) window.Comet.onShow();
   if (id === "star" && window.Starlight) window.Starlight.onShow();
   if (id === "gift" && window.Gift) window.Gift.onShow();

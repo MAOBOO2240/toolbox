@@ -51,7 +51,7 @@
       <!-- 側欄紙娃娃：輸入角色名稱，或同步美容美髮的造型 -->
       <div class="side-doll" id="sideDoll">
         <div class="side-doll-pic" id="sideDollPic">
-          <img id="sideDollImg" alt="" draggable="false" hidden />
+          <img id="sideDollImg" alt="" draggable="false" hidden /><canvas id="sideDollAnim" hidden></canvas>
           <svg class="side-doll-empty" id="sideDollEmpty" viewBox="0 0 64 96"><circle cx="32" cy="18" r="13"/><path d="M14 92V52a18 18 0 0 1 36 0v40"/><path d="M20 58v34M44 58v34"/></svg>
         </div>
         <div class="side-doll-name">
@@ -408,6 +408,7 @@
                 <button class="cbtn c-red small" data-g="F">女</button>
                 <button class="cbtn c-blue small" data-g="M">男</button>
               </div>
+              <button class="b-fold" id="bPickFold" title="收起"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
             </div>
             <div class="b-slots" id="bSlots"></div>
             <div class="b-pick-tools">
@@ -501,6 +502,7 @@
                 <strong>目前裝備</strong>
                 <span class="spacer"></span>
                 <button class="cbtn c-red small" id="bOutfitClear">全部脫下</button>
+                <button class="b-fold" id="bEqFold" title="收起"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
               </div>
               <div class="b-eq-list" id="bEqList"></div>
             </div>
