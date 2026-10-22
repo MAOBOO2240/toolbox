@@ -1,0 +1,37 @@
+/* ---------- 活動預測 ---------- */
+.pd-page { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.pd-bar { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem 0.9rem; max-width: 56rem; width: 100%; margin: 0 auto; }
+.pd-bar-top { display: flex; align-items: center; gap: 0.9rem; }
+.pd-bar-top .muted { font-size: 0.8rem; }
+.pd-cats { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.pd-cats .cbtn small { margin-left: 0.3rem; font-size: 0.72rem; opacity: 0.8; font-variant-numeric: tabular-nums; }
+
+.pd-list { max-width: 56rem; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem; }
+.pd-card { padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; }
+/* 日期 ｜ 活動名稱 ｜ 分類與信心 */
+.pd-head { display: grid; grid-template-columns: minmax(10rem, auto) minmax(0, 1fr) auto; align-items: center; gap: 0.9rem; }
+.pd-when { display: flex; flex-direction: column; gap: 0.1rem; }
+.pd-when b { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.pd-when small { font-size: 0.75rem; }
+.pd-name { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.pd-name b { font-size: 0.98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-name small { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-tags { display: flex; align-items: center; gap: 0.4rem; }
+.pd-tag { pointer-events: none; }
+.pd-conf { padding: 0.25em 0.7em; border-radius: 999px; font-size: 0.76rem; font-weight: 700; white-space: nowrap; }
+.pd-high { background: color-mix(in srgb, #22b45e 20%, transparent); color: #15803d; }
+.pd-mid { background: color-mix(in srgb, #f5a30b 22%, transparent); color: #a16207; }
+.pd-low { background: color-mix(in srgb, #7d8ca3 22%, transparent); color: #55637a; }
+:root[data-theme="dark"] .pd-high { color: #4ade80; }
+:root[data-theme="dark"] .pd-mid { color: #fbbf24; }
+:root[data-theme="dark"] .pd-low { color: #a8b4c6; }
+/* 過去出現的日期 */
+.pd-past { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding-top: 0.45rem; border-top: 0.5px solid var(--sep); }
+.pd-past .muted { font-size: 0.74rem; margin-right: 0.15rem; }
+.pd-day { padding: 0.15em 0.5em; border-radius: 0.4rem; background: var(--card-2); color: var(--text-2); font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+.pd-note { text-align: center; margin: 0.3rem 0 0; }
+
+@media (max-width: 860px) {
+  .pd-head { grid-template-columns: minmax(0, 1fr); gap: 0.3rem; }
+  .pd-tags { justify-content: flex-start; }
+}

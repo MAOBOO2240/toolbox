@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="boss.css" />
   <link rel="stylesheet" href="patch.css" />
   <link rel="stylesheet" href="itemup.css" />
+  <link rel="stylesheet" href="predict.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -800,6 +801,24 @@
         </div>
       </section>
 
+      <!-- 活動預測：依官網公告的歷史推測下一次活動 -->
+      <section class="view" id="view-predict">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">活動預測</span>
+          <div class="g-pages"><button class="cbtn c-blue" id="pdRefresh">重新整理</button></div>
+        </nav>
+        <div class="pd-page" id="pdPage">
+          <div class="card pd-bar">
+            <div class="pd-bar-top">
+              <span class="muted" id="pdStatus"></span>
+            </div>
+            <div class="pd-cats" id="pdCats" title="可以複選；全部不選就是看全部"></div>
+          </div>
+          <div class="pd-list" id="pdList"></div>
+        </div>
+      </section>
+
       <!-- 更新道具：遊戲改版後新增了哪些道具 -->
       <section class="view" id="view-itemup">
         <nav class="navbar">
@@ -1165,5 +1184,6 @@
   <script src="watch.js"></script>
   <script src="patch.js"></script>
   <script src="itemup.js"></script>
+  <script src="predict.js"></script>
 </body>
 </html>
