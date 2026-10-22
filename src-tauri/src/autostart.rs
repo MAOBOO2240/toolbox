@@ -20,66 +20,8 @@ fn command_line(exe: &str) -> String {
     format!("\"{exe}\" {ARG}")
 }
 
-/// 直接呼叫 Windows 的登錄檔函式（不另外開 reg.exe）
 #[cfg(windows)]
-mod reg {
-    use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
-    use windows_sys::Win32::System::Registry::{
-        RegCloseKey, RegDeleteValueW, RegGetValueW, RegOpenKeyExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE, REG_SZ, RRF_RT_REG_SZ,
-    };
-
-    fn wide(s: &str) -> Vec<u16> {
-        s.encode_utf16().chain(std::iter::once(0)).collect()
-    }
-
-    /// 讀 HKCU\sub 的字串值
-    pub fn get(sub: &str, name: &str) -> Option<String> {
-        let (sub, name) = (wide(sub), wide(name));
-        unsafe {
-            let mut len: u32 = 0;
-            if RegGetValueW(HKEY_CURRENT_USER, sub.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), std::ptr::null_mut(), &mut len) != ERROR_SUCCESS {
-                return None;
-            }
-            let mut buf = vec![0u16; len as usize / 2 + 1];
-            let mut len = (buf.len() * 2) as u32;
-            if RegGetValueW(HKEY_CURRENT_USER, sub.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut len) != ERROR_SUCCESS {
-                return None;
-            }
-            let text = &buf[..(len as usize / 2).min(buf.len())];
-            let end = text.iter().position(|&c| c == 0).unwrap_or(text.len());
-            Some(String::from_utf16_lossy(&text[..end]))
-        }
-    }
-
-    fn open(sub: &str) -> Option<HKEY> {
-        let sub = wide(sub);
-        let mut key: HKEY = std::ptr::null_mut();
-        let r = unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, sub.as_ptr(), 0, KEY_SET_VALUE, &mut key) };
-        (r == ERROR_SUCCESS).then_some(key)
-    }
-
-    /// 寫入 HKCU\sub 的字串值
-    pub fn set(sub: &str, name: &str, value: &str) -> bool {
-        let Some(key) = open(sub) else { return false };
-        let (name, data) = (wide(name), wide(value));
-        unsafe {
-            let ok = RegSetValueExW(key, name.as_ptr(), 0, REG_SZ, data.as_ptr().cast(), (data.len() * 2) as u32) == ERROR_SUCCESS;
-            RegCloseKey(key);
-            ok
-        }
-    }
-
-    /// 刪除 HKCU\sub 的值（本來就沒有也算成功）
-    pub fn delete(sub: &str, name: &str) -> bool {
-        let Some(key) = open(sub) else { return false };
-        let name = wide(name);
-        unsafe {
-            let r = RegDeleteValueW(key, name.as_ptr());
-            RegCloseKey(key);
-            r == ERROR_SUCCESS || r == ERROR_FILE_NOT_FOUND
-        }
-    }
-}
+use crate::winsys::reg;
 
 #[cfg(windows)]
 fn current_command() -> Result<String, String> {

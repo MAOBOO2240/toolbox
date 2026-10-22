@@ -1,8 +1,7 @@
 //! 音效播放與語音播報（音量 0–200%）。
 //!
-//! 獨立執行緒負責播放，避免阻塞計時器。語音使用 Windows 內建語音合成
-//! （System.Speech）：常駐一個隱藏的 PowerShell 把文字合成成 WAV，
-//! 再和提示音一樣經由同一個播放器輸出，所以音量設定對語音也有效。
+//! 獨立執行緒負責播放，避免阻塞計時器。語音使用 Windows 內建語音合成（程式直接呼叫），
+//! 把文字合成成 WAV 後和提示音一樣經由同一個播放器輸出，所以音量設定對語音也有效。
 
 use std::io::Cursor;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -108,84 +107,63 @@ fn worker(rx: Receiver<Cmd>) {
     }
 }
 
+/// Windows 內建的語音合成：程式直接呼叫（不開 PowerShell、不寫暫存檔），合成成 WAV 再交給播放器
 #[cfg(windows)]
 mod tts {
-    use std::io::{BufRead, BufReader, Write};
-    use std::os::windows::process::CommandExt;
-    use std::path::PathBuf;
-    use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    struct Proc {
-        child: Child,
-        stdin: ChildStdin,
-        stdout: BufReader<ChildStdout>,
-    }
+    use windows::core::HSTRING;
+    use windows::Media::SpeechSynthesis::{SpeechSynthesizer, VoiceInformation};
+    use windows::Storage::Streams::DataReader;
 
     #[derive(Default)]
     pub struct Speaker {
-        proc: Option<Proc>,
+        synth: Option<SpeechSynthesizer>,
     }
 
-    fn wav_path() -> PathBuf {
-        std::env::temp_dir().join("toolbox_tts.wav")
+    /// 優先用繁體中文語音，其次任何中文語音；都沒有就用系統預設的語音
+    fn pick_voice() -> Option<VoiceInformation> {
+        let mut best: Option<(u8, VoiceInformation)> = None;
+        for v in SpeechSynthesizer::AllVoices().ok()? {
+            let lang = v.Language().map(|l| l.to_string().to_ascii_lowercase()).unwrap_or_default();
+            let rank = if lang == "zh-tw" {
+                0
+            } else if lang.starts_with("zh") {
+                1
+            } else {
+                continue;
+            };
+            if best.as_ref().map_or(true, |(r, _)| rank < *r) {
+                best = Some((rank, v));
+            }
+        }
+        best.map(|(_, v)| v)
     }
 
-    fn spawn() -> Option<Proc> {
-        let path = wav_path().to_string_lossy().replace('\'', "''");
-        // 優先使用繁體中文語音，其次任何中文語音；每行文字合成一個 WAV 後回覆 ok
-        let script = format!(
-            r#"
-[Console]::InputEncoding = [Text.Encoding]::UTF8
-Add-Type -AssemblyName System.Speech
-$s = New-Object System.Speech.Synthesis.SpeechSynthesizer
-try {{
-  $v = $s.GetInstalledVoices() | ForEach-Object {{ $_.VoiceInfo }} |
-       Where-Object {{ $_.Culture.Name -like 'zh*' }} |
-       Sort-Object {{ if ($_.Culture.Name -eq 'zh-TW') {{ 0 }} else {{ 1 }} }} |
-       Select-Object -First 1
-  if ($v) {{ $s.SelectVoice($v.Name) }}
-}} catch {{}}
-$p = '{path}'
-while (($l = [Console]::In.ReadLine()) -ne $null) {{
-  try {{ $s.SetOutputToWaveFile($p); $s.Speak($l) }} catch {{}}
-  try {{ $s.SetOutputToNull() }} catch {{}}
-  [Console]::Out.WriteLine('ok'); [Console]::Out.Flush()
-}}
-"#
-        );
-        let mut child = Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .ok()?;
-        let stdin = child.stdin.take()?;
-        let stdout = BufReader::new(child.stdout.take()?);
-        Some(Proc { child, stdin, stdout })
+    fn speak(synth: &SpeechSynthesizer, text: &str) -> windows::core::Result<Vec<u8>> {
+        let stream = synth.SynthesizeTextToStreamAsync(&HSTRING::from(text))?.get()?;
+        let size = stream.Size()? as u32;
+        let reader = DataReader::CreateDataReader(&stream.GetInputStreamAt(0)?)?;
+        reader.LoadAsync(size)?.get()?;
+        let mut wav = vec![0u8; size as usize];
+        reader.ReadBytes(&mut wav)?;
+        Ok(wav)
     }
 
     impl Speaker {
         /// 把文字合成成 WAV，回傳檔案內容
         pub fn synthesize(&mut self, text: &str) -> Option<Vec<u8>> {
-            let alive = matches!(self.proc.as_mut().map(|p| p.child.try_wait()), Some(Ok(None)));
-            if !alive {
-                self.proc = spawn();
+            if self.synth.is_none() {
+                let synth = SpeechSynthesizer::new().ok()?;
+                if let Some(v) = pick_voice() {
+                    let _ = synth.SetVoice(&v);
+                }
+                self.synth = Some(synth);
             }
-            let p = self.proc.as_mut()?;
             let line = text.replace(['\r', '\n'], " ");
-            if writeln!(p.stdin, "{line}").and_then(|_| p.stdin.flush()).is_err() {
-                self.proc = None;
-                return None;
-            }
-            let mut reply = String::new();
-            match p.stdout.read_line(&mut reply) {
-                Ok(n) if n > 0 => std::fs::read(wav_path()).ok(),
+            match speak(self.synth.as_ref()?, &line) {
+                Ok(wav) if !wav.is_empty() => Some(wav),
+                // 失敗時下次重新建立
                 _ => {
-                    self.proc = None;
+                    self.synth = None;
                     None
                 }
             }

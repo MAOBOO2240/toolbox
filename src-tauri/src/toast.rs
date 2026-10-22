@@ -15,17 +15,18 @@ fn hidden(cmd: &mut std::process::Command) -> &mut std::process::Command {
     cmd.creation_flags(0x0800_0000) // CREATE_NO_WINDOW
 }
 
-/// 註冊通知用的應用程式識別碼（名稱「工具箱」與圖示），每次啟動都更新一次
+/// 註冊通知用的應用程式識別碼（名稱「工具箱」與圖示），每次啟動都檢查一次
 pub fn init(data_dir: PathBuf) {
     let icon = data_dir.join("toast-icon.png");
     let _ = std::fs::create_dir_all(&data_dir);
     let _ = std::fs::write(&icon, include_bytes!("../icons/128x128.png"));
     let _ = ICON.set(icon.clone());
+    // 直接寫登錄檔（不開 reg.exe）；內容沒變就不寫
     #[cfg(windows)]
     std::thread::spawn(move || {
-        let key = format!(r"HKCU\Software\Classes\AppUserModelId\{AUMID}");
+        let key = format!(r"Software\Classes\AppUserModelId\{AUMID}");
         for (name, value) in [("DisplayName", "工具箱".to_string()), ("IconUri", icon.display().to_string())] {
-            let _ = hidden(std::process::Command::new("reg").args(["add", &key, "/v", name, "/t", "REG_SZ", "/d", &value, "/f"])).output();
+            crate::winsys::reg::ensure(&key, name, &value);
         }
     });
 }
@@ -88,6 +89,9 @@ pub async fn toast_status() -> String {
 pub fn open_notify_settings() {
     #[cfg(windows)]
     {
-        let _ = hidden(std::process::Command::new("explorer.exe").arg("ms-settings:notifications")).spawn();
+        // 和一般程式開設定頁的方式一樣；萬一開不起來才透過檔案總管開
+        if crate::winsys::open("ms-settings:notifications").is_err() {
+            let _ = hidden(std::process::Command::new("explorer.exe").arg("ms-settings:notifications")).spawn();
+        }
     }
 }

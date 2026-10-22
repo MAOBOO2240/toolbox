@@ -435,15 +435,9 @@ pub fn open_bulletin(url: String) -> Result<(), String> {
     if !host_ok(&url) {
         return Err("只能開啟新楓之谷官網的網址".into());
     }
+    // 和一般程式開網頁的方式一樣（不開 rundll32）
     #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        std::process::Command::new("rundll32")
-            .args(["url.dll,FileProtocolHandler", &url])
-            .creation_flags(0x0800_0000)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
+    crate::winsys::open(&url)?;
     Ok(())
 }
 

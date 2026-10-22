@@ -14,6 +14,7 @@ mod notify;
 mod scale;
 mod update;
 mod watch;
+mod winsys;
 #[allow(dead_code)]
 mod wz;
 mod serial;
