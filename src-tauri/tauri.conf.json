@@ -27,6 +27,11 @@
   },
   "bundle": {
     "active": false,
+    "publisher": "MAOBOO",
+    "copyright": "Copyright (C) 2026 MAOBOO",
+    "category": "Utility",
+    "shortDescription": "工具箱 MAOBOO",
+    "longDescription": "新楓之谷玩家自製的多功能輔助工具箱（計時器、序號複製、斷線通知等）。",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

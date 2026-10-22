@@ -47,7 +47,14 @@ if (typeof document !== "undefined") (() => {
     return icons.has(key);
   };
   const wantIcon = new Map(); // key → [元素]
-  let iconTimer = null, iconBusy = false;
+  let iconTimer = null, iconBusy = false, iconGen = 0;
+  // 重新檢查時呼叫：丟掉讀到的圖示與正在讀的結果，下次重新向遊戲檔要
+  function resetIcons() {
+    iconGen++;
+    icons.clear();
+    failedAt.clear();
+    wantIcon.clear();
+  }
   function fillIcon(el, png) {
     el.innerHTML = "";
     if (png) { const img = new Image(); img.src = png; img.alt = ""; img.draggable = false; el.append(img); el.classList.remove("none"); }
@@ -59,15 +66,18 @@ if (typeof document !== "undefined") (() => {
     const keys = [...wantIcon.keys()].slice(0, 60);
     if (!keys.length) return;
     iconBusy = true;
+    const gen = iconGen;
     let pngs = [];
     try { pngs = await invoke("item_icons_by_id", { gameDir: gameDir(), items: keys.map((k) => { const [f, id] = k.split("|"); return [f, Number(id)]; }) }); } catch (_) {}
+    iconBusy = false;
+    // 讀的過程中按了重新檢查：這批結果已經過期，丟掉
+    if (gen !== iconGen) { if (wantIcon.size) flushIcons(); return; }
     keys.forEach((k, i) => {
       icons.set(k, pngs[i] || null);
       if (pngs[i]) failedAt.delete(k); else failedAt.set(k, Date.now());
       for (const el of wantIcon.get(k) || []) if (el.isConnected) fillIcon(el, pngs[i] || null);
       wantIcon.delete(k);
     });
-    iconBusy = false;
     if (wantIcon.size) flushIcons();
   }
   const io = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver((ents) => {
@@ -251,7 +261,7 @@ if (typeof document !== "undefined") (() => {
       const changed = recSig(data) !== before;
       if (changed) sel = 0;
       // 遊戲檔更新或手動重新讀取後，圖示也重新讀（之前讀不到的可能已經有了）
-      if (changed || force) { icons.clear(); failedAt.clear(); }
+      if (changed || force) resetIcons();
       if (force) toast(changed && data.records.length ? `道具有更新：${verText(data.records[0])} 共 ${nf.format(data.records[0].items.length)} 個` : "道具沒有變化");
     } catch (e) {
       error = String(e);
