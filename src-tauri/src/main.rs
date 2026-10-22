@@ -18,6 +18,7 @@ mod winsys;
 #[allow(dead_code)]
 mod wz;
 mod serial;
+mod sha256;
 mod timers;
 mod toast;
 

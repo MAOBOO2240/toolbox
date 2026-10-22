@@ -639,6 +639,8 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .set-row > span:first-child { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
 .set-row small { font-size: 0.76rem; font-weight: 500; line-height: 1.45; }
 .set-row .seg { flex: none; }
+.set-terms { margin: 0; padding: 0.55rem 0 0.8rem 1.3rem; border-top: 0.5px solid var(--sep); display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.82rem; line-height: 1.55; color: var(--text-2); }
+.set-terms li::marker { color: var(--text-2); font-variant-numeric: tabular-nums; }
 #updStatus { font-weight: 500; font-size: 0.85rem; }
 
 /* 我的最愛：說明放在標題下面 */

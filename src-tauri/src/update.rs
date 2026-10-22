@@ -164,7 +164,28 @@ pub async fn update_check() -> Result<Check, String> {
     tauri::async_runtime::spawn_blocking(check_blocking).await.map_err(|e| e.to_string())?
 }
 
-/// 下載 MAOBOO.zip → 取出 exe → 正在執行的檔案改名成 .old.exe → 新檔放到原位置 → 開新版本 → 結束自己
+/// 發行版本裡的 MAOBOO.sha256（GitHub 編譯時算好的新版本雜湊值）；舊的發行版本沒有這個檔案時不驗證
+fn expected_hash(rel: &serde_json::Value, token: &str) -> Result<Option<String>, String> {
+    let Some(asset) = rel["assets"].as_array().and_then(|a| a.iter().find(|x| x["name"].as_str() == Some("MAOBOO.sha256"))) else {
+        return Ok(None);
+    };
+    let url = asset["url"].as_str().ok_or("下載網址錯誤")?;
+    let mut text = String::new();
+    github(url, token, "application/octet-stream")?
+        .into_reader()
+        .take(4096)
+        .read_to_string(&mut text)
+        .map_err(|e| format!("下載失敗：{e}"))?;
+    parse_hash(&text).map(Some).ok_or_else(|| "新版本的驗證資料格式不對，已取消更新".into())
+}
+
+/// 「雜湊值  檔名」格式的第一個欄位（64 個十六進位字元）
+fn parse_hash(text: &str) -> Option<String> {
+    let h = text.trim_start_matches('\u{feff}').split_whitespace().next()?.to_ascii_lowercase();
+    (h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit())).then_some(h)
+}
+
+/// 下載 MAOBOO.zip → 取出 exe → 和 MAOBOO.sha256 比對 → 正在執行的檔案改名成 .old.exe → 新檔放到原位置 → 開新版本 → 結束自己
 fn install_blocking() -> Result<PathBuf, String> {
     let t = token()?;
     let rel = release(&t)?;
@@ -188,6 +209,12 @@ fn install_blocking() -> Result<PathBuf, String> {
     }
     if exe_bytes.len() < 1024 {
         return Err("壓縮檔裡沒有執行檔".into());
+    }
+    // 確認和 GitHub 編譯出來的檔案一模一樣（下載不完整或被改過就不更新）
+    if let Some(want) = expected_hash(&rel, &t)? {
+        if crate::sha256::hex(&exe_bytes) != want {
+            return Err("下載的新版本驗證失敗（可能下載不完整），已取消更新，請稍後再試".into());
+        }
     }
 
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -219,6 +246,15 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn hash_file_format() {
+        let h = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        assert_eq!(super::parse_hash(&format!("{h}  MAOBOO.exe")).as_deref(), Some(h));
+        assert_eq!(super::parse_hash(&format!("\u{feff}{}\r\n", h.to_uppercase())).as_deref(), Some(h));
+        assert_eq!(super::parse_hash("abc  MAOBOO.exe"), None);
+        assert_eq!(super::parse_hash(""), None);
+    }
+
     #[test]
     fn builtin_roundtrip() {
         // 測試時通常沒有 UPDATE_TOKEN，至少要能正常還原（長度一致、不會 panic）

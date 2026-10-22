@@ -1434,6 +1434,8 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
     try { info = await invoke("update_info"); } catch (_) { return; }
     $("#verText").textContent = "1.0.0";
     $("#verText").title = info.current ? `編譯 #${info.run}（${info.current}）` : "自行編譯版";
+    // 關於：編譯編號（和你發布的版本對照，確認是不是同一份）
+    $("#aboutBuild").textContent = info.current ? `版本 1.0.0・編譯 #${info.run}（${info.current}）` : "版本 1.0.0・自行編譯版";
   }
 
   const closeDialog = () => $("#updBackdrop").classList.remove("show");

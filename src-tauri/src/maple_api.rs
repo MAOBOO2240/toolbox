@@ -27,8 +27,42 @@ fn ks_next(x: &mut u64) -> u8 {
     (x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 56) as u8
 }
 
+// 編譯時由 build.rs 產生：NK_SEED、NK_LEN、NK_A、NK_B（GitHub 祕密 NEXON_API_KEY 有設定時才有內容）
+include!(concat!(env!("OUT_DIR"), "/nexon_key.rs"));
+
+/// GitHub 祕密裡設定的金鑰（沒設定時是空字串）
+#[inline(never)]
+fn secret_key() -> String {
+    let mut enc = vec![0u8; NK_LEN];
+    for (j, b) in NK_A.iter().rev().enumerate() {
+        enc[j * 2] = *b;
+    }
+    for (j, b) in NK_B.iter().rev().enumerate() {
+        enc[j * 2 + 1] = *b;
+    }
+    let mut x = NK_SEED;
+    let mut out = Vec::with_capacity(NK_LEN);
+    for (i, b) in enc.iter().enumerate() {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        let k = (x >> ((i % 7) * 8)) as u8;
+        out.push(b ^ k ^ (i as u8).wrapping_mul(0x3D));
+    }
+    String::from_utf8(out).unwrap_or_default()
+}
+
+/// 使用的金鑰：GitHub 祕密有設定就用那個（換金鑰只要改祕密），否則用程式碼裡原本的。
 /// 執行時才解出金鑰，用完即丟，不保存在任何全域變數
 fn api_key() -> String {
+    let s = secret_key();
+    if !s.trim().is_empty() {
+        return s;
+    }
+    builtin_key()
+}
+
+fn builtin_key() -> String {
     let n = SHARD_A.len() + SHARD_B.len();
     let mut state: u64 = 0x5A17_C3E9_2B6D_8F41;
     let mut out = Vec::with_capacity(n);
@@ -494,8 +528,11 @@ mod tests {
 
     #[test]
     fn key_decodes() {
-        let k = api_key();
+        let k = builtin_key();
         assert!(k.starts_with("test_"));
         assert_eq!(k.len(), 101);
+        // GitHub 祕密的金鑰：沒設定時是空的（用原本的），有設定時長度一致
+        assert_eq!(secret_key().len(), NK_LEN);
+        assert!(!api_key().is_empty());
     }
 }

@@ -3,6 +3,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     println!("cargo:rerun-if-env-changed=GITHUB_RUN_NUMBER");
     embed_update_token();
+    embed_nexon_key();
     // 發行版的設定檔（一般權限啟動，程式自己再要求系統管理員權限，見 elevate.rs；
     // 這樣 Windows 的「啟動」清單才能在登入時開啟程式）。測試與開發版不套用。
     let release = std::env::var("PROFILE").map(|p| p == "release").unwrap_or(false);
@@ -48,4 +49,37 @@ fn embed_update_token() {
         odd
     );
     std::fs::write(out, code).expect("無法寫入 update_token.rs");
+}
+
+/// Nexon API 金鑰：GitHub Actions 的祕密 NEXON_API_KEY 有設定時，混淆後編進程式（換金鑰只要改祕密、不用改程式碼）；
+/// 沒設定時用程式碼裡原本的金鑰。寫法和更新權杖相同，但用不同的種子。
+fn embed_nexon_key() {
+    println!("cargo:rerun-if-env-changed=NEXON_API_KEY");
+    let key = std::env::var("NEXON_API_KEY").unwrap_or_default();
+    let key = key.trim().as_bytes();
+    let seed: u64 = {
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0x51ED_270B);
+        (t.rotate_left(17) ^ 0x2C1B_3C6D_9E37_79B9) | 1
+    };
+    let mut x = seed;
+    let mut enc: Vec<u8> = Vec::with_capacity(key.len());
+    for (i, b) in key.iter().enumerate() {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        let k = (x >> ((i % 7) * 8)) as u8;
+        enc.push(b ^ k ^ (i as u8).wrapping_mul(0x3D));
+    }
+    let even: Vec<u8> = enc.iter().step_by(2).rev().copied().collect();
+    let odd: Vec<u8> = enc.iter().skip(1).step_by(2).rev().copied().collect();
+    let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("nexon_key.rs");
+    let code = format!(
+        "const NK_SEED: u64 = {seed:#x};\nconst NK_LEN: usize = {};\nstatic NK_A: [u8; {}] = {:?};\nstatic NK_B: [u8; {}] = {:?};\n",
+        enc.len(),
+        even.len(),
+        even,
+        odd.len(),
+        odd
+    );
+    std::fs::write(out, code).expect("無法寫入 nexon_key.rs");
 }
