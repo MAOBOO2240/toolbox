@@ -460,7 +460,6 @@ const ICONS = {
   crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   box: '<svg viewBox="0 0 24 24"><path d="M12 2.8 20 7v10l-8 4.2L4 17V7z"/><path d="M4 7l8 4.2L20 7M12 11.2v10"/><path d="M8 4.9l8 4.2"/></svg>',
-  crystalball: '<svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="6.6"/><path d="M9.6 7.6a3.4 3.4 0 0 1 2.4-1"/><path d="M7.4 19.5h9.2M8.8 16.3l-1.4 3.2M15.2 16.3l1.4 3.2"/></svg>',
   news: '<svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3zM8 7.2v1.7h8V7.2zm0 4v1.7h8v-1.7zm0 4v1.7h5v-1.7z"/></svg>',
 };
 
@@ -477,7 +476,6 @@ const CATS = {
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
       { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", img: "assets/crystal/monthly.png" },
-      { id: "predict", name: "活動預測", desc: "依官網公告的歷史，推測下一次活動大概什麼時候", color: "purple", icon: "crystalball" },
     ],
   },
   tools: {
@@ -1249,7 +1247,6 @@ function openTool(id) {
   if (id === "track" && window.Track) window.Track.onShow();
   if (id === "patch" && window.Patches) window.Patches.onShow();
   if (id === "itemup" && window.ItemUpdates) window.ItemUpdates.onShow();
-  if (id === "predict" && window.Predict) window.Predict.onShow();
   // 抽獎模擬器：檢查官網有沒有換獎池
   if (typeof OfficialPools !== "undefined") OfficialPools.onOpen(id);
 }
