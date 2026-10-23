@@ -1,6 +1,6 @@
 /* ---------- web：浮動瀏覽器視窗管理 ---------- */
 #view-web .navbar .cbtn { justify-self: end; }
-.web-page { display: flex; flex-direction: column; gap: 0.8rem; padding: 0.6rem 1.2rem 1.2rem; max-width: 60rem; width: 100%; margin: 0 auto; }
+.web-page { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; padding: 0.6rem max(1.2rem, calc((100% - 60rem) / 2)) 1.2rem; }
 .web-tip { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.9rem 1.1rem; }
 .web-tip strong { font-size: 0.95rem; }
 .web-tip .muted { font-size: 0.82rem; line-height: 1.55; }
@@ -22,16 +22,20 @@ label.web-opt { cursor: pointer; }
 .web-range { display: flex; align-items: center; gap: 0.5rem; }
 .web-range .range { width: 8rem; }
 .web-range b { min-width: 2.6rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-.web-bmcard { padding: 0.85rem 1.1rem; display: flex; flex-direction: column; gap: 0.55rem; }
+.web-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+@media (max-width: 760px) { .web-2col { grid-template-columns: 1fr; } }
+.web-bmcard { padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.web-tipt { cursor: help; }
+.web-bmcard .web-opt { font-size: 0.8rem; }
 .web-bmhead { display: flex; align-items: center; gap: 0.7rem; }
 .web-bmtip { font-size: 0.8rem; line-height: 1.5; }
 .web-profiles { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .web-profiles .muted { flex-basis: 100%; font-size: 0.8rem; }
 .web-profiles[hidden] { display: none; }
 .web-chrome { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-.web-chrome-who { flex: 1; min-width: 12rem; font-size: 0.86rem; }
+.web-chrome-who { flex: 1; min-width: 8rem; font-size: 0.78rem; color: var(--text-2); overflow-wrap: anywhere; }
 .web-chrome-who.bad { color: var(--red, #e5484d); }
-.web-exts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.web-exts { display: flex; flex-wrap: wrap; gap: 0.3rem; max-height: 3.6rem; overflow-y: auto; }
 .web-exts:empty { display: none; }
-.web-ext { padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+.web-ext { padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
   background: color-mix(in srgb, var(--c) 16%, transparent); color: color-mix(in srgb, var(--c) 75%, var(--text)); }

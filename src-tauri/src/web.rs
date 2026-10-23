@@ -777,7 +777,16 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: bool) -> W
             if web_url(&u) {
                 let (app, wid, tid) = (a3.clone(), w3.clone(), t3.clone());
                 std::thread::spawn(move || {
-                    let _ = new_tab(&app, &wid, Some(u), true, Some(&tid));
+                    // 同一個網址已經開著：切過去就好，不要一直開新分頁
+                    let same = get(&wid).and_then(|w| w.tabs.into_iter().find(|t| same_url(&t.url, u.as_str()))).map(|t| t.id);
+                    match same {
+                        Some(t) => {
+                            let _ = select_tab(&app, &wid, &t);
+                        }
+                        None => {
+                            let _ = new_tab(&app, &wid, Some(u), true, Some(&tid));
+                        }
+                    }
                 });
             }
             NewWindowResponse::Deny
@@ -886,11 +895,32 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
     }
 }
 
+fn ext_marks() -> String {
+    std::fs::read_to_string(WEB_DIR.get().cloned().unwrap_or_default().join("web-ext.json")).unwrap_or_default()
+}
+
+fn ext_loaded_path() -> PathBuf {
+    WEB_DIR.get().cloned().unwrap_or_default().join("web-ext-loaded.json")
+}
+
+/// 擴充功能裝進瀏覽器後會一直留著；只有同步來的擴充功能有變動時才重新裝一次。
+/// （每開一個分頁都重新裝的話，擴充功能會以為剛更新，一直開「已更新」的分頁）
+fn ext_needs_load() -> bool {
+    !EXT_BROKEN.load(Ordering::SeqCst)
+        && has_extensions()
+        && std::fs::read_to_string(ext_loaded_path()).unwrap_or_default() != ext_marks()
+}
+
 /// 加上分頁的網頁；載入擴充功能失敗就不載入再試一次
 fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: LogicalPosition<f64>, size: LogicalSize<f64>) -> Result<(), String> {
-    let ext = !EXT_BROKEN.load(Ordering::SeqCst) && has_extensions();
+    let ext = ext_needs_load();
     match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            if ext {
+                let _ = std::fs::write(ext_loaded_path(), ext_marks());
+            }
+            Ok(())
+        }
         Err(e) if ext => {
             eprintln!("擴充功能載入失敗：{e}");
             EXT_BROKEN.store(true, Ordering::SeqCst);
