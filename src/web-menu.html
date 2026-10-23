@@ -30,6 +30,7 @@
     .mi.danger, .mi.danger .ic { color: #f87171; }
     .mi.danger:hover { background: rgba(239, 68, 68, 0.18); }
     .mi.empty { color: #8a93a3; justify-content: center; }
+    .mi.ext.off .t, .mi.ext.off .ic { opacity: 0.45; }
     .mi.empty:hover { background: none; }
     .sep { height: 9px; display: flex; align-items: center; margin: 0 10px; }
     .sep::after { content: ""; flex: 1; height: 1px; background: #3a4252; }
@@ -92,7 +93,10 @@
           row.className = `mi ${it.kind}${it.danger ? " danger" : ""}`;
           const ic = document.createElement("span");
           ic.className = "ic";
-          if (it.kind === "link") {
+          if (it.kind === "ext") {
+            ic.append(favicon(it.icon, it.title));
+            if (it.sub === "已停用") row.classList.add("off");
+          } else if (it.kind === "link") {
             const h = host(it.sub);
             ic.append(favicon(it.icon || (h ? `https://${h}/favicon.ico` : ""), it.title || h));
             row.title = it.sub;
@@ -114,11 +118,20 @@
             s.innerHTML = `${it.sub} ${ICONS.chev}`;
             row.append(s);
           }
+          if (it.kind === "ext") {
+            row.title = "點一下開啟擴充功能的選單；右鍵：選項、停用／啟用";
+            if (it.sub) {
+              const s = document.createElement("span");
+              s.className = "s";
+              s.textContent = it.sub;
+              row.append(s);
+            }
+          }
           if (it.kind !== "empty") {
             row.addEventListener("mouseup", (e) => { if (e.button === 0 || e.button === 1) pick(i, e.button); });
             row.addEventListener("contextmenu", (e) => {
               e.preventDefault();
-              if (it.kind === "link" || it.kind === "folder") pick(i, 2);
+              if (it.kind === "link" || it.kind === "folder" || it.kind === "ext") pick(i, 2);
             });
           }
           menu.append(row);

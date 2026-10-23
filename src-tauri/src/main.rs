@@ -505,6 +505,7 @@ fn main() {
             web::web_tab_move,
             web::web_ext_list,
             web::web_ext_sync,
+            web::web_ext_toggle,
             web::web_win,
             web::web_bm_toggle,
             web::web_bm_open,

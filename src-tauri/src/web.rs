@@ -24,7 +24,7 @@ use tauri::{
 
 pub const HOME: &str = "https://www.google.com/";
 /// 上面三排的高度（邏輯像素，要跟 web.html 一致）
-const TABS_H: f64 = 34.0;
+const TABS_H: f64 = 40.0;
 const TOOL_H: f64 = 38.0;
 const BMS_H: f64 = 30.0;
 const BAR_H: f64 = TABS_H + TOOL_H + BMS_H;
@@ -547,16 +547,11 @@ static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
 /// 目前在打字的視窗（攔截訊息時要查，所以另外放）
 static TYPING_HWND: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 /// 放到最大的視窗（不能拉邊改大小）
-static MAXED_HWND: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 static GAME_FG: AtomicBool = AtomicBool::new(false);
 
 fn rt<T>(f: impl FnOnce(&mut HashMap<String, Rt>) -> T) -> T {
     let mut g = lock(&RT);
     f(g.get_or_insert_with(HashMap::new))
-}
-
-fn hwnd_of(wid: &str) -> isize {
-    rt(|m| m.get(wid).map(|r| r.hwnd).unwrap_or(0))
 }
 
 fn win_label(wid: &str) -> String {
@@ -660,6 +655,17 @@ fn parse_web(s: &str) -> Option<Url> {
     Url::parse(s).ok().filter(web_url)
 }
 
+/// 分頁要開的網址：空白 = 新分頁（空白頁）；擴充功能的頁面也可以
+fn page_url(s: &str) -> Url {
+    if s.trim().is_empty() {
+        return Url::parse("about:blank").unwrap();
+    }
+    Url::parse(s)
+        .ok()
+        .filter(|u| web_url(u) || u.scheme() == "chrome-extension")
+        .unwrap_or_else(|| Url::parse(HOME).unwrap())
+}
+
 /* ---------------- 視窗、分頁 ---------------- */
 
 fn page_rect(sf: f64, size: PhysicalSize<u32>) -> (LogicalPosition<f64>, LogicalSize<f64>) {
@@ -730,9 +736,6 @@ static WEB_DIR: OnceLock<PathBuf> = OnceLock::new();
 static EXT_BROKEN: AtomicBool = AtomicBool::new(false);
 static POPUP_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
-fn has_extensions() -> bool {
-    std::fs::read_dir(ext_dir()).map(|mut d| d.any(|e| e.is_ok_and(|e| e.path().join("manifest.json").is_file()))).unwrap_or(false)
-}
 
 /// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉
 fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
@@ -740,7 +743,6 @@ fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowF
     WebviewWindowBuilder::new(app, format!("webpop-{n}"), WebviewUrl::External("about:blank".parse().ok()?))
         .window_features(features)
         .title(url.host_str().unwrap_or("登入"))
-        .always_on_top(true)
         .focused(true)
         .on_document_title_changed(|w, title| {
             let _ = w.set_title(&title);
@@ -749,15 +751,15 @@ fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowF
         .ok()
 }
 
-fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: bool) -> WebviewBuilder<tauri::Wry> {
+fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<PathBuf>) -> WebviewBuilder<tauri::Wry> {
     let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
     let (w1, w2, w3) = (wid.to_string(), wid.to_string(), wid.to_string());
     let (t1, t2, t3) = (tid.to_string(), tid.to_string(), tid.to_string());
     let mut b = WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true);
-    if ext {
-        b = b.extensions_path(ext_dir());
+    if let Some(dir) = ext {
+        b = b.extensions_path(dir);
     }
     b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
@@ -895,36 +897,49 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
     }
 }
 
-fn ext_marks() -> String {
-    std::fs::read_to_string(WEB_DIR.get().cloned().unwrap_or_default().join("web-ext.json")).unwrap_or_default()
-}
-
-fn ext_loaded_path() -> PathBuf {
-    WEB_DIR.get().cloned().unwrap_or_default().join("web-ext-loaded.json")
-}
-
-/// 擴充功能裝進瀏覽器後會一直留著；只有同步來的擴充功能有變動時才重新裝一次。
+/// 擴充功能裝進瀏覽器後會一直留著；只有新的、更新過的（放在「待安裝」資料夾）才裝一次。
 /// （每開一個分頁都重新裝的話，擴充功能會以為剛更新，一直開「已更新」的分頁）
-fn ext_needs_load() -> bool {
-    !EXT_BROKEN.load(Ordering::SeqCst)
-        && has_extensions()
-        && std::fs::read_to_string(ext_loaded_path()).unwrap_or_default() != ext_marks()
+fn ext_pending() -> Option<PathBuf> {
+    if EXT_BROKEN.load(Ordering::SeqCst) {
+        return None;
+    }
+    let st = ext_state();
+    if st.pending.is_empty() {
+        return None;
+    }
+    let dir = ext_dir().join(&st.pending);
+    let any = std::fs::read_dir(&dir).map(|mut d| d.any(|e| e.is_ok_and(|e| e.path().join("manifest.json").is_file()))).unwrap_or(false);
+    any.then_some(dir)
+}
+
+/// 待安裝的都裝好了
+fn ext_mark_loaded() {
+    let _g = lock(&EXT_LOCK);
+    let mut st = ext_state();
+    let pending = std::mem::take(&mut st.pending);
+    for m in st.exts.values_mut() {
+        if m.dir.starts_with(&format!("{pending}/")) {
+            m.loaded = true;
+        }
+    }
+    save_ext_state(&st);
 }
 
 /// 加上分頁的網頁；載入擴充功能失敗就不載入再試一次
 fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: LogicalPosition<f64>, size: LogicalSize<f64>) -> Result<(), String> {
-    let ext = ext_needs_load();
+    let ext = ext_pending();
+    let had = ext.is_some();
     match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
         Ok(_) => {
-            if ext {
-                let _ = std::fs::write(ext_loaded_path(), ext_marks());
+            if had {
+                ext_mark_loaded();
             }
             Ok(())
         }
-        Err(e) if ext => {
+        Err(e) if had => {
             eprintln!("擴充功能載入失敗：{e}");
             EXT_BROKEN.store(true, Ordering::SeqCst);
-            win.add_child(page_builder(app, wid, tid, url, false), pos, size).map(|_| ()).map_err(|e| format!("網頁建立失敗：{e}"))
+            win.add_child(page_builder(app, wid, tid, url, None), pos, size).map(|_| ()).map_err(|e| format!("網頁建立失敗：{e}"))
         }
         Err(e) => Err(format!("網頁建立失敗：{e}")),
     }
@@ -933,7 +948,7 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
 /// 建立分頁的網頁（要在主執行緒以外呼叫）
 fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<(), String> {
     let url = get(wid).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url).unwrap_or_default();
-    let url = parse_web(&url).unwrap_or_else(|| Url::parse(HOME).unwrap());
+    let url = page_url(&url);
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
     let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
     let (pos, sz) = page_rect(sf, size);
@@ -974,7 +989,8 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
 
 /// 開新分頁：after = 放在哪個分頁後面（沒有就放最後）
 fn new_tab(app: &AppHandle, wid: &str, url: Option<Url>, activate: bool, after: Option<&str>) -> Result<String, String> {
-    let url = url.map(|u| u.to_string()).unwrap_or_else(|| HOME.to_string());
+    // 按「+」開的新分頁是空白頁，網址列等你輸入
+    let url = url.map(|u| u.to_string()).unwrap_or_default();
     let tid = edit(wid, |w| {
         w.next_tab += 1;
         let tid = format!("t{}", w.next_tab);
@@ -1057,10 +1073,9 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     let win = WindowBuilder::new(app, &label)
         .title("web")
         .decorations(false)
-        .always_on_top(true)
         .skip_taskbar(true)
         .resizable(true)
-        .maximizable(false)
+        .maximizable(true)
         .minimizable(false)
         .focused(false)
         // 點了也不會變成作用中的視窗：鍵盤留在遊戲
@@ -1087,11 +1102,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         edit(id, |c| (c.w, c.h, c.x, c.y) = (w, h, x, y));
     }
     let (x, y) = on_screen(&win, cfg.x, cfg.y, cfg.w.max(380), cfg.h.max(240));
-    let (pos, size) = if cfg.max {
-        work_area(&win, x, y).unwrap_or((PhysicalPosition::new(x, y), PhysicalSize::new(cfg.w, cfg.h)))
-    } else {
-        (PhysicalPosition::new(x, y), PhysicalSize::new(cfg.w.max(380), cfg.h.max(240)))
-    };
+    let (pos, size) = (PhysicalPosition::new(x, y), PhysicalSize::new(cfg.w.max(380), cfg.h.max(240)));
     let _ = win.set_size(size);
     let _ = win.set_position(pos);
 
@@ -1100,9 +1111,6 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     #[cfg(not(windows))]
     let hwnd = 0isize;
     rt(|m| m.insert(id.to_string(), Rt { hwnd, ..Rt::default() }));
-    if cfg.max {
-        lock(&MAXED_HWND).push(hwnd);
-    }
     install_subclass(app, hwnd);
 
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
@@ -1111,25 +1119,32 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     win.add_child(bar, LogicalPosition::new(0.0, 0.0), LogicalSize::new((size.width as f64 / sf).max(1.0), BAR_H))
         .map_err(|e| format!("工具列建立失敗：{e}"))?;
     // 下面：目前分頁的網頁（其他分頁點到時才載入）
-    let url = parse_web(&cfg.url).unwrap_or_else(|| Url::parse(HOME).unwrap());
+    let url = page_url(&cfg.url);
     let (ppos, psz) = page_rect(sf, size);
     add_page(app, &win, id, &cfg.active, url, ppos, psz)?;
 
     let (app2, id2, win2) = (app.clone(), id.to_string(), win.clone());
     win.on_window_event(move |ev| match ev {
+        // 放到最大（按鈕、按兩下、拖到螢幕頂端）時不記大小，還原後回到原本的大小
         WindowEvent::Resized(s) if s.width > 0 && s.height > 0 => {
             layout(&app2, &id2, &win2, *s);
+            let max = win2.is_maximized().unwrap_or(false);
             let (w, h) = (s.width, s.height);
-            edit(&id2, |c| {
-                if !c.max {
+            let changed = edit(&id2, |c| {
+                if !max {
                     (c.w, c.h) = (w, h);
                 }
+                std::mem::replace(&mut c.max, max) != max
             });
+            if changed == Some(true) {
+                emit_state(&app2, &id2);
+            }
         }
         WindowEvent::Moved(p) if p.x > -10000 && p.y > -10000 => {
             let (x, y) = (p.x, p.y);
+            let max = win2.is_maximized().unwrap_or(false);
             edit(&id2, |c| {
-                if !c.max {
+                if !max && !c.max {
                     (c.x, c.y) = (x, y);
                 }
             });
@@ -1137,7 +1152,6 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         WindowEvent::Destroyed => {
             let hwnd = rt(|m| m.remove(&id2).map(|r| r.hwnd).unwrap_or(0));
             lock(&TYPING_HWND).retain(|h| *h != hwnd);
-            lock(&MAXED_HWND).retain(|h| *h != hwnd);
             emit_main(&app2);
         }
         _ => {}
@@ -1145,12 +1159,13 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
 
     edit(id, |w| {
         w.open = true;
-        if !w.max {
-            (w.x, w.y) = (x, y);
-        }
+        (w.x, w.y) = (x, y);
     });
     if !cfg.min {
         show(&win, true);
+    }
+    if cfg.max {
+        let _ = win.maximize();
     }
     emit_main(app);
     Ok(())
@@ -1168,31 +1183,20 @@ fn close_window(app: &AppHandle, id: &str) {
     emit_main(app);
 }
 
+/// 放到最大／還原（用 Windows 本身的放到最大，所以拖到螢幕頂端也會放大、拖離頂端會還原）
 fn toggle_max(app: &AppHandle, wid: &str) {
     let Some(win) = app.get_window(&win_label(wid)) else { return };
-    let Some(cfg) = get(wid) else { return };
-    let hwnd = hwnd_of(wid);
-    if cfg.max {
-        edit(wid, |w| w.max = false);
-        lock(&MAXED_HWND).retain(|h| *h != hwnd);
-        let _ = win.set_size(PhysicalSize::new(cfg.w, cfg.h));
-        let _ = win.set_position(PhysicalPosition::new(cfg.x, cfg.y));
-    } else if let Some((p, s)) = work_area(&win, cfg.x, cfg.y) {
-        edit(wid, |w| w.max = true);
-        lock(&MAXED_HWND).push(hwnd);
-        let _ = win.set_position(p);
-        let _ = win.set_size(s);
-    }
-    emit_state(app, wid);
+    let _ = if win.is_maximized().unwrap_or(false) { win.unmaximize() } else { win.maximize() };
+    let _ = app;
 }
 
 /// 顯示（不搶焦點）或隱藏
 fn show(win: &Window, visible: bool) {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOWNOACTIVATE};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOWNA};
         if let Ok(h) = win.hwnd() {
-            unsafe { ShowWindow(h.0 as _, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE }) };
+            unsafe { ShowWindow(h.0 as _, if visible { SW_SHOWNA } else { SW_HIDE }) };
             return;
         }
     }
@@ -1244,6 +1248,11 @@ enum Act {
     TabClose(String),
     TabOthers(String),
     TabRight(String),
+    /// 擴充功能：點了開它的選單頁面（沒有就開選項）
+    Ext(String),
+    ExtPage(String),
+    ExtToggle(String, bool),
+    ExtSync,
     Nothing,
 }
 
@@ -1310,6 +1319,56 @@ fn bm_ctx(b: &Bm) -> (Vec<MenuItem>, Vec<Act>) {
             vec![Act::NewTab(id.clone()), Act::Nothing, Act::Rename(id.clone()), Act::Delete(id)],
         )
     }
+}
+
+fn ext_items() -> (Vec<MenuItem>, Vec<Act>) {
+    let list = ext_list();
+    let mut items = Vec::new();
+    let mut acts = Vec::new();
+    if list.is_empty() {
+        items.push(item("empty", "（沒有擴充功能）", ""));
+        acts.push(Act::Nothing);
+    }
+    for e in &list {
+        let mut it = item("ext", e.name.clone(), &e.icon);
+        it.sub = if e.off { "已停用".into() } else if e.popup.is_empty() && e.options.is_empty() { "自動執行".into() } else { String::new() };
+        items.push(it);
+        acts.push(Act::Ext(e.id.clone()));
+    }
+    items.push(item("sep", "", ""));
+    acts.push(Act::Nothing);
+    items.push(item("act", "從 Chrome 重新同步", "reload"));
+    acts.push(Act::ExtSync);
+    (items, acts)
+}
+
+/// 擴充功能的右鍵選單：開啟選單頁面、選項、停用／啟用
+fn ext_ctx(id: &str) -> Option<(Vec<MenuItem>, Vec<Act>)> {
+    let e = ext_list().into_iter().find(|e| e.id == id)?;
+    let mut items = Vec::new();
+    let mut acts = Vec::new();
+    if !e.popup.is_empty() {
+        items.push(item("act", "開啟擴充功能選單", "newtab"));
+        acts.push(Act::ExtPage(e.popup.clone()));
+    }
+    if !e.options.is_empty() {
+        items.push(item("act", "選項", "rename"));
+        acts.push(Act::ExtPage(e.options.clone()));
+    }
+    if !items.is_empty() {
+        items.push(item("sep", "", ""));
+        acts.push(Act::Nothing);
+    }
+    if e.off {
+        items.push(item("act", "啟用（重新開啟視窗後生效）", "reload"));
+        acts.push(Act::ExtToggle(e.id, false));
+    } else {
+        let mut it = item("act", "停用（重新開啟視窗後生效）", "close");
+        it.danger = true;
+        items.push(it);
+        acts.push(Act::ExtToggle(e.id, true));
+    }
+    Some((items, acts))
 }
 
 fn tab_ctx(tid: &str) -> (Vec<MenuItem>, Vec<Act>) {
@@ -1466,9 +1525,10 @@ fn pop_menu(app: &AppHandle) {
 
 #[cfg(windows)]
 mod win32 {
-    use super::{lock, MAXED_HWND, TYPING_HWND};
+    use super::{lock, TYPING_HWND};
     use std::sync::Mutex;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
+    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
     use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
@@ -1486,7 +1546,7 @@ mod win32 {
     }
 
     fn maxed(h: HWND) -> bool {
-        lock(&MAXED_HWND).contains(&(h as isize))
+        unsafe { IsZoomed(h) != 0 }
     }
 
     pub fn is_own(h: isize) -> bool {
@@ -1533,6 +1593,17 @@ mod win32 {
     }
 
     unsafe extern "system" fn proc_(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _d: usize) -> LRESULT {
+        // 放到最大時：內容剛好是螢幕可用範圍（不要超出螢幕、不要蓋住工作列）
+        if msg == WM_NCCALCSIZE && wp != 0 && maxed(hwnd) {
+            let params = &mut *(lp as *mut NCCALCSIZE_PARAMS);
+            let mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            let mut mi: MONITORINFO = std::mem::zeroed();
+            mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            if GetMonitorInfoW(mon, &mut mi) != 0 {
+                params.rgrc[0] = mi.rcWork;
+            }
+            return 0;
+        }
         if let Some(r) = no_frame(msg, wp) {
             return r;
         }
@@ -1558,8 +1629,11 @@ mod win32 {
                 };
                 code as LRESULT
             }
-            // 沒在打字時，點到視窗不要變成作用中
-            WM_MOUSEACTIVATE if !typing(hwnd) => MA_NOACTIVATE as LRESULT,
+            // 沒在打字時，點到視窗不要變成作用中（但被別的視窗蓋住時要浮到前面）
+            WM_MOUSEACTIVATE if !typing(hwnd) => {
+                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                MA_NOACTIVATE as LRESULT
+            }
             WM_ACTIVATE => {
                 let active = (wp & 0xFFFF) != 0;
                 if active && !typing(hwnd) {
@@ -1732,7 +1806,23 @@ mod win32 {
     }
 
     pub fn show(h: isize, visible: bool) {
-        unsafe { ShowWindow(h as HWND, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE }) };
+        unsafe { ShowWindow(h as HWND, if visible { SW_SHOWNA } else { SW_HIDE }) };
+    }
+
+    /// 遊戲在前景、而且蓋住這個視窗時：把視窗放到遊戲上面（不搶焦點）。其他程式還是可以蓋住它
+    pub fn keep_above(h: isize, game: isize) {
+        unsafe {
+            let mut w = GetWindow(h as HWND, GW_HWNDPREV);
+            let mut n = 0;
+            while !w.is_null() && n < 4000 {
+                if w as isize == game {
+                    SetWindowPos(h as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    return;
+                }
+                w = GetWindow(w, GW_HWNDPREV);
+                n += 1;
+            }
+        }
     }
 
     /// 選單：放到指定位置、蓋在所有視窗最上面、顯示（不搶焦點）
@@ -1961,6 +2051,9 @@ fn tick(app: &AppHandle) {
                 win32::apply_style(hwnd, true, cfg.locked, alpha_of(&id));
             }
             let visible = !cfg.min && (!cfg.game_only || game_fg || typing || info.is_self);
+            if visible && info.is_game {
+                win32::keep_above(hwnd, win32::foreground());
+            }
             if win32::visible(hwnd) != visible {
                 win32::show(hwnd, visible);
                 if !visible {
@@ -2228,6 +2321,13 @@ pub struct ExtInfo {
     id: String,
     name: String,
     version: String,
+    /// 在這裡停用了
+    off: bool,
+    /// 圖示（data: 網址）
+    icon: String,
+    /// 擴充功能按鈕的選單頁面、選項頁面（要能用固定的編號開啟才有）
+    popup: String,
+    options: String,
 }
 
 #[derive(Serialize)]
@@ -2235,6 +2335,110 @@ pub struct ExtStatus {
     list: Vec<ExtInfo>,
     /// 這台電腦的 WebView2 載入擴充功能失敗過
     broken: bool,
+}
+
+/// 每個擴充功能：版本、放在哪個資料夾（相對 web-ext）、名稱、停用、裝好了沒
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct ExtMark {
+    ver: String,
+    dir: String,
+    name: String,
+    off: bool,
+    loaded: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct ExtState {
+    exts: std::collections::BTreeMap<String, ExtMark>,
+    /// 待安裝的資料夾（新的、更新過的擴充功能放這裡，下次開網頁時安裝）
+    pending: String,
+}
+
+static EXT_LOCK: Mutex<()> = Mutex::new(());
+
+fn ext_state_path() -> PathBuf {
+    WEB_DIR.get().cloned().unwrap_or_default().join("web-ext.json")
+}
+
+fn ext_state() -> ExtState {
+    let Some(v) = read_json(&ext_state_path()) else { return ExtState::default() };
+    if v.get("exts").is_some() {
+        return serde_json::from_value(v).unwrap_or_default();
+    }
+    // 舊版：{ 編號: 版本 }，放在 web-ext/編號，已經裝過
+    let old: HashMap<String, String> = serde_json::from_value(v).unwrap_or_default();
+    ExtState {
+        exts: old.into_iter().map(|(id, ver)| (id.clone(), ExtMark { ver, dir: id, loaded: true, ..ExtMark::default() })).collect(),
+        pending: String::new(),
+    }
+}
+
+fn save_ext_state(st: &ExtState) {
+    if let Ok(t) = serde_json::to_string_pretty(st) {
+        let _ = std::fs::write(ext_state_path(), t);
+    }
+}
+
+/// 擴充功能的圖示 → data: 網址（挑 32 像素左右的）
+fn ext_icon(dir: &Path, m: &Value) -> String {
+    use base64::Engine;
+    let Some(icons) = m["icons"].as_object() else { return String::new() };
+    let best = icons
+        .iter()
+        .filter_map(|(k, v)| Some((k.parse::<i64>().ok()?, v.as_str()?)))
+        .min_by_key(|(k, _)| (k - 32).abs());
+    let Some((_, rel)) = best else { return String::new() };
+    let path = dir.join(rel.trim_start_matches('/'));
+    let Ok(bytes) = std::fs::read(&path) else { return String::new() };
+    if bytes.len() > 200_000 {
+        return String::new();
+    }
+    let mime = match path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase().as_str() {
+        "svg" => "image/svg+xml",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        _ => "image/png",
+    };
+    format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+fn ext_list() -> Vec<ExtInfo> {
+    let st = ext_state();
+    let mut out: Vec<ExtInfo> = st
+        .exts
+        .iter()
+        .map(|(id, mk)| {
+            let dir = ext_dir().join(&mk.dir);
+            let m = read_json(&dir.join("manifest.json"));
+            let (icon, popup, options, name) = match &m {
+                Some(m) if !mk.off => {
+                    // 有 key 的擴充功能編號跟 Chrome 一樣，才能直接開它的頁面
+                    let fixed = m["key"].is_string();
+                    let page = |v: &Value| v.as_str().filter(|s| fixed && !s.is_empty()).map(|s| format!("chrome-extension://{id}/{}", s.trim_start_matches('/')));
+                    let popup = page(&m["action"]["default_popup"])
+                        .or_else(|| page(&m["browser_action"]["default_popup"]))
+                        .or_else(|| page(&m["page_action"]["default_popup"]))
+                        .unwrap_or_default();
+                    let options = page(&m["options_ui"]["page"]).or_else(|| page(&m["options_page"])).unwrap_or_default();
+                    (ext_icon(&dir, m), popup, options, ext_name(&dir, m))
+                }
+                _ => (String::new(), String::new(), String::new(), String::new()),
+            };
+            ExtInfo {
+                id: id.clone(),
+                name: if name.is_empty() { if mk.name.is_empty() { id.clone() } else { mk.name.clone() } } else { name },
+                version: mk.ver.clone(),
+                off: mk.off,
+                icon,
+                popup,
+                options,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out
 }
 
 fn version_key(v: &str) -> Vec<u64> {
@@ -2298,30 +2502,15 @@ fn disabled_ext(profile: &Path) -> HashSet<String> {
     out
 }
 
-fn ext_list() -> Vec<ExtInfo> {
-    let mut out = Vec::new();
-    let Ok(rd) = std::fs::read_dir(ext_dir()) else { return out };
-    for e in rd.flatten() {
-        let dir = e.path();
-        let Some(m) = read_json(&dir.join("manifest.json")) else { continue };
-        out.push(ExtInfo {
-            id: e.file_name().to_string_lossy().to_string(),
-            name: ext_name(&dir, &m),
-            version: m["version"].as_str().unwrap_or("").to_string(),
-        });
-    }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    out
-}
-
-/// 把 Chrome 裡啟用中的擴充功能複製過來（版本沒變的不重複複製；Chrome 移除的這裡也移除）
+/// 把 Chrome 裡啟用中的擴充功能複製過來：版本沒變的不動；新的、更新過的放進「待安裝」；
+/// Chrome 移除的這裡也移除；在這裡停用的不複製
 fn sync_extensions() -> Result<Vec<ExtInfo>, String> {
     let (root, list) = find_profiles()?;
     let chosen = bm_read(|b| b.profile.clone());
     let p = pick_profile(&list, &chosen).ok_or("找不到 Chrome 的使用者")?;
     let profile = root.join(&p.dir);
     let disabled = disabled_ext(&profile);
-    let mut want: HashMap<String, (PathBuf, String)> = HashMap::new();
+    let mut want: HashMap<String, (PathBuf, String, String)> = HashMap::new();
     if let Ok(rd) = std::fs::read_dir(profile.join("Extensions")) {
         for e in rd.flatten() {
             let id = e.file_name().to_string_lossy().to_string();
@@ -2339,39 +2528,79 @@ fn sync_extensions() -> Result<Vec<ExtInfo>, String> {
             if !m["app"].is_null() || !m["theme"].is_null() {
                 continue;
             }
-            want.insert(id, (best.path(), best.file_name().to_string_lossy().to_string()));
+            let name = ext_name(&best.path(), &m);
+            want.insert(id, (best.path(), best.file_name().to_string_lossy().to_string(), name));
         }
     }
-    let dst = ext_dir();
-    std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
-    let marks_path = WEB_DIR.get().cloned().unwrap_or_default().join("web-ext.json");
-    let mut marks: HashMap<String, String> = read_json(&marks_path).and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
-    if let Ok(rd) = std::fs::read_dir(&dst) {
-        for e in rd.flatten() {
-            let id = e.file_name().to_string_lossy().to_string();
-            if !want.contains_key(&id) {
-                let _ = std::fs::remove_dir_all(e.path());
-                marks.remove(&id);
+    let _g = lock(&EXT_LOCK);
+    let base = ext_dir();
+    std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let mut st = ext_state();
+    // Chrome 已經沒有的：移除
+    let gone: Vec<String> = st.exts.keys().filter(|id| !want.contains_key(*id)).cloned().collect();
+    for id in gone {
+        if let Some(mk) = st.exts.remove(&id) {
+            let _ = std::fs::remove_dir_all(base.join(&mk.dir));
+        }
+    }
+    for (id, (src, ver, name)) in &want {
+        let mk = st.exts.entry(id.clone()).or_default();
+        mk.name = name.clone();
+        if mk.off {
+            if !mk.dir.is_empty() {
+                let _ = std::fs::remove_dir_all(base.join(&mk.dir));
             }
-        }
-    }
-    for (id, (src, ver)) in &want {
-        let to = dst.join(id);
-        if marks.get(id) == Some(ver) && to.join("manifest.json").is_file() {
             continue;
         }
-        let _ = std::fs::remove_dir_all(&to);
-        if copy_dir(src, &to).is_ok() {
-            marks.insert(id.clone(), ver.clone());
+        if mk.ver == *ver && !mk.dir.is_empty() && base.join(&mk.dir).join("manifest.json").is_file() {
+            continue;
+        }
+        if st.pending.is_empty() {
+            let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+            st.pending = format!("b{ms}");
+        }
+        let mk = st.exts.get_mut(id).unwrap();
+        if !mk.dir.is_empty() {
+            let _ = std::fs::remove_dir_all(base.join(&mk.dir));
+        }
+        let rel = format!("{}/{id}", st.pending);
+        if copy_dir(src, &base.join(&rel)).is_ok() {
+            *mk = ExtMark { ver: ver.clone(), dir: rel, name: name.clone(), off: false, loaded: false };
         } else {
-            let _ = std::fs::remove_dir_all(&to);
-            marks.remove(id);
+            let _ = std::fs::remove_dir_all(base.join(&rel));
+            mk.dir.clear();
+            mk.ver.clear();
         }
     }
-    if let Ok(t) = serde_json::to_string_pretty(&marks) {
-        let _ = std::fs::write(&marks_path, t);
-    }
+    save_ext_state(&st);
+    drop(_g);
     Ok(ext_list())
+}
+
+/// 在這裡停用／啟用一個擴充功能（重新開啟 web 視窗後生效）
+fn ext_set_off(id: &str, off: bool) -> Result<(), String> {
+    {
+        let _g = lock(&EXT_LOCK);
+        let mut st = ext_state();
+        let Some(mk) = st.exts.get_mut(id) else { return Err("找不到這個擴充功能".into()) };
+        mk.off = off;
+        if off && !mk.dir.is_empty() {
+            let _ = std::fs::remove_dir_all(ext_dir().join(&mk.dir));
+            mk.dir.clear();
+            mk.ver.clear();
+        }
+        save_ext_state(&st);
+    }
+    if !off {
+        sync_extensions()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn web_ext_toggle(id: String, on: bool) -> Result<ExtStatus, String> {
+    ext_set_off(&id, !on)?;
+    Ok(ExtStatus { list: ext_list(), broken: EXT_BROKEN.load(Ordering::SeqCst) })
 }
 
 #[tauri::command]
@@ -2609,13 +2838,14 @@ pub async fn web_menu_open(
         }
         "bm" => bm_read(|b| bm_find_any(b, &target).map(bm_ctx)).map(|x| (x, 220.0)),
         "tab" => Some((tab_ctx(&target), 220.0)),
+        "ext" => Some((ext_items(), 300.0)),
         _ => None,
     };
     let Some(((items, acts), width)) = built else { return Ok(()) };
     let win = app.get_window(&win_label(&wid)).ok_or("找不到這個視窗")?;
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
     let anchor = match (kind.as_str(), rect) {
-        ("folder" | "other" | "overflow", Some([l, t, r, b])) => {
+        ("folder" | "other" | "overflow" | "ext", Some([l, t, r, b])) => {
             let p = win.inner_position().map_err(|e| e.to_string())?;
             let f = |v: f64| (v * sf).round() as i32;
             (p.x + f(l), p.y + f(t), p.x + f(r), p.y + f(b))
@@ -2658,6 +2888,11 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
     if button == 2 {
         if let Act::Link(id) | Act::Folder(id) = &act {
             if let Some((items, acts)) = bm_read(|b| bm_find_any(b, id).map(bm_ctx)) {
+                push_menu(&app, items, acts);
+            }
+        }
+        if let Act::Ext(id) = &act {
+            if let Some((items, acts)) = ext_ctx(id) {
                 push_menu(&app, items, acts);
             }
         }
@@ -2712,6 +2947,33 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
             for c in close {
                 let _ = close_tab(&app, &owner, &c);
             }
+        }
+        Act::Ext(id) => {
+            // 有選單頁面就開；沒有就開選項；都沒有（自動執行的）就顯示右鍵選單
+            let e = ext_list().into_iter().find(|e| e.id == id);
+            let page = e.as_ref().filter(|e| !e.off).map(|e| if e.popup.is_empty() { e.options.clone() } else { e.popup.clone() }).unwrap_or_default();
+            if let Some(u) = Url::parse(&page).ok() {
+                hide_menu(&app, false);
+                let _ = new_tab(&app, &owner, Some(u), true, None);
+            } else if let Some((items, acts)) = ext_ctx(&id) {
+                push_menu(&app, items, acts);
+            }
+        }
+        Act::ExtPage(page) => {
+            hide_menu(&app, false);
+            if let Ok(u) = Url::parse(&page) {
+                let _ = new_tab(&app, &owner, Some(u), true, None);
+            }
+        }
+        Act::ExtToggle(id, off) => {
+            hide_menu(&app, false);
+            let _ = ext_set_off(&id, off);
+            emit_main(&app);
+        }
+        Act::ExtSync => {
+            hide_menu(&app, false);
+            let _ = sync_extensions();
+            emit_main(&app);
         }
         Act::Nothing => {}
     }

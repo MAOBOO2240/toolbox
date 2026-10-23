@@ -39,3 +39,4 @@ label.web-opt { cursor: pointer; }
 .web-exts:empty { display: none; }
 .web-ext { padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
   background: color-mix(in srgb, var(--c) 16%, transparent); color: color-mix(in srgb, var(--c) 75%, var(--text)); }
+.web-ext.off { opacity: 0.5; }

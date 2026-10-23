@@ -119,8 +119,8 @@ if (typeof document !== "undefined") (() => {
     box.innerHTML = "";
     x.list.forEach((e, i) => {
       const chip = document.createElement("span");
-      chip.className = `web-ext ${COLORS[i % COLORS.length]}`;
-      chip.textContent = e.name;
+      chip.className = `web-ext ${COLORS[i % COLORS.length]}${e.off ? " off" : ""}`;
+      chip.textContent = e.off ? `${e.name}（已停用）` : e.name;
       chip.title = `${e.name} ${e.version}`;
       box.append(chip);
     });
