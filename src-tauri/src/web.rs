@@ -563,6 +563,8 @@ struct Rt {
     bar_on_at: Option<Instant>,
     /// 開始打字的時間
     typing_since: Option<Instant>,
+    /// 網頁進入全螢幕（影片全螢幕）：網頁蓋滿整個視窗、工具列藏起來
+    full: bool,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -713,11 +715,13 @@ fn bounds(pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> tauri::Rect {
 fn layout(app: &AppHandle, wid: &str, win: &Window, size: PhysicalSize<u32>) {
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
     let max = win.is_maximized().unwrap_or(false);
+    let full = rt(|m| m.get(wid).is_some_and(|r| r.full));
     if let Some(b) = app.get_webview(&bar_label(wid)) {
         let (p, s) = bar_rect(sf, size);
         let _ = b.set_bounds(bounds(p, s));
+        let _ = if full { b.hide() } else { b.show() };
     }
-    let (pos, sz) = page_rect(sf, size, max);
+    let (pos, sz) = if full { (PhysicalPosition::new(0, 0), size) } else { page_rect(sf, size, max) };
     for t in get(wid).map(|w| w.tabs).unwrap_or_default() {
         if let Some(p) = app.get_webview(&page_label(wid, &t.id)) {
             let _ = p.set_bounds(bounds(pos, sz));
@@ -952,19 +956,61 @@ fn ext_mark_loaded() {
 fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> Result<(), String> {
     let ext = ext_pending();
     let had = ext.is_some();
-    match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
-        Ok(_) => {
+    let made = match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
+        Ok(w) => {
             if had {
                 ext_mark_loaded();
             }
-            Ok(())
+            Ok(w)
         }
         Err(e) if had => {
             eprintln!("擴充功能載入失敗：{e}");
             EXT_BROKEN.store(true, Ordering::SeqCst);
-            win.add_child(page_builder(app, wid, tid, url, None), pos, size).map(|_| ()).map_err(|e| format!("網頁建立失敗：{e}"))
+            win.add_child(page_builder(app, wid, tid, url, None), pos, size).map_err(|e| format!("網頁建立失敗：{e}"))
         }
         Err(e) => Err(format!("網頁建立失敗：{e}")),
+    }?;
+    watch_fullscreen(app, wid, &made);
+    Ok(())
+}
+
+/// 網頁按影片的全螢幕：整個視窗變全螢幕、網頁蓋滿；離開時還原
+#[cfg(windows)]
+fn watch_fullscreen(app: &AppHandle, wid: &str, wv: &Webview) {
+    use webview2_com::ContainsFullScreenElementChangedEventHandler;
+    let (app2, wid2) = (app.clone(), wid.to_string());
+    let _ = wv.with_webview(move |pw| unsafe {
+        let Ok(core) = pw.controller().CoreWebView2() else { return };
+        let mut token = 0i64;
+        let _ = core.add_ContainsFullScreenElementChanged(
+            &ContainsFullScreenElementChangedEventHandler::create(Box::new(move |core, _| {
+                let Some(core) = core else { return Ok(()) };
+                let mut on = 0i32;
+                if core.ContainsFullScreenElement(&mut on as *mut i32 as *mut _).is_ok() {
+                    let (app3, wid3) = (app2.clone(), wid2.clone());
+                    std::thread::spawn(move || set_fullscreen(&app3, &wid3, on != 0));
+                }
+                Ok(())
+            })),
+            &mut token,
+        );
+    });
+}
+
+#[cfg(not(windows))]
+fn watch_fullscreen(_app: &AppHandle, _wid: &str, _wv: &Webview) {}
+
+fn set_fullscreen(app: &AppHandle, wid: &str, on: bool) {
+    let changed = rt(|m| m.get_mut(wid).map(|r| std::mem::replace(&mut r.full, on) != on)).unwrap_or(false);
+    if !changed {
+        return;
+    }
+    hide_menu_of(app, wid);
+    close_ext_popup(app, wid);
+    let Some(win) = app.get_window(&win_label(wid)) else { return };
+    let _ = win.set_fullscreen(on);
+    if let Ok(size) = win.inner_size() {
+        layout(app, wid, &win, size);
     }
 }
 
@@ -979,6 +1025,7 @@ fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<()
 }
 
 fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
+    close_ext_popup(app, wid);
     let (prev, title) = edit(wid, |w| {
         let t = w.tabs.iter().find(|t| t.id == tid)?.clone();
         w.url = t.url;
@@ -1176,6 +1223,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     win.on_window_event(move |ev| match ev {
         // 放到最大（按鈕、按兩下、拖到螢幕頂端）時不記大小，還原後回到原本的大小
         WindowEvent::Resized(s) if s.width > 0 && s.height > 0 => {
+            close_ext_popup(&app2, &id2);
             layout(&app2, &id2, &win2, *s);
             let max = win2.is_maximized().unwrap_or(false);
             let (w, h) = (s.width, s.height);
@@ -1198,6 +1246,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
             }
         }
         WindowEvent::Moved(p) if p.x > -10000 && p.y > -10000 => {
+            close_ext_popup(&app2, &id2);
             let (x, y) = (p.x, p.y);
             let max = win2.is_maximized().unwrap_or(false);
             edit(&id2, |c| {
@@ -1957,6 +2006,44 @@ fn web_hwnds() -> Vec<isize> {
     rt(|m| m.values().map(|r| r.hwnd).filter(|h| *h != 0).collect())
 }
 
+/// 擴充功能的小視窗：蓋在網頁上（像 Chrome 按擴充功能圖示那樣），目前的分頁不變，擴充功能才看得到「目前網頁」
+static EXT_POPUP: Mutex<Option<(String, (i32, i32, i32, i32))>> = Mutex::new(None);
+
+fn ext_popup_label(wid: &str) -> String {
+    format!("webext-{wid}")
+}
+
+fn close_ext_popup(app: &AppHandle, wid: &str) {
+    let open = lock(&EXT_POPUP).as_ref().is_some_and(|(w, _)| w == wid);
+    if open {
+        *lock(&EXT_POPUP) = None;
+    }
+    if let Some(p) = app.get_webview(&ext_popup_label(wid)) {
+        let _ = p.close();
+    }
+}
+
+/// 在視窗右上（擴充功能按鈕下面）開擴充功能的頁面；anchor = 貼著的範圍（螢幕實體像素）
+fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, i32)) -> Result<(), String> {
+    close_ext_popup(app, wid);
+    let win = app.get_window(&win_label(wid)).ok_or("找不到視窗")?;
+    let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
+    let size = win.inner_size().map_err(|e| e.to_string())?;
+    let origin = win.inner_position().map_err(|e| e.to_string())?;
+    let (w, h) = ((400.0 * sf).round() as i32, (560.0 * sf).round() as i32);
+    let w = w.min(size.width as i32 - 8).max(100);
+    let h = h.min(size.height as i32 - (BAR_H * sf) as i32 - 8).max(100);
+    let x = (anchor.2 - origin.x - w).max(4).min(size.width as i32 - w - 4);
+    let y = (anchor.3 - origin.y + 4).max(0).min(size.height as i32 - h);
+    let b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
+        .data_directory(profile_dir())
+        .browser_extensions_enabled(true)
+        .disable_drag_drop_handler();
+    win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
+    *lock(&EXT_POPUP) = Some((wid.to_string(), (origin.x + x, origin.y + y, origin.x + x + w, origin.y + y + h)));
+    Ok(())
+}
+
 fn install_subclass(app: &AppHandle, hwnd: isize, rect: (i32, i32, u32, u32)) {
     #[cfg(windows)]
     if hwnd != 0 {
@@ -2090,19 +2177,31 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             let mut seen: Option<Instant> = None;
             loop {
                 let cur = lock(&MENU).as_ref().filter(|s| s.visible).map(|s| (s.rect, s.shown_at));
-                let Some((rect, shown)) = cur else {
+                let pop = lock(&EXT_POPUP).clone();
+                if cur.is_none() && pop.is_none() {
                     seen = None;
                     std::thread::sleep(Duration::from_millis(300));
                     continue;
-                };
+                }
                 let down = win32::mouse_down();
-                if seen != Some(shown) {
-                    // 剛打開：打開它的那一下不算
-                    seen = Some(shown);
-                } else if down && !prev_down {
-                    let (x, y) = win32::cursor();
-                    if x < rect.0 || x >= rect.2 || y < rect.1 || y >= rect.3 {
-                        hide_menu(&app2, true);
+                if let Some((rect, shown)) = cur {
+                    if seen != Some(shown) {
+                        // 剛打開：打開它的那一下不算
+                        seen = Some(shown);
+                    } else if down && !prev_down {
+                        let (x, y) = win32::cursor();
+                        if x < rect.0 || x >= rect.2 || y < rect.1 || y >= rect.3 {
+                            hide_menu(&app2, true);
+                        }
+                    }
+                }
+                // 擴充功能的小視窗：點外面就關
+                if let Some((wid, rect)) = pop {
+                    if down && !prev_down {
+                        let (x, y) = win32::cursor();
+                        if x < rect.0 || x >= rect.2 || y < rect.1 || y >= rect.3 {
+                            close_ext_popup(&app2, &wid);
+                        }
                     }
                 }
                 prev_down = down;
@@ -3070,8 +3169,8 @@ pub fn web_menu_init() -> MenuPayload {
 /// 選單裡點了第幾項：button 0 左鍵、1 中鍵（書籤開在新分頁）、2 右鍵（書籤的右鍵選單）
 #[tauri::command]
 pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
-    let picked = lock(&MENU).as_ref().filter(|s| s.visible).map(|s| (s.owner.clone(), s.acts.get(index).cloned()));
-    let Some((owner, Some(act))) = picked else { return };
+    let picked = lock(&MENU).as_ref().filter(|s| s.visible).map(|s| (s.owner.clone(), s.acts.get(index).cloned(), s.anchor));
+    let Some((owner, Some(act), anchor)) = picked else { return };
     let only_right = matches!(act, Act::TabRight(_));
     if button == 2 {
         if let Act::Link(id) | Act::Folder(id) = &act {
@@ -3139,8 +3238,14 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
         Act::Ext(id) => {
             // 有選單頁面就開；沒有就開選項；都沒有（自動執行的）就顯示右鍵選單
             let e = ext_list().into_iter().find(|e| e.id == id);
-            let page = e.as_ref().filter(|e| !e.off).map(|e| if e.popup.is_empty() { e.options.clone() } else { e.popup.clone() }).unwrap_or_default();
-            if let Some(u) = Url::parse(&page).ok() {
+            let e = e.filter(|e| !e.off);
+            let popup = e.as_ref().and_then(|e| Url::parse(&e.popup).ok());
+            let options = e.as_ref().and_then(|e| Url::parse(&e.options).ok());
+            if let Some(u) = popup {
+                // 像 Chrome 一樣開成小視窗蓋在網頁上，分頁不變，擴充功能才知道目前是哪個網站
+                hide_menu(&app, false);
+                let _ = open_ext_popup(&app, &owner, u, anchor);
+            } else if let Some(u) = options {
                 hide_menu(&app, false);
                 let _ = new_tab(&app, &owner, Some(u), true, None);
             } else if let Some((items, acts)) = ext_ctx(&id) {
@@ -3150,7 +3255,11 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
         Act::ExtPage(page) => {
             hide_menu(&app, false);
             if let Ok(u) = Url::parse(&page) {
-                let _ = new_tab(&app, &owner, Some(u), true, None);
+                if ext_list().iter().any(|e| e.popup == page) {
+                    let _ = open_ext_popup(&app, &owner, u, anchor);
+                } else {
+                    let _ = new_tab(&app, &owner, Some(u), true, None);
+                }
             }
         }
         Act::ExtToggle(id, off) => {

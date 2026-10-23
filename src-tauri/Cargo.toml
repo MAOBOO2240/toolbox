@@ -24,6 +24,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
 windows = { version = "0.58", features = ["Foundation", "Foundation_Collections", "Data_Xml_Dom", "UI_Notifications", "Media_SpeechSynthesis", "Storage_Streams"] }
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",

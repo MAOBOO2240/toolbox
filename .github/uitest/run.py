@@ -339,6 +339,11 @@ web_json = {
 }
 with open(os.path.join(data_dir, "web.json"), "w", encoding="utf-8") as f:
     json.dump(web_json, f, ensure_ascii=False)
+# 測試用的擴充功能（放在待安裝的資料夾）
+EXT_ID = "eamehjingoajmedombhecpkpagoadodo"
+shutil.copytree(os.path.join(HERE, "ext"), os.path.join(data_dir, "web-ext", "b1", EXT_ID))
+with open(os.path.join(data_dir, "web-ext.json"), "w", encoding="utf-8") as f:
+    json.dump({"exts": {EXT_ID: {"ver": "1.0", "dir": f"b1/{EXT_ID}", "name": "測試擴充功能", "off": False, "loaded": False}}, "pending": "b1"}, f, ensure_ascii=False)
 
 # ---------- 開假的遊戲、開程式 ----------
 game_proc = subprocess.Popen([sys.executable, os.path.join(HERE, "game.py"), GAME_LOG])
@@ -991,6 +996,46 @@ def s_dpi():
     click(*C(tab_x(0), 23), wait=1.0)
 
 
+def s_fullscreen():
+    click_bar(TAB(0), (tab_x(0), 23), wait=1.0)
+    n0 = len([c for c in children(web) if user32.IsWindowVisible(c)])
+    click(*C(5 + 100, 108 + 420), wait=2.0)
+    shot("fullscreen")
+    r = wrect(web)
+    sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
+    check("影片全螢幕：視窗蓋滿整個螢幕", r == (0, 0, sw, sh), f"{r} screen={sw}x{sh}")
+    check("影片全螢幕：工具列藏起來、網頁蓋滿", len(vis) == 1 and vis[0] == (0, 0, sw, sh), f"{vis}")
+    check("影片全螢幕：網頁收到", "fullscreen on" in page_log() or "fullscreenchange true" in page_log(), page_log()[-200:])
+    key(0x1B)
+    time.sleep(2.0)
+    shot("fullscreen_off")
+    r = wrect(web)
+    vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
+    check("按 Esc：回到原本的大小", r == (80, 60, 980, 680), f"{r}")
+    check("按 Esc：工具列回來", len(vis) == n0 and any(x[1] == r[1] for x in vis), f"{vis}")
+
+
+def s_ext():
+    before = [c for c in children(web) if user32.IsWindowVisible(c)]
+    click(*C(W() - 23, 59), wait=1.5)
+    m = menu_win()
+    check("按擴充功能按鈕：出現選單", m and user32.IsWindowVisible(m), f"{m}")
+    shot("ext_menu")
+    if m:
+        mr = wrect(m)
+        click(mr[0] + 60, mr[1] + 5 + 15, wait=3.0)
+    shot("ext_popup")
+    after = [c for c in children(web) if user32.IsWindowVisible(c)]
+    check("點擴充功能：小視窗蓋在網頁上", len(after) == len(before) + 1, f"{[wrect(c) for c in after]}")
+    log("ext log:", [l for l in page_log().splitlines() if "[ext]" in l][-6:])
+    act = next((l for l in page_log().splitlines() if "[ext] active:" in l), "")
+    check("擴充功能看得到目前的網頁（active tab）", "test.html" in act, act[-200:])
+    click(*C(5 + 100, 108 + 320), wait=1.0)
+    after2 = [c for c in children(web) if user32.IsWindowVisible(c)]
+    check("點外面：小視窗關掉", len(after2) == len(before), f"{len(after2)}")
+
+
 def s_minimize():
     click_bar(BTN_MIN, (W() - 115, 20), wait=1.2)
     check("按縮小：縮到工作列", user32.IsIconic(web))
@@ -1019,6 +1064,8 @@ for name, fn in [
     ("game", s_game),
     ("notepad", s_notepad),
     ("dpi", s_dpi),
+    ("fullscreen", s_fullscreen),
+    ("ext", s_ext),
     ("minimize", s_minimize),
     ("close", s_close),
 ]:

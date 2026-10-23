@@ -14,10 +14,12 @@
 <button id="pop" onclick="window.open('http://127.0.0.1:8765/popup.html','pp','width=420,height=300')">popup</button>
 <a id="blank" href="http://127.0.0.1:8765/snap.html?blank" target="_blank">blank link</a>
 <div id="empty">empty area</div>
+<button id="fs" style="position:fixed;left:20px;top:400px;width:160px;height:40px" onclick="document.documentElement.requestFullscreen().then(()=>log('fullscreen on')).catch((e)=>log('fullscreen err '+e))">fullscreen</button>
 <script>
   const log = (m) => fetch('/log?m=' + encodeURIComponent('[test] ' + m)).catch(() => {});
   q.addEventListener('input', () => log('input:' + q.value));
   addEventListener('resize', () => log('resize:' + innerWidth + 'x' + innerHeight));
+  document.addEventListener('fullscreenchange', () => log('fullscreenchange ' + !!document.fullscreenElement + ' ' + innerWidth + 'x' + innerHeight));
   document.addEventListener('visibilitychange', () => log('vis:' + document.visibilityState));
   log('load:' + innerWidth + 'x' + innerHeight + ' dpr=' + devicePixelRatio + ' ' + location.search);
   // 診斷：內嵌框送來的訊息、標題上的打字記號

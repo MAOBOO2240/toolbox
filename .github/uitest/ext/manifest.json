@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "測試擴充功能",
+  "version": "1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3PqIUkS1xfcz4UnDVJ8GbkNwhEamCEFFv4DOEZBo+wReohY0jxMM5GVJjBMpkijNxgGeXG6eJfAd4tjbNlpK1dtvd+ijsOLYpBy/vba9a0WJQWYfrN/IyRzyPM4LTK8phWiSMiod/XnIvJAH9megDDXlKy9HZU4j7YpGsPbpNXJom7qK7jmCNNGUbFoWM9MPcrECe5W5VtWjO9Nv+n+WKrWnpwntxAoyrHnha6maHZaM53i/H+ajtvKj13UKiAzlu3/IKc3TNdSf1//qBXuElIYXoj/Cn6j6SBfMZbwuE+HDrvCyDHwVf4eXlOYz3oP4B7QE2I+emhehOh2SNZoLQIDAQAB",
+  "action": { "default_popup": "popup.html" },
+  "permissions": ["tabs"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"]
+}
