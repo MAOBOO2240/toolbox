@@ -42,13 +42,18 @@ const MENU_MAX_H: f64 = 520.0;
 /// 注入外部網頁的小腳本：只負責「現在有沒有輸入框被選取」，用標題最後的隱形記號告訴程式。
 /// 不會讀取網頁內容，也不會送出任何資料。
 const TYPING_JS: &str = r#"(() => {
-  if (window.top !== window) return;
-  const M = "\u2063\u2063";
+  if (window.__mbTyping) return;
+  window.__mbTyping = true;
   const NOTXT = /^(button|checkbox|radio|range|submit|reset|file|color|image|hidden)$/i;
-  let on = false, busy = false;
   const deep = (a) => { while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; return a; };
   const editable = (el) => !!el && el.nodeType === 1 && (el.isContentEditable || el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !NOTXT.test(el.type || "text")));
+  const target = (e) => (e.composedPath ? e.composedPath()[0] : e.target);
+  const top = window.top === window;
+  let mine = false, frame = false, sent = null, busy = false;
+  const M = "⁣⁣";
   const apply = () => {
+    if (!top) return;
+    const on = mine || frame;
     const t = document.title || "";
     const has = t.endsWith(M);
     if (on === has) return;
@@ -56,15 +61,23 @@ const TYPING_JS: &str = r#"(() => {
     document.title = on ? t + M : t.slice(0, -M.length);
     busy = false;
   };
-  const set = (v) => { if (v !== on) { on = v; apply(); } };
-  const check = () => set(editable(deep(document.activeElement)));
-  // 點下去的那一刻就判斷（視窗沒有焦點時，網頁不一定會收到 focus 事件）
+  // 內嵌的框架（例如登入框）：選到輸入框時告訴最上層的網頁
+  const report = () => {
+    if (top) { apply(); return; }
+    if (sent === mine) return;
+    sent = mine;
+    try { window.top.postMessage({ __mbTyping: mine }, "*"); } catch (_) {}
+  };
+  const set = (v) => { if (v !== mine) { mine = v; report(); } };
+  const check = () => set(editable(deep(document.activeElement)) && (top || document.hasFocus()));
   document.addEventListener("pointerdown", (e) => {
-    const t = e.composedPath ? e.composedPath()[0] : e.target;
-    if (editable(t)) set(true); else setTimeout(check, 0);
+    const t = target(e);
+    if (top && !(t && t.tagName === "IFRAME")) { frame = false; }
+    if (editable(t)) set(true); else { setTimeout(check, 0); apply(); }
   }, true);
   document.addEventListener("focusin", check, true);
   document.addEventListener("focusout", () => setTimeout(check, 0), true);
+  if (!top) window.addEventListener("blur", () => set(false));
   // 單行輸入框按 Enter（選字中的 Enter 不算）：送出後取消選取，鍵盤還給遊戲
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || e.isComposing || e.keyCode === 229) return;
@@ -72,11 +85,16 @@ const TYPING_JS: &str = r#"(() => {
     if (!t || t.tagName !== "INPUT" || !editable(t)) return;
     setTimeout(() => { if (deep(document.activeElement) === t) t.blur(); set(false); }, 150);
   }, true);
-  const watch = () => {
-    if (!document.head) return;
-    new MutationObserver(() => { if (!busy) apply(); }).observe(document.head, { childList: true, subtree: true, characterData: true });
-  };
-  if (document.head) watch(); else document.addEventListener("DOMContentLoaded", watch, { once: true });
+  if (top) {
+    window.addEventListener("message", (e) => {
+      if (e.data && typeof e.data.__mbTyping === "boolean") { frame = e.data.__mbTyping; apply(); }
+    });
+    const watch = () => {
+      if (!document.head) return;
+      new MutationObserver(() => { if (!busy) apply(); }).observe(document.head, { childList: true, subtree: true, characterData: true });
+    };
+    if (document.head) watch(); else document.addEventListener("DOMContentLoaded", watch, { once: true });
+  }
 })();"#;
 
 /// 網頁載入完成後取得網站圖示的網址（只回傳網址，不做其他事）
@@ -165,6 +183,12 @@ pub struct Bm {
     pub title: String,
     pub url: String,
     pub children: Vec<Bm>,
+    /// 從 Chrome 同步來的：Chrome 書籤的編號（Chrome 改名、刪除時跟著變）
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub src: String,
+    /// 在這裡改過名：同步時不要用 Chrome 的名稱蓋掉
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub renamed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -380,6 +404,11 @@ fn has_host(list: &[Bm], host: &str) -> bool {
     list.iter().any(|b| (!b.url.is_empty() && host_of(&b.url).as_deref() == Some(host)) || has_host(&b.children, host))
 }
 
+/// Chrome 書籤的編號（guid，舊版 Chrome 用 id）
+fn chrome_key(v: &Value) -> String {
+    v["guid"].as_str().or_else(|| v["id"].as_str()).map(|s| format!("c:{s}")).unwrap_or_default()
+}
+
 /// Chrome 書籤檔裡的一個節點 → 書籤（只收網頁網址）
 fn from_chrome(v: &Value, next: &mut u64) -> Option<Bm> {
     let title = v["name"].as_str().unwrap_or("").to_string();
@@ -390,7 +419,7 @@ fn from_chrome(v: &Value, next: &mut u64) -> Option<Bm> {
                 return None;
             }
             *next += 1;
-            Some(Bm { id: format!("b{}", *next), title, url: url.to_string(), children: Vec::new() })
+            Some(Bm { id: format!("b{}", *next), title, url: url.to_string(), src: chrome_key(v), ..Bm::default() })
         }
         "folder" => {
             let children: Vec<Bm> = v["children"]
@@ -398,24 +427,81 @@ fn from_chrome(v: &Value, next: &mut u64) -> Option<Bm> {
                 .map(|a| a.iter().filter_map(|c| from_chrome(c, next)).collect())
                 .unwrap_or_default();
             *next += 1;
-            Some(Bm { id: format!("b{}", *next), title, url: String::new(), children })
+            Some(Bm { id: format!("b{}", *next), title, children, src: chrome_key(v), ..Bm::default() })
         }
         _ => None,
     }
 }
 
+/// 在這裡刪過的書籤（Chrome 編號，或舊版記的網址、「folder:名稱」）
+fn is_ignored(b: &Bm, ignored: &[String]) -> bool {
+    ignored.iter().any(|i| {
+        (!b.src.is_empty() && *i == b.src)
+            || (b.url.is_empty() && *i == format!("folder:{}", b.title))
+            || (!b.url.is_empty() && same_url(i, &b.url))
+    })
+}
+
 /// 拿掉在這裡刪過的書籤
 fn drop_ignored(list: Vec<Bm>, ignored: &[String]) -> Vec<Bm> {
     list.into_iter()
-        .filter(|b| {
-            let key = if b.url.is_empty() { format!("folder:{}", b.title) } else { b.url.clone() };
-            !ignored.iter().any(|i| if b.url.is_empty() { *i == key } else { same_url(i, &key) })
-        })
+        .filter(|b| !is_ignored(b, ignored))
         .map(|mut b| {
             b.children = drop_ignored(std::mem::take(&mut b.children), ignored);
             b
         })
         .collect()
+}
+
+/// 跟 Chrome 同步一層書籤：Chrome 改名、改網址、刪除都跟著變，新的加在最後；
+/// 在這裡改過名的維持；在這裡刪掉的不再加回；自己加的（不是從 Chrome 來的）不動。回傳新增幾個
+fn sync_level(dst: &mut Vec<Bm>, src: Vec<Bm>, ignored: &[String]) -> usize {
+    // 舊版匯入的（沒有 Chrome 編號）：用網址或資料夾名稱認領，不要重複
+    for s in &src {
+        if s.src.is_empty() || dst.iter().any(|d| d.src == s.src) {
+            continue;
+        }
+        let same = |d: &&mut Bm| {
+            d.src.is_empty()
+                && d.url.is_empty() == s.url.is_empty()
+                && if s.url.is_empty() { d.title == s.title } else { same_url(&d.url, &s.url) }
+        };
+        if let Some(d) = dst.iter_mut().find(same) {
+            d.src = s.src.clone();
+        }
+    }
+    let pos: HashMap<String, usize> = src.iter().enumerate().map(|(i, s)| (s.src.clone(), i)).collect();
+    let mut left: Vec<Option<Bm>> = src.into_iter().map(Some).collect();
+    let mut added = 0;
+    let mut keep = Vec::new();
+    for mut d in std::mem::take(dst) {
+        if d.src.is_empty() {
+            keep.push(d);
+            continue;
+        }
+        // Chrome 裡已經沒有（刪掉或搬走）→ 這裡也拿掉
+        let Some(s) = pos.get(&d.src).and_then(|&i| left[i].take()) else { continue };
+        if !d.renamed {
+            d.title = s.title;
+        }
+        if d.url.is_empty() {
+            added += sync_level(&mut d.children, s.children, ignored);
+        } else if !s.url.is_empty() {
+            d.url = s.url;
+        }
+        keep.push(d);
+    }
+    for s in left.into_iter().flatten() {
+        if s.src.is_empty() || is_ignored(&s, ignored) {
+            continue;
+        }
+        let mut s = s;
+        s.children = drop_ignored(std::mem::take(&mut s.children), ignored);
+        added += if s.url.is_empty() { count_links(&s.children) } else { 1 };
+        keep.push(s);
+    }
+    *dst = keep;
+    added
 }
 
 /// 合併匯入的書籤：同一層已經有相同網址就略過；同名資料夾合併在一起。回傳新增了幾個書籤
@@ -629,20 +715,65 @@ fn work_area(win: &Window, x: i32, y: i32) -> Option<(PhysicalPosition<i32>, Phy
     Some((wa.position, wa.size))
 }
 
-fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url) -> WebviewBuilder<tauri::Wry> {
+/// web 視窗的網頁用自己的瀏覽器資料夾（登入狀態、擴充功能都放這裡）
+fn profile_dir() -> PathBuf {
+    WEB_DIR.get().cloned().unwrap_or_default().join("web-profile")
+}
+
+/// 從 Chrome 同步來的擴充功能
+fn ext_dir() -> PathBuf {
+    WEB_DIR.get().cloned().unwrap_or_default().join("web-ext")
+}
+
+static WEB_DIR: OnceLock<PathBuf> = OnceLock::new();
+/// 載入擴充功能失敗過（例如 WebView2 太舊）：之後不再載入，避免網頁開不起來
+static EXT_BROKEN: AtomicBool = AtomicBool::new(false);
+static POPUP_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+fn has_extensions() -> bool {
+    std::fs::read_dir(ext_dir()).map(|mut d| d.any(|e| e.is_ok_and(|e| e.path().join("manifest.json").is_file()))).unwrap_or(false)
+}
+
+/// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉
+fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
+    let n = POPUP_N.fetch_add(1, Ordering::SeqCst) + 1;
+    WebviewWindowBuilder::new(app, format!("webpop-{n}"), WebviewUrl::External("about:blank".parse().ok()?))
+        .window_features(features)
+        .title(url.host_str().unwrap_or("登入"))
+        .always_on_top(true)
+        .focused(true)
+        .on_document_title_changed(|w, title| {
+            let _ = w.set_title(&title);
+        })
+        .build()
+        .ok()
+}
+
+fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: bool) -> WebviewBuilder<tauri::Wry> {
     let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
     let (w1, w2, w3) = (wid.to_string(), wid.to_string(), wid.to_string());
     let (t1, t2, t3) = (tid.to_string(), tid.to_string(), tid.to_string());
-    WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
-        .initialization_script(TYPING_JS)
+    let mut b = WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
+        .data_directory(profile_dir())
+        .browser_extensions_enabled(true);
+    if ext {
+        b = b.extensions_path(ext_dir());
+    }
+    b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
         .disable_drag_drop_handler()
         .on_page_load(move |wv, p| {
             on_page(&a1, &w1, &t1, &wv, p.url(), matches!(p.event(), PageLoadEvent::Started));
         })
         .on_document_title_changed(move |_wv, raw| on_title(&a2, &w2, &t2, raw))
-        // 開新分頁的連結：在這個視窗開一個新分頁
-        .on_new_window(move |u, _features| {
+        // 登入用的小視窗開成真的視窗；其他開新分頁的連結：在這個視窗開一個新分頁
+        .on_new_window(move |u, features| {
+            if features.size().is_some() {
+                return match popup_window(&a3, &u, features) {
+                    Some(window) => NewWindowResponse::Create { window },
+                    None => NewWindowResponse::Allow,
+                };
+            }
             if web_url(&u) {
                 let (app, wid, tid) = (a3.clone(), w3.clone(), t3.clone());
                 std::thread::spawn(move || {
@@ -755,6 +886,20 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
     }
 }
 
+/// 加上分頁的網頁；載入擴充功能失敗就不載入再試一次
+fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: LogicalPosition<f64>, size: LogicalSize<f64>) -> Result<(), String> {
+    let ext = !EXT_BROKEN.load(Ordering::SeqCst) && has_extensions();
+    match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
+        Ok(_) => Ok(()),
+        Err(e) if ext => {
+            eprintln!("擴充功能載入失敗：{e}");
+            EXT_BROKEN.store(true, Ordering::SeqCst);
+            win.add_child(page_builder(app, wid, tid, url, false), pos, size).map(|_| ()).map_err(|e| format!("網頁建立失敗：{e}"))
+        }
+        Err(e) => Err(format!("網頁建立失敗：{e}")),
+    }
+}
+
 /// 建立分頁的網頁（要在主執行緒以外呼叫）
 fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<(), String> {
     let url = get(wid).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url).unwrap_or_default();
@@ -762,8 +907,7 @@ fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<()
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
     let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
     let (pos, sz) = page_rect(sf, size);
-    win.add_child(page_builder(app, wid, tid, url), pos, sz).map_err(|e| format!("網頁建立失敗：{e}"))?;
-    Ok(())
+    add_page(app, win, wid, tid, url, pos, sz)
 }
 
 fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
@@ -939,7 +1083,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     // 下面：目前分頁的網頁（其他分頁點到時才載入）
     let url = parse_web(&cfg.url).unwrap_or_else(|| Url::parse(HOME).unwrap());
     let (ppos, psz) = page_rect(sf, size);
-    win.add_child(page_builder(app, id, &cfg.active, url), ppos, psz).map_err(|e| format!("網頁建立失敗：{e}"))?;
+    add_page(app, &win, id, &cfg.active, url, ppos, psz)?;
 
     let (app2, id2, win2) = (app.clone(), id.to_string(), win.clone());
     win.on_window_event(move |ev| match ev {
@@ -1326,9 +1470,14 @@ mod win32 {
         }
     }
 
+    /// 別的程式的視窗（例如遊戲）。自己的視窗之間不互相還前景，否則會無限來回卡住
+    unsafe fn foreign(h: HWND) -> bool {
+        !h.is_null() && IsWindow(h) != 0 && !is_own(h as isize)
+    }
+
     /// 被啟用了（網頁元件自己搶、或拖曳造成的）：把前景還給原本的視窗
     unsafe fn give_back_later(hwnd: HWND, prev: HWND) {
-        if prev.is_null() || IsWindow(prev) == 0 {
+        if !foreign(prev) {
             return;
         }
         let mut mv = lock(&MOVING);
@@ -1399,13 +1548,13 @@ mod win32 {
                     mv.retain(|e| e.0 != hwnd as isize);
                     p
                 };
-                if prev != 0 && !typing(hwnd) && GetForegroundWindow() == hwnd {
+                if prev != 0 && !typing(hwnd) && foreign(prev as HWND) && GetForegroundWindow() == hwnd {
                     PostMessageW(hwnd, WM_REFOCUS, prev as WPARAM, 0);
                 }
                 DefSubclassProc(hwnd, msg, wp, lp)
             }
             WM_REFOCUS => {
-                if !typing(hwnd) && IsWindow(wp as HWND) != 0 {
+                if !typing(hwnd) && foreign(wp as HWND) && GetForegroundWindow() == hwnd {
                     SetForegroundWindow(wp as HWND);
                 }
                 0
@@ -1423,13 +1572,13 @@ mod win32 {
             WM_MOUSEACTIVATE => MA_NOACTIVATE as LRESULT,
             WM_ACTIVATE => {
                 let prev = lp as HWND;
-                if (wp & 0xFFFF) != 0 && !prev.is_null() && IsWindow(prev) != 0 {
+                if (wp & 0xFFFF) != 0 && foreign(prev) {
                     PostMessageW(hwnd, WM_REFOCUS, prev as WPARAM, 0);
                 }
                 DefSubclassProc(hwnd, msg, wp, lp)
             }
             WM_REFOCUS => {
-                if IsWindow(wp as HWND) != 0 {
+                if foreign(wp as HWND) && GetForegroundWindow() == hwnd {
                     SetForegroundWindow(wp as HWND);
                 }
                 0
@@ -1630,12 +1779,16 @@ fn leave_typing(app: &AppHandle, id: &str, hwnd: isize) {
 /* ---------------- 背景執行緒 ---------------- */
 
 pub fn init(app: &AppHandle, path: PathBuf) {
+    if let Some(dir) = path.parent() {
+        let _ = WEB_DIR.set(dir.to_path_buf());
+    }
     let file = load(&path);
     let reopen: Vec<String> = file.wins.iter().filter(|w| w.open).map(|w| w.id.clone()).collect();
     let _ = STORE.set(Mutex::new(Store { file, path, dirty: false }));
     let app1 = app.clone();
     std::thread::spawn(move || {
-        // 上次關閉程式時開著的視窗：重新打開
+        // 上次關閉程式時開著的視窗：重新打開（先從 Chrome 同步擴充功能）
+        let _ = sync_extensions();
         std::thread::sleep(Duration::from_millis(1500));
         for id in reopen {
             if let Err(e) = open_window(&app1, &id, false) {
@@ -1982,14 +2135,15 @@ fn import_chrome(app: &AppHandle, force: bool) -> Result<(ChromeProfile, usize),
     }
     let mut next = bm_read(|b| b.next_id);
     let (bar, other) = read_profile(&root, &p.dir, &mut next).ok_or("讀不到這個使用者的書籤")?;
-    let added = bm(|b| {
+    let (added, changed) = bm(|b| {
         b.next_id = b.next_id.max(next);
-        let bar = drop_ignored(bar, &b.ignored);
-        let other = drop_ignored(other, &b.ignored);
-        merge(&mut b.bar, bar) + merge(&mut b.other, other)
+        let before = serde_json::to_string(&(&b.bar, &b.other)).unwrap_or_default();
+        let ignored = b.ignored.clone();
+        let added = sync_level(&mut b.bar, bar, &ignored) + sync_level(&mut b.other, other, &ignored);
+        (added, serde_json::to_string(&(&b.bar, &b.other)).unwrap_or_default() != before)
     });
     *lock(&SYNCED) = Some((p.dir.clone(), mtime));
-    if added > 0 {
+    if changed {
         emit_bm(app);
     }
     Ok((p, added))
@@ -2035,6 +2189,172 @@ pub async fn web_chrome_sync(app: AppHandle, on: bool) {
         let _ = import_chrome(&app, true);
     }
     emit_main(&app);
+}
+
+/* ---------------- 擴充功能（從 Chrome 複製） ---------------- */
+
+#[derive(Serialize, Clone)]
+pub struct ExtInfo {
+    id: String,
+    name: String,
+    version: String,
+}
+
+#[derive(Serialize)]
+pub struct ExtStatus {
+    list: Vec<ExtInfo>,
+    /// 這台電腦的 WebView2 載入擴充功能失敗過
+    broken: bool,
+}
+
+fn version_key(v: &str) -> Vec<u64> {
+    v.split(['.', '_']).map(|p| p.parse().unwrap_or(0)).collect()
+}
+
+/// 名稱是「__MSG_xxx__」時，到 _locales 找翻譯（繁中優先）
+fn ext_name(dir: &Path, manifest: &Value) -> String {
+    let raw = manifest["name"].as_str().unwrap_or("").to_string();
+    let Some(key) = raw.strip_prefix("__MSG_").and_then(|k| k.strip_suffix("__")) else { return raw };
+    let key = key.to_lowercase();
+    let default = manifest["default_locale"].as_str().unwrap_or("en").to_string();
+    for loc in ["zh_TW", "zh_HK", "zh_CN", default.as_str(), "en"] {
+        let Some(m) = read_json(&dir.join("_locales").join(loc).join("messages.json")) else { continue };
+        if let Some(obj) = m.as_object() {
+            if let Some((_, v)) = obj.iter().find(|(k, _)| k.to_lowercase() == key) {
+                if let Some(t) = v["message"].as_str() {
+                    return t.to_string();
+                }
+            }
+        }
+    }
+    raw
+}
+
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for e in std::fs::read_dir(from)? {
+        let e = e?;
+        let name = e.file_name();
+        // Chrome 線上商店的簽章資料夾不需要
+        if name == "_metadata" {
+            continue;
+        }
+        let ft = e.file_type()?;
+        if ft.is_dir() {
+            copy_dir(&e.path(), &to.join(&name))?;
+        } else if ft.is_file() {
+            std::fs::copy(e.path(), to.join(&name))?;
+        }
+    }
+    Ok(())
+}
+
+/// Chrome 裡被停用的擴充功能
+fn disabled_ext(profile: &Path) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for f in ["Secure Preferences", "Preferences"] {
+        let Some(v) = read_json(&profile.join(f)) else { continue };
+        let Some(settings) = v["extensions"]["settings"].as_object() else { continue };
+        for (id, x) in settings {
+            let reasons = &x["disable_reasons"];
+            let off = x["state"].as_i64() == Some(0)
+                || reasons.as_array().is_some_and(|a| !a.is_empty())
+                || reasons.as_i64().is_some_and(|n| n != 0);
+            if off {
+                out.insert(id.clone());
+            }
+        }
+    }
+    out
+}
+
+fn ext_list() -> Vec<ExtInfo> {
+    let mut out = Vec::new();
+    let Ok(rd) = std::fs::read_dir(ext_dir()) else { return out };
+    for e in rd.flatten() {
+        let dir = e.path();
+        let Some(m) = read_json(&dir.join("manifest.json")) else { continue };
+        out.push(ExtInfo {
+            id: e.file_name().to_string_lossy().to_string(),
+            name: ext_name(&dir, &m),
+            version: m["version"].as_str().unwrap_or("").to_string(),
+        });
+    }
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out
+}
+
+/// 把 Chrome 裡啟用中的擴充功能複製過來（版本沒變的不重複複製；Chrome 移除的這裡也移除）
+fn sync_extensions() -> Result<Vec<ExtInfo>, String> {
+    let (root, list) = find_profiles()?;
+    let chosen = bm_read(|b| b.profile.clone());
+    let p = pick_profile(&list, &chosen).ok_or("找不到 Chrome 的使用者")?;
+    let profile = root.join(&p.dir);
+    let disabled = disabled_ext(&profile);
+    let mut want: HashMap<String, (PathBuf, String)> = HashMap::new();
+    if let Ok(rd) = std::fs::read_dir(profile.join("Extensions")) {
+        for e in rd.flatten() {
+            let id = e.file_name().to_string_lossy().to_string();
+            if id == "Temp" || disabled.contains(&id) || !e.path().is_dir() {
+                continue;
+            }
+            let Ok(vers) = std::fs::read_dir(e.path()) else { continue };
+            let best = vers
+                .flatten()
+                .filter(|v| v.path().join("manifest.json").is_file())
+                .max_by_key(|v| version_key(&v.file_name().to_string_lossy()));
+            let Some(best) = best else { continue };
+            let Some(m) = read_json(&best.path().join("manifest.json")) else { continue };
+            // 應用程式、佈景主題不是擴充功能
+            if !m["app"].is_null() || !m["theme"].is_null() {
+                continue;
+            }
+            want.insert(id, (best.path(), best.file_name().to_string_lossy().to_string()));
+        }
+    }
+    let dst = ext_dir();
+    std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
+    let marks_path = WEB_DIR.get().cloned().unwrap_or_default().join("web-ext.json");
+    let mut marks: HashMap<String, String> = read_json(&marks_path).and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+    if let Ok(rd) = std::fs::read_dir(&dst) {
+        for e in rd.flatten() {
+            let id = e.file_name().to_string_lossy().to_string();
+            if !want.contains_key(&id) {
+                let _ = std::fs::remove_dir_all(e.path());
+                marks.remove(&id);
+            }
+        }
+    }
+    for (id, (src, ver)) in &want {
+        let to = dst.join(id);
+        if marks.get(id) == Some(ver) && to.join("manifest.json").is_file() {
+            continue;
+        }
+        let _ = std::fs::remove_dir_all(&to);
+        if copy_dir(src, &to).is_ok() {
+            marks.insert(id.clone(), ver.clone());
+        } else {
+            let _ = std::fs::remove_dir_all(&to);
+            marks.remove(id);
+        }
+    }
+    if let Ok(t) = serde_json::to_string_pretty(&marks) {
+        let _ = std::fs::write(&marks_path, t);
+    }
+    Ok(ext_list())
+}
+
+#[tauri::command]
+pub fn web_ext_list() -> ExtStatus {
+    ExtStatus { list: ext_list(), broken: EXT_BROKEN.load(Ordering::SeqCst) }
+}
+
+/// 重新從 Chrome 同步擴充功能（新開的分頁、視窗才會套用）
+#[tauri::command]
+pub async fn web_ext_sync() -> Result<ExtStatus, String> {
+    let list = sync_extensions()?;
+    EXT_BROKEN.store(false, Ordering::SeqCst);
+    Ok(ExtStatus { list, broken: false })
 }
 
 /* ---------------- 指令：web 視窗上面的三排 ---------------- */
@@ -2088,6 +2408,20 @@ pub async fn web_tab_select(app: AppHandle, webview: Webview, tab: String) -> Re
     select_tab(&app, &id, &tab)
 }
 
+/// 拖曳分頁排順序
+#[tauri::command]
+pub fn web_tab_move(app: AppHandle, webview: Webview, tab: String, index: usize) {
+    let Some(id) = id_of(&webview) else { return };
+    edit(&id, |w| {
+        if let Some(i) = w.tabs.iter().position(|t| t.id == tab) {
+            let t = w.tabs.remove(i);
+            let j = index.min(w.tabs.len());
+            w.tabs.insert(j, t);
+        }
+    });
+    emit_state(&app, &id);
+}
+
 #[tauri::command]
 pub async fn web_tab_close(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     let id = id_of(&webview).ok_or("不是 web 視窗")?;
@@ -2133,7 +2467,7 @@ pub async fn web_bm_toggle(app: AppHandle, webview: Webview) -> Result<bool, Str
         b.next_id += 1;
         let host = host_of(&tab.url).unwrap_or_default();
         let title = if tab.title.trim().is_empty() { host.clone() } else { tab.title.clone() };
-        b.bar.push(Bm { id: format!("b{}", b.next_id), title, url: tab.url.clone(), children: Vec::new() });
+        b.bar.push(Bm { id: format!("b{}", b.next_id), title, url: tab.url.clone(), ..Bm::default() });
         if !tab.icon.is_empty() && !host.is_empty() {
             b.icons.insert(host, tab.icon.clone());
         }
@@ -2172,6 +2506,7 @@ pub fn web_bm_rename(app: AppHandle, id: String, title: String) {
     bm(|b| {
         if let Some(x) = bm_find_mut(&mut b.bar, &id).or_else(|| bm_find_mut(&mut b.other, &id)) {
             x.title = title;
+            x.renamed = true;
         }
     });
     emit_bm(&app);
@@ -2179,7 +2514,13 @@ pub fn web_bm_rename(app: AppHandle, id: String, title: String) {
 
 /// 記下刪掉的書籤，自動匯入時不要再加回來
 fn remember_deleted(b: &mut Bookmarks, x: &Bm) {
-    let key = if x.url.is_empty() { format!("folder:{}", x.title) } else { x.url.clone() };
+    let key = if !x.src.is_empty() {
+        x.src.clone()
+    } else if x.url.is_empty() {
+        format!("folder:{}", x.title)
+    } else {
+        x.url.clone()
+    };
     if !b.ignored.contains(&key) {
         b.ignored.push(key);
     }
@@ -2414,6 +2755,40 @@ mod tests {
         assert_eq!(kept.len(), 1);
         assert_eq!(kept[0].title, "Gmail");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn chrome_sync_follows_renames_and_deletes() {
+        let chrome = |items: &str| -> Vec<Bm> {
+            let v: Value = serde_json::from_str(&format!(r#"{{"type":"folder","name":"","children":[{items}]}}"#)).unwrap();
+            let mut n = 100;
+            from_chrome(&v, &mut n).unwrap().children
+        };
+        let a = r#"{"type":"url","guid":"g1","name":"Gmail","url":"https://mail.google.com/"}"#;
+        let b = r#"{"type":"url","guid":"g2","name":"YouTube","url":"https://www.youtube.com/"}"#;
+        // 舊版匯入的（沒有 Chrome 編號）會被認領，不會重複
+        let mut dst = vec![Bm { id: "b1".into(), title: "Gmail".into(), url: "https://mail.google.com/".into(), ..Bm::default() }];
+        assert_eq!(sync_level(&mut dst, chrome(&format!("{a},{b}")), &[]), 1);
+        assert_eq!(dst.len(), 2);
+        assert_eq!(dst[0].id, "b1");
+        // Chrome 改名 → 跟著改
+        let a2 = a.replace("\"Gmail\"", "\"信箱\"");
+        sync_level(&mut dst, chrome(&format!("{a2},{b}")), &[]);
+        assert_eq!(dst[0].title, "信箱");
+        // 在這裡改過名的 → 維持
+        dst[1].title = "影片".into();
+        dst[1].renamed = true;
+        let b2 = b.replace("\"YouTube\"", "\"YT\"");
+        sync_level(&mut dst, chrome(&format!("{a2},{b2}")), &[]);
+        assert_eq!(dst[1].title, "影片");
+        // Chrome 刪掉 → 這裡也拿掉；自己加的不動
+        dst.push(Bm { id: "b9".into(), title: "自己加的".into(), url: "https://x.com/".into(), ..Bm::default() });
+        sync_level(&mut dst, chrome(&b2), &[]);
+        assert_eq!(dst.iter().map(|x| x.title.as_str()).collect::<Vec<_>>(), vec!["影片", "自己加的"]);
+        // 在這裡刪掉的 → 不再加回
+        let mut dst2 = Vec::new();
+        assert_eq!(sync_level(&mut dst2, chrome(&format!("{a},{b}")), &["c:g1".to_string()]), 1);
+        assert_eq!(dst2[0].title, "YouTube");
     }
 
     #[test]

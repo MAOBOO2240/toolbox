@@ -31,3 +31,7 @@ label.web-opt { cursor: pointer; }
 .web-chrome { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .web-chrome-who { flex: 1; min-width: 12rem; font-size: 0.86rem; }
 .web-chrome-who.bad { color: var(--red, #e5484d); }
+.web-exts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.web-exts:empty { display: none; }
+.web-ext { padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+  background: color-mix(in srgb, var(--c) 16%, transparent); color: color-mix(in srgb, var(--c) 75%, var(--text)); }

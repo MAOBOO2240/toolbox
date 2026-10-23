@@ -38,6 +38,9 @@
     .newtab:hover { background: rgba(125, 211, 252, 0.16); }
     .newtab svg { width: 15px; height: 15px; stroke-width: 2.4; }
     .drag { flex: 1 1 40px; min-width: 40px; height: 100%; }
+    .tabs { position: relative; }
+    .tab.dragging { opacity: 0.55; }
+    .drop.tdrop { top: 6px; bottom: 2px; }
     .caps { flex: none; display: flex; height: 100%; align-self: flex-start; }
     .cap { width: 46px; height: 34px; border: 0; background: none; color: #d5dae3; display: grid; place-items: center; cursor: default; }
     .cap:hover { background: rgba(255, 255, 255, 0.1); }
@@ -99,6 +102,7 @@
     <div class="tablist" id="tabs"></div>
     <button class="newtab" id="newTab" title="新分頁"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <div class="drag" id="drag" title="按住拖曳移動視窗；按兩下放到最大／還原"></div>
+    <div class="drop tdrop" id="tdrop" hidden></div>
     <div class="caps">
       <button class="cap" id="cMin" title="縮小（在 web 工具裡可以再叫出來）"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
       <button class="cap" id="cMax" title="放到最大"><svg viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg></button>
@@ -199,9 +203,13 @@
           tx.addEventListener("pointerdown", (e) => e.stopPropagation());
           tx.addEventListener("click", (e) => { e.stopPropagation(); invoke("web_tab_close", { tab: t.id }); });
           el.append(ti, tt, tx);
+          el.dataset.id = t.id;
           el.addEventListener("pointerdown", (e) => {
             if (e.button === 1) e.preventDefault();
-            if (e.button === 0 && t.id !== st.active) invoke("web_tab_select", { tab: t.id });
+            if (e.button !== 0) return;
+            if (t.id !== st.active) invoke("web_tab_select", { tab: t.id });
+            // 按住左右拖曳可以排順序
+            tdrag = { id: t.id, el, x0: e.clientX, active: false, index: -1 };
           });
           el.addEventListener("auxclick", (e) => { if (e.button === 1) invoke("web_tab_close", { tab: t.id }); });
           el.addEventListener("contextmenu", (e) => {
@@ -212,6 +220,43 @@
         }
         fitTabs();
       }
+      // 拖曳分頁排順序
+      let tdrag = null;
+      window.addEventListener("pointermove", (e) => {
+        if (!tdrag) return;
+        if (!tdrag.active) {
+          if (Math.abs(e.clientX - tdrag.x0) < 8) return;
+          tdrag.active = true;
+          tdrag.el.classList.add("dragging");
+        }
+        const others = [...$("tabs").children].filter((x) => x !== tdrag.el);
+        let index = 0;
+        for (const x of others) {
+          const r = x.getBoundingClientRect();
+          if (e.clientX > r.left + r.width / 2) index++;
+        }
+        tdrag.index = index;
+        const row = $("tabsRow").getBoundingClientRect();
+        let left;
+        if (!others.length) left = $("tabs").getBoundingClientRect().left;
+        else if (index < others.length) left = others[index].getBoundingClientRect().left - 1;
+        else left = others[others.length - 1].getBoundingClientRect().right - 1;
+        const d = $("tdrop");
+        d.hidden = false;
+        d.style.left = `${left - row.left}px`;
+      });
+      function endTabDrag(commit) {
+        if (!tdrag) return;
+        const d = tdrag;
+        tdrag = null;
+        $("tdrop").hidden = true;
+        d.el.classList.remove("dragging");
+        if (commit && d.active && d.index >= 0) invoke("web_tab_move", { tab: d.id, index: d.index });
+      }
+      window.addEventListener("pointerup", () => endTabDrag(true));
+      window.addEventListener("pointercancel", () => endTabDrag(false));
+      window.addEventListener("blur", () => endTabDrag(false));
+
       function fitTabs() {
         for (const el of $("tabs").children) el.classList.toggle("narrow", el.offsetWidth < 76);
       }

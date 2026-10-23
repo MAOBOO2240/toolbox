@@ -15,6 +15,8 @@ if (typeof document !== "undefined") (() => {
     chrome: () => invoke("web_chrome_status"),
     importChrome: (dir) => invoke("web_chrome_import", { dir: dir ?? null }),
     sync: (on) => invoke("web_chrome_sync", { on }),
+    exts: () => invoke("web_ext_list"),
+    extSync: () => invoke("web_ext_sync"),
     onChange: (cb) => listen("web-changed", cb),
   } : mockApi();
 
@@ -105,7 +107,29 @@ if (typeof document !== "undefined") (() => {
     render();
     renderBm();
     await renderChrome();
+    renderExt(await wapi.exts());
   }
+
+  /* ---------- 擴充功能 ---------- */
+  function renderExt(x) {
+    $("#webExtCount").textContent = x.broken
+      ? "這台電腦的 WebView2 沒辦法載入擴充功能（可以更新 Windows 或 Microsoft Edge 後再試）"
+      : x.list.length ? `${x.list.length} 個（從 Chrome 同步）` : "沒有擴充功能（Chrome 裡沒有啟用中的擴充功能）";
+    const box = $("#webExts");
+    box.innerHTML = "";
+    x.list.forEach((e, i) => {
+      const chip = document.createElement("span");
+      chip.className = `web-ext ${COLORS[i % COLORS.length]}`;
+      chip.textContent = e.name;
+      chip.title = `${e.name} ${e.version}`;
+      box.append(chip);
+    });
+  }
+  $("#webExtSync").addEventListener("click", () => run(async () => {
+    const x = await wapi.extSync();
+    renderExt(x);
+    toast(`已同步 ${x.list.length} 個擴充功能，新開的分頁會套用`);
+  }));
 
   /* ---------- 從 Chrome 匯入書籤 ---------- */
   const COLORS = ["c-blue", "c-purple", "c-teal", "c-pink", "c-indigo", "c-orange", "c-green"];
@@ -178,6 +202,8 @@ if (typeof document !== "undefined") (() => {
       },
       importChrome: async (dir) => { if (dir) f.dir = dir; f.bookmarks.bar.push({ url: "https://www.youtube.com/" }, { url: "https://forum.gamer.com.tw/" }); return 2; },
       sync: async (on) => { f.sync = on; },
+      exts: async () => ({ broken: false, list: [{ id: "a", name: "uBlock Origin Lite", version: "1" }, { id: "b", name: "Dark Reader", version: "4" }, { id: "c", name: "Google 翻譯", version: "2" }] }),
+      extSync: async () => ({ broken: false, list: [{ id: "a", name: "uBlock Origin Lite", version: "1" }] }),
       onChange: () => {},
     };
   }
