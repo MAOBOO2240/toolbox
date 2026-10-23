@@ -9,8 +9,9 @@
 .f-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 .f-seg .cbtn { min-height: 2.8rem; font-size: 1rem; }
 .f-field { display: flex; flex-direction: column; gap: 0.35rem; }
-.f-field[hidden], .f-sell-only[hidden] { display: none; }
-.f-sell-only { display: flex; flex-direction: column; gap: 0.9rem; }
+.f-field[hidden], .f-charge[hidden] { display: none; }
+.f-charge { display: flex; flex-direction: column; gap: 0.9rem; }
+.f-sep { height: 0.5px; background: var(--sep); margin: 0.45rem 0; }
 .f-field > label { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; font-size: 0.9rem; font-weight: 700; }
 .f-field > label small { font-size: 0.74rem; font-weight: 500; }
 .f-input {

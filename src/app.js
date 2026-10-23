@@ -467,6 +467,18 @@ const ICONS = {
 // 滑過磁磚時的光暈顏色（與圖示漸層同色系）
 const TILE_ACCENT = { red: "#ff5a5f", purple: "#9b5cf2", pink: "#ff5fa8", gold: "#ffb000", comet: "#4fb8ff", star: "#a78bfa", blue: "#3d7bff", green: "#30c26a", orange: "#ff7a2f", crystal: "#f2b10c", teal: "#14b8a6", indigo: "#5865f2" };
 
+/** 璀璨彗星獎池裡隨機一個 S 獎的名稱（還沒解析過獎池時為 null） */
+function cometTopItem() {
+  try {
+    const pools = JSON.parse(localStorage.getItem("comet-v1"))?.pools;
+    const list = (pools?.bright || []).filter((x) => x && x.grade === "S" && x.name);
+    if (!list.length) return null;
+    return list[Math.floor(Math.random() * list.length)].name;
+  } catch (_) {
+    return null;
+  }
+}
+
 const CATS = {
   maple: {
     title: "楓之谷工具",
@@ -476,7 +488,7 @@ const CATS = {
       { id: "comet", name: "閃亮彗星", desc: "模擬抽獎、分解碎片與兌換璀璨彗星", color: "comet", icon: "comet", item: "閃亮彗星" },
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
-      { id: "dress", name: "變更點裝", desc: "直接換上點裝看看效果（和美容美髮同一頁）", color: "purple", icon: "shirt", view: "beauty" },
+      { id: "dress", name: "變更點裝", desc: "直接換上點裝看看效果，收藏喜歡的搭配", color: "purple", icon: "shirt", view: "beauty", randomItem: cometTopItem },
       { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", img: "assets/crystal/monthly.png" },
     ],
   },
@@ -544,7 +556,8 @@ function toolIcon(t) {
     box.append(img);
     return box;
   }
-  if (t.item) firstIcon(t.item).then((png) => {
+  const want = t.randomItem ? t.randomItem() : t.item;
+  if (want) firstIcon(want).then((png) => {
     if (!png) return;
     box.classList.add("item");
     box.innerHTML = "";

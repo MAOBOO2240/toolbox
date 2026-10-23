@@ -126,7 +126,28 @@ const GiftCore = (() => {
     return { pay: s.price * d, save: s.price * (1 - d), disc: d };
   }
 
-  return { VIP, VIP_PER, READER_BONUS, discount, amount, calc, isFormula, pointCost, sell, buy };
+  /**
+   * 自己儲值買：先付樂豆點的成本，送禮拿到的 VIP 點數換成楓點，
+   * 楓點買楓幣（或買道具賣 NPC）再賣給玩家變回台幣，當作回饋扣掉
+   */
+  function buySelf(s) {
+    if (!(s.price > 0)) return null;
+    const cost = s.price * pointCost(s.pay, s.card);
+    const vipPts = s.price * (VIP[s.vip] || VIP.silver).gift;
+    const feng = vipPts / VIP_PER;
+    const meso = s.fengPerE > 0 ? (feng * 1e8) / s.fengPerE : 0;
+    const rebate = s.ratio > 0 ? meso / (s.ratio * 1e4) : 0;
+    return { cost, vipPts, feng, meso, rebate, net: cost - rebate };
+  }
+
+  /** 自己買和直接買送禮比較：diff > 0 代表自己買比較貴 */
+  function compare(s) {
+    const b = buy(s), self = buySelf(s);
+    if (!b || !self) return null;
+    return { buy: b, self, diff: self.net - b.pay, cheaper: self.net < b.pay ? "self" : self.net > b.pay ? "gift" : "same" };
+  }
+
+  return { VIP, VIP_PER, READER_BONUS, discount, amount, calc, isFormula, pointCost, sell, buy, buySelf, compare };
 })();
 
 if (typeof module !== "undefined") module.exports = GiftCore;
@@ -198,7 +219,7 @@ if (typeof document !== "undefined") (() => {
     $$("#fVip button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.vip));
     $$("#fFxMode button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.fxMode));
     $("#fCardRow").hidden = st.pay !== "card";
-    $$(".f-sell-only").forEach((el) => (el.hidden = st.mode !== "sell"));
+    // 買送禮也要算自己儲值划不划算，所以這些欄位兩種模式都用得到
   }
 
   function row(label, value, sub = "", cls = "") {
@@ -257,7 +278,29 @@ if (typeof document !== "undefined") (() => {
       $("#fBigLabel").textContent = "要付多少錢";
       if (!r) { $("#fBig").textContent = "—"; out.innerHTML = '<p class="f-empty">輸入折扣與道具原價就會算出來</p>'; return; }
       $("#fBig").textContent = nt(r.pay);
-      out.innerHTML = row("道具原價", `${ICON.bean()}${intFmt.format(price)} 點`) + row("折扣", discText(r.disc)) + row("比原價省下", nt(r.save), "", "pos");
+      const cmp = G.compare({ price, disc: st.disc, pay: st.pay, card: st.card, vip: st.vip, fengPerE: num(st.fengPerE), ratio: num(st.ratio) });
+      const payName = { direct: "直購", reader: "讀卡機", card: "點數卡" }[st.pay];
+      const vip = G.VIP[st.vip];
+      const self = cmp.self;
+      const m = meso(self.meso);
+      out.innerHTML =
+        row("道具原價", `${ICON.bean()}${intFmt.format(price)} 點`) +
+        row("折扣", discText(r.disc)) +
+        row("比原價省下", nt(r.save), "", "pos") +
+        '<div class="f-sep"></div>' +
+        row("自己儲值買", nt(self.cost), `${payName}・每點 ${ntFmt.format(G.pointCost(st.pay, st.card))} 元`) +
+        row("VIP 回饋點數", `${ICON.vip()}${intFmt.format(self.vipPts)} 點`, `${vip.name}・送禮每 1 點拿 ${vip.gift} 點`) +
+        row("換成楓點", `${ntFmt.format(self.feng)} 楓點`, `${intFmt.format(G.VIP_PER)} VIP 點數 = 1 楓點`) +
+        row("買楓幣賣給玩家", `${ICON.meso()}${m.main}`, m.zh) +
+        row("回饋價值", nt(self.rebate), `${intFmt.format(num(st.ratio))} 萬遊戲幣 = 1 台幣`) +
+        row("自己買實際花費", nt(self.net), "扣掉回饋後", "total") +
+        row(
+          cmp.cheaper === "self" ? "自己買比較划算" : cmp.cheaper === "gift" ? "直接買送禮比較划算" : "兩種一樣",
+          cmp.cheaper === "same" ? "—" : `省 ${nt(Math.abs(cmp.diff))}`,
+          `直接買送禮 ${nt(r.pay)}・自己買 ${nt(self.net)}`,
+          cmp.cheaper === "same" ? "total" : "pos total",
+        );
+      fillIcons(out);
       return;
     }
     const r = G.sell({ price, disc: st.disc, pay: st.pay, card: st.card, vip: st.vip, fengPerE: num(st.fengPerE), ratio: num(st.ratio) });

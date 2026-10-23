@@ -97,6 +97,9 @@
   transition: color 0.3s, background 0.15s;
   cursor: text;
 }
+/* 分、秒各自可以用滾輪加減 */
+.tc-time .t-m, .tc-time .t-s { border-radius: 0.35rem; padding: 0 0.06em; }
+.tc-time .t-m:hover, .tc-time .t-s:hover { background: color-mix(in srgb, var(--blue) 16%, transparent); }
 .tc-time:hover { background: var(--card-2); }
 .tc-time.idle, .tc-time.done { color: var(--text-2); }
 .tc-time.over { color: transparent; -webkit-text-stroke: 2px var(--red); }

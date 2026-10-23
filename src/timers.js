@@ -94,7 +94,7 @@
       </div>
       <div class="tc-clock">
         <div class="tc-time-wrap">
-          <button class="tc-time f-time" title="點擊直接修改時間">00:00</button>
+          <button class="tc-time f-time" title="點一下直接修改時間；滾輪放在分或秒上可以 +1 / -1">00:00</button>
           <div class="tc-edit">
             <input type="number" class="f-min" min="0" max="999" /><span>:</span><input type="number" class="f-sec" min="0" max="59" />
           </div>
@@ -301,6 +301,27 @@
     q(".f-enabled").addEventListener("change", (e) => setNow(() => (t.enabled = e.target.checked)));
 
     q(".f-time").addEventListener("click", (e) => { e.stopPropagation(); openEditor(t.id); });
+    q(".f-time").addEventListener("wheel", (e) => {
+      if (!e.deltaY) return;
+      const sec = !!e.target.closest(".t-s");
+      const min = !!e.target.closest(".t-m");
+      if (!sec && !min) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const step = (sec ? 1 : 60) * 1000;
+      const next = Math.max(1000, Math.min(999 * 60 * 1000 + 59000, (t.duration_ms || 0) + (e.deltaY < 0 ? step : -step)));
+      if (next === t.duration_ms) return;
+      t.duration_ms = next;
+      saveTimer(t);
+      // 正在編輯時，輸入框也要跟著改
+      if (editing === t.id) {
+        const mi = el.querySelector(".f-min"), si = el.querySelector(".f-sec");
+        mi.value = Math.floor(t.duration_ms / 60000);
+        mi.style.width = `${Math.max(2, String(mi.value).length) + 0.3}ch`;
+        si.value = pad(Math.floor((t.duration_ms % 60000) / 1000));
+      }
+      paint(el, t, snaps[t.id]);
+    }, { passive: false });
     const setDur = () => {
       const m = Math.max(0, parseInt(q(".f-min").value) || 0);
       const s = Math.min(59, Math.max(0, parseInt(q(".f-sec").value) || 0));
@@ -376,7 +397,14 @@
     else if (s.phase === "running") text = fmt(Math.ceil(s.remain_ms / 1000));
     else if (s.phase === "done") text = "00:00";
     else text = fmt(Math.round(t.duration_ms / 1000));
-    if (time.textContent !== text) time.textContent = text;
+    if (time.dataset.text !== text) {
+      time.dataset.text = text;
+      time.innerHTML = "";
+      const i = text.lastIndexOf(":");
+      const mk = (cls, t2) => { const sp = document.createElement("span"); sp.className = cls; sp.textContent = t2; return sp; };
+      if (i < 0) time.append(mk("t-m", text));
+      else time.append(mk("t-m", text.slice(0, i)), document.createTextNode(":"), mk("t-s", text.slice(i + 1)));
+    }
     time.className = `tc-time f-time ${s.phase}`;
     time.style.setProperty("--heat", heat(s).toFixed(3));
     const startBtn = el.querySelector(".f-start");

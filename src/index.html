@@ -403,12 +403,13 @@
           <div class="card b-pick" id="bPick" hidden>
             <div class="b-pick-head">
               <strong>選擇點裝</strong>
+              <button class="b-fold" id="bPickFold" title="收起"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+              <span class="spacer"></span>
               <div class="b-pick-g" id="bPickG">
                 <button class="cbtn c-silver small" data-g="">全部</button>
                 <button class="cbtn c-red small" data-g="F">女</button>
                 <button class="cbtn c-blue small" data-g="M">男</button>
               </div>
-              <button class="b-fold" id="bPickFold" title="收起"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
             </div>
             <div class="b-slots" id="bSlots"></div>
             <div class="b-pick-tools">
@@ -441,7 +442,7 @@
                 <span>空白紙娃娃</span>
               </div>
               <div class="b-chatbar" id="bChatBar">
-                <input type="text" id="bChat" maxlength="70" placeholder="輸入文字讓角色說話" title="按 Enter 送出；空白送出會收起對話框" autocomplete="off" spellcheck="false" />
+                <input type="text" id="bChat" maxlength="70" placeholder="輸入文字讓角色說話" title="打字角色就會說話；把字清空對話框就會消失" autocomplete="off" spellcheck="false" />
                 <div class="b-act-wrap">
                   <button class="b-act" id="bAct" title="角色動作（再按一次收起選單）"><span id="bActText">站立</span><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
                   <!-- 動作選單：往下打開；選了動作不會收起，再按一次動作按鈕才收起 -->
@@ -463,7 +464,6 @@
               <div class="b-color-row"><span class="muted">瞳色</span><div class="b-swatches" id="bFaceColors"></div><button class="b-mix-link" id="bFaceMix" data-kind="face" title="瞳色混染：基本顏色加上另一個顏色混合">混染</button></div>
             </div>
             <div class="b-wear" id="bWear"></div>
-            <button class="cbtn c-purple b-dress-btn" id="bDress">變更點裝</button>
             <p class="b-note muted" id="bDollNote"></p>
           </div>
 
@@ -500,9 +500,9 @@
             <div class="card b-equipped">
               <div class="b-card-head">
                 <strong>目前裝備</strong>
+                <button class="b-fold" id="bEqFold" title="收起"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
                 <span class="spacer"></span>
                 <button class="cbtn c-red small" id="bOutfitClear">全部脫下</button>
-                <button class="b-fold" id="bEqFold" title="收起"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
               </div>
               <div class="b-eq-list" id="bEqList"></div>
             </div>
@@ -518,8 +518,8 @@
                   <span class="spacer"></span>
                   <button class="cbtn c-blue small solid" id="bSaveLook" title="把目前穿著的每一件點裝加入收藏">收藏目前裝備</button>
                 </div>
+                <p class="b-fav-hint" id="bFavHint">可以把時裝拖曳到這邊做收藏喔，或是右鍵收藏也可以</p>
                 <div class="b-fav-grid" id="bSaved"></div>
-                <p class="b-fav-hint">可以把時裝拖曳到這邊做收藏喔，或是右鍵收藏也可以</p>
               </div>
               <div class="b-fpane" id="bFLook" hidden>
                 <div class="b-lf" id="bLookFavs"></div>
@@ -876,7 +876,7 @@
               <div class="f-input"><input type="text" id="fPrice" placeholder="例如 1000，也可以打 990+390*2" autocomplete="off" /><span>點</span></div>
               <small class="f-hint" id="fPriceHint"></small>
             </div>
-            <div class="f-sell-only">
+            <div class="f-charge">
               <div class="f-field">
                 <label>儲值方式</label>
                 <div class="f-opts" id="fPay">
@@ -892,7 +892,7 @@
                 <small class="f-hint" id="fCardHint"></small>
               </div>
               <div class="f-field">
-                <label>VIP 等級<small class="muted">送禮每 1 樂豆點可拿到的 VIP 點數不同</small></label>
+                <label>VIP 等級<small class="muted">送禮每 1 樂豆點可拿到的 VIP 點數不同；買送禮時用來算自己儲值划不划算</small></label>
                 <div class="f-opts" id="fVip">
                   <button class="cbtn c-silver small" data-v="silver">VIP 銀牌</button>
                   <button class="cbtn c-amber small" data-v="gold">VIP 金牌</button>

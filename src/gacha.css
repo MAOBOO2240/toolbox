@@ -1,5 +1,6 @@
 /* ---------- 黃金蘋果轉蛋模擬器 ---------- */
 .g-pages { justify-self: end; display: flex; gap: 0.45rem; }
+.g-pages[hidden] { display: none; }
 
 .g-page { flex: 1; min-height: 0; }
 .g-page[hidden] { display: none !important; }

@@ -184,7 +184,6 @@
 .b-last-tag[hidden] { display: none; }
 .b-last.feat .b-last-tag { background: #f5b301; color: #2a1a00; }
 
-.b-dress-btn { width: 100%; padding: 0.6rem; font-size: 1rem; font-weight: 700; }
 
 /* ---------- 變更點裝：左邊選道具 ---------- */
 .b-pick { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; padding: 0.9rem; }
@@ -192,8 +191,8 @@
 .b-pick-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .b-pick-head strong { font-size: 1.05rem; }
 .b-pick-g { display: flex; gap: 0.3rem; }
-.b-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr)); gap: 0.35rem; }
-.b-slots .cbtn { padding: 0.45rem 0.2rem; font-size: 0.88rem; font-weight: 600; }
+.b-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.35rem; }
+.b-slots .cbtn { padding: 0.45rem 0.15rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
 .b-pick-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.45rem; align-items: center; }
 .b-pick-tools .muted { font-size: 0.75rem; min-width: 3.2rem; text-align: right; }
 .b-icons {
@@ -236,7 +235,7 @@
 .b-pick.folded .b-pick-tools,
 .b-pick.folded .b-icons,
 .b-pick.folded .b-pick-foot { display: none; }
-.b-equipped.folded { flex: none; align-self: start; }
+.b-equipped.folded { flex: none; }
 .b-equipped.folded .b-card-head { margin-bottom: 0; }
 .b-equipped.folded .b-eq-list { display: none; }
 
@@ -292,12 +291,13 @@
 /* 收藏說明：明顯一點，告訴使用者可以拖曳或右鍵收藏 */
 .b-fav-hint {
   display: flex; align-items: center; justify-content: center; gap: 0.45rem;
-  margin: 0.55rem 0 0; padding: 0.55rem 0.8rem; border-radius: 0.75rem;
+  margin: 0 0 0.55rem; padding: 0.5rem 0.8rem; border-radius: 0.75rem;
   border: 1.5px dashed color-mix(in srgb, var(--blue) 55%, transparent);
   background: color-mix(in srgb, var(--blue) 10%, transparent);
   color: var(--blue); font-size: 0.9rem; font-weight: 700; line-height: 1.4; text-align: center;
 }
 :root[data-theme="dark"] .b-fav-hint { color: color-mix(in srgb, var(--blue) 70%, #fff); }
+.b-fav-hint[hidden] { display: none; }
 
 /* 拖曳 */
 .b-ghost {

@@ -201,8 +201,10 @@ if (typeof document !== "undefined") (() => {
     $("#bPick").hidden = !st.dress;
     $("#bSide").hidden = !!st.dress;
     $("#bDressSide").hidden = !st.dress;
-    $("#bDress").textContent = st.dress ? "完成，回到抽獎" : "變更點裝";
-    $("#bDress").classList.toggle("solid", !!st.dress);
+    // 變更點裝是獨立的工具：標題換掉，右上角的抽獎模擬／解析道具不顯示
+    $("#bPages").hidden = !!st.dress;
+    const title = document.querySelector("#view-beauty .nav-title");
+    if (title) title.textContent = st.dress ? "變更點裝" : "美容美髮模擬器";
     window.refreshBack?.();
   }
 
@@ -611,16 +613,13 @@ if (typeof document !== "undefined") (() => {
     tagsFor = k;
     fetchTags(q).then((t) => { if (tagsFor === k) applyTags(t); });
   }
-  let sayTimer = 0;
+  /** 讓角色說話：輸入框裡有字就一直顯示，字清空後對話框才消失 */
   function say(text) {
     const el = $("#bBalloon");
-    clearTimeout(sayTimer);
     if (!text) { el.hidden = true; return; }
     $("#bBalloonText").textContent = text;
     el.hidden = false;
     layoutBalloon();
-    // 和遊戲一樣，過一段時間對話框會消失（字越多停越久）
-    sayTimer = setTimeout(() => (el.hidden = true), Math.min(20000, 6000 + text.length * 250));
   }
 
   let lastEquips = [];
@@ -1014,7 +1013,6 @@ if (typeof document !== "undefined") (() => {
   $$("#bPages button").forEach((b) => b.addEventListener("click", () => {
     if (!$("#bActMenu").hidden) actMenu(false); // 換頁時收起動作選單
     st.page = b.dataset.page;
-    if (st.page === "sim") st.dress = false;
     save(); renderPage();
     if (st.page === "import") checkWz();
   }));
@@ -1095,12 +1093,14 @@ if (typeof document !== "undefined") (() => {
     });
   })();
   $("#bLook").addEventListener("load", sizeLook);
-  // 聊天：按 Enter 讓角色說話（空白 = 收起對話框）
+  // 聊天：輸入什麼角色就說什麼，清空輸入框對話框才消失
+  $("#bChat").addEventListener("input", (e) => { if (!e.isComposing) say(e.target.value.trim()); });
+  $("#bChat").addEventListener("compositionend", (e) => say(e.target.value.trim()));
   $("#bChat").addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || e.isComposing) return;
     e.preventDefault();
     say(e.target.value.trim());
-    e.target.value = "";
+    e.target.blur();
   });
   // 動作：選單選了不會收起，再按一次動作按鈕才收起；右邊的按鈕回到站立
   const setAct = (v) => {
@@ -1364,6 +1364,9 @@ if (typeof document !== "undefined") (() => {
     const title = document.createElement("div");
     title.className = "b-ctx-title";
     title.textContent = name;
+    // 名稱點一下就複製（選單不會關掉，方便再選別的）
+    makeCopyable(title, name);
+    title.title = `${name}（點一下複製名稱）`;
     m.append(title);
     for (const [label, fn] of opts) {
       const b = document.createElement("button");
@@ -1530,6 +1533,8 @@ if (typeof document !== "undefined") (() => {
     syncFolder();
     if (st.savedTab === "look") renderLookFavs();
     $("#bSavedCount").textContent = st.favs.length ? `${st.favs.length} 件` : "";
+    // 有收藏之後就不用再提示怎麼收藏
+    $("#bFavHint").hidden = st.favs.length > 0;
     const box = $("#bSaved");
     box.innerHTML = "";
     if (!st.favs.length) { box.innerHTML = '<div class="g-empty">還沒有收藏的時裝</div>'; return; }
@@ -1902,12 +1907,6 @@ if (typeof document !== "undefined") (() => {
   $("#bStyleFavOnly").addEventListener("click", () => { st.styleFavOnly = !st.styleFavOnly; styleShown = STYLE_PAGE; save(); renderStyles(); });
   $$("#bStyleG button").forEach((b) => b.addEventListener("click", () => { st.styleG = b.dataset.g; styleShown = STYLE_PAGE; save(); renderStyles(); }));
 
-  $("#bDress").addEventListener("click", () => {
-    if (!$("#bActMenu").hidden) actMenu(false); // 換頁時收起動作選單
-    st.dress = !st.dress;
-    if (!st.dress) closeFloat();
-    save(); renderPage(); renderPick(); renderEquipped();
-  });
   $$("#bPickG button").forEach((b) => b.addEventListener("click", () => { st.pickG = b.dataset.g; shown = PAGE; save(); renderPick(); }));
   $("#bPickCash").addEventListener("click", () => { st.pickCash = !st.pickCash; shown = PAGE; save(); renderPick(); });
   let searchTimer;
@@ -1953,11 +1952,12 @@ if (typeof document !== "undefined") (() => {
 
   // 在「解析」頁或變更點裝時，左上角變成「上一頁」回到抽獎模擬
   if (window.BackHooks) window.BackHooks["view-beauty"] = {
-    label: () => (st.page === "import" || st.dress ? "上一頁" : null),
+    label: () => (!st.dress && st.page === "import" ? "上一頁" : null),
     back: () => {
-      if (st.page !== "import" && !st.dress) return false;
+      // 變更點裝是獨立工具，直接回分類；美容美髮的解析頁才回抽獎模擬
+      if (st.dress || st.page !== "import") return false;
       if (!$("#bActMenu").hidden) actMenu(false);
-      st.page = "sim"; st.dress = false; save(); renderAll(); return true;
+      st.page = "sim"; save(); renderAll(); return true;
     },
   };
 

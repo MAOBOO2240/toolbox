@@ -323,7 +323,9 @@ fn lookup_blocking(name: String, force: bool) -> Result<Lookup, String> {
     if let (Some(ocid), false) = (&cached_ocid, force) {
         let s = store.lock().unwrap();
         if let Some(c) = s.cache.data.get(ocid) {
-            if now().saturating_sub(c.fetched_at) < DATA_TTL_SECS {
+            // 舊版存的快取沒有一般裝備（披風畫不出來）：當作過期，重新查一次
+            let has_gear = !c.gear.is_null() || has_cash_cape(&c.cash);
+            if has_gear && now().saturating_sub(c.fetched_at) < DATA_TTL_SECS {
                 return Ok(Lookup {
                     name, ocid: ocid.clone(), fetched_at: c.fetched_at, from_cache: true,
                     basic: c.basic.clone(), beauty: c.beauty.clone(), cash: c.cash.clone(), gear: c.gear.clone(),
