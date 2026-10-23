@@ -141,8 +141,9 @@ impl Default for WebWin {
             title: String::new(),
             x: 200,
             y: 150,
-            w: 860,
-            h: 560,
+            // 0 = 第一次打開時用預設大小 1280×720（依 Windows 的縮放比例）
+            w: 0,
+            h: 0,
             opacity: 100,
             locked: false,
             game_only: false,
@@ -166,7 +167,7 @@ pub struct Bm {
     pub children: Vec<Bm>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Bookmarks {
     /// 書籤列
@@ -176,6 +177,31 @@ pub struct Bookmarks {
     pub next_id: u64,
     /// 網站 → 圖示網址（逛過有加書籤的網站時記下來）
     pub icons: HashMap<String, String>,
+    /// 自動從 Chrome 匯入（Chrome 的書籤有變動就跟著加進來）
+    #[serde(default = "yes")]
+    pub sync: bool,
+    /// 從哪個 Chrome 使用者匯入（空白 = 自動選）
+    pub profile: String,
+    /// 在這裡刪掉的書籤（網址或「folder:名稱」），自動匯入時不要再加回來
+    pub ignored: Vec<String>,
+}
+
+fn yes() -> bool {
+    true
+}
+
+impl Default for Bookmarks {
+    fn default() -> Self {
+        Self {
+            bar: Vec::new(),
+            other: Vec::new(),
+            next_id: 0,
+            icons: HashMap::new(),
+            sync: true,
+            profile: String::new(),
+            ignored: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -376,6 +402,20 @@ fn from_chrome(v: &Value, next: &mut u64) -> Option<Bm> {
         }
         _ => None,
     }
+}
+
+/// 拿掉在這裡刪過的書籤
+fn drop_ignored(list: Vec<Bm>, ignored: &[String]) -> Vec<Bm> {
+    list.into_iter()
+        .filter(|b| {
+            let key = if b.url.is_empty() { format!("folder:{}", b.title) } else { b.url.clone() };
+            !ignored.iter().any(|i| if b.url.is_empty() { *i == key } else { same_url(i, &key) })
+        })
+        .map(|mut b| {
+            b.children = drop_ignored(std::mem::take(&mut b.children), ignored);
+            b
+        })
+        .collect()
 }
 
 /// 合併匯入的書籤：同一層已經有相同網址就略過；同名資料夾合併在一起。回傳新增了幾個書籤
@@ -856,6 +896,22 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         .build()
         .map_err(|e| format!("視窗建立失敗：{e}"))?;
     let _ = win.set_min_size(Some(LogicalSize::new(380.0, 240.0)));
+    let mut cfg = cfg;
+    if cfg.w == 0 || cfg.h == 0 {
+        // 新視窗：預設 1280×720（依 Windows 的縮放比例），螢幕放不下就縮小一點
+        let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
+        let (mut w, mut h) = ((1280.0 * sf).round() as u32, (720.0 * sf).round() as u32);
+        if let Some((p, sz)) = work_area(&win, cfg.x, cfg.y) {
+            w = w.min(sz.width.saturating_sub(40)).max(380);
+            h = h.min(sz.height.saturating_sub(40)).max(240);
+            // 放不下就往左上移，整個視窗留在螢幕裡
+            cfg.x = cfg.x.min(p.x + sz.width as i32 - w as i32 - 20).max(p.x + 10);
+            cfg.y = cfg.y.min(p.y + sz.height as i32 - h as i32 - 20).max(p.y + 10);
+        }
+        (cfg.w, cfg.h) = (w, h);
+        let (x, y) = (cfg.x, cfg.y);
+        edit(id, |c| (c.w, c.h, c.x, c.y) = (w, h, x, y));
+    }
     let (x, y) = on_screen(&win, cfg.x, cfg.y, cfg.w.max(380), cfg.h.max(240));
     let (pos, size) = if cfg.max {
         work_area(&win, x, y).unwrap_or((PhysicalPosition::new(x, y), PhysicalSize::new(cfg.w, cfg.h)))
@@ -1587,9 +1643,17 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             }
         }
         let mut last_save = Instant::now();
+        let mut last_sync: Option<Instant> = None;
         loop {
             std::thread::sleep(Duration::from_millis(100));
             tick(&app1);
+            // 自動從 Chrome 匯入：每 5 秒看一次 Chrome 的書籤檔有沒有變動
+            if last_sync.is_none_or(|t| t.elapsed() >= Duration::from_secs(5)) {
+                last_sync = Some(Instant::now());
+                if bm_read(|b| b.sync) {
+                    let _ = import_chrome(&app1, false);
+                }
+            }
             let to_save = {
                 let mut s = st();
                 if s.dirty && last_save.elapsed() >= Duration::from_secs(1) {
@@ -1786,7 +1850,68 @@ pub fn web_set(id: String, opacity: Option<u32>, locked: Option<bool>, game_only
     });
 }
 
-#[derive(Serialize)]
+/// Chrome 的資料夾（程式以系統管理員身分執行時也找得到同一個使用者的資料夾）
+fn chrome_roots() -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    let bases = [
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
+        std::env::var_os("USERPROFILE").map(|p| PathBuf::from(p).join("AppData").join("Local")),
+    ];
+    for base in bases.into_iter().flatten() {
+        let root = base.join("Google").join("Chrome").join("User Data");
+        if !out.contains(&root) {
+            out.push(root);
+        }
+    }
+    out
+}
+
+fn read_json(path: &Path) -> Option<Value> {
+    serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
+}
+
+/// 一個 Chrome 使用者的書籤檔：Bookmarks（這台電腦的）與 AccountBookmarks（登入 Google 帳號存在帳號裡的）
+const BM_FILES: [&str; 2] = ["Bookmarks", "AccountBookmarks"];
+
+fn profile_files(root: &Path, dir: &str) -> Vec<PathBuf> {
+    BM_FILES.iter().map(|f| root.join(dir).join(f)).filter(|p| p.is_file()).collect()
+}
+
+/// 讀一個 Chrome 使用者的書籤 → (書籤列, 所有書籤)
+fn read_profile(root: &Path, dir: &str, next: &mut u64) -> Option<(Vec<Bm>, Vec<Bm>)> {
+    let files = profile_files(root, dir);
+    if files.is_empty() {
+        return None;
+    }
+    let (mut bar, mut other) = (Vec::new(), Vec::new());
+    for f in files {
+        let Some(v) = read_json(&f) else { continue };
+        let b = from_chrome(&v["roots"]["bookmark_bar"], next).map(|f| f.children).unwrap_or_default();
+        let mut o = from_chrome(&v["roots"]["other"], next).map(|f| f.children).unwrap_or_default();
+        if let Some(mut synced) = from_chrome(&v["roots"]["synced"], next) {
+            if !synced.children.is_empty() {
+                synced.title = "行動裝置書籤".into();
+                o.push(synced);
+            }
+        }
+        merge(&mut bar, b);
+        merge(&mut other, o);
+    }
+    Some((bar, other))
+}
+
+/// 書籤檔最後修改的時間（有變動才重新匯入）
+fn profile_mtime(root: &Path, dir: &str) -> u128 {
+    profile_files(root, dir)
+        .iter()
+        .filter_map(|p| p.metadata().ok()?.modified().ok())
+        .filter_map(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .max()
+        .unwrap_or(0)
+}
+
+#[derive(Serialize, Clone)]
 pub struct ChromeProfile {
     dir: String,
     name: String,
@@ -1794,71 +1919,122 @@ pub struct ChromeProfile {
     count: usize,
 }
 
-fn chrome_root() -> Option<PathBuf> {
-    std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("Google").join("Chrome").join("User Data"))
-}
-
-fn read_json(path: &Path) -> Option<Value> {
-    serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
-}
-
-/// Chrome 的使用者（每個登入的 Google 帳號一個）與書籤數量
-#[tauri::command]
-pub fn web_chrome_profiles() -> Result<Vec<ChromeProfile>, String> {
-    let root = chrome_root().ok_or("找不到 Chrome 的資料夾")?;
-    let state = read_json(&root.join("Local State")).unwrap_or(Value::Null);
-    let cache = state["profile"]["info_cache"].as_object().cloned().unwrap_or_default();
-    let mut dirs: Vec<String> = cache.keys().cloned().collect();
-    if !dirs.iter().any(|d| d == "Default") {
-        dirs.push("Default".into());
-    }
-    let mut out = Vec::new();
-    for dir in dirs {
-        let Some(v) = read_json(&root.join(&dir).join("Bookmarks")) else { continue };
-        let mut n = 0;
-        let count = ["bookmark_bar", "other", "synced"]
-            .iter()
-            .filter_map(|k| from_chrome(&v["roots"][*k], &mut n))
-            .map(|b| count_links(&b.children))
-            .sum();
-        let info = cache.get(&dir).cloned().unwrap_or(Value::Null);
-        out.push(ChromeProfile {
-            name: info["name"].as_str().filter(|s| !s.is_empty()).unwrap_or(&dir).to_string(),
-            account: info["user_name"].as_str().unwrap_or("").to_string(),
-            dir,
-            count,
-        });
-    }
-    if out.is_empty() {
-        return Err("找不到 Chrome 的書籤（這台電腦可能沒有安裝 Chrome，或還沒有任何書籤）".into());
-    }
-    out.sort_by_key(|p| (p.dir != "Default", p.dir.clone()));
-    Ok(out)
-}
-
-/// 從 Chrome 匯入書籤（書籤列 → 書籤列；其他書籤、行動裝置書籤 → 所有書籤）。回傳新增幾個
-#[tauri::command]
-pub fn web_chrome_import(app: AppHandle, dir: String) -> Result<usize, String> {
-    if dir.is_empty() || !dir.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '_' || c == '-') {
-        return Err("Chrome 使用者名稱不正確".into());
-    }
-    let root = chrome_root().ok_or("找不到 Chrome 的資料夾")?;
-    let v = read_json(&root.join(&dir).join("Bookmarks")).ok_or("讀不到這個使用者的書籤")?;
-    let added = bm(|b| {
-        let mut n = b.next_id;
-        let bar = from_chrome(&v["roots"]["bookmark_bar"], &mut n).map(|f| f.children).unwrap_or_default();
-        let mut other = from_chrome(&v["roots"]["other"], &mut n).map(|f| f.children).unwrap_or_default();
-        if let Some(mut synced) = from_chrome(&v["roots"]["synced"], &mut n) {
-            if !synced.children.is_empty() {
-                synced.title = "行動裝置書籤".into();
-                other.push(synced);
+/// 找出所有有書籤的 Chrome 使用者
+fn find_profiles() -> Result<(PathBuf, Vec<ChromeProfile>), String> {
+    let roots = chrome_roots();
+    for root in &roots {
+        if !root.is_dir() {
+            continue;
+        }
+        let state = read_json(&root.join("Local State")).unwrap_or(Value::Null);
+        let cache = state["profile"]["info_cache"].as_object().cloned().unwrap_or_default();
+        // Local State 裡記的使用者，加上資料夾裡實際有書籤檔的
+        let mut dirs: Vec<String> = cache.keys().cloned().collect();
+        if let Ok(rd) = std::fs::read_dir(root) {
+            for e in rd.flatten() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if !dirs.contains(&name) && !profile_files(root, &name).is_empty() {
+                    dirs.push(name);
+                }
             }
         }
-        b.next_id = n;
+        let mut out = Vec::new();
+        for dir in dirs {
+            let mut n = 0;
+            let Some((bar, other)) = read_profile(root, &dir, &mut n) else { continue };
+            let info = cache.get(&dir).cloned().unwrap_or(Value::Null);
+            out.push(ChromeProfile {
+                name: info["name"].as_str().filter(|s| !s.is_empty()).unwrap_or(&dir).to_string(),
+                account: info["user_name"].as_str().unwrap_or("").to_string(),
+                count: count_links(&bar) + count_links(&other),
+                dir,
+            });
+        }
+        if !out.is_empty() {
+            out.sort_by_key(|p| (p.dir != "Default", p.dir.clone()));
+            return Ok((root.clone(), out));
+        }
+    }
+    let shown = roots.first().map(|p| p.display().to_string()).unwrap_or_default();
+    Err(format!("找不到 Chrome 的書籤（找過 {shown}）"))
+}
+
+/// 要從哪個使用者匯入：選過的優先；沒選過就挑有登入帳號、書籤最多的
+fn pick_profile(list: &[ChromeProfile], chosen: &str) -> Option<ChromeProfile> {
+    list.iter()
+        .find(|p| p.dir == chosen)
+        .or_else(|| list.iter().filter(|p| !p.account.is_empty()).max_by_key(|p| p.count))
+        .or_else(|| list.iter().max_by_key(|p| p.count))
+        .cloned()
+}
+
+/// 上次自動匯入時書籤檔的時間（使用者, 時間）
+static SYNCED: Mutex<Option<(String, u128)>> = Mutex::new(None);
+
+/// 從 Chrome 匯入（force = 不管有沒有變動都匯入）。回傳 (使用者, 新增幾個)
+fn import_chrome(app: &AppHandle, force: bool) -> Result<(ChromeProfile, usize), String> {
+    let (root, list) = find_profiles()?;
+    let chosen = bm_read(|b| b.profile.clone());
+    let p = pick_profile(&list, &chosen).ok_or("找不到 Chrome 的書籤")?;
+    let mtime = profile_mtime(&root, &p.dir);
+    if !force && lock(&SYNCED).as_ref().is_some_and(|(d, t)| *d == p.dir && *t == mtime) {
+        return Ok((p, 0));
+    }
+    let mut next = bm_read(|b| b.next_id);
+    let (bar, other) = read_profile(&root, &p.dir, &mut next).ok_or("讀不到這個使用者的書籤")?;
+    let added = bm(|b| {
+        b.next_id = b.next_id.max(next);
+        let bar = drop_ignored(bar, &b.ignored);
+        let other = drop_ignored(other, &b.ignored);
         merge(&mut b.bar, bar) + merge(&mut b.other, other)
     });
+    *lock(&SYNCED) = Some((p.dir.clone(), mtime));
+    if added > 0 {
+        emit_bm(app);
+    }
+    Ok((p, added))
+}
+
+#[derive(Serialize)]
+pub struct ChromeStatus {
+    sync: bool,
+    current: Option<ChromeProfile>,
+    profiles: Vec<ChromeProfile>,
+    error: String,
+}
+
+/// 主程式：自動匯入的狀態、目前用哪個 Chrome 使用者、有哪些使用者
+#[tauri::command]
+pub fn web_chrome_status() -> ChromeStatus {
+    let (sync, chosen) = bm_read(|b| (b.sync, b.profile.clone()));
+    match find_profiles() {
+        Ok((_, profiles)) => ChromeStatus { sync, current: pick_profile(&profiles, &chosen), profiles, error: String::new() },
+        Err(e) => ChromeStatus { sync, current: None, profiles: Vec::new(), error: e },
+    }
+}
+
+/// 選擇從哪個 Chrome 使用者匯入（空白 = 自動選），並馬上匯入。回傳新增幾個
+#[tauri::command]
+pub async fn web_chrome_import(app: AppHandle, dir: Option<String>) -> Result<usize, String> {
+    if let Some(dir) = dir {
+        if !dir.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '_' || c == '-') {
+            return Err("Chrome 使用者名稱不正確".into());
+        }
+        bm(|b| b.profile = dir);
+    }
+    let (_, added) = import_chrome(&app, true)?;
     emit_bm(&app);
     Ok(added)
+}
+
+/// 開關自動匯入
+#[tauri::command]
+pub async fn web_chrome_sync(app: AppHandle, on: bool) {
+    bm(|b| b.sync = on);
+    if on {
+        let _ = import_chrome(&app, true);
+    }
+    emit_main(&app);
 }
 
 /* ---------------- 指令：web 視窗上面的三排 ---------------- */
@@ -1948,9 +2124,12 @@ pub async fn web_bm_toggle(app: AppHandle, webview: Webview) -> Result<bool, Str
     }
     let on = bm(|b| {
         if let Some(bid) = bm_url_id(&b.bar, &tab.url).or_else(|| bm_url_id(&b.other, &tab.url)) {
-            let _ = bm_remove(&mut b.bar, &bid).or_else(|| bm_remove(&mut b.other, &bid));
+            if let Some(x) = bm_remove(&mut b.bar, &bid).or_else(|| bm_remove(&mut b.other, &bid)) {
+                remember_deleted(b, &x);
+            }
             return false;
         }
+        b.ignored.retain(|i| !same_url(i, &tab.url));
         b.next_id += 1;
         let host = host_of(&tab.url).unwrap_or_default();
         let title = if tab.title.trim().is_empty() { host.clone() } else { tab.title.clone() };
@@ -1998,9 +2177,19 @@ pub fn web_bm_rename(app: AppHandle, id: String, title: String) {
     emit_bm(&app);
 }
 
+/// 記下刪掉的書籤，自動匯入時不要再加回來
+fn remember_deleted(b: &mut Bookmarks, x: &Bm) {
+    let key = if x.url.is_empty() { format!("folder:{}", x.title) } else { x.url.clone() };
+    if !b.ignored.contains(&key) {
+        b.ignored.push(key);
+    }
+}
+
 fn bm_delete(app: &AppHandle, id: &str) {
     bm(|b| {
-        let _ = bm_remove(&mut b.bar, id).or_else(|| bm_remove(&mut b.other, id));
+        if let Some(x) = bm_remove(&mut b.bar, id).or_else(|| bm_remove(&mut b.other, id)) {
+            remember_deleted(b, &x);
+        }
     });
     emit_bm(app);
 }
@@ -2200,6 +2389,31 @@ mod tests {
         assert_eq!(bm_find(&dst, &fid).unwrap().title, "楓之谷");
         assert!(bm_remove(&mut dst, &fid).is_some());
         assert_eq!(count_links(&dst), 1);
+    }
+
+    #[test]
+    fn account_bookmarks_file_and_ignored() {
+        // 登入 Google 帳號的 Chrome 只有 AccountBookmarks、沒有 Bookmarks 也要讀得到
+        let root = std::env::temp_dir().join(format!("web_bm_test_{}", std::process::id()));
+        let dir = root.join("Default");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("AccountBookmarks"),
+            r#"{"roots":{"bookmark_bar":{"type":"folder","name":"","children":[
+                {"type":"url","name":"Gmail","url":"https://mail.google.com/"},
+                {"type":"url","name":"YouTube","url":"https://www.youtube.com/"}]},
+              "other":{"type":"folder","name":"","children":[{"type":"url","name":"X","url":"https://x.com/"}]}}}"#,
+        )
+        .unwrap();
+        let mut n = 0;
+        let (bar, other) = read_profile(&root, "Default", &mut n).unwrap();
+        assert_eq!((bar.len(), other.len()), (2, 1));
+        assert!(profile_mtime(&root, "Default") > 0);
+        // 在這裡刪掉的不會再加回來
+        let kept = drop_ignored(bar, &["https://www.youtube.com".to_string()]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].title, "Gmail");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

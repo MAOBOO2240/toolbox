@@ -970,9 +970,14 @@
                 <strong>書籤</strong>
                 <span class="muted" id="webBmCount">還沒有書籤</span>
               </div>
-              <button class="cbtn small c-amber solid" id="webImport">從 Chrome 匯入書籤</button>
+              <label class="web-opt" title="Chrome 的書籤有新增時，自動加到 web 視窗的書籤列"><span>自動從 Chrome 匯入</span><span class="switch sm"><input type="checkbox" id="webSync" /><span class="slider"></span></span></label>
             </div>
-            <span class="muted web-bmtip">會把 Chrome 書籤列上的網站搬到 web 視窗的書籤列，其他書籤放在書籤列右邊的「所有書籤」。只讀取書籤，不讀其他資料；已經有的不會重複加入。</span>
+            <div class="web-chrome">
+              <span class="web-chrome-who" id="webChromeWho">讀取中…</span>
+              <button class="cbtn small c-amber" id="webImport">立即匯入</button>
+              <button class="cbtn small c-blue" id="webPick" hidden>換帳號</button>
+            </div>
+            <span class="muted web-bmtip">用你在 Chrome 登入的 Google 帳號的書籤：Chrome 書籤列上的網站會出現在 web 視窗的書籤列，其他書籤在書籤列右邊的「所有書籤」。Chrome 新增書籤後幾秒內會自動加進來；在 web 視窗刪掉的書籤不會再被加回來。只讀取書籤，不讀其他資料。</span>
             <div class="web-profiles" id="webProfiles" hidden></div>
           </div>
           <div class="web-list" id="webList"></div>

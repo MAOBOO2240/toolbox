@@ -12,8 +12,9 @@ if (typeof document !== "undefined") (() => {
     close: (id) => invoke("web_close", { id }),
     del: (id) => invoke("web_delete", { id }),
     set: (id, o) => invoke("web_set", { id, opacity: o.opacity ?? null, locked: o.locked ?? null, gameOnly: o.game_only ?? null }),
-    profiles: () => invoke("web_chrome_profiles"),
-    importChrome: (dir) => invoke("web_chrome_import", { dir }),
+    chrome: () => invoke("web_chrome_status"),
+    importChrome: (dir) => invoke("web_chrome_import", { dir: dir ?? null }),
+    sync: (on) => invoke("web_chrome_sync", { on }),
     onChange: (cb) => listen("web-changed", cb),
   } : mockApi();
 
@@ -103,32 +104,48 @@ if (typeof document !== "undefined") (() => {
     file = await wapi.list();
     render();
     renderBm();
+    await renderChrome();
   }
 
   /* ---------- 從 Chrome 匯入書籤 ---------- */
   const COLORS = ["c-blue", "c-purple", "c-teal", "c-pink", "c-indigo", "c-orange", "c-green"];
-  async function importFrom(p) {
-    const n = await wapi.importChrome(p.dir);
+  const who = (p) => `${p.name}${p.account ? `（${p.account}）` : ""}`;
+  let chrome = { sync: true, current: null, profiles: [], error: "" };
+
+  async function renderChrome() {
+    chrome = await wapi.chrome();
+    $("#webSync").checked = chrome.sync;
+    const el = $("#webChromeWho");
+    el.classList.toggle("bad", !!chrome.error);
+    el.textContent = chrome.error || (chrome.current ? `Chrome 帳號：${who(chrome.current)}・${chrome.current.count} 個書籤` : "");
+    $("#webPick").hidden = chrome.profiles.length < 2;
+  }
+  async function importFrom(dir) {
+    const n = await wapi.importChrome(dir);
     $("#webProfiles").hidden = true;
     toast(n ? `已匯入 ${n} 個書籤` : "沒有新的書籤（都已經匯入過了）");
     await reload();
   }
-  $("#webImport").addEventListener("click", () => run(async () => {
+  $("#webImport").addEventListener("click", () => run(() => importFrom(null)));
+  $("#webSync").addEventListener("change", (e) => run(async () => {
+    await wapi.sync(e.target.checked);
+    toast(e.target.checked ? "已開啟自動匯入" : "已關閉自動匯入");
+    await reload();
+  }));
+  // Chrome 有好幾個使用者：選要用哪一個帳號的書籤
+  $("#webPick").addEventListener("click", () => {
     const box = $("#webProfiles");
     if (!box.hidden) { box.hidden = true; return; }
-    const list = await wapi.profiles();
-    if (list.length === 1) { await importFrom(list[0]); return; }
-    // 有好幾個 Chrome 使用者：選要匯入哪一個帳號的書籤
-    box.innerHTML = '<span class="muted">Chrome 有好幾個使用者，選要匯入哪一個帳號的書籤：</span>';
-    list.forEach((p, i) => {
+    box.innerHTML = '<span class="muted">選要用哪一個 Chrome 帳號的書籤：</span>';
+    chrome.profiles.forEach((p, i) => {
       const b = document.createElement("button");
-      b.className = `cbtn small ${COLORS[i % COLORS.length]}`;
-      b.textContent = `${p.name}${p.account ? `（${p.account}）` : ""}・${p.count} 個書籤`;
-      b.addEventListener("click", () => run(() => importFrom(p)));
+      b.className = `cbtn small ${COLORS[i % COLORS.length]}${chrome.current && chrome.current.dir === p.dir ? " solid" : ""}`;
+      b.textContent = `${who(p)}・${p.count} 個書籤`;
+      b.addEventListener("click", () => run(() => importFrom(p.dir)));
       box.append(b);
     });
     box.hidden = false;
-  }));
+  });
 
   $("#webAdd").addEventListener("click", () => run(async () => {
     await wapi.add();
@@ -155,8 +172,12 @@ if (typeof document !== "undefined") (() => {
       close: async (id) => { f.wins.find((w) => w.id === id).open = false; },
       del: async (id) => { f.wins = f.wins.filter((w) => w.id !== id); },
       set: async (id, o) => { Object.assign(f.wins.find((w) => w.id === id), o); },
-      profiles: async () => [{ dir: "Default", name: "個人", account: "", count: 24 }, { dir: "Profile 1", name: "工作", account: "", count: 7 }],
-      importChrome: async () => { f.bookmarks.bar.push({ url: "https://www.youtube.com/" }, { url: "https://forum.gamer.com.tw/" }); return 2; },
+      chrome: async () => {
+        const profiles = [{ dir: "Default", name: "個人", account: "player@example.com", count: 24 }, { dir: "Profile 1", name: "工作", account: "", count: 7 }];
+        return { sync: f.sync !== false, current: profiles[f.dir === "Profile 1" ? 1 : 0], profiles, error: "" };
+      },
+      importChrome: async (dir) => { if (dir) f.dir = dir; f.bookmarks.bar.push({ url: "https://www.youtube.com/" }, { url: "https://forum.gamer.com.tw/" }); return 2; },
+      sync: async (on) => { f.sync = on; },
       onChange: () => {},
     };
   }

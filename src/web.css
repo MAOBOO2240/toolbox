@@ -28,3 +28,6 @@ label.web-opt { cursor: pointer; }
 .web-profiles { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .web-profiles .muted { flex-basis: 100%; font-size: 0.8rem; }
 .web-profiles[hidden] { display: none; }
+.web-chrome { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.web-chrome-who { flex: 1; min-width: 12rem; font-size: 0.86rem; }
+.web-chrome-who.bad { color: var(--red, #e5484d); }
