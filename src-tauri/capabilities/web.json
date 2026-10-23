@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "web-bar",
+  "description": "web 浮動視窗的工具列（外部網頁沒有任何權限）",
+  "webviews": ["webbar-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}

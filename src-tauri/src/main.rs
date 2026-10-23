@@ -14,6 +14,7 @@ mod notify;
 mod scale;
 mod update;
 mod watch;
+mod web;
 mod winsys;
 #[allow(dead_code)]
 mod wz;
@@ -339,6 +340,7 @@ fn main() {
             update::init(dir.join("update.json"));
             toast::init(dir.clone());
             watch::init(app.handle(), dir.join("watch.json"));
+            web::init(app.handle(), dir.join("web.json"));
             if let Err(e) = setup_tray(app) {
                 eprintln!("無法建立右下角圖示：{e}");
             }
@@ -365,6 +367,10 @@ fn main() {
         })
         // 跟螢幕等比例：每個頁面載入時套用縮放
         .on_page_load(|webview, _payload| {
+            // web 浮動視窗：外部網頁與它的工具列不套用
+            if webview.label().starts_with("web") {
+                return;
+            }
             scale::apply(webview);
         })
         .on_window_event(|window, event| {
@@ -480,7 +486,17 @@ fn main() {
             update::update_check,
             update::update_install,
             autostart::autostart_get,
-            autostart::autostart_set
+            autostart::autostart_set,
+            web::web_list,
+            web::web_add,
+            web::web_open,
+            web::web_close,
+            web::web_delete,
+            web::web_set,
+            web::web_bar_init,
+            web::web_nav,
+            web::web_typing,
+            web::web_close_self
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

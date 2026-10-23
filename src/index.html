@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="boss.css" />
   <link rel="stylesheet" href="patch.css" />
   <link rel="stylesheet" href="itemup.css" />
+  <link rel="stylesheet" href="web.css" />
 </head>
 <body>
   <div class="app" id="app">
@@ -951,6 +952,22 @@
         </div>
       </section>
       <!-- 斷線通知 -->
+      <section class="view" id="view-web">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">web</span>
+          <button class="cbtn c-blue small solid" id="webAdd">新增視窗</button>
+        </nav>
+        <div class="web-page">
+          <div class="card web-tip">
+            <strong>邊玩遊戲邊看影片</strong>
+            <span class="muted">滑鼠可以直接操作網頁（點影片、暫停、拖進度、捲動），鍵盤會留在遊戲上，角色照樣可以動。點到搜尋框或網址列要打字時，鍵盤才會交給視窗；打完按 Enter、點別的地方，或滑鼠移出視窗，就會還給遊戲。</span>
+            <span class="muted">按住視窗上方工具列的空白處可以拖曳，拉左、右、下邊可以改大小。遊戲要用視窗模式或無邊框全螢幕，獨占全螢幕時看不到浮動視窗。帳號可以在視窗裡直接登入，會保留登入狀態。</span>
+          </div>
+          <div class="web-list" id="webList"></div>
+        </div>
+      </section>
+
       <section class="view" id="view-watch">
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
@@ -1167,5 +1184,6 @@
   <script src="watch.js"></script>
   <script src="patch.js"></script>
   <script src="itemup.js"></script>
+  <script src="web.js"></script>
 </body>
 </html>

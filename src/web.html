@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>web</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; overflow: hidden; background: #1e222b; color: #f2f4f8;
+      font: 13px/1 -apple-system, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif; user-select: none; }
+    .bar { height: 100%; display: flex; align-items: center; gap: 4px; padding: 0 6px; }
+    .grip { flex: none; width: 14px; height: 22px; border-radius: 4px; cursor: grab;
+      background: radial-gradient(circle, #6b7487 1.2px, transparent 1.6px) 0 0 / 7px 7px; opacity: 0.8; }
+    .grip:hover { opacity: 1; }
+    button { flex: none; width: 28px; height: 28px; border: 0; border-radius: 8px; cursor: pointer; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--c) 18%, transparent); color: color-mix(in srgb, var(--c) 55%, #fff); transition: background 0.12s, transform 0.08s; }
+    button:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
+    button:active { transform: scale(0.92); }
+    button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .b-back { --c: #3b82f6; }
+    .b-fwd { --c: #8b5cf6; }
+    .b-reload { --c: #22b45e; }
+    .b-home { --c: #f5a30b; }
+    .b-close { --c: #ef4444; }
+    .addr { flex: 1; min-width: 0; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; outline: none;
+      background: #2a303c; color: #f2f4f8; font: inherit; user-select: text; text-overflow: ellipsis; }
+    .addr:hover { border-color: #3a4252; }
+    .addr:focus { border-color: #4c8dff; background: #252a35; }
+    .addr.loading { background-image: linear-gradient(90deg, transparent, rgba(76, 141, 255, 0.22), transparent);
+      background-size: 40% 100%; background-repeat: no-repeat; animation: load 1.1s linear infinite; }
+    @keyframes load { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+    .gap { flex: none; width: 6px; height: 100%; }
+  </style>
+</head>
+<body>
+  <div class="bar" data-tauri-drag-region>
+    <div class="grip" data-tauri-drag-region title="按住拖曳移動視窗"></div>
+    <button class="b-back" id="back" title="上一頁"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button class="b-fwd" id="fwd" title="下一頁"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    <button class="b-reload" id="reload" title="重新整理"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></svg></button>
+    <button class="b-home" id="home" title="首頁"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></svg></button>
+    <input class="addr" id="addr" spellcheck="false" autocomplete="off" placeholder="輸入網址或搜尋" />
+    <div class="gap" data-tauri-drag-region></div>
+    <button class="b-close" id="close" title="關閉這個視窗（在 web 工具裡可以再打開）"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <script>
+    "use strict";
+    (() => {
+      const T = window.__TAURI__;
+      if (!T) return;
+      const invoke = T.core.invoke;
+      const addr = document.getElementById("addr");
+      const RELOAD = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></svg>';
+      const STOP = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      let me = null;
+      let st = { url: "", title: "", loading: false };
+
+      const show = (u) => { try { const x = new URL(u); return x.host + (x.pathname === "/" ? "" : x.pathname); } catch { return u; } };
+      function render() {
+        // 沒在輸入時顯示網頁標題（沒有標題就顯示網址），滑鼠移上去看完整網址
+        if (document.activeElement !== addr) addr.value = st.title || show(st.url);
+        addr.title = st.url;
+        addr.classList.toggle("loading", !!st.loading);
+        const r = document.getElementById("reload");
+        r.innerHTML = st.loading ? STOP : RELOAD;
+        r.title = st.loading ? "停止載入" : "重新整理";
+      }
+
+      invoke("web_bar_init").then((s) => { if (s) { me = s.id; st = s; render(); } }).catch(() => {});
+      T.event.listen("web-state", (e) => { if (e.payload && e.payload.id === me) { st = e.payload; render(); } });
+      T.event.listen("web-blur", (e) => { if (e.payload === me) addr.blur(); });
+
+      const nav = (action, input) => invoke("web_nav", { action, input: input ?? null }).catch(() => {});
+      document.getElementById("back").onclick = () => nav("back");
+      document.getElementById("fwd").onclick = () => nav("forward");
+      document.getElementById("reload").onclick = () => nav(st.loading ? "stop" : "reload");
+      document.getElementById("home").onclick = () => nav("home");
+      document.getElementById("close").onclick = () => invoke("web_close_self").catch(() => {});
+
+      // 網址列：選到時鍵盤交給視窗，離開就還給遊戲
+      addr.addEventListener("focus", () => {
+        invoke("web_typing", { on: true }).catch(() => {});
+        addr.value = st.url;
+        setTimeout(() => addr.select(), 0);
+      });
+      addr.addEventListener("blur", () => { invoke("web_typing", { on: false }).catch(() => {}); render(); });
+      addr.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { nav("go", addr.value); addr.blur(); }
+        else if (e.key === "Escape") addr.blur();
+      });
+      // 不要出現瀏覽器的右鍵選單（網址列除外）
+      document.addEventListener("contextmenu", (e) => { if (e.target !== addr) e.preventDefault(); });
+    })();
+  </script>
+</body>
+</html>

@@ -461,6 +461,7 @@ const ICONS = {
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   box: '<svg viewBox="0 0 24 24"><path d="M12 2.8 20 7v10l-8 4.2L4 17V7z"/><path d="M4 7l8 4.2L20 7M12 11.2v10"/><path d="M8 4.9l8 4.2"/></svg>',
   shirt: '<svg viewBox="0 0 24 24"><path d="M9 3.5 5 5.5 3.5 10l2.8 1.1V20a1 1 0 0 0 1 1h9.4a1 1 0 0 0 1-1v-8.9l2.8-1.1L19 5.5l-4-2"/><path d="M9 3.5a3 3 0 0 0 6 0"/></svg>',
+  globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5S9.6 5.8 12 3.5z"/></svg>',
   news: '<svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3zM8 7.2v1.7h8V7.2zm0 4v1.7h8v-1.7zm0 4v1.7h5v-1.7z"/></svg>',
 };
 
@@ -503,6 +504,7 @@ const CATS = {
       { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 7／30 天平均與預計升級日", color: "indigo", icon: "trend" },
       { id: "patch", name: "版本更新", desc: "新楓之谷歷次大版本更新的官網公告，依年份查看", color: "orange", icon: "news" },
       { id: "itemup", name: "更新道具", desc: "遊戲改版後新增了哪些道具，點圖示看名稱與說明", color: "teal", icon: "box" },
+      { id: "web", name: "web", desc: "置頂的小瀏覽器，邊玩遊戲邊看影片，鍵盤留在遊戲上", color: "sky", icon: "globe" },
     ],
   },
   // 我的最愛：內容由使用者收藏決定
