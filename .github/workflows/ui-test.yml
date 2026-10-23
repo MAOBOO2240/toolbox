@@ -44,7 +44,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install test tools
-        run: pip install pillow
+        run: pip install pillow websocket-client
 
       - name: Run UI test
         shell: pwsh

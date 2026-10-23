@@ -1134,7 +1134,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     #[cfg(not(windows))]
     let hwnd = 0isize;
     rt(|m| m.insert(id.to_string(), Rt { hwnd, ..Rt::default() }));
-    install_subclass(app, hwnd);
+    install_subclass(app, hwnd, (x, y, w, h));
 
     let sf = win.scale_factor().unwrap_or(sf0).max(0.5);
     let size = win.inner_size().unwrap_or(PhysicalSize::new(w, h));
@@ -1615,8 +1615,18 @@ mod win32 {
         GAME_HWND.store(hwnd as isize, Ordering::SeqCst);
         for h in super::web_hwnds() {
             if IsWindowVisible(h as HWND) != 0 && IsIconic(h as HWND) == 0 {
-                SetWindowPos(h as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                raise(h);
             }
+        }
+    }
+
+    /// 放到其他視窗上面（不搶焦點）。
+    /// 遊戲在前景時，用 HWND_TOP 拉不到遊戲上面（Windows 不讓背景程式這樣做），先設成置頂再取消置頂就可以
+    pub fn raise(h: isize) {
+        unsafe {
+            let f = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+            SetWindowPos(h as HWND, HWND_TOPMOST, 0, 0, 0, 0, f);
+            SetWindowPos(h as HWND, HWND_NOTOPMOST, 0, 0, 0, 0, f);
         }
     }
 
@@ -1713,7 +1723,7 @@ mod win32 {
             // 遊戲在前景時點這個視窗：不變成作用中（鍵盤留在遊戲），但要浮到前面
             WM_MOUSEACTIVATE if !typing(hwnd) && is_game(GetForegroundWindow()) => {
                 *lock(&NOACT_CLICK) = Some((hwnd as isize, std::time::Instant::now()));
-                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                raise(hwnd as isize);
                 MA_NOACTIVATE as LRESULT
             }
             WM_ACTIVATE => {
@@ -1773,8 +1783,17 @@ mod win32 {
         }
     }
 
-    pub fn subclass(h: isize) {
-        unsafe { SetWindowSubclass(h as HWND, Some(proc_), SUBCLASS_ID, 0) };
+    /// rect = 視窗要的位置大小（實體像素）：Tauri 建立無框視窗時留了看不到的邊（內容區比視窗小一圈），
+    /// 換成自己的處理後重算一次，整個視窗都是內容區，大小也設回原本的（不然每次重開視窗都會變大一點）
+    pub fn subclass(h: isize, rect: Option<(i32, i32, i32, i32)>) {
+        unsafe {
+            SetWindowSubclass(h as HWND, Some(proc_), SUBCLASS_ID, 0);
+            if let Some((x, y, w, hh)) = rect {
+                if IsZoomed(h as HWND) == 0 && IsIconic(h as HWND) == 0 {
+                    SetWindowPos(h as HWND, std::ptr::null_mut(), x, y, w, hh, SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+                }
+            }
+        }
     }
 
     pub fn subclass_menu(h: isize) {
@@ -1893,7 +1912,7 @@ mod win32 {
             let mut n = 0;
             while !w.is_null() && n < 4000 {
                 if w as isize == game {
-                    SetWindowPos(h as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    raise(h);
                     return;
                 }
                 w = GetWindow(w, GW_HWNDPREV);
@@ -1913,13 +1932,14 @@ fn web_hwnds() -> Vec<isize> {
     rt(|m| m.values().map(|r| r.hwnd).filter(|h| *h != 0).collect())
 }
 
-fn install_subclass(app: &AppHandle, hwnd: isize) {
+fn install_subclass(app: &AppHandle, hwnd: isize, rect: (i32, i32, u32, u32)) {
     #[cfg(windows)]
     if hwnd != 0 {
-        let _ = app.run_on_main_thread(move || win32::subclass(hwnd));
+        let (x, y, w, h) = (rect.0, rect.1, rect.2 as i32, rect.3 as i32);
+        let _ = app.run_on_main_thread(move || win32::subclass(hwnd, Some((x, y, w, h))));
     }
     #[cfg(not(windows))]
-    let _ = (app, hwnd);
+    let _ = (app, hwnd, rect);
 }
 
 fn alpha_of(id: &str) -> u8 {

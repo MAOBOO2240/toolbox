@@ -13,8 +13,14 @@ import threading
 import time
 import traceback
 import urllib.parse
+import urllib.request
 
 from PIL import ImageGrab
+
+try:
+    import websocket  # websocket-client：讀工具列裡按鈕的實際位置
+except Exception:
+    websocket = None
 
 # 測試機的命令列預設不是 UTF-8：中文改成可以印出來
 try:
@@ -336,7 +342,10 @@ game_proc = subprocess.Popen([sys.executable, os.path.join(HERE, "game.py"), GAM
 game = wait_for(lambda: next((h for h in top_windows() if title(h) == "MapleStory" and user32.IsWindowVisible(h)), 0), 15)
 log("game hwnd", game, wrect(game) if game else None)
 
-app_proc = subprocess.Popen([EXE])
+# 只有測試時打開 WebView2 的遠端偵錯（隨機埠），用來讀工具列裡按鈕、分頁的實際位置
+app_env = dict(os.environ)
+app_env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0"
+app_proc = subprocess.Popen([EXE], env=app_env)
 KNOWN = ("工具箱", "web 選單", "計時器浮動視窗", "")
 
 
@@ -369,11 +378,117 @@ def W():
     return client(web)[2] / scale
 
 
+# ---------- 讀工具列裡元素的實際位置（WebView2 遠端偵錯） ----------
+APPID = "com.toolbox.desktop"
+
+
+def devtools_ports():
+    ports = []
+    for root in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("APPDATA", "")):
+        top = os.path.join(root, APPID)
+        for dp, dn, fn in os.walk(top):
+            if dp[len(top):].count(os.sep) >= 3:
+                dn[:] = []
+            if "DevToolsActivePort" in fn:
+                try:
+                    with open(os.path.join(dp, "DevToolsActivePort")) as f:
+                        ports.append(int(f.read().split()[0]))
+                except Exception:
+                    pass
+    return ports
+
+
+def cdp_targets():
+    res = []
+    for port in devtools_ports():
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
+                for t in json.load(r):
+                    t["port"] = port
+                    res.append(t)
+        except Exception:
+            pass
+    return res
+
+
+_cdp_n = [0]
+
+
+def cdp_eval(match, expr):
+    """在網址含 match 的頁面執行 JS，回傳結果；讀不到回傳 None"""
+    if websocket is None:
+        return None
+    t = next((t for t in cdp_targets() if t.get("type") == "page" and match in t.get("url", "") and t.get("webSocketDebuggerUrl")), None)
+    if not t:
+        return None
+    try:
+        ws = websocket.create_connection(t["webSocketDebuggerUrl"], timeout=5, suppress_origin=True)
+    except Exception as e:
+        log("cdp 連不上", e)
+        return None
+    try:
+        _cdp_n[0] += 1
+        n = _cdp_n[0]
+        ws.send(json.dumps({"id": n, "method": "Runtime.evaluate", "params": {"expression": expr, "returnByValue": True}}))
+        while True:
+            m = json.loads(ws.recv())
+            if m.get("id") == n:
+                return m.get("result", {}).get("result", {}).get("value")
+    except Exception as e:
+        log("cdp 執行失敗", e)
+        return None
+    finally:
+        try:
+            ws.close()
+        except Exception:
+            pass
+
+
+BAR = "/web.html"
+
+
+def bar_eval(expr):
+    return cdp_eval(BAR, expr)
+
+
+def bar_pt(el_js, fallback, dy=None):
+    """工具列裡某個元素的中心（CSS 像素）；讀不到時用估計的位置"""
+    b = bar_eval(f"(() => {{ const e = {el_js}; if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }})()")
+    if b and b[2] > 0:
+        return (b[0] + b[2] / 2, b[1] + dy if dy is not None else b[1] + b[3] / 2)
+    log("（讀不到元素位置，改用估計的）", el_js)
+    return fallback
+
+
 def tab_x(i, n):
-    total = 8 + n * 240 + 38 + 40 + 138
-    over = max(0, total - W())
-    tw = (n * 240 - over * (n * 240) / (n * 240 + 40)) / n
-    return 8 + tw * i + tw * 0.3
+    # 估計值（讀不到實際位置時才用）
+    return 8 + 120 * i + 60
+
+
+def TAB(i):
+    return f"document.querySelectorAll('#tabs .tab')[{i}]"
+
+
+BTN_MAX = "document.getElementById('cMax')"
+BTN_MIN = "document.getElementById('cMin')"
+BTN_CLOSE = "document.getElementById('cClose')"
+DRAG = "document.getElementById('drag')"
+NEWTAB = "document.getElementById('newTab')"
+FOLDER = "[...document.querySelectorAll('#bmList .bm')].find((b) => b.textContent.includes('資料夾'))"
+OTHER = "document.getElementById('bmOther')"
+
+
+def click_bar(el_js, fallback, **kw):
+    click(*C(*bar_pt(el_js, fallback)), **kw)
+
+
+def active_tab():
+    """目前的分頁是第幾個（讀不到回傳 None）"""
+    return bar_eval("[...document.querySelectorAll('#tabs .tab')].findIndex((t) => t.classList.contains('active'))")
+
+
+def active_url():
+    return bar_eval("document.getElementById('addr').title")
 
 
 def menu_win():
@@ -393,110 +508,146 @@ def step(name, fn):
 
 
 def s_start():
+    log("devtools ports", devtools_ports(), "工具列讀得到", bar_eval("1 + 1") == 2)
     dump(web, "start")
     kids = [c for c in children(web) if user32.IsWindowVisible(c)]
     check("一開始：看得到工具列和網頁", len(kids) >= 2, f"{len(kids)} 個可見子視窗")
+    r, c = wrect(web), client(web)
+    check("一開始：整個視窗都是內容（沒有看不到的邊）", (r[0], r[1], r[2] - r[0], r[3] - r[1]) == c, f"rect={r} client={c}")
+    check("一開始：大小和上次記住的一樣（900×620）", (c[2], c[3]) == (round(900 * scale), round(620 * scale)), f"client={c}")
 
 
 def s_max_button():
     before = wrect(web)
-    x, y = C(W() - 69, 20)
-    click(x, y, wait=1.2)
+    click_bar(BTN_MAX, (W() - 69, 20), wait=1.2)
     check("按放到最大按鈕：視窗放到最大", user32.IsZoomed(web), f"before={before} after={wrect(web)}")
     vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
     tops = sorted(r[1] for r in vis)
     check("放到最大後：工具列在最上面、網頁在下面", len(vis) >= 2 and tops[0] <= client(web)[1] + 2, f"{vis}")
+    # 放到最大時滑鼠移到螢幕最上緣也點得到分頁
+    x, _ = bar_pt(TAB(1), (tab_x(1, 3), 23))
+    sx, _ = C(x, 0)
+    click(sx, client(web)[1], wait=1.0)
+    a = active_tab()
+    check("放到最大時點螢幕最上緣：點得到分頁", a == 1 if a is not None else "短影片" in title(web), f"active={a} title={title(web)}")
+    x, _ = bar_pt(TAB(0), (tab_x(0, 3), 23))
+    sx, _ = C(x, 0)
+    click(sx, client(web)[1], wait=1.0)
 
 
 def s_restore_button():
-    x, y = C(W() - 69, 20)
-    click(x, y, wait=1.2)
+    click_bar(BTN_MAX, (W() - 69, 20), wait=1.2)
     check("再按一次：還原", not user32.IsZoomed(web), f"{wrect(web)}")
+    r, c = wrect(web), client(web)
+    check("還原後：大小回到原本的（900×620）", (c[2], c[3]) == (round(900 * scale), round(620 * scale)), f"rect={r} client={c}")
+
+
+def slides_since(t0):
+    res = []
+    for l in page_log().splitlines():
+        try:
+            t = float(l.split()[0])
+        except Exception:
+            continue
+        if t >= t0 and "[snap]" in l and "slide:" in l:
+            res.append(int(l.split("slide:")[1].split()[0]))
+    return res
 
 
 def s_snap_resize():
-    x, y = C(tab_x(1, 3), 23)
-    click(x, y, wait=1.5)
+    click_bar(TAB(1), (tab_x(1, 3), 23), wait=2.5)
+    check("切到短影片分頁", "短影片" in title(web), title(web))
     px, py = C(400, 300)
-    for _ in range(4):
+    for _ in range(3):
         wheel(px, py, 1)
-        time.sleep(0.5)
+        time.sleep(0.7)
     time.sleep(1)
-    log("page log (snap):", page_log()[-600:])
-    mx, my = C(W() - 69, 20)
-    click(mx, my, wait=1.5)
+    cur = (slides_since(0) or [1])[-1]
+    log("捲動後是第", cur, "張")
+    t0 = time.time()
+    click_bar(BTN_MAX, (W() - 69, 20), wait=2.0)
     shot("snap_maximized")
-    click(*C(W() - 69, 20), wait=1.5)
+    click_bar(BTN_MAX, (W() - 69, 20), wait=2.0)
     time.sleep(1)
-    lines = [l for l in page_log().splitlines() if "[snap]" in l]
-    log("snap lines:", lines[-8:])
-    slides = [l.split("slide:")[1].split()[0] for l in lines if "slide:" in l]
-    check("短影片頁面：放大、還原後還是同一張", len(set(slides[-3:])) <= 1 if len(slides) >= 2 else False, f"{slides}")
+    after = slides_since(t0)
+    log("放大、還原之後：", after)
+    check("短影片頁面：捲動有換到下一張", cur > 1, f"{cur}")
+    check("短影片頁面：放大、還原後還是同一張", len(after) > 0 and all(s == cur for s in after), f"捲動後={cur} 之後={after}")
 
 
 def s_double_click():
-    x, y = C(W() - 200, 12)
-    click(x, y, double=True, wait=1.2)
-    check("按兩下分頁列空白處：放到最大", user32.IsZoomed(web))
-    x, y = C(W() - 200, 12)
-    click(x, y, double=True, wait=1.2)
-    check("再按兩下：還原", not user32.IsZoomed(web))
+    click_bar(DRAG, (W() - 200, 12), double=True, wait=1.5)
+    check("按兩下分頁列空白處：放到最大", user32.IsZoomed(web), f"{wrect(web)}")
+    click_bar(DRAG, (W() - 200, 12), double=True, wait=1.5)
+    check("再按兩下：還原", not user32.IsZoomed(web), f"{wrect(web)}")
 
 
 def s_drag_snap():
     before = wrect(web)
-    x, y = C(W() - 200, 15)
+    x, y = C(*bar_pt(DRAG, (W() - 200, 15)))
     drag(x, y, x, 2, wait=1.5)
     check("拖到螢幕頂端：放到最大", user32.IsZoomed(web), f"{wrect(web)}")
     shot("drag_top")
-    x, y = C(W() / 2, 15)
-    drag(x, y, x + 50, y + 250, wait=1.5)
+    x, y = C(*bar_pt(DRAG, (W() / 2, 15)))
+    drag(x, y, x - 300, y + 150, wait=1.5)
     after = wrect(web)
-    check("放到最大時往下拖：還原成原本大小", not user32.IsZoomed(web) and abs((after[2] - after[0]) - (before[2] - before[0])) < 30, f"before={before} after={after}")
+    check("放到最大時往下拖：還原成原本大小", not user32.IsZoomed(web) and abs((after[2] - after[0]) - (before[2] - before[0])) < 30
+          and abs((after[3] - after[1]) - (before[3] - before[1])) < 30, f"before={before} after={after}")
 
 
 def s_tabs():
-    click(*C(tab_x(2, 3), 23), wait=2.5)
+    click_bar(TAB(2), (tab_x(2, 3), 23), wait=2.5)
     shot("tab3")
-    click(*C(tab_x(0, 3), 23), wait=1.5)
+    a = active_tab()
+    check("點第三個分頁：切過去", a == 2 if a is not None else "Example" in title(web), f"active={a} title={title(web)}")
+    click_bar(TAB(0), (tab_x(0, 3), 23), wait=1.5)
     kids = [c for c in children(web) if user32.IsWindowVisible(c)]
     check("切換分頁：只有一個網頁顯示", len(kids) == 2, f"{[wrect(c) for c in kids]}")
+    check("切回第一個分頁", "測試頁" in title(web), title(web))
 
 
 def s_menu():
-    click(*C(143, 93), wait=1.2)
+    click_bar(FOLDER, (143, 93), wait=1.2)
     m = menu_win()
     check("點書籤資料夾：出現選單", m and user32.IsWindowVisible(m), f"menu={m}")
     shot("menu_open")
     click(*C(W() / 2, 400), wait=1.0)
     check("點外面：選單關掉", not (m and user32.IsWindowVisible(m)))
     check("選單關掉後程式有回應", responsive(web))
-    click(*C(W() - 55, 93), wait=1.2)
+    click_bar(OTHER, (W() - 55, 93), wait=1.2)
     m = menu_win()
     check("點所有書籤：出現選單", m and user32.IsWindowVisible(m))
     shot("menu_other")
-    click(*C(W() - 55, 93), wait=1.0)
+    click_bar(OTHER, (W() - 55, 93), wait=1.0)
     check("再點一次所有書籤：選單關掉", not (m and user32.IsWindowVisible(m)))
     check("所有書籤操作後程式有回應", responsive(web))
 
 
 def s_new_tab():
-    n = 3
-    click(*C(8 + (tab_x(1, 3) - tab_x(0, 3)) * n + 15, 23), wait=1.0)
+    click_bar(NEWTAB, (8 + 120 * 3 + 15, 23), wait=1.0)
     type_text(f"127.0.0.1:{PORT}/test.html?new")
     key(0x0D)
     time.sleep(2.5)
     shot("new_tab_loaded")
-    check("新分頁輸入網址：有載入", "test.html?new" in title(web) or "測試頁" in title(web), title(web))
+    u = active_url()
+    check("新分頁輸入網址：有載入", ("test.html?new" in u) if u is not None else "測試頁" in title(web), f"url={u} title={title(web)}")
 
 
 def s_game():
-    gx, gy = wrect(game)[0] + 60, wrect(game)[3] - 40
+    # 回到第一個分頁（測試頁）
+    click_bar(TAB(0), (tab_x(0, 4), 23), wait=1.5)
+    # 遊戲上沒有被 web 視窗蓋住、也不在工作列上的點
+    g, r = wrect(game), wrect(web)
+    sh = user32.GetSystemMetrics(1) - 60
+    cands = [(g[0] + 40, g[1] + 60), (g[2] - 40, g[1] + 60), (g[0] + 40, min(g[3], sh) - 30), (g[2] - 40, min(g[3], sh) - 30)]
+    gx, gy = next(((x, y) for x, y in cands if not (r[0] <= x < r[2] and r[1] <= y < r[3])), cands[0])
+    log("遊戲要點的位置", (gx, gy), "game", g, "web", r)
     click(gx, gy, wait=1.0)
     check("點遊戲：遊戲在前景", fg() == game, f"fg={fg()} game={game}")
-    check("遊戲在前景：web 視窗在遊戲上面", above(web, game))
+    check("遊戲在前景：web 視窗在遊戲上面", above(web, game), f"z={zorder()[:6]}")
     click(*C(5 + 200, 108 + 320), wait=0.8)
     check("點網頁空白處：鍵盤還在遊戲", fg() == game, f"fg={fg()}")
+    check("點網頁空白處：web 視窗還在遊戲上面", above(web, game))
     key(0x41)
     time.sleep(0.4)
     check("按 A：遊戲收到", "key:a" in game_keys(), game_keys()[-80:])
@@ -542,27 +693,30 @@ def s_notepad():
     time.sleep(1)
     if np:
         user32.ShowWindow(np, 1)
-        user32.MoveWindow(np, 100, 100, 600, 400, True)
-        click(wrect(np)[0] + 200, wrect(np)[1] + 200, wait=1.0)
+        # 記事本放在 web 視窗的右下（蓋住一部分網頁，不蓋到分頁）
+        r = wrect(web)
+        user32.MoveWindow(np, r[0] + 300, r[1] + 200, 500, 350, True)
+        time.sleep(0.5)
+        click(wrect(np)[0] + 250, wrect(np)[1] + 200, wait=1.0)
         check("記事本在前景時可以蓋住 web 視窗", above(np, web), f"fg={fg()} np={np}")
         shot("notepad_over_web")
-        x, y = C(tab_x(0, 4), 23)
-        if not (wrect(np)[0] <= x <= wrect(np)[2] and wrect(np)[1] <= y <= wrect(np)[3]):
-            click(x, y, wait=1.0)
-            check("點 web 視窗：變成前景（一般視窗）", fg() == web and above(web, np), f"fg={fg()}")
+        click_bar(TAB(0), (tab_x(0, 4), 23), wait=1.0)
+        check("點 web 視窗：變成前景（一般視窗）", fg() == web and above(web, np), f"fg={fg()}")
     np_proc.kill()
 
 
 def s_minimize():
-    click(*C(W() - 115, 20), wait=1.2)
+    click_bar(BTN_MIN, (W() - 115, 20), wait=1.2)
     check("按縮小：縮到工作列", user32.IsIconic(web))
     user32.ShowWindow(web, 9)
     time.sleep(1.2)
     check("從工作列還原", not user32.IsIconic(web) and user32.IsWindowVisible(web))
+    r, c = wrect(web), client(web)
+    check("還原後：大小沒變", (c[2], c[3]) == (round(900 * scale), round(620 * scale)), f"rect={r} client={c}")
 
 
 def s_close():
-    click(*C(W() - 23, 20), wait=1.5)
+    click_bar(BTN_CLOSE, (W() - 23, 20), wait=1.5)
     check("按關閉：視窗關掉", not user32.IsWindow(web) or not user32.IsWindowVisible(web))
 
 

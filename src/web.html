@@ -491,12 +491,14 @@
 
       // 拖曳分頁列的空白處移動視窗；按兩下放到最大／還原
       const dragArea = (e) => e.target === $("drag") || e.target === $("tabsRow") || e.target === $("tabs");
-      $("tabsRow").addEventListener("pointerdown", (e) => {
+      // 按住開始拖曳，第二下（按兩下）放到最大／還原。
+      // 開始拖曳後滑鼠交給 Windows，網頁收不到 dblclick，所以用 mousedown 的點擊次數判斷（和 Tauri 的拖曳區一樣）
+      $("tabsRow").addEventListener("mousedown", (e) => {
+        if (e.button !== 0 || !dragArea(e)) return;
+        if (e.detail === 2) invoke("web_win", { action: "max" });
         // 放到最大時也可以拖：Windows 會把視窗還原成原本的大小再跟著滑鼠走
-        if (e.button !== 0 || !dragArea(e) || e.detail > 1) return;
-        T.window.getCurrentWindow().startDragging().catch(() => {});
+        else if (e.detail === 1) T.window.getCurrentWindow().startDragging().catch(() => {});
       });
-      $("tabsRow").addEventListener("dblclick", (e) => { if (dragArea(e)) invoke("web_win", { action: "max" }); });
 
       // 網址列：點下去時鍵盤交給視窗，離開就還給遊戲
       const addr = $("addr");
