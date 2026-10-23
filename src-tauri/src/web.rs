@@ -102,9 +102,13 @@ const TYPING_JS: &str = r#"(() => {
     window.addEventListener("message", (e) => {
       if (e.data && typeof e.data.__mbTyping === "boolean") { frame = e.data.__mbTyping; apply(); }
     });
+    // 只看 <title> 有沒有被網頁改掉（看整個 head 的話，很多網站常常改 head，會一直觸發）
+    let watched = null;
+    const titleOb = new MutationObserver(() => { if (!busy) apply(); });
     const watch = () => {
-      if (!document.head) return;
-      new MutationObserver(() => { if (!busy) apply(); }).observe(document.head, { childList: true, subtree: true, characterData: true });
+      const t = document.querySelector("title");
+      if (t && t !== watched) { watched = t; titleOb.disconnect(); titleOb.observe(t, { childList: true, characterData: true, subtree: true }); }
+      if (!watched && document.head) new MutationObserver(watch).observe(document.head, { childList: true });
     };
     if (document.head) watch(); else document.addEventListener("DOMContentLoaded", watch, { once: true });
   }
@@ -2048,10 +2052,14 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let mut last_save = Instant::now();
         let mut last_sync: Option<Instant> = None;
         loop {
-            std::thread::sleep(Duration::from_millis(100));
-            tick(&app1);
-            // 自動從 Chrome 匯入：每 5 秒看一次 Chrome 的書籤檔有沒有變動
-            if last_sync.is_none_or(|t| t.elapsed() >= Duration::from_secs(5)) {
+            // 沒有視窗開著時什麼都不用做，放慢檢查
+            let any_open = st().file.wins.iter().any(|w| w.open);
+            std::thread::sleep(Duration::from_millis(if any_open { 100 } else { 500 }));
+            if any_open {
+                tick(&app1);
+            }
+            // 自動從 Chrome 匯入：有視窗開著時每 5 秒看一次 Chrome 的書籤檔有沒有變動
+            if any_open && last_sync.is_none_or(|t| t.elapsed() >= Duration::from_secs(5)) {
                 last_sync = Some(Instant::now());
                 if bm_read(|b| b.sync) {
                     let _ = import_chrome(&app1, false);
@@ -2084,7 +2092,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 let cur = lock(&MENU).as_ref().filter(|s| s.visible).map(|s| (s.rect, s.shown_at));
                 let Some((rect, shown)) = cur else {
                     seen = None;
-                    std::thread::sleep(Duration::from_millis(120));
+                    std::thread::sleep(Duration::from_millis(300));
                     continue;
                 };
                 let down = win32::mouse_down();

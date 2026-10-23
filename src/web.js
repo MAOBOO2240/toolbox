@@ -218,7 +218,19 @@ if (typeof document !== "undefined") (() => {
   }));
 
   // 視窗標題、網址改變或被關掉時更新（只在這一頁顯示時才重畫）
-  wapi.onChange(() => { if ($("#view-web").classList.contains("active")) run(reload); });
+  // 視窗開著時不跟著每個分頁變動重畫（省資源）；只有視窗打開、關閉、縮小狀態改變時才更新，
+  // 關閉時卡片上留的就是最後的畫面
+  const stateKey = (f) => (f.wins || []).map((w) => `${w.id}:${w.open ? 1 : 0}${w.min ? 1 : 0}`).join("|");
+  wapi.onChange(() => {
+    if (!$("#view-web").classList.contains("active")) return;
+    run(async () => {
+      const next = await wapi.list();
+      if (stateKey(next) === stateKey(file)) return;
+      file = next;
+      render();
+      renderBm();
+    });
+  });
   document.addEventListener("viewchange", (e) => { if (e.detail === "web") run(reload); });
   run(reload);
 
