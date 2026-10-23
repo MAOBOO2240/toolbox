@@ -99,7 +99,7 @@ if (typeof document !== "undefined") (() => {
   function renderBm() {
     const b = file.bookmarks || { bar: [], other: [] };
     const n = countLinks(b.bar) + countLinks(b.other);
-    $("#webBmCount").textContent = n ? `${n} 個書籤（所有 web 視窗共用）` : "還沒有書籤";
+    $("#webBmCount").textContent = n ? `${n} 個書籤（所有 瀏覽器視窗共用）` : "還沒有書籤";
   }
 
   async function reload() {

@@ -504,7 +504,7 @@ const CATS = {
       { id: "track", name: "經驗追蹤", desc: "每隻角色今天練了多少、近 7／30 天平均與預計升級日", color: "indigo", icon: "trend" },
       { id: "patch", name: "版本更新", desc: "新楓之谷歷次大版本更新的官網公告，依年份查看", color: "orange", icon: "news" },
       { id: "itemup", name: "更新道具", desc: "遊戲改版後新增了哪些道具，點圖示看名稱與說明", color: "teal", icon: "box" },
-      { id: "web", name: "web", desc: "置頂的小瀏覽器，邊玩遊戲邊看影片，鍵盤留在遊戲上", color: "sky", icon: "globe" },
+      { id: "web", name: "瀏覽器", desc: "置頂的小瀏覽器，邊玩遊戲邊看影片，鍵盤留在遊戲上", color: "sky", icon: "globe" },
     ],
   },
   // 我的最愛：內容由使用者收藏決定

@@ -111,7 +111,7 @@
     <div class="caps">
       <button class="cap" id="cMin" title="縮小到工作列"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
       <button class="cap" id="cMax" title="放到最大"><svg viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg></button>
-      <button class="cap close" id="cClose" title="關閉（在 web 工具裡可以再打開）"><svg viewBox="0 0 12 12"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9"/></svg></button>
+      <button class="cap close" id="cClose" title="關閉（在「瀏覽器」工具裡可以再打開）"><svg viewBox="0 0 12 12"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9"/></svg></button>
     </div>
   </div>
   <div class="tool">
@@ -184,8 +184,9 @@
 
       /* ---------- 第一排：分頁 ---------- */
       function renderTabs() {
-        // 拖曳中先不重畫，放開後再畫
-        if (tdrag && tdrag.active) { renderLater = true; return; }
+        // 按著分頁（可能要拖曳）時先不重畫，放開後再畫：按下非目前分頁時會切換分頁並重畫，
+        // 重畫後原本按著的元素就不在畫面上了，拖曳會沒反應
+        if (tdrag) { renderLater = true; return; }
         const box = $("tabs");
         box.innerHTML = "";
         for (const t of st.tabs) {
@@ -248,7 +249,7 @@
         d.el.style.transform = `translateX(${dx}px)`;
         const center = me.left + dx + d.w / 2;
         let to = 0;
-        d.rects.forEach((r, i) => { if (i !== d.from && center > r.left + r.width / 2) to++; });
+        d.rects.forEach((r, i) => { if (i !== d.from && center >= r.left + r.width / 2) to++; });
         d.to = to;
         d.tabs.forEach((x, i) => {
           if (i === d.from) return;
@@ -262,12 +263,13 @@
         if (!tdrag) return;
         const d = tdrag;
         tdrag = null;
-        if (!d.active) return;
-        if (commit && d.to !== undefined && d.to !== d.from) {
-          invoke("web_tab_move", { tab: d.id, index: d.to });
-        } else {
-          d.el.classList.remove("dragging");
-          d.tabs.forEach((x) => (x.style.transform = ""));
+        if (d.active) {
+          if (commit && d.to !== undefined && d.to !== d.from) {
+            invoke("web_tab_move", { tab: d.id, index: d.to });
+          } else {
+            d.el.classList.remove("dragging");
+            d.tabs.forEach((x) => (x.style.transform = ""));
+          }
         }
         if (renderLater) { renderLater = false; renderTabs(); }
       }
@@ -328,7 +330,7 @@
         if (!bm.bar.length && !bm.other.length) {
           const h = document.createElement("span");
           h.className = "bm-hint";
-          h.textContent = "還沒有書籤：按網址列右邊的星號加入；Chrome 裡的書籤會自動匯入（在主程式的 web 工具可以設定）";
+          h.textContent = "還沒有書籤：按網址列右邊的星號加入；Chrome 裡的書籤會自動匯入（在主程式的「瀏覽器」工具可以設定）";
           list.append(h);
         }
         for (const b of bm.bar) {
