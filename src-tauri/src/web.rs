@@ -114,6 +114,29 @@ const TYPING_JS: &str = r#"(() => {
   }
 })();"#;
 
+/// 擴充功能的小視窗裡：chrome.tabs.query 問「目前的分頁」時回答目前顯示的網頁那個分頁
+/// （WebView2 把每個網頁當成各自的視窗；分頁編號是真的，擴充功能之後對那個分頁做的事都有效）
+const EXT_TABS_JS: &str = r#"(() => {
+  const PAGE = __PAGE_URL__;
+  const same = (a, b) => { const n = (u) => String(u || "").replace(/#.*$/, "").replace(/\/+$/, ""); return n(a) === n(b); };
+  try {
+    const t = chrome.tabs, w = chrome.windows;
+    const q = t.query.bind(t);
+    const mine = () => q({}).then((tabs) => tabs.find((x) => same(x.url, PAGE)) || null);
+    const wants = (info) => !!info && (info.active || info.currentWindow || info.lastFocusedWindow || info.windowId !== undefined);
+    const call = (p, cb) => { if (typeof cb === "function") { p.then(cb, () => cb([])); return undefined; } return p; };
+    t.query = (info, cb) => call(wants(info) ? mine().then((m) => (m ? [m] : q(info))) : q(info), cb);
+    if (w) {
+      const cur = (cb) => call(mine().then((m) => (m ? { id: m.windowId, focused: true, type: "normal", tabs: [m] } : w.getCurrent ? w.getCurrent() : null)), cb);
+      w.getCurrent = (_a, cb) => cur(typeof _a === "function" ? _a : cb);
+      w.getLastFocused = (_a, cb) => cur(typeof _a === "function" ? _a : cb);
+    }
+    if (t.getCurrent) {
+      t.getCurrent = (cb) => call(mine(), cb);
+    }
+  } catch (_) {}
+})();"#;
+
 /// 網頁載入完成後取得網站圖示的網址（只回傳網址，不做其他事）
 const ICON_JS: &str = r#"(() => {
   let best = "", score = -1;
@@ -2035,9 +2058,13 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
     let h = h.min(size.height as i32 - (BAR_H * sf) as i32 - 8).max(100);
     let x = (anchor.2 - origin.x - w).max(4).min(size.width as i32 - w - 4);
     let y = (anchor.3 - origin.y + 4).max(0).min(size.height as i32 - h);
+    // 擴充功能問「目前的分頁」時，回答目前顯示的網頁（WebView2 把每個網頁當成各自的視窗，不這樣做擴充功能只會看到自己）
+    let page = get(wid).map(|w| w.url).unwrap_or_default();
+    let patch = EXT_TABS_JS.replace("__PAGE_URL__", &serde_json::to_string(&page).unwrap_or_else(|_| "\"\"".into()));
     let b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
+        .initialization_script(&patch)
         .disable_drag_drop_handler();
     win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
     *lock(&EXT_POPUP) = Some((wid.to_string(), (origin.x + x, origin.y + y, origin.x + x + w, origin.y + y + h)));

@@ -1031,7 +1031,9 @@ def s_ext():
     log("ext log:", [l for l in page_log().splitlines() if "[ext]" in l][-6:])
     # WebView2 把每個網頁當成各自的視窗，擴充功能的小視窗查不到「目前的分頁」（只記錄，不算失敗）
     act = next((l for l in page_log().splitlines() if "[ext] active:" in l), "")
-    log("擴充功能查到的目前分頁：", act[-200:])
+    check("擴充功能看得到目前的網頁（active tab）", "test.html" in act and "popup.html" not in act, act[-200:])
+    lf = next((l for l in page_log().splitlines() if "[ext] lastFocused:" in l), "")
+    check("擴充功能看得到目前的網頁（lastFocused）", "test.html" in lf and "popup.html" not in lf, lf[-200:])
     click(*C(5 + 100, 108 + 320), wait=1.0)
     after2 = [c for c in children(web) if user32.IsWindowVisible(c)]
     check("點外面：小視窗關掉", len(after2) == len(before), f"{len(after2)}")
