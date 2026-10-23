@@ -53,6 +53,4 @@
 .pt-row.hub .pt-go { color: #e8590c; }
 :root[data-theme="dark"] .pt-row.hub .pt-go { color: #ffa94d; }
 .pt-empty { text-align: center; padding: 2rem; }
-/* 下個版本（預測）：灰字、不能點 */
-.pt-row.next { cursor: default; opacity: 0.55; filter: grayscale(1); pointer-events: none; }
 .pt-period { font-variant-numeric: tabular-nums; }

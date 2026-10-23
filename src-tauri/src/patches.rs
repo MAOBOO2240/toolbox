@@ -65,7 +65,7 @@ fn hub_due(c: &Cache, id: u32, now: u64) -> bool {
     match c.hubs.get(&id) {
         None => true,
         // 舊版快取沒有活動時間：再查一次
-        Some(Some(h)) => h.period.is_empty(),
+        Some(Some(h)) => h.period.is_empty() || h.period.contains('<'),
         // 舊版存下來的「沒有」沒有記錄時間：當作查過一次，馬上再查一次
         Some(None) => {
             let (at, n) = c.none_at.get(&id).copied().unwrap_or((0, 1));
@@ -264,7 +264,18 @@ fn parse_period(html: &str) -> String {
     let Some(gt) = body.find('>') else { return "-".into() };
     let inner = &body[gt + 1..];
     let end = inner.find("</p>").unwrap_or(inner.len());
-    let text = decode_html(&inner[..end]);
+    // 裡面可能還有 <span> 之類的標籤：只留文字
+    let mut plain = String::new();
+    let mut in_tag = false;
+    for c in inner[..end].chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => plain.push(c),
+            _ => {}
+        }
+    }
+    let text = decode_html(&plain);
     let text: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if text.is_empty() { "-".into() } else { text }
 }
@@ -424,7 +435,7 @@ pub async fn version_hubs(ids: Vec<u32>) -> Result<HashMap<String, Option<Hub>>,
                 if let Some(hub) = &h {
                     for (sid, _) in &hub.sections {
                         let e = c.hubs.entry(*sid).or_insert(None);
-                        if e.as_ref().is_none_or(|x| x.period.is_empty()) {
+                        if e.as_ref().is_none_or(|x| x.period.is_empty() || x.period.contains('<')) {
                             *e = Some(hub.clone());
                             c.none_at.remove(sid);
                         }
@@ -503,6 +514,7 @@ mod tests {
         assert_eq!(h.sections[1].1, "變身燃燒：露希妲");
         assert_eq!(h.period, "-");
         assert_eq!(parse_period("<h3>活動時間：</h3>\n<p>2026/10/21 09:00 ~\n       2026/12/01 23:59</p>"), "2026/10/21 09:00 ~ 2026/12/01 23:59");
+        assert_eq!(parse_period("<h3>活動時間：</h3><p><span style=\"font-size:14px;\">2026/10/21 09:00 </span>~ <span style=\"font-size:14px;\"> 2026/12/01 23:59</span></p>"), "2026/10/21 09:00 ~ 2026/12/01 23:59");
         assert!(parse_hub("<html><body>活動已結束</body></html>").is_none());
         assert_eq!(eventad_id("https://maplestory-event.beanfun.com/eventad/eventad?eventadid=19031"), Some(19031));
         assert_eq!(eventad_id("https://maplestory.beanfun.com/bulletin?bid=1"), None);

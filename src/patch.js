@@ -153,16 +153,6 @@ if (typeof document !== "undefined") (() => {
       return;
     }
     let lastYear = null;
-    // 下個版本（預測）：版本號是連號的，最新的加一；灰字、不能點
-    const latest = shown[0];
-    if (latest && !q && rows[0] === latest) {
-      const nx = document.createElement("div");
-      nx.className = "card pt-row next";
-      nx.title = "預測的下個版本號（官網還沒有公告）";
-      nx.innerHTML = `<span class="pt-ver">V${latest.v + 1}</span><span class="pt-date muted">－</span>` +
-        `<span class="pt-main"><span class="pt-title">下個版本（預測）</span><small class="pt-sub muted">官網還沒有公告，版本號照順序推算</small></span><span class="pt-go">尚未推出</span>`;
-      box.appendChild(nx);
-    }
     for (const r of rows) {
       if (year === "all" && r.year !== lastYear) {
         lastYear = r.year;
