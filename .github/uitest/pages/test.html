@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>測試頁</title>
+<style>
+  body { margin: 0; font: 18px sans-serif; background: #fff; }
+  #q { position: fixed; left: 20px; top: 20px; width: 360px; height: 40px; font-size: 22px; }
+  #fr { position: fixed; left: 20px; top: 90px; width: 380px; height: 70px; border: 2px solid #888; }
+  #pop { position: fixed; left: 20px; top: 180px; width: 160px; height: 40px; }
+  #blank { position: fixed; left: 200px; top: 190px; }
+  #empty { position: fixed; left: 20px; top: 260px; width: 360px; height: 120px; background: #eef; }
+</style></head>
+<body>
+<input id="q" placeholder="type here">
+<iframe id="fr" src="http://localhost:8765/frame.html"></iframe>
+<button id="pop" onclick="window.open('http://127.0.0.1:8765/popup.html','pp','width=420,height=300')">popup</button>
+<a id="blank" href="http://127.0.0.1:8765/snap.html?blank" target="_blank">blank link</a>
+<div id="empty">empty area</div>
+<script>
+  const log = (m) => fetch('/log?m=' + encodeURIComponent('[test] ' + m)).catch(() => {});
+  q.addEventListener('input', () => log('input:' + q.value));
+  addEventListener('resize', () => log('resize:' + innerWidth + 'x' + innerHeight));
+  document.addEventListener('visibilitychange', () => log('vis:' + document.visibilityState));
+  log('load:' + innerWidth + 'x' + innerHeight + ' dpr=' + devicePixelRatio);
+</script>
+</body></html>

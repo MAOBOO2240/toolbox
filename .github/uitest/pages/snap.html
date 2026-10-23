@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>短影片測試</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  #s { height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; }
+  .p { height: 100vh; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; font: bold 70px sans-serif; color: #fff; }
+</style></head>
+<body><div id="s"></div>
+<script>
+  const s = document.getElementById('s');
+  const colors = ['#c33', '#3a3', '#33c', '#aa3', '#3aa', '#a3a', '#777', '#f80', '#08f', '#80f'];
+  for (let i = 0; i < 10; i++) {
+    const d = document.createElement('div');
+    d.className = 'p'; d.style.background = colors[i]; d.textContent = 'Slide ' + (i + 1);
+    s.append(d);
+  }
+  const log = (m) => fetch('/log?m=' + encodeURIComponent('[snap] ' + m)).catch(() => {});
+  const cur = () => Math.round(s.scrollTop / s.clientHeight) + 1;
+  let last = -1, t;
+  s.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => { const c = cur(); if (c !== last) { last = c; log('slide:' + c); } }, 250); });
+  addEventListener('resize', () => setTimeout(() => log('after-resize slide:' + cur() + ' h=' + s.clientHeight), 500));
+  log('load h=' + s.clientHeight);
+</script>
+</body></html>
