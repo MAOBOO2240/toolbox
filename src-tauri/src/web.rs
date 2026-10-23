@@ -1503,6 +1503,11 @@ fn show_menu(app: &AppHandle, mut s: MenuSt) -> Result<(), String> {
         let h = MENU_HWND.load(Ordering::SeqCst);
         if h != 0 {
             win32::show_at(h, x, y, pw, ph);
+            // 選單換到縮放比例不同的螢幕時，Windows 會自動放大縮小一次：再設回正確的大小
+            std::thread::sleep(Duration::from_millis(60));
+            if lock(&MENU).as_ref().is_some_and(|s| s.visible && s.rect == (x, y, x + pw, y + ph)) {
+                win32::show_at(h, x, y, pw, ph);
+            }
             return Ok(());
         }
     }
@@ -1881,6 +1886,9 @@ mod win32 {
     /// 遊戲在前景、而且蓋住這個視窗時：把視窗放到遊戲上面（不搶焦點）。其他程式還是可以蓋住它
     pub fn keep_above(h: isize, game: isize) {
         unsafe {
+            if IsIconic(h as HWND) != 0 {
+                return;
+            }
             let mut w = GetWindow(h as HWND, GW_HWNDPREV);
             let mut n = 0;
             while !w.is_null() && n < 4000 {

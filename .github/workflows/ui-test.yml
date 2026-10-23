@@ -49,6 +49,8 @@ jobs:
       - name: Run UI test
         shell: pwsh
         timeout-minutes: 12
+        env:
+          PYTHONIOENCODING: utf-8
         run: python .github/uitest/run.py src-tauri/target/release/toolbox.exe
 
       # 結果推到 uitest-results-<分支> 分支（截圖、記錄）
