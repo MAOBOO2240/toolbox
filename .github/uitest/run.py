@@ -344,7 +344,7 @@ log("game hwnd", game, wrect(game) if game else None)
 
 # 只有測試時打開 WebView2 的遠端偵錯（隨機埠），用來讀工具列裡按鈕、分頁的實際位置
 app_env = dict(os.environ)
-app_env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0"
+app_env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=9222"
 app_proc = subprocess.Popen([EXE], env=app_env)
 KNOWN = ("工具箱", "web 選單", "計時器浮動視窗", "")
 
@@ -400,7 +400,7 @@ def devtools_ports():
 
 def cdp_targets():
     res = []
-    for port in devtools_ports():
+    for port in [9222] + [p for p in devtools_ports() if p != 9222]:
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
                 for t in json.load(r):
@@ -508,7 +508,8 @@ def step(name, fn):
 
 
 def s_start():
-    log("devtools ports", devtools_ports(), "工具列讀得到", bar_eval("1 + 1") == 2)
+    log("devtools ports", devtools_ports(), "targets", [(t.get("port"), t.get("type"), t.get("url", "")[:60]) for t in cdp_targets()])
+    log("工具列讀得到", bar_eval("1 + 1") == 2)
     dump(web, "start")
     kids = [c for c in children(web) if user32.IsWindowVisible(c)]
     check("一開始：看得到工具列和網頁", len(kids) >= 2, f"{len(kids)} 個可見子視窗")
@@ -519,7 +520,12 @@ def s_start():
 
 def s_max_button():
     before = wrect(web)
-    click_bar(BTN_MAX, (W() - 69, 20), wait=1.2)
+    log("按之前的前景視窗", fg(), repr(title(fg())), "web", web, "game", game)
+    t0 = time.time()
+    click_bar(BTN_MAX, (W() - 69, 20), wait=0.1)
+    z = wait_for(lambda: user32.IsZoomed(web), 4, 0.05)
+    log(f"放到最大花了 {time.time() - t0:.2f} 秒" if z else "4 秒內沒有放到最大", "前景", fg())
+    time.sleep(0.8)
     check("按放到最大按鈕：視窗放到最大", user32.IsZoomed(web), f"before={before} after={wrect(web)}")
     vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
     tops = sorted(r[1] for r in vis)
@@ -593,6 +599,12 @@ def s_drag_snap():
     after = wrect(web)
     check("放到最大時往下拖：還原成原本大小", not user32.IsZoomed(web) and abs((after[2] - after[0]) - (before[2] - before[0])) < 30
           and abs((after[3] - after[1]) - (before[3] - before[1])) < 30, f"before={before} after={after}")
+    # 放回原位，後面的測試才在螢幕裡
+    user32.MoveWindow(web, before[0], before[1], before[2] - before[0], before[3] - before[1], True)
+    time.sleep(1.0)
+    dump(web, "moved back")
+    vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
+    check("用別的程式移動視窗：網頁跟著放好", any(r[1] == before[1] for r in vis) and any(r[1] == before[1] + round(108 * scale) for r in vis), f"{vis}")
 
 
 def s_tabs():
@@ -648,6 +660,17 @@ def s_game():
     click(*C(5 + 200, 108 + 320), wait=0.8)
     check("點網頁空白處：鍵盤還在遊戲", fg() == game, f"fg={fg()}")
     check("點網頁空白處：web 視窗還在遊戲上面", above(web, game))
+    n0 = bar_eval("document.querySelectorAll('#tabs .tab').length")
+    click_bar(NEWTAB, (8 + 120 * 4 + 15, 23), wait=1.2)
+    n1 = bar_eval("document.querySelectorAll('#tabs .tab').length")
+    check("遊戲在前景時點 web 的按鈕：第一下就有作用", n0 is not None and n1 == n0 + 1, f"{n0} → {n1}")
+    # 關掉剛開的分頁，回到測試頁
+    if n1 and n0 and n1 == n0 + 1:
+        click_bar(TAB(0), (tab_x(0, 4), 23), wait=1.0)
+        bar_eval("(() => { const t = [...document.querySelectorAll('#tabs .tab')].pop(); t && t.querySelector('.tx') && t.querySelector('.tx').click(); })()")
+        time.sleep(1.0)
+    click(gx, gy, wait=1.0)
+    check("再點遊戲：遊戲在前景", fg() == game, f"fg={fg()}")
     key(0x41)
     time.sleep(0.4)
     check("按 A：遊戲收到", "key:a" in game_keys(), game_keys()[-80:])
