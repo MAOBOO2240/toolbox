@@ -12,10 +12,13 @@ if (typeof document !== "undefined") (() => {
     close: (id) => invoke("web_close", { id }),
     del: (id) => invoke("web_delete", { id }),
     set: (id, o) => invoke("web_set", { id, opacity: o.opacity ?? null, locked: o.locked ?? null, gameOnly: o.game_only ?? null }),
+    profiles: () => invoke("web_chrome_profiles"),
+    importChrome: (dir) => invoke("web_chrome_import", { dir }),
     onChange: (cb) => listen("web-changed", cb),
   } : mockApi();
 
-  let file = { next_id: 0, wins: [] };
+  let file = { next_id: 0, wins: [], bookmarks: { bar: [], other: [] } };
+  const countLinks = (list) => (list || []).reduce((n, b) => n + (b.url ? 1 : countLinks(b.children)), 0);
 
   const host = (u) => { try { return new URL(u).host; } catch { return u; } };
   const sw = (cls, on) => `<label class="switch sm"><input type="checkbox" class="${cls}"${on ? " checked" : ""} /><span class="slider"></span></label>`;
@@ -37,6 +40,7 @@ if (typeof document !== "undefined") (() => {
             <strong></strong>
             <span class="muted"></span>
           </div>
+          ${w.open && w.min ? '<button class="cbtn small c-blue solid web-show">顯示視窗</button>' : ""}
           <button class="cbtn small ${w.open ? "c-silver" : "c-green solid"} web-toggle">${w.open ? "關閉視窗" : "打開視窗"}</button>
           <button class="cbtn small c-red web-del">刪除</button>
         </div>
@@ -47,9 +51,14 @@ if (typeof document !== "undefined") (() => {
           <label class="web-opt" title="切到其他程式時自動隱藏，回到遊戲再出現"><span>只在遊戲畫面時顯示</span>${sw("web-game", w.game_only)}</label>
         </div>`;
       el.querySelector(".web-name strong").textContent = w.title || "新視窗";
-      el.querySelector(".web-name .muted").textContent = host(w.url);
+      const tabs = (w.tabs || []).length;
+      el.querySelector(".web-name .muted").textContent = [host(w.url), tabs > 1 ? `${tabs} 個分頁` : "", w.open && w.min ? "已縮小" : ""].filter(Boolean).join("・");
       el.querySelector(".web-name").title = w.url;
 
+      el.querySelector(".web-show")?.addEventListener("click", () => run(async () => {
+        await wapi.open(w.id);
+        await reload();
+      }));
       el.querySelector(".web-toggle").addEventListener("click", () => run(async () => {
         if (w.open) await wapi.close(w.id); else await wapi.open(w.id);
         await reload();
@@ -84,10 +93,42 @@ if (typeof document !== "undefined") (() => {
     });
   }
 
+  function renderBm() {
+    const b = file.bookmarks || { bar: [], other: [] };
+    const n = countLinks(b.bar) + countLinks(b.other);
+    $("#webBmCount").textContent = n ? `${n} 個書籤（所有 web 視窗共用）` : "還沒有書籤";
+  }
+
   async function reload() {
     file = await wapi.list();
     render();
+    renderBm();
   }
+
+  /* ---------- 從 Chrome 匯入書籤 ---------- */
+  const COLORS = ["c-blue", "c-purple", "c-teal", "c-pink", "c-indigo", "c-orange", "c-green"];
+  async function importFrom(p) {
+    const n = await wapi.importChrome(p.dir);
+    $("#webProfiles").hidden = true;
+    toast(n ? `已匯入 ${n} 個書籤` : "沒有新的書籤（都已經匯入過了）");
+    await reload();
+  }
+  $("#webImport").addEventListener("click", () => run(async () => {
+    const box = $("#webProfiles");
+    if (!box.hidden) { box.hidden = true; return; }
+    const list = await wapi.profiles();
+    if (list.length === 1) { await importFrom(list[0]); return; }
+    // 有好幾個 Chrome 使用者：選要匯入哪一個帳號的書籤
+    box.innerHTML = '<span class="muted">Chrome 有好幾個使用者，選要匯入哪一個帳號的書籤：</span>';
+    list.forEach((p, i) => {
+      const b = document.createElement("button");
+      b.className = `cbtn small ${COLORS[i % COLORS.length]}`;
+      b.textContent = `${p.name}${p.account ? `（${p.account}）` : ""}・${p.count} 個書籤`;
+      b.addEventListener("click", () => run(() => importFrom(p)));
+      box.append(b);
+    });
+    box.hidden = false;
+  }));
 
   $("#webAdd").addEventListener("click", () => run(async () => {
     await wapi.add();
@@ -101,15 +142,21 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 瀏覽器預覽用的模擬後端 ---------- */
   function mockApi() {
-    const f = { next_id: 1, wins: [{ id: "w1", url: "https://www.youtube.com/watch?v=x", title: "YouTube", opacity: 100, locked: false, game_only: false, open: true }] };
+    const f = {
+      next_id: 1,
+      wins: [{ id: "w1", url: "https://www.youtube.com/watch?v=x", title: "YouTube", opacity: 100, locked: false, game_only: false, open: true, min: true, tabs: [{ id: "t1" }, { id: "t2" }] }],
+      bookmarks: { bar: [], other: [] },
+    };
     const clone = (x) => JSON.parse(JSON.stringify(x));
     return {
       list: async () => clone(f),
       add: async () => { f.next_id++; const w = { id: `w${f.next_id}`, url: "https://www.google.com/", title: "", opacity: 100, locked: false, game_only: false, open: true }; f.wins.push(w); return clone(w); },
-      open: async (id) => { f.wins.find((w) => w.id === id).open = true; },
+      open: async (id) => { Object.assign(f.wins.find((w) => w.id === id), { open: true, min: false }); },
       close: async (id) => { f.wins.find((w) => w.id === id).open = false; },
       del: async (id) => { f.wins = f.wins.filter((w) => w.id !== id); },
       set: async (id, o) => { Object.assign(f.wins.find((w) => w.id === id), o); },
+      profiles: async () => [{ dir: "Default", name: "個人", account: "", count: 24 }, { dir: "Profile 1", name: "工作", account: "", count: 7 }],
+      importChrome: async () => { f.bookmarks.bar.push({ url: "https://www.youtube.com/" }, { url: "https://forum.gamer.com.tw/" }); return 2; },
       onChange: () => {},
     };
   }

@@ -22,3 +22,9 @@ label.web-opt { cursor: pointer; }
 .web-range { display: flex; align-items: center; gap: 0.5rem; }
 .web-range .range { width: 8rem; }
 .web-range b { min-width: 2.6rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.web-bmcard { padding: 0.85rem 1.1rem; display: flex; flex-direction: column; gap: 0.55rem; }
+.web-bmhead { display: flex; align-items: center; gap: 0.7rem; }
+.web-bmtip { font-size: 0.8rem; line-height: 1.5; }
+.web-profiles { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.web-profiles .muted { flex-basis: 100%; font-size: 0.8rem; }
+.web-profiles[hidden] { display: none; }

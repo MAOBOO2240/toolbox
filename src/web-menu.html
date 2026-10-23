@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>web 選單</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; background: #262b36; color: #f2f4f8; user-select: none;
+      font: 12.5px/1.2 -apple-system, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif; }
+    body { overflow-y: auto; overflow-x: hidden; border: 1px solid #3a4252; }
+    body::-webkit-scrollbar { width: 8px; }
+    body::-webkit-scrollbar-thumb { background: #4a5263; border-radius: 4px; }
+    svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .menu { padding: 5px 0; }
+    /* 高度要跟 web.rs 的 MENU_ITEM_H、MENU_SEP_H、MENU_PAD 一致 */
+    .mi { height: 30px; display: flex; align-items: center; gap: 9px; padding: 0 12px; margin: 0 5px; border-radius: 6px; cursor: default; }
+    .mi:hover { background: #3a4252; }
+    .mi .ic { flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: #9aa3b2; }
+    .mi .ic svg { width: 15px; height: 15px; }
+    .mi .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mi .s { flex: none; color: #8a93a3; font-size: 11px; }
+    .mi.folder .ic { color: #f5c542; }
+    .mi.back { color: #7dd3fc; }
+    .mi.back .ic { color: #7dd3fc; }
+    .mi.act .ic.newtab { color: #60a5fa; }
+    .mi.act .ic.rename { color: #a78bfa; }
+    .mi.act .ic.reload { color: #34d399; }
+    .mi.act .ic.close { color: #fbbf24; }
+    .mi.danger, .mi.danger .ic { color: #f87171; }
+    .mi.danger:hover { background: rgba(239, 68, 68, 0.18); }
+    .mi.empty { color: #8a93a3; justify-content: center; }
+    .mi.empty:hover { background: none; }
+    .sep { height: 9px; display: flex; align-items: center; margin: 0 10px; }
+    .sep::after { content: ""; flex: 1; height: 1px; background: #3a4252; }
+    .fav { width: 16px; height: 16px; border-radius: 3px; object-fit: contain; display: block; }
+    .letter { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="menu" id="menu"></div>
+  <script>
+    "use strict";
+    (() => {
+      const T = window.__TAURI__;
+      if (!T) return;
+      const ICONS = {
+        folder: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>',
+        back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+        newtab: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
+        rename: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+        delete: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+        reload: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></svg>',
+        close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+        chev: '<svg viewBox="0 0 24 24" width="12" height="12"><path d="M9 6l6 6-6 6"/></svg>',
+      };
+      const host = (u) => { try { return new URL(u).host; } catch { return ""; } };
+      function letter(text) {
+        const el = document.createElement("span");
+        let h = 0;
+        for (const c of text || "?") h = (h * 31 + c.charCodeAt(0)) % 360;
+        el.className = "letter";
+        el.style.background = `hsl(${h} 55% 45%)`;
+        el.textContent = ((text || "?").trim().charAt(0) || "?").toUpperCase();
+        return el;
+      }
+      function favicon(src, text) {
+        if (!src) return letter(text);
+        const img = document.createElement("img");
+        img.className = "fav";
+        img.alt = "";
+        img.draggable = false;
+        img.referrerPolicy = "no-referrer";
+        img.onerror = () => img.replaceWith(letter(text));
+        img.src = src;
+        return img;
+      }
+      const pick = (index, button) => T.core.invoke("web_menu_pick", { index, button }).catch(() => {});
+
+      function render(items) {
+        const menu = document.getElementById("menu");
+        menu.innerHTML = "";
+        document.body.scrollTop = 0;
+        items.forEach((it, i) => {
+          if (it.kind === "sep") {
+            const s = document.createElement("div");
+            s.className = "sep";
+            menu.append(s);
+            return;
+          }
+          const row = document.createElement("div");
+          row.className = `mi ${it.kind}${it.danger ? " danger" : ""}`;
+          const ic = document.createElement("span");
+          ic.className = "ic";
+          if (it.kind === "link") {
+            const h = host(it.sub);
+            ic.append(favicon(it.icon || (h ? `https://${h}/favicon.ico` : ""), it.title || h));
+            row.title = it.sub;
+          } else if (it.kind === "folder") {
+            ic.innerHTML = ICONS.folder;
+          } else if (it.kind === "back") {
+            ic.innerHTML = ICONS.back;
+          } else if (it.kind === "act") {
+            ic.innerHTML = ICONS[it.icon] || "";
+            ic.classList.add(it.icon);
+          }
+          const t = document.createElement("span");
+          t.className = "t";
+          t.textContent = it.title;
+          row.append(ic, t);
+          if (it.kind === "folder") {
+            const s = document.createElement("span");
+            s.className = "s";
+            s.innerHTML = `${it.sub} ${ICONS.chev}`;
+            row.append(s);
+          }
+          if (it.kind !== "empty") {
+            row.addEventListener("mouseup", (e) => { if (e.button === 0 || e.button === 1) pick(i, e.button); });
+            row.addEventListener("contextmenu", (e) => {
+              e.preventDefault();
+              if (it.kind === "link" || it.kind === "folder") pick(i, 2);
+            });
+          }
+          menu.append(row);
+        });
+      }
+
+      document.addEventListener("contextmenu", (e) => e.preventDefault());
+      document.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
+      T.event.listen("web-menu-items", (e) => render((e.payload && e.payload.items) || []));
+      T.core.invoke("web_menu_init").then((p) => render((p && p.items) || [])).catch(() => {});
+    })();
+  </script>
+</body>
+</html>

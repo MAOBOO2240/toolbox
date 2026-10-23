@@ -422,7 +422,7 @@ fn main() {
                 }
             }
             // 浮動視窗、通知換到別的螢幕：重新套用等比例縮放
-            if label != "main" && matches!(event, WindowEvent::Moved(_) | WindowEvent::ScaleFactorChanged { .. }) {
+            if label != "main" && !label.starts_with("web") && matches!(event, WindowEvent::Moved(_) | WindowEvent::ScaleFactorChanged { .. }) {
                 if let Some(w) = window.app_handle().get_webview_window(label) {
                     scale::check(w.as_ref());
                 }
@@ -493,10 +493,23 @@ fn main() {
             web::web_close,
             web::web_delete,
             web::web_set,
+            web::web_chrome_profiles,
+            web::web_chrome_import,
             web::web_bar_init,
             web::web_nav,
             web::web_typing,
-            web::web_close_self
+            web::web_tab_new,
+            web::web_tab_select,
+            web::web_tab_close,
+            web::web_win,
+            web::web_bm_toggle,
+            web::web_bm_open,
+            web::web_bm_move,
+            web::web_bm_rename,
+            web::web_bm_delete,
+            web::web_menu_open,
+            web::web_menu_init,
+            web::web_menu_pick
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");
