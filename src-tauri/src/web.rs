@@ -588,6 +588,8 @@ struct Rt {
     typing_since: Option<Instant>,
     /// 網頁進入全螢幕（影片全螢幕）：網頁蓋滿整個視窗、工具列藏起來
     full: bool,
+    /// 視窗目前所在螢幕的縮放比例（跨到不同縮放比例的螢幕時，照比例換算大小）
+    sf: f64,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -1228,7 +1230,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     let hwnd = win.hwnd().map(|h| h.0 as isize).unwrap_or(0);
     #[cfg(not(windows))]
     let hwnd = 0isize;
-    rt(|m| m.insert(id.to_string(), Rt { hwnd, ..Rt::default() }));
+    rt(|m| m.insert(id.to_string(), Rt { hwnd, sf: sf0, ..Rt::default() }));
     install_subclass(app, hwnd, (x, y, w, h));
 
     let sf = win.scale_factor().unwrap_or(sf0).max(0.5);
@@ -1266,6 +1268,30 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
             let min = win2.is_minimized().unwrap_or(false);
             if edit(&id2, |c| std::mem::replace(&mut c.min, min) != min) == Some(true) {
                 emit_main(&app2);
+            }
+        }
+        // 跨到縮放比例不同的螢幕：視窗大小照比例換算（有時 Windows 只通知、沒有幫忙改大小，自己算一次才不會忽大忽小）
+        WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+            let new_sf = scale_factor.max(0.5);
+            let old_sf = rt(|m| m.get_mut(&id2).map(|r| std::mem::replace(&mut r.sf, new_sf))).unwrap_or(new_sf);
+            if (new_sf - old_sf).abs() > 0.001 && !win2.is_maximized().unwrap_or(false) && !win2.is_minimized().unwrap_or(false) {
+                if let Some((w, h)) = get(&id2).map(|c| (c.w, c.h)) {
+                    let want = PhysicalSize::new(((w as f64) / old_sf * new_sf).round() as u32, ((h as f64) / old_sf * new_sf).round() as u32);
+                    let (w3, id3, app3) = (win2.clone(), id2.clone(), app2.clone());
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_millis(150));
+                        let full = rt(|m| m.get(&id3).is_some_and(|r| r.full));
+                        if full || w3.is_maximized().unwrap_or(false) {
+                            return;
+                        }
+                        if w3.inner_size().ok() != Some(want) {
+                            let _ = w3.set_size(want);
+                        }
+                        if let Ok(size) = w3.inner_size() {
+                            layout(&app3, &id3, &w3, size);
+                        }
+                    });
+                }
             }
         }
         WindowEvent::Moved(p) if p.x > -10000 && p.y > -10000 => {

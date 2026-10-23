@@ -1024,7 +1024,8 @@ def s_ext():
     shot("ext_menu")
     if m:
         mr = wrect(m)
-        click(mr[0] + 60, mr[1] + 5 + 15, wait=3.0)
+        # 第一列是「擴充功能」標題，第二列才是第一個擴充功能
+        click(mr[0] + 60, mr[1] + 5 + 30 + 15, wait=3.0)
     shot("ext_popup")
     after = [c for c in children(web) if user32.IsWindowVisible(c)]
     check("點擴充功能：小視窗蓋在網頁上", len(after) == len(before) + 1, f"{[wrect(c) for c in after]}")
