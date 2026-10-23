@@ -1445,8 +1445,8 @@ fn bm_ctx(b: &Bm) -> (Vec<MenuItem>, Vec<Act>) {
 
 fn ext_items() -> (Vec<MenuItem>, Vec<Act>) {
     let list = ext_list();
-    let mut items = Vec::new();
-    let mut acts = Vec::new();
+    let mut items = vec![item("head", "擴充功能", "")];
+    let mut acts = vec![Act::Nothing];
     if list.is_empty() {
         items.push(item("empty", "（沒有擴充功能）", ""));
         acts.push(Act::Nothing);

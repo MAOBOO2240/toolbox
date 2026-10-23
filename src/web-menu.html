@@ -30,6 +30,13 @@
     .mi.danger, .mi.danger .ic { color: #f87171; }
     .mi.danger:hover { background: rgba(239, 68, 68, 0.18); }
     .mi.empty { color: #8a93a3; justify-content: center; }
+    /* 擴充功能選單：跟 Chrome 一樣，上面有標題，每一列右邊有「⋮」 */
+    .mi.head { font-weight: 700; font-size: 13.5px; cursor: default; padding-left: 10px; }
+    .mi.head:hover { background: none; }
+    .mi.ext .more { flex: none; width: 24px; height: 24px; border: 0; border-radius: 6px; background: none; color: #9aa3b2; display: grid; place-items: center; cursor: pointer; visibility: hidden; }
+    .mi.ext:hover .more { visibility: visible; }
+    .mi.ext .more:hover { background: #4a5263; color: #f2f4f8; }
+    .mi.ext .more svg { width: 16px; height: 16px; stroke-width: 2.6; }
     .mi.ext.off .t, .mi.ext.off .ic { opacity: 0.45; }
     .mi.empty:hover { background: none; }
     .sep { height: 9px; display: flex; align-items: center; margin: 0 10px; }
@@ -54,6 +61,7 @@
         reload: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></svg>',
         close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
         chev: '<svg viewBox="0 0 24 24" width="12" height="12"><path d="M9 6l6 6-6 6"/></svg>',
+        more: '<svg viewBox="0 0 24 24"><path d="M12 5v.01M12 12v.01M12 19v.01"/></svg>',
       };
       const host = (u) => { try { return new URL(u).host; } catch { return ""; } };
       function letter(text) {
@@ -119,15 +127,25 @@
             row.append(s);
           }
           if (it.kind === "ext") {
-            row.title = "點一下開啟擴充功能的選單；右鍵：選項、停用／啟用";
+            row.title = "點一下開啟擴充功能的選單";
             if (it.sub) {
               const s = document.createElement("span");
               s.className = "s";
               s.textContent = it.sub;
               row.append(s);
             }
+            const more = document.createElement("button");
+            more.className = "more";
+            more.title = "選項、停用／啟用";
+            more.innerHTML = ICONS.more;
+            more.addEventListener("mouseup", (e) => { e.stopPropagation(); pick(i, 2); });
+            more.addEventListener("mousedown", (e) => e.stopPropagation());
+            row.append(more);
           }
-          if (it.kind !== "empty") {
+          if (it.kind === "head") {
+            ic.remove();
+          }
+          if (it.kind !== "empty" && it.kind !== "head") {
             row.addEventListener("mouseup", (e) => { if (e.button === 0 || e.button === 1) pick(i, e.button); });
             row.addEventListener("contextmenu", (e) => {
               e.preventDefault();
