@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import socketserver
+import struct
 import subprocess
 import sys
 import threading
@@ -65,6 +66,8 @@ user32.GetWindowThreadProcessId.argtypes = [HWND, ctypes.POINTER(wt.DWORD)]
 user32.ShowWindow.argtypes = [HWND, ctypes.c_int]
 user32.MoveWindow.argtypes = [HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wt.BOOL]
 user32.PostMessageW.argtypes = [HWND, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
+user32.EnumDisplaySettingsW.argtypes = [ctypes.c_wchar_p, wt.DWORD, ctypes.c_void_p]
+user32.ChangeDisplaySettingsW.argtypes = [ctypes.c_void_p, wt.DWORD]
 user32.SendMessageTimeoutW.argtypes = [HWND, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.POINTER(ctypes.c_size_t)]
 EnumProc = ctypes.WINFUNCTYPE(wt.BOOL, HWND, ctypes.c_void_p)
 user32.EnumWindows.argtypes = [EnumProc, ctypes.c_void_p]
@@ -735,7 +738,7 @@ def s_menu():
 def s_new_tab():
     n0 = tab_count()
     click_bar(NEWTAB, (plus_x(), 23), wait=1.0)
-    type_text(f"127.0.0.1:{PORT}/test.html?new")
+    type_text(f"http://127.0.0.1:{PORT}/test.html?new")
     key(0x0D)
     time.sleep(2.5)
     shot("new_tab_loaded")
@@ -841,6 +844,153 @@ def s_notepad():
     np_proc.kill()
 
 
+# ---------- 改變螢幕縮放比例（模擬視窗移到縮放比例不同的螢幕） ----------
+class LUID(ctypes.Structure):
+    _fields_ = [("LowPart", wt.DWORD), ("HighPart", wt.LONG)]
+
+
+class DCHEADER(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_int), ("size", ctypes.c_uint32), ("adapterId", LUID), ("id", ctypes.c_uint32)]
+
+
+class DPI_GET(ctypes.Structure):
+    _fields_ = [("header", DCHEADER), ("minScaleRel", ctypes.c_int32), ("curScaleRel", ctypes.c_int32), ("maxScaleRel", ctypes.c_int32)]
+
+
+class DPI_SET(ctypes.Structure):
+    _fields_ = [("header", DCHEADER), ("scaleRel", ctypes.c_int32)]
+
+
+class DEVMODEW(ctypes.Structure):
+    _fields_ = [
+        ("dmDeviceName", ctypes.c_wchar * 32),
+        ("dmSpecVersion", wt.WORD), ("dmDriverVersion", wt.WORD), ("dmSize", wt.WORD), ("dmDriverExtra", wt.WORD),
+        ("dmFields", wt.DWORD),
+        ("dmPositionX", wt.LONG), ("dmPositionY", wt.LONG), ("dmDisplayOrientation", wt.DWORD), ("dmDisplayFixedOutput", wt.DWORD),
+        ("dmColor", ctypes.c_short), ("dmDuplex", ctypes.c_short), ("dmYResolution", ctypes.c_short), ("dmTTOption", ctypes.c_short),
+        ("dmCollate", ctypes.c_short),
+        ("dmFormName", ctypes.c_wchar * 32),
+        ("dmLogPixels", wt.WORD), ("dmBitsPerPel", wt.DWORD), ("dmPelsWidth", wt.DWORD), ("dmPelsHeight", wt.DWORD),
+        ("dmDisplayFlags", wt.DWORD), ("dmDisplayFrequency", wt.DWORD),
+        ("dmICMMethod", wt.DWORD), ("dmICMIntent", wt.DWORD), ("dmMediaType", wt.DWORD), ("dmDitherType", wt.DWORD),
+        ("dmReserved1", wt.DWORD), ("dmReserved2", wt.DWORD), ("dmPanningWidth", wt.DWORD), ("dmPanningHeight", wt.DWORD),
+    ]
+
+
+def display_source():
+    np_, nm = wt.UINT(0), wt.UINT(0)
+    if user32.GetDisplayConfigBufferSizes(2, ctypes.byref(np_), ctypes.byref(nm)) != 0:
+        return None
+    paths = (ctypes.c_ubyte * (72 * max(1, np_.value)))()
+    modes = (ctypes.c_ubyte * (64 * max(1, nm.value)))()
+    if user32.QueryDisplayConfig(2, ctypes.byref(np_), paths, ctypes.byref(nm), modes, None) != 0:
+        return None
+    low, high, sid = struct.unpack_from("<IiI", bytes(paths[:12]))
+    return low, high, sid
+
+
+def dpi_info():
+    src = display_source()
+    if not src:
+        return None
+    g = DPI_GET()
+    g.header.type = -3
+    g.header.size = ctypes.sizeof(DPI_GET)
+    g.header.adapterId = LUID(src[0], src[1])
+    g.header.id = src[2]
+    if user32.DisplayConfigGetDeviceInfo(ctypes.byref(g)) != 0:
+        return None
+    return src, g.minScaleRel, g.curScaleRel, g.maxScaleRel
+
+
+def set_dpi_rel(src, rel):
+    st_ = DPI_SET()
+    st_.header.type = -4
+    st_.header.size = ctypes.sizeof(DPI_SET)
+    st_.header.adapterId = LUID(src[0], src[1])
+    st_.header.id = src[2]
+    st_.scaleRel = rel
+    return user32.DisplayConfigSetDeviceInfo(ctypes.byref(st_))
+
+
+def set_resolution(w, h):
+    dm = DEVMODEW()
+    dm.dmSize = ctypes.sizeof(DEVMODEW)
+    modes = set()
+    i = 0
+    while user32.EnumDisplaySettingsW(None, i, ctypes.byref(dm)):
+        modes.add((dm.dmPelsWidth, dm.dmPelsHeight))
+        i += 1
+    log("可用解析度", sorted(modes))
+    if (w, h) not in modes:
+        cands = sorted([m for m in modes if m[0] >= 1600], key=lambda m: m[0] * m[1])
+        if not cands:
+            return False
+        w, h = cands[0]
+    dm = DEVMODEW()
+    dm.dmSize = ctypes.sizeof(DEVMODEW)
+    user32.EnumDisplaySettingsW(None, -1, ctypes.byref(dm))
+    dm.dmPelsWidth, dm.dmPelsHeight = w, h
+    dm.dmFields = 0x00080000 | 0x00100000
+    r = user32.ChangeDisplaySettingsW(ctypes.byref(dm), 0)
+    log("改解析度", (w, h), "結果", r)
+    return r == 0
+
+
+def layout_ok(sc):
+    vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
+    cx, cy, cw, ch = client(web)
+    bar_h = round(108 * sc)
+    bar = [r for r in vis if r[1] == cy and r[3] - r[1] == bar_h]
+    page = [r for r in vis if abs(r[1] - (cy + bar_h)) <= 1 and r[3] <= cy + ch]
+    return bool(bar) and bool(page), vis
+
+
+def s_dpi():
+    user32.SetProcessDPIAware()
+    info = dpi_info()
+    log("縮放比例資訊", info)
+    if not info or info[3] <= info[2]:
+        if not set_resolution(1920, 1080):
+            log("沒辦法改解析度，略過縮放比例測試")
+            return
+        time.sleep(3)
+        info = dpi_info()
+        log("改解析度後的縮放比例資訊", info)
+    if not info or info[3] <= info[2]:
+        log("這台測試機不能調高縮放比例，略過")
+        return
+    src, lo, cur, hi = info
+    # 切到短影片分頁（捲到第 4 張了），看縮放比例改變後還是不是同一張
+    click(*C(tab_x(1), 23), wait=1.5)
+    t0 = time.time()
+    d0 = user32.GetDpiForWindow(web)
+    r = set_dpi_rel(src, cur + 1)
+    time.sleep(4)
+    d1 = user32.GetDpiForWindow(web)
+    log("改縮放比例", r, "DPI", d0, "→", d1)
+    shot("dpi_up")
+    dump(web, "dpi up")
+    ok, vis = layout_ok(d1 / 96)
+    check("縮放比例改變後：視窗還看得到", user32.IsWindowVisible(web) and not user32.IsIconic(web))
+    check("縮放比例改變後：工具列和網頁位置正確", ok, f"dpi={d1} {vis}")
+    after = slides_since(t0)
+    check("縮放比例改變後：短影片還是同一張", all(x == 4 for x in after), f"{after}")
+    check("縮放比例改變後：程式有回應", responsive(web))
+    t0 = time.time()
+    set_dpi_rel(src, cur)
+    time.sleep(4)
+    d2 = user32.GetDpiForWindow(web)
+    log("縮放比例改回來 DPI", d2)
+    shot("dpi_back")
+    dump(web, "dpi back")
+    ok, vis = layout_ok(d2 / 96)
+    check("縮放比例改回來：工具列和網頁位置正確", ok, f"dpi={d2} {vis}")
+    after = slides_since(t0)
+    check("縮放比例改回來：短影片還是同一張", all(x == 4 for x in after), f"{after}")
+    click(*C(tab_x(0), 23), wait=1.0)
+
+
 def s_minimize():
     click_bar(BTN_MIN, (W() - 115, 20), wait=1.2)
     check("按縮小：縮到工作列", user32.IsIconic(web))
@@ -868,6 +1018,7 @@ for name, fn in [
     ("new_tab", s_new_tab),
     ("game", s_game),
     ("notepad", s_notepad),
+    ("dpi", s_dpi),
     ("minimize", s_minimize),
     ("close", s_close),
 ]:
