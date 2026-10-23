@@ -16,6 +16,13 @@ import urllib.parse
 
 from PIL import ImageGrab
 
+# 測試機的命令列預設不是 UTF-8：中文改成可以印出來
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.abspath("uitest-out")
 os.makedirs(OUT, exist_ok=True)
@@ -63,7 +70,10 @@ RESULTS = []
 
 def log(*a):
     s = " ".join(str(x) for x in a)
-    print(s, flush=True)
+    try:
+        print(s, flush=True)
+    except Exception:
+        pass
     LOGF.write(s + "\n")
     LOGF.flush()
 
