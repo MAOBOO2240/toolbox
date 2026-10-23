@@ -1,0 +1,55 @@
+name: UI test
+
+# 開發用：推到 uitest 分支時，在 Windows 上編譯並實際操作 web 視窗，截圖與結果放在 artifact（不會發布）
+on:
+  push:
+    branches: [uitest]
+  workflow_dispatch:
+
+concurrency:
+  group: uitest
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  ui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Tauri CLI
+        run: npm install
+
+      - name: Build exe
+        shell: bash
+        run: npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test tools
+        run: pip install pillow
+
+      - name: Run UI test
+        shell: pwsh
+        timeout-minutes: 12
+        run: python .github/uitest/run.py src-tauri/target/release/toolbox.exe
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uitest
+          path: uitest-out

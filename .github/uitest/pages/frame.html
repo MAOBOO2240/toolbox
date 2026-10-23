@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>frame</title></head>
+<body style="margin:0;background:#ffe">
+<input id="f" style="margin:10px;width:300px;height:36px;font-size:20px" placeholder="frame input">
+<script>
+  const log = (m) => fetch('http://localhost:8765/log?m=' + encodeURIComponent('[frame] ' + m)).catch(() => {});
+  f.addEventListener('input', () => log('input:' + f.value));
+</script>
+</body></html>
