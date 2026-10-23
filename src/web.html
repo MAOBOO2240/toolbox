@@ -40,6 +40,8 @@
     .newtab:hover { background: rgba(125, 211, 252, 0.16); }
     .newtab svg { width: 15px; height: 15px; stroke-width: 2.4; }
     .drag { flex: 1 1 40px; min-width: 40px; height: 100%; }
+    /* 放到最大時：滑鼠移到螢幕最上緣也點得到分頁 */
+    body.max .tab::after { content: ""; position: absolute; left: 0; right: 0; top: -6px; height: 6px; }
     .tabs { position: relative; }
     /* 拖曳中的分頁跟著滑鼠走，其他分頁讓位 */
     .tab.dragging { transition: none; z-index: 2; background: var(--tool); color: var(--text); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
@@ -107,7 +109,7 @@
     <button class="newtab" id="newTab" title="新分頁"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <div class="drag" id="drag" title="按住拖曳移動視窗；按兩下放到最大／還原"></div>
     <div class="caps">
-      <button class="cap" id="cMin" title="縮小（在 web 工具裡可以再叫出來）"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
+      <button class="cap" id="cMin" title="縮小到工作列"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
       <button class="cap" id="cMax" title="放到最大"><svg viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg></button>
       <button class="cap close" id="cClose" title="關閉（在 web 工具裡可以再打開）"><svg viewBox="0 0 12 12"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9"/></svg></button>
     </div>
@@ -294,6 +296,7 @@
         $("star").classList.toggle("on", on);
         $("star").title = on ? "從書籤移除" : "加入書籤";
         $("cMax").innerHTML = st.max ? RESTORE : MAX;
+        document.body.classList.toggle("max", !!st.max);
         $("cMax").title = st.max ? "還原" : "放到最大";
       }
 
@@ -489,7 +492,8 @@
       // 拖曳分頁列的空白處移動視窗；按兩下放到最大／還原
       const dragArea = (e) => e.target === $("drag") || e.target === $("tabsRow") || e.target === $("tabs");
       $("tabsRow").addEventListener("pointerdown", (e) => {
-        if (e.button !== 0 || !dragArea(e) || st.max || e.detail > 1) return;
+        // 放到最大時也可以拖：Windows 會把視窗還原成原本的大小再跟著滑鼠走
+        if (e.button !== 0 || !dragArea(e) || e.detail > 1) return;
         T.window.getCurrentWindow().startDragging().catch(() => {});
       });
       $("tabsRow").addEventListener("dblclick", (e) => { if (dragArea(e)) invoke("web_win", { action: "max" }); });

@@ -894,6 +894,12 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
     if changed {
         emit_state(app, wid);
         emit_main(app);
+        // 工作列上顯示目前分頁的標題
+        if get(wid).is_some_and(|w| w.active == tid) {
+            if let Some(win) = app.get_window(&win_label(wid)) {
+                let _ = win.set_title(if title.is_empty() { "web" } else { &title });
+            }
+        }
     }
 }
 
@@ -1065,25 +1071,31 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         });
         if let Some(win) = app.get_window(&label) {
             show(&win, true);
+            if win.is_minimized().unwrap_or(false) {
+                let _ = win.unminimize();
+            }
         }
         emit_main(app);
         return Ok(());
     }
 
-    let win = WindowBuilder::new(app, &label)
-        .title("web")
+    let mut builder = WindowBuilder::new(app, &label)
+        .title(if cfg.title.is_empty() { "web".to_string() } else { cfg.title.clone() })
         .decorations(false)
-        .skip_taskbar(true)
+        // 跟一般視窗一樣：工作列有圖示、可以縮小到工作列、可以被其他視窗蓋住
+        .skip_taskbar(false)
         .resizable(true)
         .maximizable(true)
-        .minimizable(false)
+        .minimizable(true)
         .focused(false)
-        // 點了也不會變成作用中的視窗：鍵盤留在遊戲
+        // 遊戲在前景時點這個視窗不會搶走遊戲的鍵盤（其他時候會切換成一般視窗，見 tick）
         .focusable(false)
         .visible(false)
-        .background_color(Color(30, 34, 43, 255))
-        .build()
-        .map_err(|e| format!("視窗建立失敗：{e}"))?;
+        .background_color(Color(30, 34, 43, 255));
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone()).map_err(|e| e.to_string())?;
+    }
+    let win = builder.build().map_err(|e| format!("視窗建立失敗：{e}"))?;
     let _ = win.set_min_size(Some(LogicalSize::new(380.0, 240.0)));
     let mut cfg = cfg;
     if cfg.w == 0 || cfg.h == 0 {
@@ -1134,10 +1146,18 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
                 if !max {
                     (c.w, c.h) = (w, h);
                 }
+                c.min = false;
                 std::mem::replace(&mut c.max, max) != max
             });
             if changed == Some(true) {
                 emit_state(&app2, &id2);
+            }
+        }
+        // 縮小到工作列（大小變成 0）
+        WindowEvent::Resized(_) => {
+            let min = win2.is_minimized().unwrap_or(false);
+            if edit(&id2, |c| std::mem::replace(&mut c.min, min) != min) == Some(true) {
+                emit_main(&app2);
             }
         }
         WindowEvent::Moved(p) if p.x > -10000 && p.y > -10000 => {
@@ -1161,11 +1181,12 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         w.open = true;
         (w.x, w.y) = (x, y);
     });
-    if !cfg.min {
-        show(&win, true);
-    }
+    show(&win, true);
     if cfg.max {
         let _ = win.maximize();
+    }
+    if cfg.min {
+        let _ = win.minimize();
     }
     emit_main(app);
     Ok(())
@@ -1526,6 +1547,8 @@ fn pop_menu(app: &AppHandle) {
 #[cfg(windows)]
 mod win32 {
     use super::{lock, TYPING_HWND};
+    use std::sync::atomic::{AtomicIsize, Ordering};
+    use windows_sys::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
     use std::sync::Mutex;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
@@ -1540,6 +1563,38 @@ mod win32 {
 
     /// 正在拖曳或拉大小的視窗 → 這段時間被啟用時，原本在前景的視窗（放開後再還回去）
     static MOVING: Mutex<Vec<(isize, isize)>> = Mutex::new(Vec::new());
+    /// 新楓之谷的視窗
+    pub static GAME_HWND: AtomicIsize = AtomicIsize::new(0);
+    /// 遊戲在前景時點了這個視窗（不搶焦點）的時間：這之後馬上被啟用，就是網頁元件自己搶的
+    static NOACT_CLICK: Mutex<Option<(isize, std::time::Instant)>> = Mutex::new(None);
+
+    fn is_game(h: HWND) -> bool {
+        !h.is_null() && h as isize == GAME_HWND.load(Ordering::SeqCst) && unsafe { IsWindow(h) } != 0
+    }
+
+    fn clicked_recently(h: HWND) -> bool {
+        lock(&NOACT_CLICK).is_some_and(|(w, t)| w == h as isize && t.elapsed() < std::time::Duration::from_millis(800))
+    }
+
+    /// 遊戲剛到前景：馬上把 web 視窗放到遊戲上面（不搶焦點）
+    unsafe extern "system" fn on_foreground(_h: HWINEVENTHOOK, _ev: u32, hwnd: HWND, _o: i32, _c: i32, _t: u32, _ms: u32) {
+        if hwnd.is_null() || is_own(hwnd as isize) || !crate::fg::current().is_game {
+            return;
+        }
+        GAME_HWND.store(hwnd as isize, Ordering::SeqCst);
+        for h in super::web_hwnds() {
+            if IsWindowVisible(h as HWND) != 0 && IsIconic(h as HWND) == 0 {
+                SetWindowPos(h as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+    }
+
+    /// 要在主執行緒（有訊息迴圈）呼叫
+    pub fn hook_foreground() {
+        unsafe {
+            SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, std::ptr::null_mut(), Some(on_foreground), 0, 0, WINEVENT_OUTOFCONTEXT);
+        }
+    }
 
     fn typing(h: HWND) -> bool {
         lock(&TYPING_HWND).contains(&(h as isize))
@@ -1567,7 +1622,9 @@ mod win32 {
 
     /// 被啟用了（網頁元件自己搶、或拖曳造成的）：把前景還給原本的視窗
     unsafe fn give_back_later(hwnd: HWND, prev: HWND) {
-        if !foreign(prev) {
+        // 只有「遊戲在前景時點了這個視窗、網頁元件又自己搶走焦點」才還給遊戲；
+        // 從工作列、Alt+Tab 切過來就是一般的切換，不還
+        if !is_game(prev) || !clicked_recently(hwnd) {
             return;
         }
         let mut mv = lock(&MOVING);
@@ -1629,8 +1686,9 @@ mod win32 {
                 };
                 code as LRESULT
             }
-            // 沒在打字時，點到視窗不要變成作用中（但被別的視窗蓋住時要浮到前面）
-            WM_MOUSEACTIVATE if !typing(hwnd) => {
+            // 遊戲在前景時點這個視窗：不變成作用中（鍵盤留在遊戲），但要浮到前面
+            WM_MOUSEACTIVATE if !typing(hwnd) && is_game(GetForegroundWindow()) => {
+                *lock(&NOACT_CLICK) = Some((hwnd as isize, std::time::Instant::now()));
                 SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 MA_NOACTIVATE as LRESULT
             }
@@ -1652,13 +1710,13 @@ mod win32 {
                     mv.retain(|e| e.0 != hwnd as isize);
                     p
                 };
-                if prev != 0 && !typing(hwnd) && foreign(prev as HWND) && GetForegroundWindow() == hwnd {
+                if prev != 0 && !typing(hwnd) && is_game(prev as HWND) && GetForegroundWindow() == hwnd {
                     PostMessageW(hwnd, WM_REFOCUS, prev as WPARAM, 0);
                 }
                 DefSubclassProc(hwnd, msg, wp, lp)
             }
             WM_REFOCUS => {
-                if !typing(hwnd) && foreign(wp as HWND) && GetForegroundWindow() == hwnd {
+                if !typing(hwnd) && is_game(wp as HWND) && GetForegroundWindow() == hwnd {
                     SetForegroundWindow(wp as HWND);
                 }
                 0
@@ -1831,6 +1889,11 @@ mod win32 {
     }
 }
 
+/// 所有開著的 web 視窗
+fn web_hwnds() -> Vec<isize> {
+    rt(|m| m.values().map(|r| r.hwnd).filter(|h| *h != 0).collect())
+}
+
 fn install_subclass(app: &AppHandle, hwnd: isize) {
     #[cfg(windows)]
     if hwnd != 0 {
@@ -1902,6 +1965,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     if let Some(dir) = path.parent() {
         let _ = WEB_DIR.set(dir.to_path_buf());
     }
+    #[cfg(windows)]
+    let _ = app.run_on_main_thread(win32::hook_foreground);
     let file = load(&path);
     let reopen: Vec<String> = file.wins.iter().filter(|w| w.open).map(|w| w.id.clone()).collect();
     let _ = STORE.set(Mutex::new(Store { file, path, dirty: false }));
@@ -1988,6 +2053,10 @@ fn tick(app: &AppHandle) {
     if !info.is_self || info.is_main {
         GAME_FG.store(info.is_game, Ordering::SeqCst);
     }
+    #[cfg(windows)]
+    if info.is_game {
+        win32::GAME_HWND.store(win32::foreground(), Ordering::SeqCst);
+    }
     let game_fg = GAME_FG.load(Ordering::SeqCst);
     let now = Instant::now();
 
@@ -2000,7 +2069,7 @@ fn tick(app: &AppHandle) {
                 return None;
             }
             let page_grace = r.page_off_at.is_some_and(|t| now.duration_since(t) < Duration::from_millis(250));
-            let mut want = !cfg.locked && !cfg.min && (r.bar_typing || r.page_typing || (r.typing && page_grace));
+            let mut want = !cfg.locked && (r.bar_typing || r.page_typing || (r.typing && page_grace));
             #[cfg(windows)]
             {
                 // 打字中滑鼠移出視窗超過 0.4 秒：鍵盤還給遊戲
@@ -2017,7 +2086,7 @@ fn tick(app: &AppHandle) {
                 }
             }
             if !want {
-                r.bar_typing = r.bar_typing && !cfg.min && !cfg.locked;
+                r.bar_typing = r.bar_typing && !cfg.locked;
             }
             let act = if want && !r.typing {
                 r.typing = true;
@@ -2047,10 +2116,11 @@ fn tick(app: &AppHandle) {
         }
         #[cfg(windows)]
         {
+            // 遊戲在前景：點這個視窗不搶遊戲的鍵盤。其他時候就是一般視窗（點了就切過來，跟 Win11 一樣）
             if !typing {
-                win32::apply_style(hwnd, true, cfg.locked, alpha_of(&id));
+                win32::apply_style(hwnd, info.is_game, cfg.locked, alpha_of(&id));
             }
-            let visible = !cfg.min && (!cfg.game_only || game_fg || typing || info.is_self);
+            let visible = !cfg.game_only || game_fg || typing || info.is_self;
             if visible && info.is_game {
                 win32::keep_above(hwnd, win32::foreground());
             }
@@ -2694,11 +2764,9 @@ pub async fn web_win(app: AppHandle, webview: Webview, action: String) {
     match action.as_str() {
         "min" => {
             hide_menu_of(&app, &id);
-            edit(&id, |w| w.min = true);
             if let Some(win) = app.get_window(&win_label(&id)) {
-                show(&win, false);
+                let _ = win.minimize();
             }
-            emit_main(&app);
         }
         "max" => toggle_max(&app, &id),
         "close" => close_window(&app, &id),
