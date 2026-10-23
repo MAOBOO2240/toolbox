@@ -956,15 +956,17 @@ fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<()
 }
 
 fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
-    let prev = edit(wid, |w| {
+    let (prev, title) = edit(wid, |w| {
         let t = w.tabs.iter().find(|t| t.id == tid)?.clone();
         w.url = t.url;
-        w.title = t.title;
-        Some(std::mem::replace(&mut w.active, tid.to_string()))
+        w.title = t.title.clone();
+        Some((std::mem::replace(&mut w.active, tid.to_string()), t.title))
     })
     .flatten()
     .ok_or("找不到這個分頁")?;
     if let Some(win) = app.get_window(&win_label(wid)) {
+        // 工作列上的標題跟著換成這個分頁的
+        let _ = win.set_title(if title.is_empty() { "web" } else { &title });
         if app.get_webview(&page_label(wid, tid)).is_none() {
             create_page(app, &win, wid, tid)?;
         }

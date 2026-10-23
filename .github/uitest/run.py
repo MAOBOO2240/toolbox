@@ -342,9 +342,19 @@ game_proc = subprocess.Popen([sys.executable, os.path.join(HERE, "game.py"), GAM
 game = wait_for(lambda: next((h for h in top_windows() if title(h) == "MapleStory" and user32.IsWindowVisible(h)), 0), 15)
 log("game hwnd", game, wrect(game) if game else None)
 
-# 只有測試時打開 WebView2 的遠端偵錯（隨機埠），用來讀工具列裡按鈕、分頁的實際位置
+# 只有測試時打開 WebView2 的遠端偵錯，用來讀工具列裡按鈕、分頁的實際位置。
+# 程式沒有系統管理員權限時會用「以系統管理員身分執行」重開自己，環境變數不會帶過去，所以也寫進 WebView2 的登錄設定
+DEBUG_ARGS = "--remote-debugging-port=9222"
+try:
+    import winreg
+    k = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, r"Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments", 0, winreg.KEY_SET_VALUE)
+    winreg.SetValueEx(k, os.path.basename(EXE), 0, winreg.REG_SZ, DEBUG_ARGS)
+    winreg.CloseKey(k)
+except Exception as e:
+    log("寫登錄失敗", e)
 app_env = dict(os.environ)
-app_env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=9222"
+app_env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = DEBUG_ARGS
+log("測試程式是系統管理員", bool(ctypes.windll.shell32.IsUserAnAdmin()))
 app_proc = subprocess.Popen([EXE], env=app_env)
 KNOWN = ("工具箱", "web 選單", "計時器浮動視窗", "")
 
@@ -507,7 +517,24 @@ def step(name, fn):
     check(name + "：程式有回應", responsive(web) if user32.IsWindow(web) else True)
 
 
+def diag():
+    try:
+        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'toolbox.exe' -or ($_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -notmatch '--type=') } | "
+              "ForEach-Object { \"$($_.ProcessId) parent=$($_.ParentProcessId) $($_.Name) :: $($_.CommandLine)\" }")
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout
+        log("程序：\n" + "\n".join(l[:600] for l in out.splitlines() if l.strip()))
+    except Exception as e:
+        log("讀程序失敗", e)
+    try:
+        out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=30).stdout
+        log("9222：", [l.strip() for l in out.splitlines() if ":9222" in l])
+    except Exception as e:
+        log("netstat 失敗", e)
+    log("app_proc", app_proc.pid, "還在跑" if app_proc.poll() is None else f"已結束 {app_proc.poll()}")
+
+
 def s_start():
+    diag()
     log("devtools ports", devtools_ports(), "targets", [(t.get("port"), t.get("type"), t.get("url", "")[:60]) for t in cdp_targets()])
     log("工具列讀得到", bar_eval("1 + 1") == 2)
     dump(web, "start")
