@@ -1,0 +1,102 @@
+1792773836.28 [test] load:890x507 dpr=1 
+1792773836.28 [frame] load mb=true
+1792773845.64 [test] resize:1024x612
+1792773846.71 [test] resize:890x507
+1792773847.75 [test] resize:1024x612
+1792773848.79 [test] resize:890x507
+1792773849.88 [test] resize:1024x612
+1792773853.22 [test] vis:hidden
+1792773853.29 [snap] load h=612
+1792773856.86 [test] vis:visible
+1792773860.14 [test] resize:890x507
+1792773863.70 [test] vis:hidden
+1792773864.17 [snap] after-resize slide:1 h=507
+1792773866.53 [snap] slide:1
+1792773867.14 [snap] slide:2
+1792773868.29 [snap] slide:3
+1792773869.43 [snap] slide:4
+1792773873.38 [snap] after-resize slide:4 h=612
+1792773877.62 [snap] after-resize slide:4 h=507
+1792773883.00 [snap] after-resize slide:4 h=612
+1792773886.82 [snap] after-resize slide:4 h=507
+1792773891.66 [snap] after-resize slide:4 h=612
+1792773896.39 [snap] after-resize slide:4 h=507
+1792773900.87 [test] resize:1024x612
+1792773900.88 [test] vis:visible
+1792773900.99 [test] resize:890x507
+1792773923.33 [test] vis:hidden
+1792773926.73 [test] load:890x507 dpr=1 ?new
+1792773926.79 [frame] load mb=true
+1792773931.95 [test] vis:hidden
+1792773931.96 [test] vis:visible
+1792773938.46 [test] vis:hidden
+1792773939.91 [test] vis:visible
+1792773946.19 [test] title typing=true
+1792773947.29 [test] input:h
+1792773947.34 [test] input:he
+1792773947.40 [test] input:hel
+1792773947.46 [test] input:hell
+1792773947.52 [test] input:hello
+1792773948.54 [test] title typing=false
+1792773950.04 [test] title typing=true
+1792773951.11 [test] input:hellox
+1792773951.17 [test] input:helloxy
+1792773951.97 [test] title typing=false
+1792773952.90 [test] message {"__mbTyping":true}
+1792773952.91 [frame] pointerdown f hasFocus=false mb=true
+1792773952.91 [frame] focus hasFocus=true
+1792773952.92 [test] title typing=true
+1792773952.92 [frame] window blur
+1792773952.92 [frame] blur
+1792773952.93 [test] message {"__mbTyping":true}
+1792773952.93 [frame] focus hasFocus=true
+1792773952.94 [test] title typing=true
+1792773953.94 [frame] input:f
+1792773954.00 [frame] input:fr
+1792773955.31 [test] message {"__mbTyping":false}
+1792773955.32 [test] title typing=false
+1792773955.33 [frame] blur
+1792773955.33 [frame] window blur
+1792773955.33 [frame] window blur
+1792773956.16 [test] title typing=true
+1792773957.42 [test] title typing=false
+1792773958.58 [test] title typing=true
+1792773959.67 [test] input:helloxyw
+1792773960.69 [test] title typing=false
+1792773962.88 [popup] opened opener=true
+1792773965.15 [popup] input:p
+1792773965.21 [popup] input:pp
+1792773972.41 [test] vis:hidden
+1792773972.42 [test] vis:visible
+1792773973.74 [test] vis:hidden
+1792773976.77 [snap] after-resize slide:4 h=508
+1792773976.77 [snap] after-resize slide:4 h=508
+1792773977.09 [snap] after-resize slide:4 h=508
+1792773980.57 [snap] after-resize slide:4 h=507
+1792773980.78 [snap] after-resize slide:4 h=507
+1792773980.80 [snap] after-resize slide:4 h=507
+1792773984.31 [test] vis:visible
+1792773984.31 [test] resize:890x507
+1792773988.91 [test] fullscreen on
+1792773988.91 [test] fullscreenchange true 890x507
+1792773988.91 [test] resize:1024x768
+1792773991.03 [test] fullscreenchange false 1024x768
+1792773991.03 [test] resize:890x507
+1792773995.30 [test] vis:visible
+1792773995.45 [test] resize:890x507
+1792773995.49 [ext] active:["http://127.0.0.1:8765/test.html"]
+1792773995.49 [ext] opened
+1792773995.49 [ext] all:[["http://127.0.0.1:8765/test.html",true,2024931690],["http://127.0.0.1:8765/snap.html",true,2024931693],["https://example.com/",true,2024931695],["http://127.0.0.1:8765/test.html?new",true,2024931697],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,2024931704]]
+1792773995.49 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+1792773995.74 [snap] after-resize slide:4 h=507
+1792773995.76 [snap] after-resize slide:4 h=507
+1792774001.62 [test] resize:150x1
+1792774001.63 [test] resize:150x1
+1792774001.86 [snap] slide:Infinity
+1792774002.10 [snap] after-resize slide:Infinity h=0
+1792774002.87 [test] resize:890x507
+1792774002.88 [test] resize:890x507
+1792774003.10 [snap] slide:4
+1792774003.33 [snap] after-resize slide:4 h=507
+1792774006.39 [test] vis:hidden
+1792774006.48 [test] vis:hidden

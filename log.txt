@@ -1,0 +1,531 @@
+game hwnd 196930 (10, 10, 1006, 749)
+測試程式是系統管理員 True
+web hwnd 66086
+dpi scale 1.0 screen 1024 768
+
+===== start =====
+程序：
+6032 parent=9176 toolbox.exe :: D:\a\toolbox\toolbox\src-tauri\target\release\toolbox.exe
+6324 parent=6032 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\155.0.4283.62\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=toolbox.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Local\com.toolbox.desktop\EBWebView" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --mojo-named-platform-channel-pipe=6032.9012.15105016193839753337 /pfhostedapp:4a80df9eea80eb33928e5d0cfbea91aabba4ff18
+7392 parent=6032 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\155.0.4283.62\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=toolbox.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Roaming\com.toolbox.desktop\web-profile\EBWebView" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --embedded-browser-webview-enable-extension --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --mojo-named-platform-channel-pipe=6032.9012.144294576362888490
+9222： []
+app_proc 6032 還在跑
+devtools ports [] targets []
+工具列讀得到 False
+[start] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS 一開始：整個視窗都是內容（沒有看不到的邊） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS 一開始：大小和上次記住的一樣（900×620） client=(80, 60, 900, 620)
+[start] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS start：程式有回應 
+
+===== max_button =====
+按之前的前景視窗 66086 '測試頁' web 66086 game 196930
+web 視窗出現後 11.1 秒
+第 1 次按放到最大：0.26 秒 前景 66086
+第 1 次按還原：0.25 秒
+第 2 次按放到最大：0.27 秒 前景 66086
+第 2 次按還原：0.25 秒
+第 3 次按放到最大：0.27 秒 前景 66086
+PASS 按放到最大按鈕：視窗放到最大 before=(80, 60, 980, 680) after=(-8, -8, 1032, 728)
+PASS 放到最大後：工具列在最上面、網頁在下面 [(0, 108, 1024, 720), (0, 0, 1024, 108)]
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[1]
+PASS 放到最大時點螢幕最上緣：點得到分頁 title=短影片測試
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[0]
+PASS 放到最大時點螢幕最上緣：切回第一個分頁 title=測試頁
+[max_button] title='測試頁' rect=(-8, -8, 1032, 728) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=False rect=(0, 108, 1024, 720)
+    child WRY_WEBVIEW visible=True rect=(0, 108, 1024, 720)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS max_button：程式有回應 
+
+===== restore_button =====
+（讀不到元素位置，改用估計的） document.getElementById('cMax')
+PASS 再按一次：還原 (80, 60, 980, 680)
+PASS 還原後：大小回到原本的（900×620） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+[restore_button] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS restore_button：程式有回應 
+
+===== snap_resize =====
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[1]
+PASS 切到短影片分頁 短影片測試
+捲動後是第 4 張
+（讀不到元素位置，改用估計的） document.getElementById('cMax')
+（讀不到元素位置，改用估計的） document.getElementById('cMax')
+放大、還原之後： [4, 4]
+PASS 短影片頁面：捲動有換到下一張 4
+PASS 短影片頁面：放大、還原後還是同一張 捲動後=4 之後=[4, 4]
+[snap_resize] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS snap_resize：程式有回應 
+
+===== double_click =====
+（讀不到元素位置，改用估計的） document.getElementById('drag')
+PASS 按兩下分頁列空白處：放到最大 (-8, -8, 1032, 728)
+（讀不到元素位置，改用估計的） document.getElementById('drag')
+PASS 再按兩下：還原 (80, 60, 980, 680)
+[double_click] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS double_click：程式有回應 
+
+===== drag_snap =====
+（讀不到元素位置，改用估計的） document.getElementById('drag')
+PASS 拖到螢幕頂端：放到最大 (-8, -8, 1032, 728)
+（讀不到元素位置，改用估計的） document.getElementById('drag')
+PASS 放到最大時往下拖：還原成原本大小 before=(80, 60, 980, 680) after=(-220, 132, 680, 752)
+[moved back] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS 用別的程式移動視窗：網頁跟著放好 [(85, 168, 975, 675), (80, 60, 980, 168)]
+[drag_snap] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS drag_snap：程式有回應 
+
+===== tabs =====
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[2]
+PASS 點第三個分頁：切過去 active=None title=Example Domain
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[0]
+PASS 切換分頁：只有一個網頁顯示 [(85, 168, 975, 675), (80, 60, 980, 168)]
+PASS 切回第一個分頁 測試頁
+[tabs] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS tabs：程式有回應 
+
+===== menu =====
+（讀不到元素位置，改用估計的） [...document.querySelectorAll('#bmList .bm')].find((b) => b.textContent.includes('資料夾'))
+PASS 點書籤資料夾：出現選單 menu=131724
+PASS 點外面：選單關掉 
+PASS 選單關掉後程式有回應 
+（讀不到元素位置，改用估計的） document.getElementById('bmOther')
+PASS 點所有書籤：出現選單 
+（讀不到元素位置，改用估計的） document.getElementById('bmOther')
+PASS 再點一次所有書籤：選單關掉 
+PASS 所有書籤操作後程式有回應 
+[menu] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS menu：程式有回應 
+
+===== new_tab =====
+（讀不到元素位置，改用估計的） document.getElementById('newTab')
+PASS 按 +：多一個分頁 3 → 4
+PASS 新分頁輸入網址：有載入 [snap] after-resize slide:4 h=612
+1792773896.39 [snap] after-resize slide:4 h=507
+1792773900.87 [test] resize:1024x612
+1792773900.88 [test] vis:visible
+1792773900.99 [test] resize:890x507
+1792773923.33 [test] vis:hidden
+1792773926.73 [test] load:890x507 dpr=1 ?new
+1792773926.79 [frame] load mb=true
+
+[new_tab] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS new_tab：程式有回應 
+
+===== game =====
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[0]
+遊戲要點的位置 (50, 70) game (10, 10, 1006, 749) web (80, 60, 980, 680)
+PASS 點遊戲：遊戲在前景 fg=196930 game=196930
+PASS 遊戲在前景：web 視窗在遊戲上面 z=[131202, 66086, 196930, 197066, 197090, 262526]
+PASS 點網頁空白處：鍵盤還在遊戲 fg=196930
+PASS 點網頁空白處：web 視窗還在遊戲上面 
+（讀不到元素位置，改用估計的） document.getElementById('newTab')
+PASS 遊戲在前景時點 web 的按鈕：第一下就有作用 4 → 5
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[0]
+PASS 中鍵關掉分頁 4
+PASS 再點遊戲：遊戲在前景 fg=196930
+PASS 按 A：遊戲收到 key:a
+
+PASS 點網頁輸入框：鍵盤交給 web fg=66086
+PASS 在輸入框打字：網頁收到 sible
+1792773946.19 [test] title typing=true
+1792773947.29 [test] input:h
+1792773947.34 [test] input:he
+1792773947.40 [test] input:hel
+1792773947.46 [test] input:hell
+1792773947.52 [test] input:hello
+
+PASS 按 Enter：鍵盤還給遊戲 fg=196930
+PASS 按 B：遊戲收到 
+PASS 打字中滑鼠移出 web：鍵盤還給遊戲 fg=196930
+PASS 點內嵌框裡的輸入框：鍵盤交給 web fg=66086
+PASS 內嵌框打字：收到 
+PASS 再點網頁輸入框：鍵盤交給 web fg=66086
+PASS 打字中點遊戲：遊戲在前景 fg=196930
+PASS 點遊戲後再點輸入框：鍵盤又交給 web fg=66086
+PASS 再打字：網頁收到  blur
+1792773956.16 [test] title typing=true
+1792773957.42 [test] title typing=false
+1792773958.58 [test] title typing=true
+1792773959.67 [test] input:helloxyw
+
+PASS 再按 Enter：鍵盤還給遊戲 fg=196930
+PASS 登入小視窗：開成另一個視窗 [('登入小視窗', (104, 104, 540, 443))]
+PASS 登入小視窗：可以打字 st] title typing=true
+1792773959.67 [test] input:helloxyw
+1792773960.69 [test] title typing=false
+1792773962.88 [popup] opened opener=true
+1792773965.15 [popup] input:p
+1792773965.21 [popup] input:pp
+
+[game] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS game：程式有回應 
+
+===== notepad =====
+PASS 記事本在前景時可以蓋住 web 視窗 fg=197302 np=197302
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[0]
+PASS 點 web 視窗：變成前景（一般視窗） fg=66086
+[notepad] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS notepad：程式有回應 
+
+===== dpi =====
+縮放比例資訊 ((21620, 0, 0), 0, 0, 1)
+改縮放比例 0 DPI 96 → 120
+[dpi up] title='短影片測試' rect=(80, 60, 1205, 835) client=(80, 60, 1125, 775) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(86, 195, 1199, 829)
+    child WRY_WEBVIEW visible=False rect=(86, 195, 1199, 829)
+    child WRY_WEBVIEW visible=True rect=(86, 195, 1199, 829)
+    child WRY_WEBVIEW visible=False rect=(86, 195, 1199, 829)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 1205, 195)
+PASS 縮放比例改變後：視窗還看得到 
+PASS 縮放比例改變後：工具列和網頁位置正確 dpi=120 [(86, 195, 1199, 829), (80, 60, 1205, 195)]
+PASS 縮放比例改變後：短影片還是同一張 [4, 4, 4]
+PASS 縮放比例改變後：程式有回應 
+縮放比例改回來 DPI 96
+[dpi back] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS 縮放比例改回來：工具列和網頁位置正確 dpi=96 [(85, 168, 975, 675), (80, 60, 980, 168)]
+PASS 縮放比例改回來：短影片還是同一張 [4, 4, 4]
+[dpi] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS dpi：程式有回應 
+
+===== fullscreen =====
+（讀不到元素位置，改用估計的） document.querySelectorAll('#tabs .tab')[0]
+PASS 影片全螢幕：視窗蓋滿整個螢幕 (0, 0, 1024, 768) screen=1024x768
+PASS 影片全螢幕：工具列藏起來、網頁蓋滿 [(0, 0, 1024, 768)]
+PASS 影片全螢幕：網頁收到 4 h=507
+1792773984.31 [test] vis:visible
+1792773984.31 [test] resize:890x507
+1792773988.91 [test] fullscreen on
+1792773988.91 [test] fullscreenchange true 890x507
+1792773988.91 [test] resize:1024x768
+
+PASS 按 Esc：回到原本的大小 (80, 60, 980, 680) before=(80, 60, 980, 680)
+PASS 按 Esc：工具列回來 [(85, 168, 975, 675), (80, 60, 980, 168)]
+[fullscreen] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS fullscreen：程式有回應 
+
+===== ext =====
+PASS 按擴充功能按鈕：出現選單 131724
+PASS 點擴充功能：小視窗蓋在網頁上 [(572, 137, 972, 641), (85, 168, 975, 675), (80, 60, 980, 168)]
+ext log: ['1792773995.49 [ext] active:["http://127.0.0.1:8765/test.html"]', '1792773995.49 [ext] opened', '1792773995.49 [ext] all:[["http://127.0.0.1:8765/test.html",true,2024931690],["http://127.0.0.1:8765/snap.html",true,2024931693],["https://example.com/",true,2024931695],["http://127.0.0.1:8765/test.html?new",true,2024931697],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,2024931704]]', '1792773995.49 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]']
+PASS 擴充功能看得到目前的網頁（active tab） 1792773995.49 [ext] active:["http://127.0.0.1:8765/test.html"]
+PASS 擴充功能看得到目前的網頁（lastFocused） 1792773995.49 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+PASS 點外面：小視窗關掉 2
+[ext] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS ext：程式有回應 
+
+===== minimize =====
+（讀不到元素位置，改用估計的） document.getElementById('cMin')
+PASS 按縮小：縮到工作列 
+PASS 從工作列還原 
+PASS 還原後：大小沒變 rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+[minimize] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS minimize：程式有回應 
+
+===== close =====
+（讀不到元素位置，改用估計的） document.getElementById('cClose')
+PASS 按關閉：視窗關掉 
+[close] window gone
+PASS close：程式有回應 
+
+===== 結果 =====
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS 一開始：整個視窗都是內容（沒有看不到的邊） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS 一開始：大小和上次記住的一樣（900×620） client=(80, 60, 900, 620)
+PASS start：程式有回應 
+PASS 按放到最大按鈕：視窗放到最大 before=(80, 60, 980, 680) after=(-8, -8, 1032, 728)
+PASS 放到最大後：工具列在最上面、網頁在下面 [(0, 108, 1024, 720), (0, 0, 1024, 108)]
+PASS 放到最大時點螢幕最上緣：點得到分頁 title=短影片測試
+PASS 放到最大時點螢幕最上緣：切回第一個分頁 title=測試頁
+PASS max_button：程式有回應 
+PASS 再按一次：還原 (80, 60, 980, 680)
+PASS 還原後：大小回到原本的（900×620） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS restore_button：程式有回應 
+PASS 切到短影片分頁 短影片測試
+PASS 短影片頁面：捲動有換到下一張 4
+PASS 短影片頁面：放大、還原後還是同一張 捲動後=4 之後=[4, 4]
+PASS snap_resize：程式有回應 
+PASS 按兩下分頁列空白處：放到最大 (-8, -8, 1032, 728)
+PASS 再按兩下：還原 (80, 60, 980, 680)
+PASS double_click：程式有回應 
+PASS 拖到螢幕頂端：放到最大 (-8, -8, 1032, 728)
+PASS 放到最大時往下拖：還原成原本大小 before=(80, 60, 980, 680) after=(-220, 132, 680, 752)
+PASS 用別的程式移動視窗：網頁跟著放好 [(85, 168, 975, 675), (80, 60, 980, 168)]
+PASS drag_snap：程式有回應 
+PASS 點第三個分頁：切過去 active=None title=Example Domain
+PASS 切換分頁：只有一個網頁顯示 [(85, 168, 975, 675), (80, 60, 980, 168)]
+PASS 切回第一個分頁 測試頁
+PASS tabs：程式有回應 
+PASS 點書籤資料夾：出現選單 menu=131724
+PASS 點外面：選單關掉 
+PASS 選單關掉後程式有回應 
+PASS 點所有書籤：出現選單 
+PASS 再點一次所有書籤：選單關掉 
+PASS 所有書籤操作後程式有回應 
+PASS menu：程式有回應 
+PASS 按 +：多一個分頁 3 → 4
+PASS 新分頁輸入網址：有載入 [snap] after-resize slide:4 h=612
+1792773896.39 [snap] after-resize slide:4 h=507
+1792773900.87 [test] resize:1024x612
+1792773900.88 [test] vis:visible
+1792773900.99 [test] resize:890x507
+1792773923.33 [test] vis:hidden
+1792773926.73 [test] load:890x507 dpr=1 ?new
+1792773926.79 [frame] load mb=true
+
+PASS new_tab：程式有回應 
+PASS 點遊戲：遊戲在前景 fg=196930 game=196930
+PASS 遊戲在前景：web 視窗在遊戲上面 z=[131202, 66086, 196930, 197066, 197090, 262526]
+PASS 點網頁空白處：鍵盤還在遊戲 fg=196930
+PASS 點網頁空白處：web 視窗還在遊戲上面 
+PASS 遊戲在前景時點 web 的按鈕：第一下就有作用 4 → 5
+PASS 中鍵關掉分頁 4
+PASS 再點遊戲：遊戲在前景 fg=196930
+PASS 按 A：遊戲收到 key:a
+
+PASS 點網頁輸入框：鍵盤交給 web fg=66086
+PASS 在輸入框打字：網頁收到 sible
+1792773946.19 [test] title typing=true
+1792773947.29 [test] input:h
+1792773947.34 [test] input:he
+1792773947.40 [test] input:hel
+1792773947.46 [test] input:hell
+1792773947.52 [test] input:hello
+
+PASS 按 Enter：鍵盤還給遊戲 fg=196930
+PASS 按 B：遊戲收到 
+PASS 打字中滑鼠移出 web：鍵盤還給遊戲 fg=196930
+PASS 點內嵌框裡的輸入框：鍵盤交給 web fg=66086
+PASS 內嵌框打字：收到 
+PASS 再點網頁輸入框：鍵盤交給 web fg=66086
+PASS 打字中點遊戲：遊戲在前景 fg=196930
+PASS 點遊戲後再點輸入框：鍵盤又交給 web fg=66086
+PASS 再打字：網頁收到  blur
+1792773956.16 [test] title typing=true
+1792773957.42 [test] title typing=false
+1792773958.58 [test] title typing=true
+1792773959.67 [test] input:helloxyw
+
+PASS 再按 Enter：鍵盤還給遊戲 fg=196930
+PASS 登入小視窗：開成另一個視窗 [('登入小視窗', (104, 104, 540, 443))]
+PASS 登入小視窗：可以打字 st] title typing=true
+1792773959.67 [test] input:helloxyw
+1792773960.69 [test] title typing=false
+1792773962.88 [popup] opened opener=true
+1792773965.15 [popup] input:p
+1792773965.21 [popup] input:pp
+
+PASS game：程式有回應 
+PASS 記事本在前景時可以蓋住 web 視窗 fg=197302 np=197302
+PASS 點 web 視窗：變成前景（一般視窗） fg=66086
+PASS notepad：程式有回應 
+PASS 縮放比例改變後：視窗還看得到 
+PASS 縮放比例改變後：工具列和網頁位置正確 dpi=120 [(86, 195, 1199, 829), (80, 60, 1205, 195)]
+PASS 縮放比例改變後：短影片還是同一張 [4, 4, 4]
+PASS 縮放比例改變後：程式有回應 
+PASS 縮放比例改回來：工具列和網頁位置正確 dpi=96 [(85, 168, 975, 675), (80, 60, 980, 168)]
+PASS 縮放比例改回來：短影片還是同一張 [4, 4, 4]
+PASS dpi：程式有回應 
+PASS 影片全螢幕：視窗蓋滿整個螢幕 (0, 0, 1024, 768) screen=1024x768
+PASS 影片全螢幕：工具列藏起來、網頁蓋滿 [(0, 0, 1024, 768)]
+PASS 影片全螢幕：網頁收到 4 h=507
+1792773984.31 [test] vis:visible
+1792773984.31 [test] resize:890x507
+1792773988.91 [test] fullscreen on
+1792773988.91 [test] fullscreenchange true 890x507
+1792773988.91 [test] resize:1024x768
+
+PASS 按 Esc：回到原本的大小 (80, 60, 980, 680) before=(80, 60, 980, 680)
+PASS 按 Esc：工具列回來 [(85, 168, 975, 675), (80, 60, 980, 168)]
+PASS fullscreen：程式有回應 
+PASS 按擴充功能按鈕：出現選單 131724
+PASS 點擴充功能：小視窗蓋在網頁上 [(572, 137, 972, 641), (85, 168, 975, 675), (80, 60, 980, 168)]
+PASS 擴充功能看得到目前的網頁（active tab） 1792773995.49 [ext] active:["http://127.0.0.1:8765/test.html"]
+PASS 擴充功能看得到目前的網頁（lastFocused） 1792773995.49 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+PASS 點外面：小視窗關掉 2
+PASS ext：程式有回應 
+PASS 按縮小：縮到工作列 
+PASS 從工作列還原 
+PASS 還原後：大小沒變 rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS minimize：程式有回應 
+PASS 按關閉：視窗關掉 
+PASS close：程式有回應 
+88/88 passed
+
+----- page log -----
+1792773836.28 [test] load:890x507 dpr=1 
+1792773836.28 [frame] load mb=true
+1792773845.64 [test] resize:1024x612
+1792773846.71 [test] resize:890x507
+1792773847.75 [test] resize:1024x612
+1792773848.79 [test] resize:890x507
+1792773849.88 [test] resize:1024x612
+1792773853.22 [test] vis:hidden
+1792773853.29 [snap] load h=612
+1792773856.86 [test] vis:visible
+1792773860.14 [test] resize:890x507
+1792773863.70 [test] vis:hidden
+1792773864.17 [snap] after-resize slide:1 h=507
+1792773866.53 [snap] slide:1
+1792773867.14 [snap] slide:2
+1792773868.29 [snap] slide:3
+1792773869.43 [snap] slide:4
+1792773873.38 [snap] after-resize slide:4 h=612
+1792773877.62 [snap] after-resize slide:4 h=507
+1792773883.00 [snap] after-resize slide:4 h=612
+1792773886.82 [snap] after-resize slide:4 h=507
+1792773891.66 [snap] after-resize slide:4 h=612
+1792773896.39 [snap] after-resize slide:4 h=507
+1792773900.87 [test] resize:1024x612
+1792773900.88 [test] vis:visible
+1792773900.99 [test] resize:890x507
+1792773923.33 [test] vis:hidden
+1792773926.73 [test] load:890x507 dpr=1 ?new
+1792773926.79 [frame] load mb=true
+1792773931.95 [test] vis:hidden
+1792773931.96 [test] vis:visible
+1792773938.46 [test] vis:hidden
+1792773939.91 [test] vis:visible
+1792773946.19 [test] title typing=true
+1792773947.29 [test] input:h
+1792773947.34 [test] input:he
+1792773947.40 [test] input:hel
+1792773947.46 [test] input:hell
+1792773947.52 [test] input:hello
+1792773948.54 [test] title typing=false
+1792773950.04 [test] title typing=true
+1792773951.11 [test] input:hellox
+1792773951.17 [test] input:helloxy
+1792773951.97 [test] title typing=false
+1792773952.90 [test] message {"__mbTyping":true}
+1792773952.91 [frame] pointerdown f hasFocus=false mb=true
+1792773952.91 [frame] focus hasFocus=true
+1792773952.92 [test] title typing=true
+1792773952.92 [frame] window blur
+1792773952.92 [frame] blur
+1792773952.93 [test] message {"__mbTyping":true}
+1792773952.93 [frame] focus hasFocus=true
+1792773952.94 [test] title typing=true
+1792773953.94 [frame] input:f
+1792773954.00 [frame] input:fr
+1792773955.31 [test] message {"__mbTyping":false}
+1792773955.32 [test] title typing=false
+1792773955.33 [frame] blur
+1792773955.33 [frame] window blur
+1792773955.33 [frame] window blur
+1792773956.16 [test] title typing=true
+1792773957.42 [test] title typing=false
+1792773958.58 [test] title typing=true
+1792773959.67 [test] input:helloxyw
+1792773960.69 [test] title typing=false
+1792773962.88 [popup] opened opener=true
+1792773965.15 [popup] input:p
+1792773965.21 [popup] input:pp
+1792773972.41 [test] vis:hidden
+1792773972.42 [test] vis:visible
+1792773973.74 [test] vis:hidden
+1792773976.77 [snap] after-resize slide:4 h=508
+1792773976.77 [snap] after-resize slide:4 h=508
+1792773977.09 [snap] after-resize slide:4 h=508
+1792773980.57 [snap] after-resize slide:4 h=507
+1792773980.78 [snap] after-resize slide:4 h=507
+1792773980.80 [snap] after-resize slide:4 h=507
+1792773984.31 [test] vis:visible
+1792773984.31 [test] resize:890x507
+1792773988.91 [test] fullscreen on
+1792773988.91 [test] fullscreenchange true 890x507
+1792773988.91 [test] resize:1024x768
+1792773991.03 [test] fullscreenchange false 1024x768
+1792773991.03 [test] resize:890x507
+1792773995.30 [test] vis:visible
+1792773995.45 [test] resize:890x507
+1792773995.49 [ext] active:["http://127.0.0.1:8765/test.html"]
+1792773995.49 [ext] opened
+1792773995.49 [ext] all:[["http://127.0.0.1:8765/test.html",true,2024931690],["http://127.0.0.1:8765/snap.html",true,2024931693],["https://example.com/",true,2024931695],["http://127.0.0.1:8765/test.html?new",true,2024931697],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,2024931704]]
+1792773995.49 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+1792773995.74 [snap] after-resize slide:4 h=507
+1792773995.76 [snap] after-resize slide:4 h=507
+1792774001.62 [test] resize:150x1
+1792774001.63 [test] resize:150x1
+1792774001.86 [snap] slide:Infinity
+1792774002.10 [snap] after-resize slide:Infinity h=0
+1792774002.87 [test] resize:890x507
+1792774002.88 [test] resize:890x507
+1792774003.10 [snap] slide:4
+1792774003.33 [snap] after-resize slide:4 h=507
+1792774006.39 [test] vis:hidden
+1792774006.48 [test] vis:hidden
+
+
+----- game keys -----
+key:a
+key:b
+
