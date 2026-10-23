@@ -4,19 +4,44 @@
 .web-tip { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.9rem 1.1rem; }
 .web-tip strong { font-size: 0.95rem; }
 .web-tip .muted { font-size: 0.82rem; line-height: 1.55; }
-.web-list { display: flex; flex-direction: column; gap: 0.7rem; }
-.web-card { padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.7rem; border-left: 3px solid transparent; }
-.web-card.open { border-left-color: #0ea5e9; }
-.web-head { display: flex; align-items: center; gap: 0.7rem; }
+.web-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 0.9rem; }
+/* 每個視窗做成一個小視窗的樣子：標題列、分頁列、畫面 */
+.web-card { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem; border-radius: 1rem; background: var(--card); box-shadow: var(--shadow); border: 1px solid transparent; transition: border-color 0.2s, box-shadow 0.2s; }
+.web-card.open { border-color: color-mix(in srgb, #0ea5e9 55%, transparent); box-shadow: var(--shadow), 0 0 0 3px color-mix(in srgb, #0ea5e9 14%, transparent); }
+.web-win { border-radius: 0.7rem; overflow: hidden; border: 1px solid var(--sep); background: #262b36; color: #f2f4f8; }
+.web-card:not(.open) .web-win { filter: saturate(0.55); opacity: 0.72; }
+.web-titlebar { display: flex; align-items: center; gap: 0.5rem; height: 1.7rem; padding: 0 0.6rem; background: #15181f; font-size: 0.78rem; }
+.web-dots { display: inline-flex; gap: 0.3rem; }
+.web-dots i { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #ff5f57; }
+.web-dots i:nth-child(2) { background: #febc2e; }
+.web-dots i:nth-child(3) { background: #28c840; }
+.web-card:not(.open) .web-dots i { background: #4a5263; }
+.web-wtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.web-state { flex: none; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; background: #3a4252; color: #9aa3b2; }
+.web-card.open .web-state { background: color-mix(in srgb, #0ea5e9 28%, transparent); color: #7dd3fc; }
+.web-card.open:not(.mini) .web-state { animation: web-breathe 2.2s ease-in-out infinite; }
+@keyframes web-breathe { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, #0ea5e9 18%, transparent); } }
+.web-tabsrow { display: flex; gap: 0.2rem; height: 1.6rem; padding: 0.25rem 0.4rem 0; background: #1b1f27; overflow: hidden; }
+.web-mtab { flex: 0 1 6.5rem; min-width: 1.5rem; display: flex; align-items: center; gap: 0.3rem; padding: 0 0.4rem; border-radius: 0.45rem 0.45rem 0 0; font-size: 0.68rem; color: #9aa3b2; background: #1f232c; overflow: hidden; }
+.web-mtab.on { background: #262b36; color: #f2f4f8; }
+.web-mtab.more { flex: none; justify-content: center; }
+.web-mtab img, .web-letter { flex: none; width: 0.85rem; height: 0.85rem; border-radius: 0.2rem; object-fit: contain; }
+.web-letter { display: grid; place-items: center; font-style: normal; font-size: 0.55rem; font-weight: 800; color: #fff; }
+.web-mtt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-screen { position: relative; display: flex; align-items: center; justify-content: center; height: 4.6rem; background: linear-gradient(160deg, #2d3340, #1c2029); }
+.web-screen .web-no { position: absolute; left: 0.6rem; top: 0.55rem; }
+.web-host { font-size: 0.78rem; color: #9aa3b2; max-width: 85%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-actions { display: flex; gap: 0.5rem; }
+.web-actions .cbtn { flex: 1; }
 .web-no {
-  flex: none; width: 1.7rem; height: 1.7rem; border-radius: 0.55rem; display: grid; place-items: center;
-  background: linear-gradient(135deg, #7dd3fc, #0284c7); color: #fff; font-weight: 700; font-size: 0.85rem;
+  flex: none; width: 1.5rem; height: 1.5rem; border-radius: 0.5rem; display: grid; place-items: center;
+  background: linear-gradient(135deg, #7dd3fc, #0284c7); color: #fff; font-weight: 700; font-size: 0.8rem;
 }
-.web-card:not(.open) .web-no { background: var(--card-2); color: var(--text-2); }
+.web-card:not(.open) .web-no { background: #3a4252; color: #9aa3b2; }
 .web-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
 .web-name strong, .web-name .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .web-name .muted { font-size: 0.78rem; }
-.web-opts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem; align-items: center; }
+.web-opts { display: flex; flex-wrap: wrap; gap: 0.45rem 1rem; align-items: center; }
 .web-opt { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; cursor: default; }
 label.web-opt { cursor: pointer; }
 .web-range { display: flex; align-items: center; gap: 0.5rem; }

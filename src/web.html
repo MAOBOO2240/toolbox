@@ -216,9 +216,8 @@
           el.addEventListener("pointerdown", (e) => {
             if (e.button === 1) e.preventDefault();
             if (e.button !== 0) return;
-            if (t.id !== st.active) invoke("web_tab_select", { tab: t.id });
-            // 按住左右拖曳可以排順序
-            tdrag = { id: t.id, el, x0: e.clientX, active: false, index: -1 };
+            // 放開時才切換分頁：按下就切換的話，新顯示的網頁會搶走焦點，拖曳就中斷了。按住左右拖曳可以排順序
+            tdrag = { id: t.id, el, x0: e.clientX, active: false, index: -1, select: t.id !== st.active };
           });
           el.addEventListener("auxclick", (e) => { if (e.button === 1) invoke("web_tab_close", { tab: t.id }); });
           el.addEventListener("contextmenu", (e) => {
@@ -263,6 +262,7 @@
         if (!tdrag) return;
         const d = tdrag;
         tdrag = null;
+        if (!d.active && commit && d.select) invoke("web_tab_select", { tab: d.id });
         if (d.active) {
           if (commit && d.to !== undefined && d.to !== d.from) {
             invoke("web_tab_move", { tab: d.id, index: d.to });

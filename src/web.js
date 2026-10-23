@@ -24,6 +24,15 @@ if (typeof document !== "undefined") (() => {
   const countLinks = (list) => (list || []).reduce((n, b) => n + (b.url ? 1 : countLinks(b.children)), 0);
 
   const host = (u) => { try { return new URL(u).host; } catch { return u; } };
+  function letterIcon(text) {
+    const el = document.createElement("i");
+    let h = 0;
+    for (const c of text || "?") h = (h * 31 + c.charCodeAt(0)) % 360;
+    el.className = "web-letter";
+    el.style.background = `hsl(${h} 55% 48%)`;
+    el.textContent = (text || "?").charAt(0).toUpperCase();
+    return el;
+  }
   const sw = (cls, on) => `<label class="switch sm"><input type="checkbox" class="${cls}"${on ? " checked" : ""} /><span class="slider"></span></label>`;
 
   function render() {
@@ -35,14 +44,23 @@ if (typeof document !== "undefined") (() => {
     }
     file.wins.forEach((w, i) => {
       const el = document.createElement("div");
-      el.className = `card web-card${w.open ? " open" : ""}`;
+      el.className = `web-card${w.open ? " open" : ""}${w.open && w.min ? " mini" : ""}`;
+      const tabs = w.tabs || [];
+      const state = !w.open ? "未開啟" : w.min ? "已縮小到工作列" : "開啟中";
       el.innerHTML = `
-        <div class="web-head">
-          <span class="web-no">${i + 1}</span>
-          <div class="web-name">
-            <strong></strong>
-            <span class="muted"></span>
+        <div class="web-win">
+          <div class="web-titlebar">
+            <span class="web-dots"><i></i><i></i><i></i></span>
+            <span class="web-wtitle"></span>
+            <span class="web-state">${state}</span>
           </div>
+          <div class="web-tabsrow"></div>
+          <div class="web-screen">
+            <span class="web-no">${i + 1}</span>
+            <span class="web-host muted"></span>
+          </div>
+        </div>
+        <div class="web-actions">
           ${w.open && w.min ? '<button class="cbtn small c-blue solid web-show">顯示視窗</button>' : ""}
           <button class="cbtn small ${w.open ? "c-silver" : "c-green solid"} web-toggle">${w.open ? "關閉視窗" : "打開視窗"}</button>
           <button class="cbtn small c-red web-del">刪除</button>
@@ -53,10 +71,29 @@ if (typeof document !== "undefined") (() => {
           <label class="web-opt" title="鎖定後滑鼠會直接穿過視窗點到遊戲，視窗本身就不能點了；要操作時回到這裡解除"><span>鎖定（滑鼠穿透）</span>${sw("web-lock", w.locked)}</label>
           <label class="web-opt" title="切到其他程式時自動隱藏，回到遊戲再出現"><span>只在遊戲畫面時顯示</span>${sw("web-game", w.game_only)}</label>
         </div>`;
-      el.querySelector(".web-name strong").textContent = w.title || "新視窗";
-      const tabs = (w.tabs || []).length;
-      el.querySelector(".web-name .muted").textContent = [host(w.url), tabs > 1 ? `${tabs} 個分頁` : "", w.open && w.min ? "已縮小" : ""].filter(Boolean).join("・");
-      el.querySelector(".web-name").title = w.url;
+      el.querySelector(".web-wtitle").textContent = w.title || "新視窗";
+      el.querySelector(".web-host").textContent = [host(w.url), `${Math.max(1, tabs.length)} 個分頁`].filter(Boolean).join("・");
+      el.querySelector(".web-win").title = w.url;
+      // 分頁列：每個分頁的網站圖示（抓不到就用第一個字）
+      const row = el.querySelector(".web-tabsrow");
+      (tabs.length ? tabs : [{ id: "", url: w.url, title: w.title, icon: "" }]).slice(0, 8).forEach((t) => {
+        const tab = document.createElement("span");
+        tab.className = "web-mtab" + (t.id === w.active ? " on" : "");
+        tab.title = t.title || t.url;
+        const text = (t.title || host(t.url) || "?").trim();
+        if (t.icon) {
+          const img = document.createElement("img");
+          img.src = t.icon; img.alt = ""; img.draggable = false;
+          img.onerror = () => { img.replaceWith(letterIcon(text)); };
+          tab.append(img);
+        } else tab.append(letterIcon(text));
+        const tt = document.createElement("span");
+        tt.className = "web-mtt";
+        tt.textContent = text;
+        tab.append(tt);
+        row.append(tab);
+      });
+      if (tabs.length > 8) { const m = document.createElement("span"); m.className = "web-mtab more"; m.textContent = `+${tabs.length - 8}`; row.append(m); }
 
       el.querySelector(".web-show")?.addEventListener("click", () => run(async () => {
         await wapi.open(w.id);

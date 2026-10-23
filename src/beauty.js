@@ -1148,6 +1148,8 @@ if (typeof document !== "undefined") (() => {
     document.addEventListener("scroll", place, true);
     btn.addEventListener("click", () => toggle(m.hidden));
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !m.hidden) toggle(false); });
+    // 點選單和按鈕以外的地方就收起
+    document.addEventListener("pointerdown", (e) => { if (!m.hidden && !m.contains(e.target) && !btn.contains(e.target)) toggle(false); }, true);
     return toggle;
   }
   const actMenu0 = dropdown("#bAct", "#bActMenu");
