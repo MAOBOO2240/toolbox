@@ -1,0 +1,184 @@
+game hwnd 327776 (10, 10, 1006, 749)
+web hwnd 66074
+dpi scale 1.0 screen 1024 768
+
+===== start =====
+[start] title='測試頁' rect=(80, 60, 996, 719) client=(80, 60, 916, 659) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 705)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+[start] title='測試頁' rect=(80, 60, 996, 719) client=(80, 60, 916, 659) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 168, 975, 705)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 168)
+PASS start：程式有回應 
+
+===== max_button =====
+PASS 按放到最大按鈕：視窗放到最大 before=(80, 60, 996, 719) after=(80, 60, 996, 719)
+PASS 放到最大後：工具列在最上面、網頁在下面 [(5, 108, 1019, 715), (0, 0, 1024, 108)]
+[max_button] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS max_button：程式有回應 
+
+===== restore_button =====
+FAIL 再按一次：還原 (80, 60, 996, 719)
+[restore_button] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS restore_button：程式有回應 
+
+===== snap_resize =====
+page log (snap): 1792751580.97 [test] load:890x537 dpr=1
+1792751584.17 [test] resize:1014x607
+
+snap lines: []
+FAIL 短影片頁面：放大、還原後還是同一張 []
+[snap_resize] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS snap_resize：程式有回應 
+
+===== double_click =====
+PASS 按兩下分頁列空白處：放到最大 
+FAIL 再按兩下：還原 
+[double_click] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS double_click：程式有回應 
+
+===== drag_snap =====
+PASS 拖到螢幕頂端：放到最大 (80, 60, 996, 719)
+FAIL 放到最大時往下拖：還原成原本大小 before=(80, 60, 996, 719) after=(80, 60, 996, 719)
+[drag_snap] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS drag_snap：程式有回應 
+
+===== tabs =====
+PASS 切換分頁：只有一個網頁顯示 [(5, 108, 1019, 715), (0, 0, 1024, 108)]
+[tabs] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS tabs：程式有回應 
+
+===== menu =====
+FAIL 點書籤資料夾：出現選單 menu=0
+PASS 點外面：選單關掉 
+PASS 選單關掉後程式有回應 
+FAIL 點所有書籤：出現選單 
+PASS 再點一次所有書籤：選單關掉 
+PASS 所有書籤操作後程式有回應 
+[menu] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS menu：程式有回應 
+
+===== new_tab =====
+PASS 新分頁輸入網址：有載入 測試頁
+[new_tab] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS new_tab：程式有回應 
+
+===== game =====
+FAIL 點遊戲：遊戲在前景 fg=65722 game=327776
+FAIL 遊戲在前景：web 視窗在遊戲上面 
+FAIL 點網頁空白處：鍵盤還在遊戲 fg=327766
+FAIL 按 A：遊戲收到 
+FAIL 點網頁輸入框：鍵盤交給 web fg=327766
+FAIL 在輸入框打字：網頁收到 1792751580.97 [test] load:890x537 dpr=1
+1792751584.17 [test] resize:1014x607
+
+FAIL 按 Enter：鍵盤還給遊戲 fg=327766
+FAIL 按 B：遊戲收到 
+FAIL 打字中滑鼠移出 web：鍵盤還給遊戲 fg=327766
+FAIL 點內嵌框裡的輸入框：鍵盤交給 web fg=327766
+FAIL 內嵌框打字：收到 
+FAIL 登入小視窗：開成另一個視窗 []
+[game] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS game：程式有回應 
+
+===== notepad =====
+PASS 記事本在前景時可以蓋住 web 視窗 fg=458868 np=458868
+FAIL 點 web 視窗：變成前景（一般視窗） fg=65722
+[notepad] title='測試頁' rect=(80, 60, 996, 719) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=True rect=(5, 108, 1019, 715)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 108)
+PASS notepad：程式有回應 
+
+===== minimize =====
+FAIL 按縮小：縮到工作列 
+PASS 從工作列還原 
+[minimize] title='測試頁' rect=(52, 52, 868, 661) client=(52, 52, 816, 609) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(57, 160, 863, 656)
+    child WRY_WEBVIEW visible=True rect=(52, 52, 868, 160)
+PASS minimize：程式有回應 
+
+===== close =====
+PASS 按關閉：視窗關掉 
+[close] window gone
+PASS close：程式有回應 
+
+===== 結果 =====
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS start：程式有回應 
+PASS 按放到最大按鈕：視窗放到最大 before=(80, 60, 996, 719) after=(80, 60, 996, 719)
+PASS 放到最大後：工具列在最上面、網頁在下面 [(5, 108, 1019, 715), (0, 0, 1024, 108)]
+PASS max_button：程式有回應 
+FAIL 再按一次：還原 (80, 60, 996, 719)
+PASS restore_button：程式有回應 
+FAIL 短影片頁面：放大、還原後還是同一張 []
+PASS snap_resize：程式有回應 
+PASS 按兩下分頁列空白處：放到最大 
+FAIL 再按兩下：還原 
+PASS double_click：程式有回應 
+PASS 拖到螢幕頂端：放到最大 (80, 60, 996, 719)
+FAIL 放到最大時往下拖：還原成原本大小 before=(80, 60, 996, 719) after=(80, 60, 996, 719)
+PASS drag_snap：程式有回應 
+PASS 切換分頁：只有一個網頁顯示 [(5, 108, 1019, 715), (0, 0, 1024, 108)]
+PASS tabs：程式有回應 
+FAIL 點書籤資料夾：出現選單 menu=0
+PASS 點外面：選單關掉 
+PASS 選單關掉後程式有回應 
+FAIL 點所有書籤：出現選單 
+PASS 再點一次所有書籤：選單關掉 
+PASS 所有書籤操作後程式有回應 
+PASS menu：程式有回應 
+PASS 新分頁輸入網址：有載入 測試頁
+PASS new_tab：程式有回應 
+FAIL 點遊戲：遊戲在前景 fg=65722 game=327776
+FAIL 遊戲在前景：web 視窗在遊戲上面 
+FAIL 點網頁空白處：鍵盤還在遊戲 fg=327766
+FAIL 按 A：遊戲收到 
+FAIL 點網頁輸入框：鍵盤交給 web fg=327766
+FAIL 在輸入框打字：網頁收到 1792751580.97 [test] load:890x537 dpr=1
+1792751584.17 [test] resize:1014x607
+
+FAIL 按 Enter：鍵盤還給遊戲 fg=327766
+FAIL 按 B：遊戲收到 
+FAIL 打字中滑鼠移出 web：鍵盤還給遊戲 fg=327766
+FAIL 點內嵌框裡的輸入框：鍵盤交給 web fg=327766
+FAIL 內嵌框打字：收到 
+FAIL 登入小視窗：開成另一個視窗 []
+PASS game：程式有回應 
+PASS 記事本在前景時可以蓋住 web 視窗 fg=458868 np=458868
+FAIL 點 web 視窗：變成前景（一般視窗） fg=65722
+PASS notepad：程式有回應 
+FAIL 按縮小：縮到工作列 
+PASS 從工作列還原 
+PASS minimize：程式有回應 
+PASS 按關閉：視窗關掉 
+PASS close：程式有回應 
+27/47 passed
+
+----- page log -----
+1792751580.97 [test] load:890x537 dpr=1
+1792751584.17 [test] resize:1014x607
+1792751642.74 [test] resize:806x496
+1792751644.30 [test] vis:hidden
+
+
+----- game keys -----
+
