@@ -3,11 +3,14 @@ name: UI test
 # 開發用：推到 uitest 分支時，在 Windows 上編譯並實際操作 web 視窗，截圖與結果放在 artifact（不會發布）
 on:
   push:
-    branches: [uitest]
+    branches: [uitest, uitest-base]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
-  group: uitest
+  group: uitest-${{ github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -48,8 +51,17 @@ jobs:
         timeout-minutes: 12
         run: python .github/uitest/run.py src-tauri/target/release/toolbox.exe
 
-      - uses: actions/upload-artifact@v4
+      # 結果推到 uitest-results-<分支> 分支（截圖、記錄）
+      - name: Publish results
         if: always()
-        with:
-          name: uitest
-          path: uitest-out
+        shell: bash
+        run: |
+          mkdir -p uitest-out
+          cd uitest-out
+          git init -q
+          git config user.name "uitest"
+          git config user.email "uitest@users.noreply.github.com"
+          git checkout -q -b results
+          git add -A
+          git commit -q -m "uitest ${GITHUB_SHA::7}" || true
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" "results:uitest-results-${GITHUB_REF_NAME}"

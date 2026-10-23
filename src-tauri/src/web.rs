@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::window::{Color, WindowBuilder};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Url, Webview, WebviewUrl,
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Url, Webview, WebviewUrl,
     WebviewWindow, WebviewWindowBuilder, Window, WindowEvent,
 };
 
@@ -78,8 +78,12 @@ const TYPING_JS: &str = r#"(() => {
   document.addEventListener("focusin", check, true);
   document.addEventListener("focusout", () => setTimeout(check, 0), true);
   if (!top) window.addEventListener("blur", () => set(false));
-  // 單行輸入框按 Enter（選字中的 Enter 不算）：送出後取消選取，鍵盤還給遊戲
+  // 從遊戲點過來打字時（程式會設定 __mbGame）：單行輸入框按 Enter 送出後取消選取，鍵盤還給遊戲。
+  // 一般使用（例如聊天室連續打字）不受影響；選字中的 Enter 不算
   document.addEventListener("keydown", (e) => {
+    let game = !!window.__mbGame;
+    try { game = game || !!window.top.__mbGame; } catch (_) {}
+    if (!game) return;
     if (e.key !== "Enter" || e.isComposing || e.keyCode === 229) return;
     const t = deep(document.activeElement);
     if (!t || t.tagName !== "INPUT" || !editable(t)) return;
@@ -541,6 +545,11 @@ struct Rt {
     prev_fg: isize,
     /// 載入中的分頁
     loading: HashSet<String>,
+    /// 剛選到網頁／工具列輸入框的時間（遊戲在前景時才用來開始打字）
+    page_on_at: Option<Instant>,
+    bar_on_at: Option<Instant>,
+    /// 開始打字的時間
+    typing_since: Option<Instant>,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -668,57 +677,39 @@ fn page_url(s: &str) -> Url {
 
 /* ---------------- 視窗、分頁 ---------------- */
 
-fn page_rect(sf: f64, size: PhysicalSize<u32>) -> (LogicalPosition<f64>, LogicalSize<f64>) {
-    let (w, h) = (size.width as f64 / sf, size.height as f64 / sf);
-    (LogicalPosition::new(EDGE, BAR_H), LogicalSize::new((w - 2.0 * EDGE).max(1.0), (h - BAR_H - EDGE).max(1.0)))
+/// 上面三排的範圍（實體像素）
+fn bar_rect(sf: f64, size: PhysicalSize<u32>) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+    (PhysicalPosition::new(0, 0), PhysicalSize::new(size.width.max(1), (BAR_H * sf).round() as u32))
 }
 
+/// 網頁的範圍（實體像素）：左、右、下留一點邊給拉大小；放到最大時不用留
+fn page_rect(sf: f64, size: PhysicalSize<u32>, max: bool) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+    let edge = if max { 0 } else { (EDGE * sf).round() as u32 };
+    let top = (BAR_H * sf).round() as u32;
+    (
+        PhysicalPosition::new(edge as i32, top as i32),
+        PhysicalSize::new(size.width.saturating_sub(2 * edge).max(1), size.height.saturating_sub(top + edge).max(1)),
+    )
+}
+
+fn bounds(pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> tauri::Rect {
+    tauri::Rect { position: pos.into(), size: size.into() }
+}
+
+/// 視窗大小改變：工具列和所有分頁的網頁一次放到正確位置（一個網頁只設定一次，不會中途變成奇怪的大小）
 fn layout(app: &AppHandle, wid: &str, win: &Window, size: PhysicalSize<u32>) {
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
+    let max = win.is_maximized().unwrap_or(false);
     if let Some(b) = app.get_webview(&bar_label(wid)) {
-        let _ = b.set_position(LogicalPosition::new(0.0, 0.0));
-        let _ = b.set_size(LogicalSize::new((size.width as f64 / sf).max(1.0), BAR_H));
+        let (p, s) = bar_rect(sf, size);
+        let _ = b.set_bounds(bounds(p, s));
     }
-    let (pos, sz) = page_rect(sf, size);
+    let (pos, sz) = page_rect(sf, size, max);
     for t in get(wid).map(|w| w.tabs).unwrap_or_default() {
         if let Some(p) = app.get_webview(&page_label(wid, &t.id)) {
-            let _ = p.set_position(pos);
-            let _ = p.set_size(sz);
+            let _ = p.set_bounds(bounds(pos, sz));
         }
     }
-}
-
-/// 視窗跑到所有螢幕外面時移回主螢幕
-fn on_screen(win: &Window, x: i32, y: i32, w: u32, h: u32) -> (i32, i32) {
-    let Ok(monitors) = win.available_monitors() else { return (x, y) };
-    if monitors.is_empty() {
-        return (x, y);
-    }
-    let seen = monitors.iter().any(|m| {
-        let (mp, ms) = (m.position(), m.size());
-        let x1 = x.max(mp.x);
-        let y1 = y.max(mp.y);
-        let x2 = (x + w as i32).min(mp.x + ms.width as i32);
-        let y2 = (y + h as i32).min(mp.y + ms.height as i32);
-        x2 - x1 >= 80 && y2 - y1 >= 40
-    });
-    if seen {
-        return (x, y);
-    }
-    let base = win.primary_monitor().ok().flatten().map(|m| *m.position()).unwrap_or(PhysicalPosition::new(0, 0));
-    (base.x + 200, base.y + 150)
-}
-
-/// 視窗所在螢幕的可用範圍（扣掉工作列）
-fn work_area(win: &Window, x: i32, y: i32) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
-    let m = win
-        .monitor_from_point(x as f64 + 40.0, y as f64 + 20.0)
-        .ok()
-        .flatten()
-        .or_else(|| win.current_monitor().ok().flatten())
-        .or_else(|| win.primary_monitor().ok().flatten())?;
-    let wa = m.work_area();
-    Some((wa.position, wa.size))
 }
 
 /// web 視窗的網頁用自己的瀏覽器資料夾（登入狀態、擴充功能都放這裡）
@@ -873,6 +864,9 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
                 if r.page_typing && !typing {
                     r.page_off_at = Some(Instant::now());
                 }
+                if !r.page_typing && typing {
+                    r.page_on_at = Some(Instant::now());
+                }
                 r.page_typing = typing;
             }
         });
@@ -932,7 +926,7 @@ fn ext_mark_loaded() {
 }
 
 /// 加上分頁的網頁；載入擴充功能失敗就不載入再試一次
-fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: LogicalPosition<f64>, size: LogicalSize<f64>) -> Result<(), String> {
+fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> Result<(), String> {
     let ext = ext_pending();
     let had = ext.is_some();
     match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
@@ -957,7 +951,7 @@ fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<()
     let url = page_url(&url);
     let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
     let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
-    let (pos, sz) = page_rect(sf, size);
+    let (pos, sz) = page_rect(sf, size, win.is_maximized().unwrap_or(false));
     add_page(app, win, wid, tid, url, pos, sz)
 }
 
@@ -1070,7 +1064,11 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
             w.min = false;
         });
         if let Some(win) = app.get_window(&label) {
-            show(&win, true);
+            #[cfg(windows)]
+            if let Ok(h) = win.hwnd() {
+                // 「只在遊戲畫面時顯示」藏起來的：叫出來
+                win32::show(h.0 as isize, true);
+            }
             if win.is_minimized().unwrap_or(false) {
                 let _ = win.unminimize();
             }
@@ -1079,6 +1077,32 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         return Ok(());
     }
 
+    // 位置與大小（實體像素）：新視窗預設 1280×720（依 Windows 的縮放比例），螢幕放不下就縮小一點
+    let mut cfg = cfg;
+    let sf0 = app
+        .monitor_from_point(cfg.x as f64 + 40.0, cfg.y as f64 + 20.0)
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .map(|m| m.scale_factor())
+        .unwrap_or(1.0)
+        .max(0.5);
+    if cfg.w == 0 || cfg.h == 0 {
+        let (mut w, mut h) = ((1280.0 * sf0).round() as u32, (720.0 * sf0).round() as u32);
+        if let Some((p, sz)) = app_work_area(app, cfg.x, cfg.y) {
+            w = w.min(sz.width.saturating_sub(40)).max(380);
+            h = h.min(sz.height.saturating_sub(40)).max(240);
+            // 放不下就往左上移，整個視窗留在螢幕裡
+            cfg.x = cfg.x.min(p.x + sz.width as i32 - w as i32 - 20).max(p.x + 10);
+            cfg.y = cfg.y.min(p.y + sz.height as i32 - h as i32 - 20).max(p.y + 10);
+        }
+        (cfg.w, cfg.h) = (w, h);
+    }
+    let (w, h) = (cfg.w.max(380), cfg.h.max(240));
+    let (x, y) = app_on_screen(app, cfg.x, cfg.y, w, h);
+    edit(id, |c| (c.w, c.h, c.x, c.y) = (w, h, x, y));
+
+    // 建立時就顯示（不搶焦點）：視窗的顯示狀態一律交給 Tauri 管，放到最大、縮小、跨螢幕才不會出錯
     let mut builder = WindowBuilder::new(app, &label)
         .title(if cfg.title.is_empty() { "web".to_string() } else { cfg.title.clone() })
         .decorations(false)
@@ -1088,35 +1112,22 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         .maximizable(true)
         .minimizable(true)
         .focused(false)
-        // 遊戲在前景時點這個視窗不會搶走遊戲的鍵盤（其他時候會切換成一般視窗，見 tick）
-        .focusable(false)
-        .visible(false)
+        .visible(true)
+        .position(x as f64 / sf0, y as f64 / sf0)
+        .inner_size(w as f64 / sf0, h as f64 / sf0)
+        .min_inner_size(380.0, 240.0)
         .background_color(Color(30, 34, 43, 255));
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone()).map_err(|e| e.to_string())?;
     }
     let win = builder.build().map_err(|e| format!("視窗建立失敗：{e}"))?;
-    let _ = win.set_min_size(Some(LogicalSize::new(380.0, 240.0)));
-    let mut cfg = cfg;
-    if cfg.w == 0 || cfg.h == 0 {
-        // 新視窗：預設 1280×720（依 Windows 的縮放比例），螢幕放不下就縮小一點
-        let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
-        let (mut w, mut h) = ((1280.0 * sf).round() as u32, (720.0 * sf).round() as u32);
-        if let Some((p, sz)) = work_area(&win, cfg.x, cfg.y) {
-            w = w.min(sz.width.saturating_sub(40)).max(380);
-            h = h.min(sz.height.saturating_sub(40)).max(240);
-            // 放不下就往左上移，整個視窗留在螢幕裡
-            cfg.x = cfg.x.min(p.x + sz.width as i32 - w as i32 - 20).max(p.x + 10);
-            cfg.y = cfg.y.min(p.y + sz.height as i32 - h as i32 - 20).max(p.y + 10);
-        }
-        (cfg.w, cfg.h) = (w, h);
-        let (x, y) = (cfg.x, cfg.y);
-        edit(id, |c| (c.w, c.h, c.x, c.y) = (w, h, x, y));
+    // 換算有誤差時以實體像素為準
+    if win.outer_position().ok() != Some(PhysicalPosition::new(x, y)) {
+        let _ = win.set_position(PhysicalPosition::new(x, y));
     }
-    let (x, y) = on_screen(&win, cfg.x, cfg.y, cfg.w.max(380), cfg.h.max(240));
-    let (pos, size) = (PhysicalPosition::new(x, y), PhysicalSize::new(cfg.w.max(380), cfg.h.max(240)));
-    let _ = win.set_size(size);
-    let _ = win.set_position(pos);
+    if win.inner_size().ok() != Some(PhysicalSize::new(w, h)) {
+        let _ = win.set_size(PhysicalSize::new(w, h));
+    }
 
     #[cfg(windows)]
     let hwnd = win.hwnd().map(|h| h.0 as isize).unwrap_or(0);
@@ -1125,14 +1136,15 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     rt(|m| m.insert(id.to_string(), Rt { hwnd, ..Rt::default() }));
     install_subclass(app, hwnd);
 
-    let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
+    let sf = win.scale_factor().unwrap_or(sf0).max(0.5);
+    let size = win.inner_size().unwrap_or(PhysicalSize::new(w, h));
     // 上面：分頁列、網址列、書籤列（本機頁面）
     let bar = WebviewBuilder::new(bar_label(id), WebviewUrl::App("web.html".into())).disable_drag_drop_handler();
-    win.add_child(bar, LogicalPosition::new(0.0, 0.0), LogicalSize::new((size.width as f64 / sf).max(1.0), BAR_H))
-        .map_err(|e| format!("工具列建立失敗：{e}"))?;
+    let (bp, bs) = bar_rect(sf, size);
+    win.add_child(bar, bp, bs).map_err(|e| format!("工具列建立失敗：{e}"))?;
     // 下面：目前分頁的網頁（其他分頁點到時才載入）
     let url = page_url(&cfg.url);
-    let (ppos, psz) = page_rect(sf, size);
+    let (ppos, psz) = page_rect(sf, size, false);
     add_page(app, &win, id, &cfg.active, url, ppos, psz)?;
 
     let (app2, id2, win2) = (app.clone(), id.to_string(), win.clone());
@@ -1177,11 +1189,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         _ => {}
     });
 
-    edit(id, |w| {
-        w.open = true;
-        (w.x, w.y) = (x, y);
-    });
-    show(&win, true);
+    edit(id, |w| w.open = true);
     if cfg.max {
         let _ = win.maximize();
     }
@@ -1190,6 +1198,38 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     }
     emit_main(app);
     Ok(())
+}
+
+/// 視窗跑到所有螢幕外面時移回主螢幕
+fn app_on_screen(app: &AppHandle, x: i32, y: i32, w: u32, h: u32) -> (i32, i32) {
+    let Ok(monitors) = app.available_monitors() else { return (x, y) };
+    if monitors.is_empty() {
+        return (x, y);
+    }
+    let seen = monitors.iter().any(|m| {
+        let (mp, ms) = (m.position(), m.size());
+        let x1 = x.max(mp.x);
+        let y1 = y.max(mp.y);
+        let x2 = (x + w as i32).min(mp.x + ms.width as i32);
+        let y2 = (y + h as i32).min(mp.y + ms.height as i32);
+        x2 - x1 >= 80 && y2 - y1 >= 40
+    });
+    if seen {
+        return (x, y);
+    }
+    let base = app.primary_monitor().ok().flatten().map(|m| *m.position()).unwrap_or(PhysicalPosition::new(0, 0));
+    (base.x + 100, base.y + 80)
+}
+
+/// 某個位置所在螢幕的可用範圍（扣掉工作列）
+fn app_work_area(app: &AppHandle, x: i32, y: i32) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    let m = app
+        .monitor_from_point(x as f64 + 40.0, y as f64 + 20.0)
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten())?;
+    let wa = m.work_area();
+    Some((wa.position, wa.size))
 }
 
 fn close_window(app: &AppHandle, id: &str) {
@@ -1209,19 +1249,6 @@ fn toggle_max(app: &AppHandle, wid: &str) {
     let Some(win) = app.get_window(&win_label(wid)) else { return };
     let _ = if win.is_maximized().unwrap_or(false) { win.unmaximize() } else { win.maximize() };
     let _ = app;
-}
-
-/// 顯示（不搶焦點）或隱藏
-fn show(win: &Window, visible: bool) {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOWNA};
-        if let Ok(h) = win.hwnd() {
-            unsafe { ShowWindow(h.0 as _, if visible { SW_SHOWNA } else { SW_HIDE }) };
-            return;
-        }
-    }
-    let _ = if visible { win.show() } else { win.hide() };
 }
 
 fn active_page(app: &AppHandle, wid: &str) -> Option<Webview> {
@@ -1551,7 +1578,6 @@ mod win32 {
     use windows_sys::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
     use std::sync::Mutex;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
-    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
     use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
@@ -1650,16 +1676,9 @@ mod win32 {
     }
 
     unsafe extern "system" fn proc_(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _d: usize) -> LRESULT {
-        // 放到最大時：內容剛好是螢幕可用範圍（不要超出螢幕、不要蓋住工作列）
+        // 放到最大時交給 Tauri（tao）處理：內容剛好是螢幕可用範圍，也會留一點給自動隱藏的工作列
         if msg == WM_NCCALCSIZE && wp != 0 && maxed(hwnd) {
-            let params = &mut *(lp as *mut NCCALCSIZE_PARAMS);
-            let mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            let mut mi: MONITORINFO = std::mem::zeroed();
-            mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-            if GetMonitorInfoW(mon, &mut mi) != 0 {
-                params.rgrc[0] = mi.rcWork;
-            }
-            return 0;
+            return DefSubclassProc(hwnd, msg, wp, lp);
         }
         if let Some(r) = no_frame(msg, wp) {
             return r;
@@ -1845,21 +1864,13 @@ mod win32 {
             if want == ex && (!layered || cur_alpha == alpha) {
                 return;
             }
+            // 這幾個樣式都不影響邊框，不用重畫邊框（重畫會讓視窗閃一下）
             if want != ex {
                 SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want as isize);
             }
             if layered {
                 SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
             }
-            SetWindowPos(
-                hwnd,
-                std::ptr::null_mut(),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-            );
         }
     }
 
@@ -1927,6 +1938,9 @@ fn enter_typing(app: &AppHandle, id: &str, hwnd: isize, from_bar: bool) {
         } else {
             get(id).map(|w| page_label(id, &w.active)).unwrap_or_default()
         };
+        if let Some(p) = active_page(app, id) {
+            let _ = p.eval("window.__mbGame = true");
+        }
         let app2 = app.clone();
         let _ = app.run_on_main_thread(move || {
             win32::apply_style(hwnd, false, locked, alpha);
@@ -1940,23 +1954,25 @@ fn enter_typing(app: &AppHandle, id: &str, hwnd: isize, from_bar: bool) {
     let _ = (app, id, hwnd, from_bar);
 }
 
-/// 鍵盤還給原本的視窗（遊戲）
-fn leave_typing(app: &AppHandle, id: &str, hwnd: isize) {
+/// 打字結束。give_back = 把鍵盤還給原本的視窗（遊戲）；使用者自己切走的就不用還
+fn leave_typing(app: &AppHandle, id: &str, hwnd: isize, give_back: bool) {
+    if let Some(p) = active_page(app, id) {
+        let _ = p.eval("window.__mbGame = false");
+    }
     #[cfg(windows)]
     {
         lock(&TYPING_HWND).retain(|h| *h != hwnd);
         let prev = rt(|m| m.get_mut(id).map(|r| std::mem::take(&mut r.prev_fg)).unwrap_or(0));
-        let locked = get(id).map(|w| w.locked).unwrap_or(false);
-        let alpha = alpha_of(id);
-        let _ = app.run_on_main_thread(move || {
-            if win32::foreground() == hwnd || win32::is_own(win32::foreground()) {
-                win32::give_back(prev);
-            }
-            win32::apply_style(hwnd, true, locked, alpha);
-        });
+        if give_back {
+            let _ = app.run_on_main_thread(move || {
+                if win32::foreground() == hwnd || win32::is_own(win32::foreground()) {
+                    win32::give_back(prev);
+                }
+            });
+        }
     }
     #[cfg(not(windows))]
-    let _ = (app, id, hwnd);
+    let _ = (app, id, hwnd, give_back);
 }
 
 /* ---------------- 背景執行緒 ---------------- */
@@ -2040,8 +2056,12 @@ pub fn init(app: &AppHandle, path: PathBuf) {
 }
 
 enum Action {
+    /// 遊戲在前景時點了輸入框：鍵盤交給 web（true = 工具列的輸入框）
     Enter(bool),
+    /// 打完了：鍵盤還給遊戲
     Leave,
+    /// 使用者自己切到別的視窗：打字結束，不用還
+    End,
 }
 
 fn tick(app: &AppHandle) {
@@ -2054,11 +2074,16 @@ fn tick(app: &AppHandle) {
         GAME_FG.store(info.is_game, Ordering::SeqCst);
     }
     #[cfg(windows)]
+    let fg_hwnd = win32::foreground();
+    #[cfg(not(windows))]
+    let fg_hwnd = 0isize;
+    #[cfg(windows)]
     if info.is_game {
-        win32::GAME_HWND.store(win32::foreground(), Ordering::SeqCst);
+        win32::GAME_HWND.store(fg_hwnd, Ordering::SeqCst);
     }
     let game_fg = GAME_FG.load(Ordering::SeqCst);
     let now = Instant::now();
+    let fresh = |t: Option<Instant>| t.is_some_and(|t| now.duration_since(t) < Duration::from_millis(1500));
 
     for cfg in open {
         let id = cfg.id.clone();
@@ -2068,71 +2093,95 @@ fn tick(app: &AppHandle) {
             if r.hwnd == 0 {
                 return None;
             }
-            let page_grace = r.page_off_at.is_some_and(|t| now.duration_since(t) < Duration::from_millis(250));
-            let mut want = !cfg.locked && (r.bar_typing || r.page_typing || (r.typing && page_grace));
-            #[cfg(windows)]
-            {
-                // 打字中滑鼠移出視窗超過 0.4 秒：鍵盤還給遊戲
-                if r.typing && win32::cursor_outside(r.hwnd) {
-                    let since = *r.out_since.get_or_insert(now);
-                    if now.duration_since(since) >= Duration::from_millis(400) {
-                        want = false;
-                        r.page_typing = false;
-                        r.bar_typing = false;
+            let mut act = None;
+            if !r.typing {
+                // 只有「遊戲在前景時點了輸入框」才把鍵盤交給 web；web 本來就在前景時本來就能打字，不用處理
+                let page = r.page_typing && fresh(r.page_on_at);
+                let bar = r.bar_typing && fresh(r.bar_on_at);
+                if info.is_game && !cfg.locked && (page || bar) {
+                    r.typing = true;
+                    r.typing_since = Some(now);
+                    r.out_since = None;
+                    act = Some(Action::Enter(bar));
+                }
+                if page || bar || !(r.page_typing || r.bar_typing) {
+                    r.page_on_at = None;
+                    r.bar_on_at = None;
+                }
+            } else {
+                let started = r.typing_since.is_some_and(|t| now.duration_since(t) < Duration::from_millis(700));
+                let page_grace = r.page_off_at.is_some_and(|t| now.duration_since(t) < Duration::from_millis(250));
+                let mut keep = r.bar_typing || r.page_typing || page_grace;
+                #[cfg(windows)]
+                {
+                    // 打字中滑鼠移出視窗超過 0.4 秒：鍵盤還給遊戲
+                    if win32::cursor_outside(r.hwnd) {
+                        let since = *r.out_since.get_or_insert(now);
+                        if now.duration_since(since) >= Duration::from_millis(400) {
+                            keep = false;
+                        }
+                    } else {
                         r.out_since = None;
                     }
-                } else {
-                    r.out_since = None;
+                }
+                #[cfg(windows)]
+                let mine = fg_hwnd == r.hwnd || win32::is_own(fg_hwnd);
+                #[cfg(not(windows))]
+                let mine = true;
+                if !started && !mine {
+                    act = Some(Action::End);
+                } else if !started && !keep {
+                    act = Some(Action::Leave);
+                }
+                if act.is_some() {
+                    r.typing = false;
+                    r.typing_since = None;
+                    r.page_on_at = None;
+                    r.bar_on_at = None;
                 }
             }
-            if !want {
-                r.bar_typing = r.bar_typing && !cfg.locked;
-            }
-            let act = if want && !r.typing {
-                r.typing = true;
-                Some(Action::Enter(r.bar_typing))
-            } else if !want && r.typing {
-                r.typing = false;
-                r.bar_typing = false;
-                r.page_typing = false;
-                Some(Action::Leave)
-            } else {
-                None
-            };
             Some((r.hwnd, r.typing, act))
         });
         let Some((hwnd, typing, act)) = decided else { continue };
         match act {
             Some(Action::Enter(from_bar)) => enter_typing(app, &id, hwnd, from_bar),
             Some(Action::Leave) => {
-                leave_typing(app, &id, hwnd);
+                leave_typing(app, &id, hwnd, true);
                 // 網頁與網址列的輸入框也取消選取
                 if let Some(p) = active_page(app, &id) {
                     let _ = p.eval("(() => { const a = document.activeElement; if (a && a !== document.body) a.blur(); })()");
                 }
                 let _ = app.emit_to(bar_label(&id).as_str(), "web-blur", id.clone());
+                rt(|m| {
+                    if let Some(r) = m.get_mut(&id) {
+                        r.page_typing = false;
+                        r.bar_typing = false;
+                    }
+                });
             }
+            Some(Action::End) => leave_typing(app, &id, hwnd, false),
             None => {}
         }
         #[cfg(windows)]
         {
             // 遊戲在前景：點這個視窗不搶遊戲的鍵盤。其他時候就是一般視窗（點了就切過來，跟 Win11 一樣）
-            if !typing {
-                win32::apply_style(hwnd, info.is_game, cfg.locked, alpha_of(&id));
-            }
+            win32::apply_style(hwnd, info.is_game && !typing, cfg.locked, alpha_of(&id));
             let visible = !cfg.game_only || game_fg || typing || info.is_self;
             if visible && info.is_game {
-                win32::keep_above(hwnd, win32::foreground());
+                win32::keep_above(hwnd, fg_hwnd);
             }
-            if win32::visible(hwnd) != visible {
-                win32::show(hwnd, visible);
-                if !visible {
-                    hide_menu_of(app, &id);
+            // 「只在遊戲畫面時顯示」：切到別的程式時藏起來
+            if cfg.game_only || !win32::visible(hwnd) {
+                if win32::visible(hwnd) != visible {
+                    win32::show(hwnd, visible);
+                    if !visible {
+                        hide_menu_of(app, &id);
+                    }
                 }
             }
         }
         #[cfg(not(windows))]
-        let _ = (typing, game_fg);
+        let _ = (typing, game_fg, fg_hwnd);
     }
 }
 
@@ -2719,6 +2768,9 @@ pub fn web_typing(webview: Webview, on: bool) {
     if let Some(id) = id_of(&webview) {
         rt(|m| {
             if let Some(r) = m.get_mut(&id) {
+                if on && !r.bar_typing {
+                    r.bar_on_at = Some(Instant::now());
+                }
                 r.bar_typing = on;
             }
         });
