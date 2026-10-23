@@ -89,6 +89,15 @@ const TYPING_JS: &str = r#"(() => {
     if (!t || t.tagName !== "INPUT" || !editable(t)) return;
     setTimeout(() => { if (deep(document.activeElement) === t) t.blur(); set(false); }, 150);
   }, true);
+  // 程式結束打字時呼叫：打字狀態一律清掉（視窗已經不在前景時，取消選取不會觸發事件，狀態會停在「打字中」，
+  // 下次再點輸入框就不會把鍵盤交給 web）。內嵌的框架也一起清
+  const resetFrames = () => {
+    for (let i = 0; i < window.frames.length; i++) { try { window.frames[i].postMessage({ __mbReset: true }, "*"); } catch (_) {} }
+  };
+  window.__mbReset = () => { mine = false; frame = false; sent = null; apply(); resetFrames(); };
+  if (!top) {
+    window.addEventListener("message", (e) => { if (e.data && e.data.__mbReset === true) { mine = false; sent = null; resetFrames(); } });
+  }
   if (top) {
     window.addEventListener("message", (e) => {
       if (e.data && typeof e.data.__mbTyping === "boolean") { frame = e.data.__mbTyping; apply(); }
@@ -2184,9 +2193,9 @@ fn tick(app: &AppHandle) {
             Some(Action::Enter(from_bar)) => enter_typing(app, &id, hwnd, from_bar),
             Some(Action::Leave) => {
                 leave_typing(app, &id, hwnd, true);
-                // 網頁與網址列的輸入框也取消選取
+                // 網頁與網址列的輸入框也取消選取，網頁裡的打字狀態清掉
                 if let Some(p) = active_page(app, &id) {
-                    let _ = p.eval("(() => { const a = document.activeElement; if (a && a !== document.body) a.blur(); })()");
+                    let _ = p.eval("(() => { const a = document.activeElement; if (a && a !== document.body) a.blur(); if (window.__mbReset) window.__mbReset(); })()");
                 }
                 let _ = app.emit_to(bar_label(&id).as_str(), "web-blur", id.clone());
                 rt(|m| {
@@ -2196,7 +2205,18 @@ fn tick(app: &AppHandle) {
                     }
                 });
             }
-            Some(Action::End) => leave_typing(app, &id, hwnd, false),
+            Some(Action::End) => {
+                leave_typing(app, &id, hwnd, false);
+                // 使用者自己切走：不取消選取，只把網頁裡的打字狀態清掉（之後從遊戲再點輸入框才會再交給 web）
+                if let Some(p) = active_page(app, &id) {
+                    let _ = p.eval("window.__mbReset && window.__mbReset()");
+                }
+                rt(|m| {
+                    if let Some(r) = m.get_mut(&id) {
+                        r.page_typing = false;
+                    }
+                });
+            }
             None => {}
         }
         #[cfg(windows)]

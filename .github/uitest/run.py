@@ -499,20 +499,21 @@ def find_tab_icons():
 
 
 def find_plus():
-    """從截圖找「新分頁」的 +（淺藍色的橫線），回傳中心 x（CSS 像素）"""
-    px = row_pixels(23)
-    hits = [i for i, (r, g, b) in enumerate(px) if abs(r - 125) < 45 and abs(g - 211) < 45 and abs(b - 252) < 45]
-    if not hits:
-        return None
-    # 最長的一段連續淺藍色
-    runs, start = [], hits[0]
-    for a, b in zip(hits, hits[1:] + [None]):
-        if b is None or b != a + 1:
-            runs.append((start, a))
-            if b is not None:
-                start = b
-    s0, s1 = max(runs, key=lambda r: r[1] - r[0])
-    return (s0 + s1) / 2 / scale
+    """從截圖找「新分頁」的 +（淺藍色的橫線，在最後一個分頁右邊），回傳中心 x（CSS 像素）"""
+    icons = find_tab_icons()
+    lo = (icons[-1] + 24) * scale if icons else 0
+    best = None
+    for ycss in (20, 21, 22, 23, 24, 25):
+        px = row_pixels(ycss)
+        run = 0
+        for i, (r, g, b) in enumerate(px + [(0, 0, 0)]):
+            if i >= lo and abs(r - 125) < 45 and abs(g - 211) < 45 and abs(b - 252) < 45:
+                run += 1
+                continue
+            if run >= 6 and (best is None or run > best[0]):
+                best = (run, (i - run + i - 1) / 2)
+            run = 0
+    return best[1] / scale if best else None
 
 
 def tab_x(i, n=None):
