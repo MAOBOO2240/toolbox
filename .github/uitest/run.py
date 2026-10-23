@@ -367,6 +367,7 @@ def find_web():
 
 
 web = wait_for(find_web, 40)
+WEB_AT = time.time()
 log("web hwnd", web)
 if not web:
     for h in app_windows():
@@ -470,9 +471,68 @@ def bar_pt(el_js, fallback, dy=None):
     return fallback
 
 
-def tab_x(i, n):
-    # 估計值（讀不到實際位置時才用）
+def row_pixels(y_css):
+    cx, cy, cw, ch = client(web)
+    y = int(cy + y_css * scale)
+    img = ImageGrab.grab(bbox=(cx, y, cx + cw, y + 1), all_screens=True).convert("RGB")
+    return [img.getpixel((i, 0)) for i in range(img.width)]
+
+
+def find_tab_icons():
+    """從截圖找每個分頁的網站圖示（彩色小方塊），回傳內容區的 x（CSS 像素），由左到右"""
+    best = []
+    for ycss in (17, 18, 19, 20):
+        px = row_pixels(ycss) + [(0, 0, 0)]
+        found, run = [], 0
+        for i, (r, g, b) in enumerate(px):
+            mx, mn = max(r, g, b), min(r, g, b)
+            if mx > 80 and (mx - mn) / mx > 0.35:
+                run += 1
+            else:
+                if 6 <= run <= 22:
+                    found.append((i - run) / scale)
+                run = 0
+        found = [x for x in found if x < W() - 150]
+        if len(found) > len(best):
+            best = found
+    return best
+
+
+def find_plus():
+    """從截圖找「新分頁」的 +（淺藍色的橫線），回傳中心 x（CSS 像素）"""
+    px = row_pixels(23)
+    hits = [i for i, (r, g, b) in enumerate(px) if abs(r - 125) < 45 and abs(g - 211) < 45 and abs(b - 252) < 45]
+    if not hits:
+        return None
+    # 最長的一段連續淺藍色
+    runs, start = [], hits[0]
+    for a, b in zip(hits, hits[1:] + [None]):
+        if b is None or b != a + 1:
+            runs.append((start, a))
+            if b is not None:
+                start = b
+    s0, s1 = max(runs, key=lambda r: r[1] - r[0])
+    return (s0 + s1) / 2 / scale
+
+
+def tab_x(i, n=None):
+    icons = find_tab_icons()
+    if i < len(icons):
+        return icons[i] + 8
+    log(f"（截圖找不到第 {i + 1} 個分頁，找到 {len(icons)} 個）")
     return 8 + 120 * i + 60
+
+
+def tab_count():
+    return len(find_tab_icons())
+
+
+def plus_x():
+    x = find_plus()
+    if x is None:
+        log("（截圖找不到 +）")
+        return 8 + 120 * tab_count() + 20
+    return x
 
 
 def TAB(i):
@@ -548,24 +608,33 @@ def s_start():
 def s_max_button():
     before = wrect(web)
     log("按之前的前景視窗", fg(), repr(title(fg())), "web", web, "game", game)
-    t0 = time.time()
-    click_bar(BTN_MAX, (W() - 69, 20), wait=0.1)
-    z = wait_for(lambda: user32.IsZoomed(web), 4, 0.05)
-    log(f"放到最大花了 {time.time() - t0:.2f} 秒" if z else "4 秒內沒有放到最大", "前景", fg())
-    time.sleep(0.8)
+    log(f"web 視窗出現後 {time.time() - WEB_AT:.1f} 秒")
+    for k in range(3):
+        t0 = time.time()
+        click(*C(W() - 69, 20), wait=0.05)
+        z = wait_for(lambda: user32.IsZoomed(web), 5, 0.05)
+        log(f"第 {k + 1} 次按放到最大：{time.time() - t0:.2f} 秒" if z else "5 秒內沒有放到最大", "前景", fg())
+        time.sleep(0.8)
+        if k == 2:
+            break
+        t0 = time.time()
+        click(*C(W() - 69, 20), wait=0.05)
+        z = wait_for(lambda: not user32.IsZoomed(web), 5, 0.05)
+        log(f"第 {k + 1} 次按還原：{time.time() - t0:.2f} 秒" if z else "5 秒內沒有還原")
+        time.sleep(0.8)
     check("按放到最大按鈕：視窗放到最大", user32.IsZoomed(web), f"before={before} after={wrect(web)}")
     vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
     tops = sorted(r[1] for r in vis)
     check("放到最大後：工具列在最上面、網頁在下面", len(vis) >= 2 and tops[0] <= client(web)[1] + 2, f"{vis}")
     # 放到最大時滑鼠移到螢幕最上緣也點得到分頁
-    x, _ = bar_pt(TAB(1), (tab_x(1, 3), 23))
+    x, _ = bar_pt(TAB(1), (tab_x(1), 23))
+    sx, _ = C(x, 0)
+    click(sx, client(web)[1], wait=1.5)
+    check("放到最大時點螢幕最上緣：點得到分頁", "短影片" in title(web), f"title={title(web)}")
+    x, _ = bar_pt(TAB(0), (tab_x(0), 23))
     sx, _ = C(x, 0)
     click(sx, client(web)[1], wait=1.0)
-    a = active_tab()
-    check("放到最大時點螢幕最上緣：點得到分頁", a == 1 if a is not None else "短影片" in title(web), f"active={a} title={title(web)}")
-    x, _ = bar_pt(TAB(0), (tab_x(0, 3), 23))
-    sx, _ = C(x, 0)
-    click(sx, client(web)[1], wait=1.0)
+    check("放到最大時點螢幕最上緣：切回第一個分頁", "測試頁" in title(web), f"title={title(web)}")
 
 
 def s_restore_button():
@@ -588,7 +657,7 @@ def slides_since(t0):
 
 
 def s_snap_resize():
-    click_bar(TAB(1), (tab_x(1, 3), 23), wait=2.5)
+    click_bar(TAB(1), (tab_x(1), 23), wait=2.5)
     check("切到短影片分頁", "短影片" in title(web), title(web))
     px, py = C(400, 300)
     for _ in range(3):
@@ -635,11 +704,11 @@ def s_drag_snap():
 
 
 def s_tabs():
-    click_bar(TAB(2), (tab_x(2, 3), 23), wait=2.5)
+    click_bar(TAB(2), (tab_x(2), 23), wait=2.5)
     shot("tab3")
     a = active_tab()
     check("點第三個分頁：切過去", a == 2 if a is not None else "Example" in title(web), f"active={a} title={title(web)}")
-    click_bar(TAB(0), (tab_x(0, 3), 23), wait=1.5)
+    click_bar(TAB(0), (tab_x(0), 23), wait=1.5)
     kids = [c for c in children(web) if user32.IsWindowVisible(c)]
     check("切換分頁：只有一個網頁顯示", len(kids) == 2, f"{[wrect(c) for c in kids]}")
     check("切回第一個分頁", "測試頁" in title(web), title(web))
@@ -663,18 +732,19 @@ def s_menu():
 
 
 def s_new_tab():
-    click_bar(NEWTAB, (8 + 120 * 3 + 15, 23), wait=1.0)
+    n0 = tab_count()
+    click_bar(NEWTAB, (plus_x(), 23), wait=1.0)
     type_text(f"127.0.0.1:{PORT}/test.html?new")
     key(0x0D)
     time.sleep(2.5)
     shot("new_tab_loaded")
-    u = active_url()
-    check("新分頁輸入網址：有載入", ("test.html?new" in u) if u is not None else "測試頁" in title(web), f"url={u} title={title(web)}")
+    check("按 +：多一個分頁", tab_count() == n0 + 1, f"{n0} → {tab_count()}")
+    check("新分頁輸入網址：有載入", "?new" in page_log(), page_log()[-300:])
 
 
 def s_game():
     # 回到第一個分頁（測試頁）
-    click_bar(TAB(0), (tab_x(0, 4), 23), wait=1.5)
+    click_bar(TAB(0), (tab_x(0), 23), wait=1.5)
     # 遊戲上沒有被 web 視窗蓋住、也不在工作列上的點
     g, r = wrect(game), wrect(web)
     sh = user32.GetSystemMetrics(1) - 60
@@ -687,15 +757,15 @@ def s_game():
     click(*C(5 + 200, 108 + 320), wait=0.8)
     check("點網頁空白處：鍵盤還在遊戲", fg() == game, f"fg={fg()}")
     check("點網頁空白處：web 視窗還在遊戲上面", above(web, game))
-    n0 = bar_eval("document.querySelectorAll('#tabs .tab').length")
-    click_bar(NEWTAB, (8 + 120 * 4 + 15, 23), wait=1.2)
-    n1 = bar_eval("document.querySelectorAll('#tabs .tab').length")
-    check("遊戲在前景時點 web 的按鈕：第一下就有作用", n0 is not None and n1 == n0 + 1, f"{n0} → {n1}")
-    # 關掉剛開的分頁，回到測試頁
-    if n1 and n0 and n1 == n0 + 1:
-        click_bar(TAB(0), (tab_x(0, 4), 23), wait=1.0)
-        bar_eval("(() => { const t = [...document.querySelectorAll('#tabs .tab')].pop(); t && t.querySelector('.tx') && t.querySelector('.tx').click(); })()")
-        time.sleep(1.0)
+    n0 = tab_count()
+    click_bar(NEWTAB, (plus_x(), 23), wait=1.2)
+    n1 = tab_count()
+    check("遊戲在前景時點 web 的按鈕：第一下就有作用", n1 == n0 + 1, f"{n0} → {n1}")
+    # 中鍵關掉剛開的分頁，回到測試頁
+    if n1 == n0 + 1:
+        click(*C(tab_x(n1 - 1), 23), button="middle", wait=1.0)
+        click_bar(TAB(0), (tab_x(0), 23), wait=1.0)
+        check("中鍵關掉分頁", tab_count() == n0, f"{tab_count()}")
     click(gx, gy, wait=1.0)
     check("再點遊戲：遊戲在前景", fg() == game, f"fg={fg()}")
     key(0x41)
@@ -750,7 +820,7 @@ def s_notepad():
         click(wrect(np)[0] + 250, wrect(np)[1] + 200, wait=1.0)
         check("記事本在前景時可以蓋住 web 視窗", above(np, web), f"fg={fg()} np={np}")
         shot("notepad_over_web")
-        click_bar(TAB(0), (tab_x(0, 4), 23), wait=1.0)
+        click_bar(TAB(0), (tab_x(0), 23), wait=1.0)
         check("點 web 視窗：變成前景（一般視窗）", fg() == web and above(web, np), f"fg={fg()}")
     np_proc.kill()
 

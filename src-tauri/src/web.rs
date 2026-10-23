@@ -731,7 +731,7 @@ static POPUP_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new
 /// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉
 fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
     let n = POPUP_N.fetch_add(1, Ordering::SeqCst) + 1;
-    WebviewWindowBuilder::new(app, format!("webpop-{n}"), WebviewUrl::External("about:blank".parse().ok()?))
+    let win = WebviewWindowBuilder::new(app, format!("webpop-{n}"), WebviewUrl::External("about:blank".parse().ok()?))
         .window_features(features)
         .title(url.host_str().unwrap_or("登入"))
         .focused(true)
@@ -739,7 +739,14 @@ fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowF
             let _ = w.set_title(&title);
         })
         .build()
-        .ok()
+        .ok()?;
+    // 遊戲在前景時點網頁不會切換前景，Windows 就不讓新開的小視窗變成前景（打字會跑到遊戲）：主動叫到前景
+    #[cfg(windows)]
+    if let Ok(h) = win.hwnd() {
+        let h = h.0 as isize;
+        let _ = app.run_on_main_thread(move || win32::activate(h));
+    }
+    Some(win)
 }
 
 fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<PathBuf>) -> WebviewBuilder<tauri::Wry> {

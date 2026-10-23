@@ -19,6 +19,9 @@
   q.addEventListener('input', () => log('input:' + q.value));
   addEventListener('resize', () => log('resize:' + innerWidth + 'x' + innerHeight));
   document.addEventListener('visibilitychange', () => log('vis:' + document.visibilityState));
-  log('load:' + innerWidth + 'x' + innerHeight + ' dpr=' + devicePixelRatio);
+  log('load:' + innerWidth + 'x' + innerHeight + ' dpr=' + devicePixelRatio + ' ' + location.search);
+  // 診斷：內嵌框送來的訊息、標題上的打字記號
+  addEventListener('message', (e) => log('message ' + JSON.stringify(e.data)));
+  new MutationObserver(() => log('title typing=' + document.title.endsWith('\u2063'))).observe(document.querySelector('title'), { childList: true, characterData: true, subtree: true });
 </script>
 </body></html>

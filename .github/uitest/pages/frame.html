@@ -5,5 +5,11 @@
 <script>
   const log = (m) => fetch('http://localhost:8765/log?m=' + encodeURIComponent('[frame] ' + m)).catch(() => {});
   f.addEventListener('input', () => log('input:' + f.value));
+  // 診斷：點擊、選取有沒有到內嵌框
+  document.addEventListener('pointerdown', (e) => log('pointerdown ' + (e.target.id || e.target.tagName) + ' hasFocus=' + document.hasFocus() + ' mb=' + !!window.__mbTyping), true);
+  f.addEventListener('focus', () => log('focus hasFocus=' + document.hasFocus()));
+  f.addEventListener('blur', () => log('blur'));
+  addEventListener('blur', () => log('window blur'));
+  log('load mb=' + !!window.__mbTyping);
 </script>
 </body></html>
