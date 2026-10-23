@@ -910,7 +910,7 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
         // 工作列上顯示目前分頁的標題
         if get(wid).is_some_and(|w| w.active == tid) {
             if let Some(win) = app.get_window(&win_label(wid)) {
-                let _ = win.set_title(if title.is_empty() { "web" } else { &title });
+                let _ = win.set_title(if title.is_empty() { "瀏覽器" } else { &title });
             }
         }
     }
@@ -985,7 +985,7 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     .ok_or("找不到這個分頁")?;
     if let Some(win) = app.get_window(&win_label(wid)) {
         // 工作列上的標題跟著換成這個分頁的
-        let _ = win.set_title(if title.is_empty() { "web" } else { &title });
+        let _ = win.set_title(if title.is_empty() { "瀏覽器" } else { &title });
         if app.get_webview(&page_label(wid, tid)).is_none() {
             create_page(app, &win, wid, tid)?;
         }
@@ -1125,7 +1125,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
 
     // 建立時就顯示（不搶焦點）：視窗的顯示狀態一律交給 Tauri 管，放到最大、縮小、跨螢幕才不會出錯
     let mut builder = WindowBuilder::new(app, &label)
-        .title(if cfg.title.is_empty() { "web".to_string() } else { cfg.title.clone() })
+        .title(if cfg.title.is_empty() { "瀏覽器".to_string() } else { cfg.title.clone() })
         .decorations(false)
         // 跟一般視窗一樣：工作列有圖示、可以縮小到工作列、可以被其他視窗蓋住
         .skip_taskbar(false)
