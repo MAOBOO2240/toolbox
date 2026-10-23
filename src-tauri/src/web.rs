@@ -762,9 +762,12 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
     let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
     let (w1, w2, w3) = (wid.to_string(), wid.to_string(), wid.to_string());
     let (t1, t2, t3) = (tid.to_string(), tid.to_string(), tid.to_string());
+    // 按「+」開的空白分頁不要搶走焦點（網址列要能直接打字）
+    let blank = url.as_str() == "about:blank";
     let mut b = WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
         .data_directory(profile_dir())
-        .browser_extensions_enabled(true);
+        .browser_extensions_enabled(true)
+        .focused(!blank);
     if let Some(dir) = ext {
         b = b.extensions_path(dir);
     }
