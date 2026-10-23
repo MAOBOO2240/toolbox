@@ -998,6 +998,7 @@ def s_dpi():
 
 def s_fullscreen():
     click_bar(TAB(0), (tab_x(0), 23), wait=1.0)
+    r0 = wrect(web)
     n0 = len([c for c in children(web) if user32.IsWindowVisible(c)])
     click(*C(5 + 100, 108 + 420), wait=2.0)
     shot("fullscreen")
@@ -1012,7 +1013,7 @@ def s_fullscreen():
     shot("fullscreen_off")
     r = wrect(web)
     vis = [wrect(c) for c in children(web) if user32.IsWindowVisible(c)]
-    check("按 Esc：回到原本的大小", r == (80, 60, 980, 680), f"{r}")
+    check("按 Esc：回到原本的大小", r == r0, f"{r} before={r0}")
     check("按 Esc：工具列回來", len(vis) == n0 and any(x[1] == r[1] for x in vis), f"{vis}")
 
 
