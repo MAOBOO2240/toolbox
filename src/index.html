@@ -457,7 +457,15 @@
                     <button class="cbtn small c-purple" data-v="jump">跳躍</button>
                   </div>
                 </div>
-                <button class="b-act-reset" id="bActReset" title="回到站立"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg></button>
+                <div class="b-act-wrap">
+                  <button class="b-act b-stance" id="bStance" title="拿武器的動作（站姿、攻擊動作依武器種類）"><span id="bStanceText">基本動作</span><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+                  <div class="b-act-menu b-stance-menu" id="bStanceMenu" hidden>
+                    <button class="cbtn small c-blue" data-v="basic">基本動作</button>
+                    <button class="cbtn small c-green" data-v="one">單手武器</button>
+                    <button class="cbtn small c-amber" data-v="two">雙手武器</button>
+                    <button class="cbtn small c-red" data-v="gun">火槍武器</button>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="b-colors">

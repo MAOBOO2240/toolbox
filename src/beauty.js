@@ -699,7 +699,7 @@ if (typeof document !== "undefined") (() => {
   }
   function openMix(kind) {
     $("#bDyeWin").hidden = true;
-    if (!$("#bActMenu").hidden) actMenu(false);
+    if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false);
     if (styleKind) closeStyle();
     mixKind = kind;
     const key = MIX_KEY[kind];
@@ -796,6 +796,7 @@ if (typeof document !== "undefined") (() => {
     dyeId = null;
     if (styleKind) closeStyle();
     actMenu(false);
+    stanceMenu(false);
     closeCtx();
   });
   $("#bMixClose").addEventListener("click", closeMix);
@@ -807,7 +808,7 @@ if (typeof document !== "undefined") (() => {
     if (!TAURI || (!ch && !tryH && !tryF && !st.hairColor && !st.faceColor && !st.hairMix && !st.faceMix && !st.skinId && !st.outfit?.length)) { showDoll(null); announceQueue(null); }
     else {
       const req = lookReq(tryH, tryF, "full");
-      showDoll({ ...req, action: act });
+      showDoll({ ...req, action: act, stance: st.stance || "basic" });
       // 側欄要的是站姿；中間在做其他動作時另外畫
       if (act !== "stand") announceQueue(req);
     }
@@ -1015,7 +1016,7 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 事件 ---------- */
   $$("#bPages button").forEach((b) => b.addEventListener("click", () => {
-    if (!$("#bActMenu").hidden) actMenu(false); // 換頁時收起動作選單
+    if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false); // 換頁時收起動作選單
     st.page = b.dataset.page;
     save(); renderPage();
     if (st.page === "import") checkWz();
@@ -1112,36 +1113,53 @@ if (typeof document !== "undefined") (() => {
     const b = $(`#bActMenu [data-v="${act}"]`);
     $("#bActText").textContent = b ? b.textContent : "站立";
     $$("#bActMenu .cbtn").forEach((x) => x.classList.toggle("on", x === b));
-    $("#bActReset").disabled = act === "stand";
     renderDoll();
   };
-  // 選單搬到 body 底下，才不會被紙娃娃框切掉；往下打開，下面放不下時才改往上
-  document.body.appendChild($("#bActMenu"));
-  function placeActMenu() {
-    const m = $("#bActMenu");
-    if (m.hidden) return;
-    const r = $("#bAct").getBoundingClientRect();
-    const gap = 6, w = m.offsetWidth, h = m.offsetHeight;
-    const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w));
-    let top = r.bottom + gap;
-    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - gap - h);
-    m.style.left = `${left}px`;
-    m.style.top = `${top}px`;
-  }
-  const actMenu = (open) => {
-    $("#bActMenu").hidden = !open;
-    $("#bAct").classList.toggle("open", open);
-    placeActMenu();
+  // 拿武器的動作（跟遊戲美容美髮的選項一樣）：決定站姿與普通攻擊的動作，不管角色實際拿什麼武器
+  const setStance = (v) => {
+    st.stance = v || "basic";
+    const b = $(`#bStanceMenu [data-v="${st.stance}"]`);
+    $("#bStanceText").textContent = b ? b.textContent : "基本動作";
+    $$("#bStanceMenu .cbtn").forEach((x) => x.classList.toggle("on", x === b));
+    save();
+    renderDoll();
   };
-  window.addEventListener("resize", placeActMenu);
-  document.addEventListener("scroll", placeActMenu, true);
-  $("#bAct").addEventListener("click", () => actMenu($("#bActMenu").hidden));
+  // 選單搬到 body 底下，才不會被紙娃娃框切掉；往下打開，下面放不下時才改往上。
+  // 選了項目不會收起，再按一次按鈕才收起
+  function dropdown(btnId, menuId) {
+    const m = $(menuId), btn = $(btnId);
+    document.body.appendChild(m);
+    const place = () => {
+      if (m.hidden) return;
+      const r = btn.getBoundingClientRect();
+      const gap = 6, w = m.offsetWidth, h = m.offsetHeight;
+      const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w));
+      let top = r.bottom + gap;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - gap - h);
+      m.style.left = `${left}px`;
+      m.style.top = `${top}px`;
+    };
+    const toggle = (open) => {
+      m.hidden = !open;
+      btn.classList.toggle("open", open);
+      place();
+    };
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+    btn.addEventListener("click", () => toggle(m.hidden));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !m.hidden) toggle(false); });
+    return toggle;
+  }
+  const actMenu0 = dropdown("#bAct", "#bActMenu");
+  const stanceMenu = dropdown("#bStance", "#bStanceMenu");
+  // 一個選單打開時收起另一個
+  const actMenu = (open) => { actMenu0(open); if (open) stanceMenu(false); };
+  $("#bStance").addEventListener("click", () => { if (!$("#bStanceMenu").hidden) actMenu0(false); });
+  $("#bAct").addEventListener("click", () => { if (!$("#bActMenu").hidden) stanceMenu(false); });
   $$("#bActMenu .cbtn").forEach((b) => b.addEventListener("click", () => setAct(b.dataset.v)));
   $$("#bActMenu .cbtn").forEach((b) => b.classList.toggle("on", b.dataset.v === act));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#bActMenu").hidden) actMenu(false); });
-  // 回到站立：同時收起動作選單
-  $("#bActReset").addEventListener("click", () => { setAct("stand"); actMenu(false); });
-  $("#bActReset").disabled = true;
+  $$("#bStanceMenu .cbtn").forEach((b) => b.addEventListener("click", () => setStance(b.dataset.v)));
+  setStance(st.stance);
   $("#bCost").addEventListener("focus", (e) => { e.target.value = st.cost ? String(st.cost) : ""; e.target.select(); });
   $("#bCost").addEventListener("input", (e) => { st.cost = Math.max(0, parseNum(e.target.value) || 0); save(); });
   $("#bCost").addEventListener("blur", (e) => { e.target.value = st.cost ? intFmt.format(st.cost) : ""; });
@@ -1362,7 +1380,7 @@ if (typeof document !== "undefined") (() => {
     showMenu(x, y, item.name, opts);
   }
   function showMenu(x, y, name, opts) {
-    if (!$("#bActMenu").hidden) actMenu(false); // 叫出其他介面時收起動作選單
+    if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false); // 叫出其他介面時收起動作選單
     const m = $("#bCtx");
     m.innerHTML = "";
     const title = document.createElement("div");
@@ -1557,7 +1575,7 @@ if (typeof document !== "undefined") (() => {
   let dyeId = null;
   function dyeItem() { return curOutfit().find((x) => x.id === dyeId); }
   function openDye(id) {
-    if (!$("#bActMenu").hidden) actMenu(false); // 叫出其他介面時收起動作選單
+    if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false); // 叫出其他介面時收起動作選單
     if (!st.outfit) st.outfit = curOutfit(); // 先把角色原本的套組變成可以修改的清單
     dyeId = id;
     const it = dyeItem();
@@ -1617,7 +1635,7 @@ if (typeof document !== "undefined") (() => {
   const famOf = (kind, id) => (kind === "hair" ? Math.floor(id / 10) * 10 : kind === "face" ? id - (Math.floor(id / 100) % 10) * 100 : id);
 
   async function openStyle(kind) {
-    if (!$("#bActMenu").hidden) actMenu(false); // 叫出其他介面時收起動作選單
+    if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false); // 叫出其他介面時收起動作選單
     closeCtx();
     $("#bDyeWin").hidden = true;
     closeMix();
@@ -1960,7 +1978,7 @@ if (typeof document !== "undefined") (() => {
     back: () => {
       // 變更點裝是獨立工具，直接回分類；美容美髮的解析頁才回抽獎模擬
       if (st.dress || st.page !== "import") return false;
-      if (!$("#bActMenu").hidden) actMenu(false);
+      if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false);
       st.page = "sim"; save(); renderAll(); return true;
     },
   };
@@ -1976,7 +1994,7 @@ if (typeof document !== "undefined") (() => {
     /** 從工具箱的「變更點裝」磁磚進來時直接切到變更點裝 */
     setDress: (on) => {
       if (!!st.dress === !!on) return;
-      if (!$("#bActMenu").hidden) actMenu(false);
+      if (!$("#bActMenu").hidden) actMenu(false); if (!$("#bStanceMenu").hidden) stanceMenu(false);
       st.dress = !!on;
       if (!st.dress) closeFloat();
       if (st.dress) st.page = "sim";

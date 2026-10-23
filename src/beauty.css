@@ -585,13 +585,6 @@ body.b-dragging, body.b-dragging * { cursor: grabbing !important; }
 }
 .b-act-menu[hidden] { display: none; }
 .b-act-menu .cbtn { width: 100%; }
-.b-act-reset {
-  flex: none; width: 2.1rem; height: 2.1rem; display: grid; place-items: center; padding: 0; cursor: pointer;
-  border: 1px solid color-mix(in srgb, #22b45e 38%, transparent); border-radius: 0.6rem;
-  background: color-mix(in srgb, #22b45e 14%, var(--card)); color: color-mix(in srgb, #22b45e 80%, var(--text));
-  transition: background 0.15s, opacity 0.15s, transform 0.1s;
-}
-.b-act-reset:hover { background: color-mix(in srgb, #22b45e 24%, var(--card)); }
-.b-act-reset:active { transform: rotate(-30deg) scale(0.95); }
-.b-act-reset:disabled { opacity: 0.45; cursor: default; transform: none; }
-.b-act-reset svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.b-act.b-stance { border-color: color-mix(in srgb, #22b45e 38%, transparent); background: color-mix(in srgb, #22b45e 14%, var(--card)); color: color-mix(in srgb, #22b45e 80%, var(--text)); }
+.b-act.b-stance:focus-visible, .b-act.b-stance.open { box-shadow: 0 0 0 3px color-mix(in srgb, #22b45e 30%, transparent); }
+.b-stance-menu { grid-template-columns: 1fr; width: 8.5rem; }

@@ -717,6 +717,10 @@ pub struct RenderReq {
     /// 有值時另外輸出每一格畫面（anim）
     #[serde(default)]
     pub action: Option<String>,
+    /// 拿武器的動作（遊戲美容美髮的選項）："basic"（基本動作）、"one"（單手武器）、"two"（雙手武器）、"gun"（火槍武器）；
+    /// 有值時站姿與普通攻擊依這個選，不看角色實際拿的武器
+    #[serde(default)]
+    pub stance: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1243,6 +1247,15 @@ fn resolve_look(ctx: &mut Ctx, req: &RenderReq, warnings: &mut Vec<String>) -> (
                 pose = "stand2";
             }
         }
+    }
+
+    // 指定拿武器的動作時，站姿與攻擊動作照指定的（基本動作 = 單手站姿、徒手攻擊）
+    match req.stance.as_deref() {
+        Some("basic") => (pose, wtype) = ("stand1", None),
+        Some("one") => (pose, wtype) = ("stand1", Some(30)),
+        Some("two") => (pose, wtype) = ("stand2", Some(40)),
+        Some("gun") => (pose, wtype) = ("stand2", Some(49)),
+        _ => {}
     }
 
     // 帽子、套服等用 vslot 蓋住部分髮型、臉型
