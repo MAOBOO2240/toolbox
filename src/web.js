@@ -69,7 +69,6 @@ if (typeof document !== "undefined") (() => {
           <div class="web-opt"><span>不透明度</span>
             <span class="web-range"><input type="range" class="range web-alpha" min="30" max="100" step="5" value="${w.opacity}" /><b>${w.opacity}%</b></span></div>
           <label class="web-opt" title="鎖定後滑鼠會直接穿過視窗點到遊戲，視窗本身就不能點了；要操作時回到這裡解除"><span>鎖定（滑鼠穿透）</span>${sw("web-lock", w.locked)}</label>
-          <label class="web-opt" title="切到其他程式時自動隱藏，回到遊戲再出現"><span>只在遊戲畫面時顯示</span>${sw("web-game", w.game_only)}</label>
         </div>`;
       el.querySelector(".web-wtitle").textContent = w.title || "新視窗";
       el.querySelector(".web-host").textContent = [host(w.url), `${Math.max(1, tabs.length)} 個分頁`].filter(Boolean).join("・");
@@ -125,10 +124,6 @@ if (typeof document !== "undefined") (() => {
         run(() => wapi.set(w.id, { locked: w.locked }));
         if (w.locked) toast("已鎖定：滑鼠會穿過視窗，要操作時回到這裡解除");
       });
-      el.querySelector(".web-game").addEventListener("change", (e) => {
-        w.game_only = e.target.checked;
-        run(() => wapi.set(w.id, { game_only: w.game_only }));
-      });
       list.append(el);
     });
   }
@@ -136,7 +131,9 @@ if (typeof document !== "undefined") (() => {
   function renderBm() {
     const b = file.bookmarks || { bar: [], other: [] };
     const n = countLinks(b.bar) + countLinks(b.other);
-    $("#webBmCount").textContent = n ? `${n} 個書籤（所有 瀏覽器視窗共用）` : "還沒有書籤";
+    const t = n ? `${n} 個書籤（所有瀏覽器視窗共用）` : "還沒有書籤";
+    $("#webBmCount").textContent = t;
+    $("#webBmCount2").textContent = t;
   }
 
   async function reload() {
@@ -149,7 +146,7 @@ if (typeof document !== "undefined") (() => {
 
   /* ---------- 擴充功能 ---------- */
   function renderExt(x) {
-    $("#webExtCount").textContent = x.broken
+    $("#webExtCount").textContent = $("#webExtCount2").textContent = x.broken
       ? "這台電腦的 WebView2 沒辦法載入擴充功能（可以更新 Windows 或 Microsoft Edge 後再試）"
       : x.list.length ? `${x.list.length} 個（從 Chrome 同步）` : "沒有擴充功能（Chrome 裡沒有啟用中的擴充功能）";
     const box = $("#webExts");
@@ -162,6 +159,13 @@ if (typeof document !== "undefined") (() => {
       box.append(chip);
     });
   }
+  // 書籤與擴充功能設定：獨立視窗
+  const setupBack = $("#webSetupBack");
+  const closeSetup = () => setupBack.classList.remove("show");
+  $("#webSetup").addEventListener("click", () => setupBack.classList.add("show"));
+  $("#webSetupClose").addEventListener("click", closeSetup);
+  setupBack.addEventListener("click", (e) => { if (e.target === setupBack) closeSetup(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && setupBack.classList.contains("show")) closeSetup(); });
   $("#webExtSync").addEventListener("click", () => run(async () => {
     const x = await wapi.extSync();
     renderExt(x);

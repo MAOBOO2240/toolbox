@@ -1232,12 +1232,24 @@ fn resolve_look(ctx: &mut Ctx, req: &RenderReq, warnings: &mut Vec<String>) -> (
     let mut pose = "stand1";
     let mut wprefix = String::new();
     let mut wtype = None;
+    // 指定拿武器的動作（遊戲美容美髮的選項）時，點裝武器改用對應武器種類的外觀：單手劍 30、雙手劍 40、火槍 49
+    let want_types: &[u32] = match req.stance.as_deref() {
+        Some("one") => &[30, 31, 32, 33, 37, 38, 47],
+        Some("two") => &[40, 41, 42, 43, 44],
+        Some("gun") => &[49],
+        _ => &[],
+    };
     if let Some(&(wid, _, _)) = equips.iter().find(|(_, c, _)| *c == "Weapon") {
         wtype = Some(wid / 10000 % 100);
         if let Ok(root) = ctx.data.img("Character/Weapon", &format!("{wid:08}.img")) {
             let mut base = root.as_ref();
             if base.get("stand1").is_none() && base.get("stand2").is_none() {
-                if let Some((k, sub)) = root.children().iter().find(|(k, n)| k.chars().all(|c| c.is_ascii_digit()) && n.get("stand1").or(n.get("stand2")).is_some()) {
+                let subs: Vec<(&String, &Node)> = root.children().iter().filter(|(k, n)| k.chars().all(|c| c.is_ascii_digit()) && n.get("stand1").or(n.get("stand2")).is_some()).map(|(k, n)| (k, n)).collect();
+                let pick = want_types
+                    .iter()
+                    .find_map(|t| subs.iter().find(|(k, _)| k.parse::<u32>().ok().map(|x| x % 100) == Some(*t)).copied())
+                    .or_else(|| subs.first().copied());
+                if let Some((k, sub)) = pick {
                     base = sub;
                     wprefix = format!("{k}/");
                     wtype = k.parse::<u32>().ok().map(|t| t % 100);
@@ -1252,9 +1264,9 @@ fn resolve_look(ctx: &mut Ctx, req: &RenderReq, warnings: &mut Vec<String>) -> (
     // 指定拿武器的動作時，站姿與攻擊動作照指定的（基本動作 = 單手站姿、徒手攻擊）
     match req.stance.as_deref() {
         Some("basic") => (pose, wtype) = ("stand1", None),
-        Some("one") => (pose, wtype) = ("stand1", Some(30)),
-        Some("two") => (pose, wtype) = ("stand2", Some(40)),
-        Some("gun") => (pose, wtype) = ("stand2", Some(49)),
+        Some("one") if !want_types.contains(&wtype.unwrap_or(0)) => (pose, wtype) = ("stand1", Some(30)),
+        Some("two") if !want_types.contains(&wtype.unwrap_or(0)) => (pose, wtype) = ("stand2", Some(40)),
+        Some("gun") if !want_types.contains(&wtype.unwrap_or(0)) => (pose, wtype) = ("stand2", Some(49)),
         _ => {}
     }
 

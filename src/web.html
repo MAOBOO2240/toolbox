@@ -248,7 +248,12 @@
         d.el.style.transform = `translateX(${dx}px)`;
         const center = me.left + dx + d.w / 2;
         let to = 0;
-        d.rects.forEach((r, i) => { if (i !== d.from && center >= r.left + r.width / 2) to++; });
+        // 往右拖：拖著的分頁中心過了別人的中心就換位（拖到底時剛好相等也算）；往左拖：要真的過去才算（拖到底時相等不算）
+        d.rects.forEach((r, i) => {
+          if (i === d.from) return;
+          const mid = r.left + r.width / 2;
+          if (i > d.from ? center >= mid : center > mid) to++;
+        });
         d.to = to;
         d.tabs.forEach((x, i) => {
           if (i === d.from) return;

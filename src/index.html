@@ -967,37 +967,11 @@
           <button class="cbtn c-blue small solid" id="webAdd">新增視窗</button>
         </nav>
         <div class="web-page">
-          <div class="card web-tip">
-            <strong>邊玩遊戲邊看影片</strong>
-            <span class="muted">滑鼠可以直接操作網頁（點影片、暫停、拖進度、捲動），鍵盤會留在遊戲上，角色照樣可以動。點到搜尋框或網址列要打字時，鍵盤才會交給視窗；打完按 Enter、點別的地方，或滑鼠移出視窗，就會還給遊戲。</span>
-            <span class="muted">按住最上面分頁列的空白處可以拖曳，按兩下放到最大；拉左、右、下邊可以改大小。右上角「－」是縮小到工作列。跟一般視窗一樣可以被其他視窗蓋住，只有楓之谷不會蓋住它。遊戲要用視窗模式或無邊框全螢幕，獨占全螢幕時看不到浮動視窗。帳號可以在視窗裡直接登入，會保留登入狀態。</span>
-          </div>
-          <div class="web-2col">
-            <div class="card web-bmcard">
-              <div class="web-bmhead">
-                <div class="web-name">
-                  <strong class="web-tipt" data-tip="用你在 Chrome 登入的 Google 帳號的書籤：Chrome 書籤列上的網站會出現在 瀏覽器視窗的書籤列，其他書籤在書籤列右邊的「所有書籤」。Chrome 新增書籤後幾秒內會自動加進來；在 瀏覽器視窗刪掉的書籤不會再被加回來。只讀取書籤，不讀其他資料。">書籤 <i class="info">i</i></strong>
-                  <span class="muted" id="webBmCount">還沒有書籤</span>
-                </div>
-                <label class="web-opt" title="Chrome 的書籤有新增時，自動加到 瀏覽器視窗的書籤列"><span>自動從 Chrome 匯入</span><span class="switch sm"><input type="checkbox" id="webSync" /><span class="slider"></span></span></label>
-              </div>
-              <div class="web-chrome">
-                <span class="web-chrome-who" id="webChromeWho">讀取中…</span>
-                <button class="cbtn small c-amber" id="webImport">立即匯入</button>
-                <button class="cbtn small c-blue" id="webPick" hidden>換帳號</button>
-              </div>
-              <div class="web-profiles" id="webProfiles" hidden></div>
-            </div>
-            <div class="card web-bmcard">
-              <div class="web-bmhead">
-                <div class="web-name">
-                  <strong class="web-tipt" data-tip="會用 Chrome 裡啟用中的擴充功能（跟書籤用同一個 Chrome 帳號）。程式每次開啟時會自動同步，新開的分頁、視窗才會套用。只支援會自動在網頁上執行的擴充功能（例如擋廣告、深色模式、翻譯）；瀏覽器視窗沒有擴充功能按鈕，要按圖示才能用的擴充功能沒辦法使用。擴充功能的設定不會從 Chrome 帶過來。">擴充功能 <i class="info">i</i></strong>
-                  <span class="muted" id="webExtCount">讀取中…</span>
-                </div>
-                <button class="cbtn small c-purple" id="webExtSync">重新同步</button>
-              </div>
-              <div class="web-exts" id="webExts"></div>
-            </div>
+          <!-- 書籤與擴充功能：一個小框，詳細內容在獨立視窗 -->
+          <div class="card web-sum">
+            <div class="web-sum-item"><span class="web-sum-ic" style="--c:#f5c542">★</span><div><strong>書籤</strong><span class="muted" id="webBmCount">還沒有書籤</span></div></div>
+            <div class="web-sum-item"><span class="web-sum-ic" style="--c:#14b8a6">⚙</span><div><strong>擴充功能</strong><span class="muted" id="webExtCount">讀取中…</span></div></div>
+            <button class="cbtn small c-purple" id="webSetup">書籤與擴充功能設定</button>
           </div>
           <div class="web-list" id="webList"></div>
         </div>
@@ -1192,6 +1166,37 @@
       <div class="alert-actions">
         <button id="closeAskTray" class="cbtn c-teal solid">縮小到右下角</button>
         <button id="closeAskExit" class="cbtn c-red solid">直接關閉</button>
+      </div>
+    </div>
+  </div>
+  <!-- 瀏覽器：書籤與擴充功能設定 -->
+  <div class="alert-backdrop" id="webSetupBack">
+    <div class="alert web-setup" role="dialog" aria-modal="true">
+      <div class="web-setup-head"><h3 class="alert-msg">書籤與擴充功能</h3><button class="web-setup-x" id="webSetupClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="web-bmcard">
+        <div class="web-bmhead">
+          <div class="web-name">
+            <strong class="web-tipt" data-tip="用你在 Chrome 登入的 Google 帳號的書籤：Chrome 書籤列上的網站會出現在瀏覽器視窗的書籤列，其他書籤在書籤列右邊的「所有書籤」。Chrome 新增書籤後幾秒內會自動加進來；在瀏覽器視窗刪掉的書籤不會再被加回來。只讀取書籤，不讀其他資料。">書籤 <i class="info">i</i></strong>
+            <span class="muted" id="webBmCount2">還沒有書籤</span>
+          </div>
+          <label class="web-opt" title="Chrome 的書籤有新增時，自動加到瀏覽器視窗的書籤列"><span>自動從 Chrome 匯入</span><span class="switch sm"><input type="checkbox" id="webSync" /><span class="slider"></span></span></label>
+        </div>
+        <div class="web-chrome">
+          <span class="web-chrome-who" id="webChromeWho">讀取中…</span>
+          <button class="cbtn small c-amber" id="webImport">立即匯入</button>
+          <button class="cbtn small c-blue" id="webPick" hidden>換帳號</button>
+        </div>
+        <div class="web-profiles" id="webProfiles" hidden></div>
+      </div>
+      <div class="web-bmcard">
+        <div class="web-bmhead">
+          <div class="web-name">
+            <strong class="web-tipt" data-tip="會用 Chrome 裡啟用中的擴充功能（跟書籤用同一個 Chrome 帳號）。程式每次開啟時會自動同步，新開的分頁、視窗才會套用。只支援會自動在網頁上執行的擴充功能（例如擋廣告、深色模式、翻譯）；要按圖示才能用的擴充功能可以從網址列右邊的擴充功能按鈕開。擴充功能的設定不會從 Chrome 帶過來。">擴充功能 <i class="info">i</i></strong>
+            <span class="muted" id="webExtCount2">讀取中…</span>
+          </div>
+          <button class="cbtn small c-purple" id="webExtSync">重新同步</button>
+        </div>
+        <div class="web-exts" id="webExts"></div>
       </div>
     </div>
   </div>

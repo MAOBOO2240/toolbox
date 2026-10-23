@@ -1,9 +1,21 @@
 /* ---------- web：浮動瀏覽器視窗管理 ---------- */
 #view-web .navbar .cbtn { justify-self: end; }
 .web-page { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; padding: 0.6rem max(1.2rem, calc((100% - 60rem) / 2)) 1.2rem; }
-.web-tip { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.9rem 1.1rem; }
-.web-tip strong { font-size: 0.95rem; }
-.web-tip .muted { font-size: 0.82rem; line-height: 1.55; }
+/* 書籤與擴充功能的小框 */
+.web-sum { display: flex; align-items: center; gap: 1.2rem; padding: 0.55rem 0.9rem; }
+.web-sum-item { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.55rem; }
+.web-sum-item div { min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+.web-sum-item strong { font-size: 0.85rem; }
+.web-sum-item .muted { font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-sum-ic { flex: none; width: 1.7rem; height: 1.7rem; border-radius: 0.55rem; display: grid; place-items: center; font-size: 0.95rem;
+  background: color-mix(in srgb, var(--c) 18%, transparent); color: color-mix(in srgb, var(--c) 80%, var(--text)); }
+/* 獨立的設定視窗 */
+.alert.web-setup { width: min(44rem, calc(100vw - 2rem)); max-width: none; text-align: left; display: flex; flex-direction: column; gap: 0.8rem; }
+.web-setup-head { display: flex; align-items: center; justify-content: space-between; }
+.web-setup-head .alert-msg { margin: 0; }
+.web-setup-x { width: 2rem; height: 2rem; border: 0; border-radius: 50%; background: var(--card-2); color: var(--text-2); display: grid; place-items: center; cursor: pointer; }
+.web-setup-x svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.web-setup .web-bmcard { background: var(--card-2); border-radius: 0.8rem; }
 .web-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 0.9rem; }
 /* 每個視窗做成一個小視窗的樣子：標題列、分頁列、畫面 */
 .web-card { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem; border-radius: 1rem; background: var(--card); box-shadow: var(--shadow); border: 1px solid transparent; transition: border-color 0.2s, box-shadow 0.2s; }
@@ -47,8 +59,6 @@ label.web-opt { cursor: pointer; }
 .web-range { display: flex; align-items: center; gap: 0.5rem; }
 .web-range .range { width: 8rem; }
 .web-range b { min-width: 2.6rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-.web-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
-@media (max-width: 760px) { .web-2col { grid-template-columns: 1fr; } }
 .web-bmcard { padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
 .web-tipt { cursor: help; }
 .web-bmcard .web-opt { font-size: 0.8rem; }

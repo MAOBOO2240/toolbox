@@ -153,6 +153,16 @@ if (typeof document !== "undefined") (() => {
       return;
     }
     let lastYear = null;
+    // 下個版本（預測）：版本號是連號的，最新的加一；灰字、不能點
+    const latest = shown[0];
+    if (latest && !q && rows[0] === latest) {
+      const nx = document.createElement("div");
+      nx.className = "card pt-row next";
+      nx.title = "預測的下個版本號（官網還沒有公告）";
+      nx.innerHTML = `<span class="pt-ver">V${latest.v + 1}</span><span class="pt-date muted">－</span>` +
+        `<span class="pt-main"><span class="pt-title">下個版本（預測）</span><small class="pt-sub muted">官網還沒有公告，版本號照順序推算</small></span><span class="pt-go">尚未推出</span>`;
+      box.appendChild(nx);
+    }
     for (const r of rows) {
       if (year === "all" && r.year !== lastYear) {
         lastYear = r.year;
@@ -169,6 +179,7 @@ if (typeof document !== "undefined") (() => {
       const sub = r.hub ? "" : pending(r) ? "改版頁面讀取中…" : "官網已經沒有這個版本的改版頁面，改開當時的版本公告";
       row.innerHTML = `<span class="pt-ver">${hl(`V${r.v}`)}</span><span class="pt-date muted">${esc(r.date)}</span>` +
         `<span class="pt-main"><span class="pt-title">${hl(r.hub ? r.hub.title : clean(r.title))}</span>` +
+        (r.hub && r.hub.period && r.hub.period !== "-" ? `<small class="pt-sub pt-period muted">版本期間：${esc(r.hub.period)}</small>` : "") +
         (r.hub ? `<span class="pt-secs"></span>` : `<small class="pt-sub muted">${esc(sub)}</small>`) +
         `</span><span class="pt-go">${r.hub ? "改版頁面" : "版本公告"}</span>`;
       // 改版頁面裡的每個項目：點一下直接開那一頁

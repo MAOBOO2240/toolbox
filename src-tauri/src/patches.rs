@@ -40,6 +40,9 @@ pub struct Hub {
     title: String,
     url: String,
     sections: Vec<(u32, String)>,
+    /// 活動頁上的「活動時間」（例如 2026/10/21 09:00 ~ 2026/12/01 23:59）；頁上沒有時是 "-"，舊快取還沒查過是空字串
+    #[serde(default)]
+    period: String,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -61,7 +64,8 @@ const NONE_MAX_TRIES: u8 = 3;
 fn hub_due(c: &Cache, id: u32, now: u64) -> bool {
     match c.hubs.get(&id) {
         None => true,
-        Some(Some(_)) => false,
+        // 舊版快取沒有活動時間：再查一次
+        Some(Some(h)) => h.period.is_empty(),
         // 舊版存下來的「沒有」沒有記錄時間：當作查過一次，馬上再查一次
         Some(None) => {
             let (at, n) = c.none_at.get(&id).copied().unwrap_or((0, 1));
@@ -248,7 +252,21 @@ fn parse_hub(html: &str) -> Option<Hub> {
         rest = &tag[close + 4..];
     }
     let (id, title) = sections.first().cloned()?;
-    Some(Hub { id, title, url: format!("{EVENT_SITE}/eventad/eventad?eventadid={id}"), sections })
+    Some(Hub { id, title, url: format!("{EVENT_SITE}/eventad/eventad?eventadid={id}"), sections, period: parse_period(html) })
+}
+
+/// 活動頁的「活動時間：」後面那段文字（<h3>活動時間：</h3><p>2026/10/21 09:00 ~ 2026/12/01 23:59</p>）
+fn parse_period(html: &str) -> String {
+    let Some(at) = html.find("活動時間") else { return "-".into() };
+    let rest = &html[at..];
+    let Some(p) = rest.find("<p") else { return "-".into() };
+    let body = &rest[p..];
+    let Some(gt) = body.find('>') else { return "-".into() };
+    let inner = &body[gt + 1..];
+    let end = inner.find("</p>").unwrap_or(inner.len());
+    let text = decode_html(&inner[..end]);
+    let text: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.is_empty() { "-".into() } else { text }
 }
 
 fn fetch_hub(agent: &ureq::Agent, id: u32) -> Result<Option<Hub>, String> {
@@ -406,7 +424,7 @@ pub async fn version_hubs(ids: Vec<u32>) -> Result<HashMap<String, Option<Hub>>,
                 if let Some(hub) = &h {
                     for (sid, _) in &hub.sections {
                         let e = c.hubs.entry(*sid).or_insert(None);
-                        if e.is_none() {
+                        if e.as_ref().is_none_or(|x| x.period.is_empty()) {
                             *e = Some(hub.clone());
                             c.none_at.remove(sid);
                         }
@@ -458,7 +476,7 @@ mod tests {
         assert!(hub_due(&c, 1, t + NONE_RETRY_SECS));
         c.none_at.insert(1, (t, NONE_MAX_TRIES));
         assert!(!hub_due(&c, 1, t + 100 * NONE_RETRY_SECS));
-        c.hubs.insert(2, Some(Hub { id: 2, title: String::new(), url: String::new(), sections: Vec::new() }));
+        c.hubs.insert(2, Some(Hub { id: 2, title: String::new(), url: String::new(), sections: Vec::new(), period: "-".into() }));
         assert!(!hub_due(&c, 2, t));
     }
 
@@ -483,6 +501,8 @@ mod tests {
         assert_eq!(h.title, "楓之谷學院");
         assert_eq!(h.sections.len(), 3);
         assert_eq!(h.sections[1].1, "變身燃燒：露希妲");
+        assert_eq!(h.period, "-");
+        assert_eq!(parse_period("<h3>活動時間：</h3>\n<p>2026/10/21 09:00 ~\n       2026/12/01 23:59</p>"), "2026/10/21 09:00 ~ 2026/12/01 23:59");
         assert!(parse_hub("<html><body>活動已結束</body></html>").is_none());
         assert_eq!(eventad_id("https://maplestory-event.beanfun.com/eventad/eventad?eventadid=19031"), Some(19031));
         assert_eq!(eventad_id("https://maplestory.beanfun.com/bulletin?bid=1"), None);
