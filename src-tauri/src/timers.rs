@@ -676,6 +676,10 @@ pub fn update_timer(timer: TimerCfg) {
     if let Some(t) = file.timers.iter_mut().find(|t| t.id == timer.id) {
         let dur_changed = t.duration_ms != timer.duration_ms;
         *t = TimerCfg { builtin: t.builtin, ..timer };
+        // 關掉開關：立刻停止計時（浮動視窗也不再顯示）
+        if !t.enabled {
+            rt.remove(&t.id);
+        }
         // 倒數中修改時間：已經過的時間保留，以新時間繼續倒數
         if dur_changed {
             if let Some(r) = rt.get_mut(&t.id) {
@@ -734,6 +738,25 @@ pub fn timer_start(id: String) {
         restart(cfg, rt.entry(id).or_default(), now);
     }
     e.dirty = true;
+}
+
+/// 滾輪調整正在倒數的計時器：只改這一次剩下的時間，設定的時間不變
+#[tauri::command]
+pub fn timer_adjust(id: String, delta_ms: i64) {
+    let now = Instant::now();
+    let mut e = eng();
+    if let Some(r) = e.rt.get_mut(&id) {
+        if let Phase::Running { start, total } = r.phase {
+            r.phase = adjust_running(start, total, delta_ms, now);
+        }
+    }
+}
+
+fn adjust_running(start: Instant, total: u64, delta_ms: i64, now: Instant) -> Phase {
+    let elapsed = ms(now.saturating_duration_since(start));
+    let remain = total.saturating_sub(elapsed) as i64;
+    let next = (remain + delta_ms).clamp(1000, (999 * 60 + 59) * 1000) as u64;
+    Phase::Running { start, total: elapsed + next }
 }
 
 #[tauri::command]
@@ -883,6 +906,21 @@ mod tests {
         e.tick(t0 + Duration::from_secs(1));
         assert!(matches!(e.rt["a"].phase, Phase::Idle));
         assert!(e.file.timers[0].enabled);
+    }
+
+    #[test]
+    fn adjust_only_changes_current_run() {
+        let t0 = Instant::now();
+        let now = t0 + Duration::from_millis(30_000);
+        // 設定 5 分鐘、已經過 30 秒 → 剩 4:30；+1 分鐘 → 剩 5:30
+        let Phase::Running { total, .. } = adjust_running(t0, 300_000, 60_000, now) else { panic!() };
+        assert_eq!(total - 30_000, 330_000);
+        // -1 秒
+        let Phase::Running { total, .. } = adjust_running(t0, 300_000, -1000, now) else { panic!() };
+        assert_eq!(total - 30_000, 269_000);
+        // 不會少於 1 秒
+        let Phase::Running { total, .. } = adjust_running(t0, 300_000, -600_000, now) else { panic!() };
+        assert_eq!(total - 30_000, 1000);
     }
 
     #[test]

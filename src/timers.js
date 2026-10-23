@@ -10,6 +10,7 @@
     del: (id) => invoke("delete_timer", { id }),
     start: (id) => invoke("timer_start", { id }),
     stop: (id) => invoke("timer_stop", { id }),
+    adjust: (id, deltaMs) => invoke("timer_adjust", { id, deltaMs }),
     setMaster: (on) => invoke("set_master", { on }),
     gameOnly: (on) => invoke("set_game_only", { on }),
     resetOverlay: () => invoke("reset_overlay"),
@@ -298,7 +299,11 @@
     const setNow = (fn) => { fn(); fillCard(el, t); saveTimer(t); };
 
     q(".f-name").addEventListener("input", (e) => { t.name = e.target.value.trim() || "計時器"; saveTimer(t); });
-    q(".f-enabled").addEventListener("change", (e) => setNow(() => (t.enabled = e.target.checked)));
+    q(".f-enabled").addEventListener("change", (e) => {
+      setNow(() => (t.enabled = e.target.checked));
+      // 關掉就停止計時
+      if (!t.enabled) run(() => tapi.stop(t.id));
+    });
 
     q(".f-time").addEventListener("click", (e) => { e.stopPropagation(); openEditor(t.id); });
     q(".f-time").addEventListener("wheel", (e) => {
@@ -309,7 +314,20 @@
       e.preventDefault();
       e.stopPropagation();
       const step = (sec ? 1 : 60) * 1000;
-      const next = Math.max(1000, Math.min(999 * 60 * 1000 + 59000, (t.duration_ms || 0) + (e.deltaY < 0 ? step : -step)));
+      const delta = e.deltaY < 0 ? step : -step;
+      const s = snaps[t.id];
+      // 正在倒數：只改這一次剩下的時間，設定的時間不變
+      if (s && s.active && s.phase === "running") {
+        const remain = Math.max(1000, Math.min(999 * 60 * 1000 + 59000, s.remain_ms + delta));
+        s.total_ms += remain - s.remain_ms;
+        s.remain_ms = remain;
+        run(() => tapi.adjust(t.id, delta));
+        paint(el, t, s);
+        return;
+      }
+      // 超時或已結束時不調整
+      if (s && s.active && s.phase !== "idle") return;
+      const next = Math.max(1000, Math.min(999 * 60 * 1000 + 59000, (t.duration_ms || 0) + delta));
       if (next === t.duration_ms) return;
       t.duration_ms = next;
       saveTimer(t);
@@ -556,6 +574,7 @@
       del: async (id) => { f.timers = f.timers.filter((t) => t.id !== id); },
       start: async (id) => { const t = f.timers.find((x) => x.id === id); t.enabled = true; f.master_on = true; rt[id] = { start: Date.now(), total: t.duration_ms }; },
       stop: async (id) => { delete rt[id]; },
+      adjust: async (id, d) => { const r = rt[id]; if (r) { const left = r.total - (Date.now() - r.start); r.total += Math.max(1000, left + d) - left; } },
       setMaster: async (on) => { f.master_on = on; f.prefs.overlay.show = on; },
       gameOnly: async (on) => { f.game_only = on; },
       resetOverlay: async () => {}, preview: async () => {}, pickFile: async () => null,

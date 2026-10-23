@@ -439,6 +439,7 @@ fn main() {
             timers::delete_timer,
             timers::timer_start,
             timers::timer_stop,
+            timers::timer_adjust,
             timers::set_master,
             timers::set_game_only,
             timers::reset_overlay,
