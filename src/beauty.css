@@ -20,7 +20,8 @@
 
 .b-thead, .b-row { grid-template-columns: 2rem minmax(0, 1fr) 4.2rem; }
 .b-name { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; cursor: pointer; min-width: 0; }
-.b-name:hover { color: var(--blue); }
+.b-ntext { min-width: 0; }
+.b-row.jackpot .b-ntext:hover { color: inherit; }
 .b-row.jackpot .b-name { color: #c88a00; font-weight: 700; }
 :root[data-theme="dark"] .b-row.jackpot .b-name { color: #ffc94a; }
 .b-tag {

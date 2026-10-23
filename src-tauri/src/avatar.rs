@@ -1504,6 +1504,11 @@ fn render_blocking(req: RenderReq) -> Result<RenderOut, String> {
                 first = Some(c);
             }
         }
+        // 站立、警戒在遊戲裡是來回播放（0→1→2→1→0…），補上往回擺的格子
+        if matches!(action.as_str(), "stand1" | "stand2" | "alert") && frames.len() > 2 {
+            let back: Vec<AnimFrame> = frames[1..frames.len() - 1].iter().rev().cloned().collect();
+            frames.extend(back);
+        }
         let c = first.ok_or("沒有可以顯示的圖片")?;
         let root = c.anchors.get("@root").copied().unwrap_or((0, 0));
         let navel = c.anchors.get("navel").copied().unwrap_or((0, 0));

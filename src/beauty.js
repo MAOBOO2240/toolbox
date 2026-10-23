@@ -228,10 +228,14 @@ if (typeof document !== "undefined") (() => {
       btn.textContent = "抽";
       btn.title = "一直抽到這個造型為止";
       btn.addEventListener("click", () => drawUntil(it.name));
+      // 名稱欄：只有游標在文字上才是複製，欄位其他地方跟整列一樣是試穿
       const name = document.createElement("span");
       name.className = "b-name";
-      name.textContent = it.name;
-      makeCopyable(name, it.name);
+      const text = document.createElement("span");
+      text.className = "b-ntext";
+      text.textContent = it.name;
+      makeCopyable(text, it.name);
+      name.appendChild(text);
       if (feat.has(it.name)) {
         const tag = document.createElement("em");
         tag.className = "b-tag";
