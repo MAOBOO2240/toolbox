@@ -13,7 +13,7 @@ use std::sync::{Mutex, OnceLock};
 /// 作者的公鑰（十六進位，32 bytes）。作者在「授權管理」產生金鑰後把公鑰貼到這裡；空字串 = 還沒設定（所有授權碼都不會通過）
 const PUBKEY_HEX: &str = "8f20ec48c8263df403ac0a5393159aae7dd09fcd645d629f9e0c449cb42d82a3";
 /// Worker 公會自動授權用的公鑰（儀表板「產生金鑰」後顯示的那串）。空字串 = 自動授權還沒開
-const PUBKEY2_HEX: &str = "";
+const PUBKEY2_HEX: &str = "4eb9e3b1ce1e2ef896ec5c9d8e2503d58fc27e4f31459703caffe60b6acee412";
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 static CACHE: Mutex<Option<Info>> = Mutex::new(None);
