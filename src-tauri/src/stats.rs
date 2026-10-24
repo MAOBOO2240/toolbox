@@ -58,12 +58,6 @@ struct Ping<'a> {
     name: String,
 }
 
-#[derive(Deserialize, Default)]
-#[serde(default)]
-struct Pong {
-    /// 作者在儀表板按了「移除授權」
-    revoked: bool,
-}
 
 fn send(app: &AppHandle) {
     if STATS_URL.trim().is_empty() {
@@ -85,10 +79,15 @@ fn send(app: &AppHandle) {
         .set("User-Agent", "MAOBOO-toolbox")
         .set("Content-Type", "application/json")
         .send_string(&serde_json::to_string(&p).unwrap_or_default());
-    let pong: Pong = resp.ok().and_then(|r| r.into_string().ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
-    // 作者移除了這台電腦的授權：把本機的授權碼刪掉，畫面重新上鎖
-    if pong.revoked && p.licensed && crate::license::revoke_local() {
-        let _ = app.emit("license-changed", ());
+    // 作者移除了授權或解除了綁定：本機跟著改，畫面重新整理
+    let pong: Option<crate::license::Remote> = resp.ok().and_then(|r| r.into_string().ok()).and_then(|t| serde_json::from_str(&t).ok());
+    if let Some(mut r) = pong {
+        if crate::license::info().admin {
+            r.revoked = false;
+        }
+        if crate::license::apply_remote(&r) {
+            let _ = app.emit("license-changed", ());
+        }
     }
 }
 

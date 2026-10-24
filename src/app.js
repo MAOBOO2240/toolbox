@@ -516,29 +516,34 @@ for (const [cat, c] of Object.entries(CATS)) c.tools.forEach((t, i) => (TOOL[t.i
 
 /* ---------- 授權：「工具箱」分類的工具要輸入授權碼才能用 ---------- */
 const License = (() => {
-  let info = { serial: "", ok: !TAURI, admin: false, no_pubkey: false };
+  let info = { serial: "", ok: !TAURI, admin: false, no_pubkey: false, name: "", world: "", guild: "", auto_available: false };
   const needs = (id) => TOOL[id]?.cat === "tools";
   const locked = (id) => needs(id) && !info.ok;
-  async function load() {
-    if (!TAURI) return info;
-    try { info = await invoke("license_info"); } catch (_) {}
+  const apply = (next, quiet) => {
+    const lostLic = info.ok && !next.ok, lostBind = info.name && !next.name;
+    info = next;
     renderSettings();
     if (typeof renderTiles === "function" && $("#tiles")) renderTiles();
+    window.SideDoll?.load?.(false);
+    if (!quiet && lostLic) toast("這台電腦的授權已被作者移除");
+    else if (!quiet && lostBind) toast("作者解除了這台電腦的角色綁定");
+  };
+  async function load() {
+    if (!TAURI) return info;
+    try { apply(await invoke("license_info"), true); } catch (_) {}
     return info;
   }
   function renderSettings() {
     const el = $("#licSerial");
     if (!el) return;
     el.textContent = info.serial || "—";
-    const bound = info.name ? `（公會自動授權：${info.name}／${info.world} ${info.guild}）` : "";
-    $("#licState").textContent = info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" + bound : "尚未授權";
+    const bound = info.name ? `，綁定角色：${info.name}（${info.world} ${info.guild || "無公會"}）` : "";
+    $("#licState").textContent = info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : (info.ok ? "已授權" : "尚未授權") + bound;
     $("#licState").className = "muted " + (info.ok ? "lic-ok" : "lic-no");
-    // 公會自動授權：這個版本有開才顯示；已經自動授權過就收起輸入框
-    $("#licAutoRow").style.display = !info.auto_available || info.name || info.admin ? "none" : "";
-    // 作者模式：只顯示簽發，使用者用的那些收起來；還沒內建公鑰的版本也顯示作者區，讓作者第一次產生金鑰
+    // 作者模式、已授權：收起授權碼輸入框；還沒內建公鑰的版本也顯示作者區，讓作者第一次產生金鑰
     const admin = info.admin || info.no_pubkey;
     $("#licAdmin").hidden = !admin;
-    $("#licEnter").style.display = info.admin ? "none" : "";
+    $("#licCodeRow").style.display = info.admin || info.ok ? "none" : "";
     $("#licCard .lic-privacy").style.display = info.admin ? "none" : "";
     if (admin) renderAdmin();
   }
@@ -553,66 +558,40 @@ const License = (() => {
       $("#licCopyPub").style.display = a.has_key ? "" : "none";
     } catch (e) { toast(String(e)); }
   }
-  /** 開啟授權視窗；回傳是否已授權 */
+  /** 點到還沒授權的工具：帶到設定的授權區，不另外開視窗 */
   function ask(id) {
-    const back = $("#licBackdrop");
-    $("#licAskSerial").textContent = info.serial;
-    $("#licAskName").textContent = TOOL[id]?.name || "";
-    $("#licCode").value = "";
-    $("#licAskAutoName").value = "";
-    $("#licErr").textContent = "";
-    $("#licAskAuto").style.display = info.auto_available ? "" : "none";
-    back.classList.add("show");
-    setTimeout(() => (info.auto_available ? $("#licAskAutoName") : $("#licCode")).focus(), 50);
-    return new Promise((resolve) => {
-      const done = (v) => { back.classList.remove("show"); $("#licOk").onclick = $("#licCancel").onclick = $("#licCopy").onclick = $("#licAskAutoBtn").onclick = null; document.removeEventListener("keydown", onKey, true); resolve(v); };
-      const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); done(false); } };
-      document.addEventListener("keydown", onKey, true);
-      $("#licCancel").onclick = () => done(false);
-      $("#licCopy").onclick = () => { copyItemName(info.serial); };
-      $("#licAskAutoBtn").onclick = async () => {
-        const name = $("#licAskAutoName").value.trim();
-        if (!name) { $("#licErr").textContent = "請輸入角色名稱"; return; }
-        $("#licErr").textContent = "查詢中…";
-        $("#licAskAutoBtn").disabled = true;
-        try {
-          info = await auto(name);
-          done(true);
-        } catch (e) { $("#licErr").textContent = String(e); }
-        $("#licAskAutoBtn").disabled = false;
-      };
-      $("#licOk").onclick = async () => {
-        const code = $("#licCode").value.trim();
-        if (!code) { $("#licErr").textContent = "請貼上授權碼"; return; }
-        try {
-          info = await invoke("license_activate", { code });
-          toast("授權成功");
-          renderSettings();
-          renderTiles();
-          done(true);
-        } catch (e) { $("#licErr").textContent = String(e); }
-      };
-    });
+    $$(".cat").forEach((b) => b.classList.remove("on"));
+    showView("settings");
+    $("#app").classList.remove("collapsed");
+    const card = $("#licCard");
+    card.scrollIntoView({ block: "start", behavior: "smooth" });
+    card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
+    toast(`「${TOOL[id]?.name || ""}」需要授權：公會成員在左下角輸入角色名稱，其他人把序號給作者換授權碼`);
+    return false;
   }
-  /** 開工具箱工具前即時確認授權還在不在（作者移除會馬上鎖回去） */
+  /** 開工具箱工具前即時確認授權、綁定還在不在（作者移除會馬上生效） */
   async function check(id) {
-    if (!TAURI || !needs(id) || info.admin || !info.ok) return;
-    try {
-      const next = await invoke("license_check");
-      const lost = info.ok && !next.ok;
-      info = next;
-      if (lost) { toast("這台電腦的授權已被作者移除"); renderSettings(); renderTiles(); }
-    } catch (_) {}
+    if (!TAURI || !needs(id) || (!info.ok && !info.name)) return;
+    if (info.admin && !info.name) return;
+    try { apply(await invoke("license_check")); } catch (_) {}
   }
-  /** 公會自動授權：成功後更新畫面並回傳新的授權資訊；失敗丟出錯誤訊息 */
-  async function auto(name) {
-    info = await invoke("license_auto", { name });
-    toast(`授權成功：${info.name}（${info.world} ${info.guild}）`);
-    renderSettings();
-    renderTiles();
+  /** 輸入作者給的授權碼 */
+  async function activate(code) {
+    apply(await invoke("license_activate", { code }), true);
+    toast("授權成功");
+  }
+  /** 綁定角色（左下角）：公會成員順便自動授權；失敗丟出錯誤訊息 */
+  async function bind(name) {
+    const was = info.ok;
+    apply(await invoke("license_bind", { name }), true);
+    toast(!was && info.ok ? `授權成功：${info.name}（${info.guild}）` : `已綁定 ${info.name}`);
     return info;
   }
-  return { load, needs, locked, ask, auto, check, renderSettings, info: () => info };
+  /** 後端通知狀態變了（作者移除授權／解除綁定）：重讀並提示 */
+  async function refresh() {
+    try { apply(await invoke("license_info")); } catch (_) {}
+  }
+  return { load, refresh, needs, locked, ask, check, activate, bind, renderSettings, info: () => info };
 })();
 window.License = License;
 
@@ -719,7 +698,7 @@ function renderTiles() {
     btn.append(inner);
     if (License.locked(t.id)) {
       btn.classList.add("locked");
-      btn.title = "需要授權碼才能使用（點一下輸入）";
+      btn.title = "需要授權（點一下看怎麼授權）";
       const lk = document.createElement("span");
       lk.className = "tile-lock";
       lk.innerHTML = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
@@ -974,9 +953,11 @@ const UiArt = (() => {
   return { ready, nameTag, balloon, play, stop };
 })();
 
-/* ---------- 側欄紙娃娃：輸入角色名稱，或同步美容美髮的造型 ---------- */
+/* ---------- 側欄紙娃娃：綁定的角色。輸入角色名稱向作者的伺服器綁定（公會成員順便自動授權）；開「同步美容美髮」就用美容美髮弄的造型 ---------- */
 const SideDoll = (() => {
   let cfg = { name: "", sync: false, ...(store.get("side-doll", {}) || {}) };
+  /** 綁定的角色名稱：正式版來自授權資料；瀏覽器裡測試時用本機存的 */
+  const bound = () => (TAURI ? (window.License?.info?.().name || "") : cfg.name);
   let doll = null, gen = 0;
   const saveCfg = () => store.set("side-doll", cfg);
   const img = $("#sideDollImg"), empty = $("#sideDollEmpty"), box = $("#sideDollPic"), inp = $("#sideName");
@@ -1212,19 +1193,23 @@ const SideDoll = (() => {
   }
   async function load(manual) {
     $("#sideSync").checked = !!cfg.sync;
-    inp.placeholder = cfg.sync ? "美容美髮的角色" : "角色名稱";
+    const name = bound();
+    inp.placeholder = "綁定角色";
+    inp.title = name ? `已綁定 ${name}；輸入別的名稱可以換角色` : "輸入角色名稱按 Enter 綁定；公會成員會直接取得授權";
+    if (document.activeElement !== inp) inp.value = name;
     if (cfg.sync) {
+      // 同步美容美髮：美容美髮也查這隻角色，造型跟著那邊改
       const cur = window.Beauty?.current?.();
-      if (document.activeElement !== inp) inp.value = cur?.name || "";
-      show(cur?.doll || null);
-      styleName(cur?.name ? cur?.tags : null);
+      if (name && window.Beauty?.setName && cur && cur.name !== name) { try { await window.Beauty.setName(name); } catch (e) { if (manual) toast(String(e)); } }
+      const now = window.Beauty?.current?.();
+      show(now?.doll || null);
+      styleName(now?.name ? now?.tags : null);
       return;
     }
-    if (document.activeElement !== inp) inp.value = cfg.name;
-    if (!cfg.name || !TAURI || !window.Beauty?.charLook) { show(null); styleName(null); return; }
+    if (!name || !TAURI || !window.Beauty?.charLook) { show(null); styleName(null); return; }
     const my = ++gen;
     try {
-      const d = await window.Beauty.charLook(cfg.name);
+      const d = await window.Beauty.charLook(name);
       if (my === gen) { show(d); styleName(d?.tags); }
     } catch (e) {
       if (my !== gen) return;
@@ -1233,15 +1218,22 @@ const SideDoll = (() => {
       if (manual) toast(String(e));
     }
   }
-  function submit() {
+  let binding = false;
+  /** 輸入角色名稱 → 向作者的伺服器綁定 */
+  async function submit() {
     const name = inp.value.trim();
-    if (cfg.sync) {
-      if (window.Beauty?.setName && name !== (window.Beauty.current?.().name || "")) window.Beauty.setName(name);
-      return;
+    if (!name || name === bound() || binding) { if (!name) inp.value = bound(); return; }
+    if (!TAURI) { cfg.name = name; saveCfg(); load(true); return; }
+    binding = true;
+    inp.disabled = true;
+    try {
+      await window.License.bind(name);
+    } catch (e) {
+      toast(String(e));
+      inp.value = bound();
     }
-    if (name === cfg.name && doll) return;
-    cfg.name = name;
-    saveCfg();
+    inp.disabled = false;
+    binding = false;
     load(true);
   }
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); inp.blur(); } });
@@ -1249,7 +1241,6 @@ const SideDoll = (() => {
   $("#sideSync").addEventListener("change", (e) => { cfg.sync = e.target.checked; saveCfg(); load(true); });
   document.addEventListener("beauty-doll", (e) => {
     if (!cfg.sync) return;
-    if (document.activeElement !== inp) inp.value = window.Beauty?.current?.().name || "";
     show(e.detail);
   });
   document.addEventListener("beauty-tags", (e) => { if (cfg.sync) styleName(window.Beauty?.current?.().name ? e.detail : null); });
@@ -1257,6 +1248,7 @@ const SideDoll = (() => {
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(box);
   return { load };
 })();
+window.SideDoll = SideDoll;
 
 /* 左上角圖示：點一下播放動畫，再點一下停止 */
 {
@@ -1459,9 +1451,7 @@ window.refreshBack = refreshBack;
 async function openTool(id) {
   // 工具箱分類的工具要授權；開之前即時問一次作者有沒有移除授權
   await License.check(id);
-  if (License.locked(id)) {
-    if (!(await License.ask(id))) return;
-  }
+  if (License.locked(id)) { License.ask(id); return; }
   // 從其他地方開啟時，返回鍵回到這個工具所在的分類（從我的最愛開啟就回到我的最愛）
   if (TOOL[id] && currentCat !== "fav" && TOOL[id].cat !== currentCat) {
     currentCat = TOOL[id].cat;
@@ -1684,19 +1674,16 @@ $("#currentSerial").addEventListener("click", () =>
 
 // 設定 → 授權
 $("#licCopySerial")?.addEventListener("click", () => copyItemName(License.info().serial));
-$("#licEnter")?.addEventListener("click", () => License.ask("timer"));
-$("#licAuto")?.addEventListener("click", () => run(async () => {
-  const name = $("#licAutoName").value.trim();
-  if (!name) { toast("請輸入角色名稱"); return; }
-  $("#licAuto").disabled = true;
-  $("#licAutoNote").textContent = "查詢中…";
-  try { await License.auto(name); } catch (e) { toast(String(e)); $("#licAutoNote").textContent = String(e); }
-  $("#licAuto").disabled = false;
+$("#licCodeBtn")?.addEventListener("click", () => run(async () => {
+  const code = $("#licCodeIn").value.trim();
+  if (!code) { toast("請貼上授權碼"); return; }
+  $("#licCodeBtn").disabled = true;
+  try { await License.activate(code); $("#licCodeIn").value = ""; } catch (e) { toast(String(e)); $("#licCodeNote").textContent = String(e); }
+  $("#licCodeBtn").disabled = false;
 }));
-$("#licAutoName")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licAuto").click(); });
-$("#licAskAutoName")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licAskAutoBtn").click(); });
-// 作者在儀表板移除了這台電腦的授權：重新讀授權狀態、把工具鎖回去
-if (TAURI) listen("license-changed", () => { License.load(); toast("這台電腦的授權已被作者移除"); });
+$("#licCodeIn")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licCodeBtn").click(); });
+// 作者在儀表板移除了授權或解除了綁定：重新讀狀態、把工具鎖回去
+if (TAURI) listen("license-changed", () => License.refresh());
 $("#licKeygen")?.addEventListener("click", () => run(async () => {
   if (!(await confirmBox("要產生新的金鑰嗎？私鑰會存在這台電腦，之後所有授權碼都用它簽；產生後要把公鑰交給開發者放進程式。"))) return;
   try { await invoke("license_admin_keygen"); toast("金鑰已產生"); } catch (e) { toast(String(e)); }

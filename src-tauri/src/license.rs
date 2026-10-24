@@ -38,10 +38,12 @@ fn admin_key_path() -> PathBuf {
 #[serde(default)]
 struct Saved {
     code: String,
-    /// 公會自動授權用的角色名稱（手動輸入授權碼的話是空的）
+    /// 綁定的角色（左下角那隻；公會成員綁定時順便自動授權）
     name: String,
     world: String,
     guild: String,
+    /// 授權碼是靠公會自動授權拿到的（解除綁定時要一起收回）
+    auto: bool,
 }
 
 fn read_saved() -> Saved {
@@ -70,15 +72,43 @@ pub fn revoke_local() -> bool {
     true
 }
 
-/// 問 Worker 這個序號有沒有被作者移除授權；連不上就當沒有
-fn revoked_remotely(serial: &str) -> bool {
+/// Worker 回的狀態：有沒有被移除授權、這台目前綁的角色
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct Remote {
+    pub revoked: bool,
+    pub bound: String,
+}
+
+/// 問 Worker 這台的狀態；連不上回 None
+fn remote_status(serial: &str) -> Option<Remote> {
     let url = crate::stats::STATS_URL.trim_end_matches('/');
     if url.is_empty() {
-        return false;
+        return None;
     }
     let body = serde_json::json!({ "serial": serial }).to_string();
-    let Ok(r) = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(4)).build().post(&format!("{url}/check")).set("Content-Type", "application/json").send_string(&body) else { return false };
-    r.into_string().ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).map(|v| v["revoked"].as_bool().unwrap_or(false)).unwrap_or(false)
+    let r = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(4)).build().post(&format!("{url}/check")).set("Content-Type", "application/json").send_string(&body).ok()?;
+    serde_json::from_str(&r.into_string().ok()?).ok()
+}
+
+fn revoked_remotely(serial: &str) -> bool {
+    remote_status(serial).map(|r| r.revoked).unwrap_or(false)
+}
+
+/// 套用 Worker 回的狀態：被移除授權 → 刪授權碼；綁定被解除 → 清掉角色（靠公會拿到的授權碼一起收回）。回傳有沒有改到東西
+pub fn apply_remote(r: &Remote) -> bool {
+    let s = read_saved();
+    if r.revoked && !s.code.is_empty() {
+        return revoke_local();
+    }
+    if !s.name.is_empty() && r.bound != s.name {
+        if s.auto {
+            return revoke_local();
+        }
+        let _ = write_saved(&Saved { code: s.code, ..Default::default() });
+        return true;
+    }
+    false
 }
 
 /// 這台電腦的序號
@@ -174,11 +204,11 @@ pub struct Info {
     pub admin: bool,
     /// 公鑰還沒放進程式（開發中的版本）
     pub no_pubkey: bool,
-    /// 公會自動授權綁定的角色（空 = 不是自動授權）
+    /// 綁定的角色（空 = 還沒綁）
     pub name: String,
     pub world: String,
     pub guild: String,
-    /// 這個版本有沒有開公會自動授權
+    /// 這個版本有沒有開綁定角色／公會自動授權
     pub auto_available: bool,
 }
 
@@ -229,12 +259,16 @@ pub fn license_activate(code: String) -> Result<Info, String> {
     Ok(info())
 }
 
-/// 開工具前即時問一次 Worker 有沒有被作者移除授權（作者模式、沒有授權碼的不用問）
+/// 開工具前即時問一次 Worker：有沒有被作者移除授權、綁定還在不在（作者模式只看綁定）
 #[tauri::command]
 pub fn license_check() -> Info {
     let i = info();
-    if !i.admin && !read_saved().code.is_empty() && revoked_remotely(&i.serial) {
-        revoke_local();
+    let s = read_saved();
+    if !s.code.is_empty() || !s.name.is_empty() {
+        if let Some(r) = remote_status(&i.serial) {
+            let r = if i.admin { Remote { revoked: false, ..r } } else { r };
+            apply_remote(&r);
+        }
     }
     info()
 }
@@ -245,23 +279,25 @@ struct AutoResp {
     ok: bool,
     msg: String,
     code: String,
+    signed: bool,
     name: String,
     world: String,
     guild: String,
 }
 
-/// 公會自動授權：把序號和角色名稱交給 Worker，公會符合就拿回授權碼
+/// 綁定角色：把序號和角色名稱交給 Worker。已授權的只綁定；還沒授權的公會符合就順便拿回授權碼
 #[tauri::command]
-pub fn license_auto(name: String) -> Result<Info, String> {
+pub fn license_bind(name: String) -> Result<Info, String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("請輸入角色名稱".into());
     }
-    if !info().auto_available {
-        return Err("這個版本還沒開放公會自動授權".into());
+    let cur = info();
+    if !cur.auto_available {
+        return Err("這個版本還沒開放綁定角色".into());
     }
     let serial = serial();
-    let body = serde_json::json!({ "serial": serial, "name": name });
+    let body = serde_json::json!({ "serial": serial, "name": name, "licensed": cur.ok });
     let resp = ureq::AgentBuilder::new()
         .timeout(std::time::Duration::from_secs(25))
         .build()
@@ -275,12 +311,17 @@ pub fn license_auto(name: String) -> Result<Info, String> {
     };
     let r: AutoResp = serde_json::from_str(&text).map_err(|_| "授權伺服器回應看不懂".to_string())?;
     if !r.ok {
-        return Err(if r.msg.is_empty() { "自動授權失敗".into() } else { r.msg });
+        return Err(if r.msg.is_empty() { "綁定失敗".into() } else { r.msg });
     }
-    if !verify_for(&serial, &r.code) {
-        return Err("伺服器回的授權碼驗證不過（程式內建的公鑰可能跟伺服器不符）".into());
+    let old = read_saved();
+    if r.signed {
+        if !verify_for(&serial, &r.code) {
+            return Err("伺服器回的授權碼驗證不過（程式內建的公鑰可能跟伺服器不符）".into());
+        }
+        write_saved(&Saved { code: r.code, name: r.name, world: r.world, guild: r.guild, auto: true })?;
+    } else {
+        write_saved(&Saved { code: old.code, name: r.name, world: r.world, guild: r.guild, auto: old.auto })?;
     }
-    write_saved(&Saved { code: r.code, name: r.name, world: r.world, guild: r.guild })?;
     Ok(info())
 }
 

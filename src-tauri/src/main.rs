@@ -532,7 +532,7 @@ fn main() {
             license::license_admin_info,
             license::license_admin_keygen,
             license::license_admin_sign,
-            license::license_auto,
+            license::license_bind,
             license::license_check
         ])
         .run(tauri::generate_context!())

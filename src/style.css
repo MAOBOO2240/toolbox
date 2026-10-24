@@ -692,15 +692,6 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .lic-sign { display: flex; gap: 0.4rem; align-items: center; }
 .lic-sign input, .lic-out { padding: 0.4rem 0.6rem; border-radius: 0.6rem; border: 1px solid var(--sep); background: var(--card-2); color: var(--text); font: inherit; font-size: 0.85rem; min-width: 16rem; }
 .lic-out { width: 100%; font-family: ui-monospace, Consolas, monospace; user-select: text; }
-.alert.lic-box { width: min(30rem, calc(100vw - 2rem)); max-width: none; display: flex; flex-direction: column; gap: 0.7rem; text-align: left; }
-.lic-box .alert-msg { margin: 0; }
-.lic-note { font-size: 0.82rem; line-height: 1.5; margin: 0; }
-.lic-box input#licCode { width: 100%; padding: 0.55rem 0.7rem; border-radius: 0.6rem; border: 1px solid var(--sep); background: var(--card-2); color: var(--text); font: inherit; font-size: 0.85rem; }
-.lic-err { color: #e5484d; font-size: 0.8rem; min-height: 1em; margin: 0; }
-.lic-auto { display: flex; flex-direction: column; gap: 0.55rem; }
-.lic-auto .lic-sign input { flex: 1; min-width: 0; }
-.lic-or { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); font-size: 0.78rem; }
-.lic-or::before, .lic-or::after { content: ""; flex: 1; height: 1px; background: var(--sep); }
 .tile.locked .tile-in { opacity: 0.55; }
 .tile-lock { position: absolute; right: 10%; top: 9%; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, #f5a30b 22%, var(--card)); color: #f5a30b; }
 .tile-lock svg { width: 0.85rem; height: 0.85rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
@@ -708,3 +699,6 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .lic-more { margin-top: 0.3rem; }
 .lic-more summary { cursor: pointer; font-size: 0.82rem; padding: 0.3rem 0; }
 .lic-more[open] summary { margin-bottom: 0.2rem; }
+/* 點到沒授權的工具時，授權卡片閃一下 */
+#licCard.flash { animation: lic-flash 1.6s ease-out; }
+@keyframes lic-flash { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, #f5a30b 70%, transparent); } 100% { box-shadow: none; } }
