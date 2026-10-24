@@ -6,7 +6,7 @@
 // 以下都要 ?key=ADMIN_KEY
 // GET  /admin                        儀表板
 // POST /note    { serial, note }     幫某個序號加備註
-// POST /cfg     { guilds }           允許的公會（每行「伺服器 公會」）
+// POST /cfg     { guilds }           允許的公會（每行一個公會名稱）
 // POST /keygen                       產生自動授權用的金鑰（只會產生一次）
 // POST /unbind  { name, serial }     解除某個角色跟某台電腦的綁定
 // POST /revoke  { serial, on }       移除／恢復某台電腦的授權（程式下次回報時會自己刪掉授權碼）
@@ -17,7 +17,7 @@
 
 const NEXON = "https://open.api.nexon.com/maplestorytw/v1";
 const MAX_PC = 3; // 一個角色最多綁幾台電腦
-const DEFAULT_GUILDS = [{ world: "艾麗雅", guild: "楓林小築" }];
+const DEFAULT_GUILDS = [{ guild: "楓林小築" }];
 
 const html = (s) => new Response(s, { headers: { "content-type": "text/html; charset=utf-8" } });
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -41,7 +41,8 @@ async function listAll(env, prefix) {
 async function guilds(env) {
   return (await env.STATS.get("cfg:guilds", "json")) || DEFAULT_GUILDS;
 }
-const allowed = (gs, c) => !!c && gs.some((g) => g.world === c.world && g.guild === c.guild);
+// 只比對公會名稱，不管伺服器
+const allowed = (gs, c) => !!c && !!c.guild && gs.some((g) => g.guild === c.guild);
 
 /* ---------- Nexon API：查角色的伺服器與公會 ---------- */
 async function nexon(env, path, params) {
@@ -227,7 +228,7 @@ async function dashboard(env) {
   }).join("");
   const badRows = bad.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.world)}</td><td><span class="badge b-bad">${esc(c.guild || "無")}</span></td><td>${c.serials.map((s) => `<code>${esc(s)}</code>`).join("<br>")}</td><td title="${esc(c.checked)}">${tw(c.checked)}</td><td><div class="actions">${c.serials.map((s) => `<button data-unbind="${esc(c.name)}" data-serial="${esc(s)}">解除 …${esc(s.slice(-4))}</button>`).join("")}</div></td></tr>`).join("");
   const rejRows = rejects.slice(0, 200).map((r) => `<tr><td title="${esc(r.ts)}">${tw(r.ts)}</td><td><code>${esc(r.serial)}</code></td><td><b>${esc(r.name)}</b></td><td>${esc(r.world) || `<span class="muted">—</span>`}</td><td>${r.world ? `<span class="badge ${r.reason === "公會不符" ? "b-bad" : "b-good"}">${esc(r.guild || "無")}</span>` : `<span class="muted">—</span>`}</td><td>${esc(r.reason)}</td></tr>`).join("");
-  const gtext = gs.map((g) => `${g.world} ${g.guild}`).join("\n");
+  const gtext = gs.map((g) => g.guild).join("\n");
   const table = (head, body, emptyText) => `<div class="tbl">${body ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : `<div class="empty">${emptyText}</div>`}</div>`;
   return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱使用狀況</title><style>${CSS}</style>
 <h1>工具箱使用狀況<small>台灣時間 ${tw(new Date().toISOString())}</small></h1>
@@ -243,7 +244,7 @@ async function dashboard(env) {
 <div class="cfg">
   <div class="card"><h3>允許自動授權的公會</h3><textarea id="guilds" spellcheck="false">${esc(gtext)}</textarea>
     <div class="row"><button class="primary" id="saveG">儲存名單</button><button id="recheck">重新查所有人的公會</button></div>
-    <small>每行一個「伺服器 公會名稱」，中間空一格。改完名單後已綁定的人不會失效，只會列在「公會不符」。</small></div>
+    <small>每行一個公會名稱（不用寫伺服器）。改完名單後已綁定的人不會失效，只會列在「公會不符」。</small></div>
   <div class="card"><h3>自動授權金鑰（公鑰）</h3>${pk ? `<div class="pk">${esc(pk)}</div><small>已放進程式。只需要做一次。</small>` : `<div class="row"><button class="primary" id="keygen">產生金鑰</button></div><small>產生後把公鑰交給開發者放進程式，自動授權才會生效。</small>`}</div>
 </div>
 <h2>所有電腦<span class="n">${list.length}</span></h2>
@@ -326,7 +327,7 @@ export default {
           return json({ ok: true });
         }
         if (url.pathname === "/cfg") {
-          const gs = String(p.guilds || "").split(/\r?\n/).map((l) => l.trim().split(/\s+/)).filter((a) => a.length >= 2).map((a) => ({ world: a[0], guild: a.slice(1).join(" ") }));
+          const gs = String(p.guilds || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((guild) => ({ guild }));
           await env.STATS.put("cfg:guilds", JSON.stringify(gs));
           return json({ ok: true, n: gs.length });
         }
