@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 /// 作者的 Worker 網址（例如 https://maboo-stats.xxx.workers.dev）。空白 = 不回報
-const STATS_URL: &str = "";
+const STATS_URL: &str = "https://maboo-stats.1735aam.workers.dev";
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 
