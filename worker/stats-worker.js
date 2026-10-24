@@ -1,7 +1,7 @@
 // 工具箱使用狀況收集端 + 公會自動授權（Cloudflare Worker）
 // 綁定：KV 命名空間 STATS；Secret：ADMIN_KEY（看儀表板用的密碼）、NEXON_API_KEY（查公會用）
 //
-// POST /ping   程式回報：{ serial, install, version, run, os, licensed, name }
+// POST /ping   程式回報：{ serial, install, version, run, os, licensed, name }（每 10 分鐘；回 { revoked } 讓程式即時鎖回去）
 // POST /auto   公會自動授權：{ serial, name } → { ok, code, name, world, guild } 或 { ok:false, msg }
 // 以下都要 ?key=ADMIN_KEY
 // GET  /admin                        儀表板
@@ -253,8 +253,8 @@ ${table(`<th>序號</th><th>備註</th><th>授權</th><th>綁定角色</th><th>�
 ${table(`<th>角色</th><th>伺服器</th><th>目前公會</th><th>綁定的電腦</th><th>上次查詢</th><th></th>`, badRows, "已綁定的角色都還在名單裡的公會")}
 <h2>被拒絕的自動授權<span class="n">${rejects.length}</span></h2>
 ${table(`<th>時間</th><th>序號</th><th>輸入的角色</th><th>伺服器</th><th>公會</th><th>原因</th>`, rejRows, "最近 90 天沒有被拒絕的嘗試")}
-<p class="foot">備註改完會自動儲存。程式每 6 小時回報一次：序號、版本、有沒有授權、綁定的角色；綁定角色的公會每天重查一次。一個角色最多綁 ${MAX_PC} 台電腦。<br>
-「移除授權」：對方的程式下次回報時（開啟後 20 秒、之後每 6 小時）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；按「恢復授權」後對方再驗證一次（或重貼授權碼）就能用。「解除綁定」只是放出角色的名額，不會影響已經拿到的授權。</p>
+<p class="foot">備註改完會自動儲存。程式每 10 分鐘回報一次（最後一次使用最多晚 1 小時）：序號、版本、有沒有授權、綁定的角色；綁定角色的公會每天重查一次。一個角色最多綁 ${MAX_PC} 台電腦。<br>
+「移除授權」：對方的程式最晚 10 分鐘內（開工具時會立刻再確認一次）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；按「恢復授權」後對方再驗證一次（或重貼授權碼）就能用。「解除綁定」只是放出角色的名額，不會影響已經拿到的授權。</p>
 <script>
 const K="?key="+encodeURIComponent(new URLSearchParams(location.search).get("key"));
 const post=async(p,b)=>{const r=await fetch(p+K,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
@@ -301,7 +301,9 @@ export default {
         note: old.note || "",
         ip_country: req.headers.get("cf-ipcountry") || "",
       };
-      await env.STATS.put(key, JSON.stringify(rec));
+      // 程式每 10 分鐘回報一次，但 KV 免費額度一天只能寫 1000 次：內容沒變的話每小時才寫一次
+      const changed = ["install", "version", "run", "os", "licensed", "char"].some((k) => rec[k] !== old[k]);
+      if (changed || !old.last || Date.now() - Date.parse(old.last) > 3600000) await env.STATS.put(key, JSON.stringify(rec));
       return json({ ok: true, revoked: rec.revoked });
     }
     // 程式輸入授權碼前先問：這台有沒有被移除授權

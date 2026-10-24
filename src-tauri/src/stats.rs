@@ -1,4 +1,4 @@
-//! 使用狀況回報：程式開啟時與之後每 6 小時，向作者的 Cloudflare Worker 回報一次。
+//! 使用狀況回報：程式開啟 20 秒後、之後每 10 分鐘，向作者的 Cloudflare Worker 回報一次（Worker 那邊每小時才真的寫一次）。
 //!
 //! 只送：這台電腦的序號（跟授權用的同一個）、安裝編號（第一次執行時隨機產生）、程式版本、Windows 版本、有沒有授權、
 //! 公會自動授權綁定的角色名稱（沒用自動授權就是空的）。不送帳號、金鑰、網址或任何遊戲資料。STATS_URL 空白時什麼都不送。
@@ -92,7 +92,7 @@ fn send(app: &AppHandle) {
     }
 }
 
-/// 程式啟動時呼叫：背景回報，之後每 6 小時一次
+/// 程式啟動時呼叫：背景回報，之後每 10 分鐘一次（順便收作者的「移除授權」）
 pub fn start(app: AppHandle, dir: PathBuf) {
     let _ = DIR.set(dir);
     if STATS_URL.trim().is_empty() {
@@ -102,7 +102,7 @@ pub fn start(app: AppHandle, dir: PathBuf) {
         std::thread::sleep(Duration::from_secs(20));
         loop {
             send(&app);
-            std::thread::sleep(Duration::from_secs(6 * 3600));
+            std::thread::sleep(Duration::from_secs(10 * 60));
         }
     });
 }

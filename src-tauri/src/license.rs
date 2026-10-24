@@ -77,7 +77,7 @@ fn revoked_remotely(serial: &str) -> bool {
         return false;
     }
     let body = serde_json::json!({ "serial": serial }).to_string();
-    let Ok(r) = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(8)).build().post(&format!("{url}/check")).set("Content-Type", "application/json").send_string(&body) else { return false };
+    let Ok(r) = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(4)).build().post(&format!("{url}/check")).set("Content-Type", "application/json").send_string(&body) else { return false };
     r.into_string().ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).map(|v| v["revoked"].as_bool().unwrap_or(false)).unwrap_or(false)
 }
 
@@ -227,6 +227,16 @@ pub fn license_activate(code: String) -> Result<Info, String> {
     }
     write_saved(&Saved { code, ..Default::default() })?;
     Ok(info())
+}
+
+/// 開工具前即時問一次 Worker 有沒有被作者移除授權（作者模式、沒有授權碼的不用問）
+#[tauri::command]
+pub fn license_check() -> Info {
+    let i = info();
+    if !i.admin && !read_saved().code.is_empty() && revoked_remotely(&i.serial) {
+        revoke_local();
+    }
+    info()
 }
 
 #[derive(Deserialize, Default)]

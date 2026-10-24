@@ -534,11 +534,12 @@ const License = (() => {
     $("#licState").textContent = info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" + bound : "尚未授權";
     $("#licState").className = "muted " + (info.ok ? "lic-ok" : "lic-no");
     // 公會自動授權：這個版本有開才顯示；已經自動授權過就收起輸入框
-    $("#licAutoRow").style.display = !info.auto_available || info.name ? "none" : "";
+    $("#licAutoRow").style.display = !info.auto_available || info.name || info.admin ? "none" : "";
     // 作者模式：只顯示簽發，使用者用的那些收起來；還沒內建公鑰的版本也顯示作者區，讓作者第一次產生金鑰
     const admin = info.admin || info.no_pubkey;
     $("#licAdmin").hidden = !admin;
-    $("#licCard .lic-user").hidden = info.admin;
+    $("#licEnter").style.display = info.admin ? "none" : "";
+    $("#licCard .lic-privacy").style.display = info.admin ? "none" : "";
     if (admin) renderAdmin();
   }
   async function renderAdmin() {
@@ -593,6 +594,16 @@ const License = (() => {
       };
     });
   }
+  /** 開工具箱工具前即時確認授權還在不在（作者移除會馬上鎖回去） */
+  async function check(id) {
+    if (!TAURI || !needs(id) || info.admin || !info.ok) return;
+    try {
+      const next = await invoke("license_check");
+      const lost = info.ok && !next.ok;
+      info = next;
+      if (lost) { toast("這台電腦的授權已被作者移除"); renderSettings(); renderTiles(); }
+    } catch (_) {}
+  }
   /** 公會自動授權：成功後更新畫面並回傳新的授權資訊；失敗丟出錯誤訊息 */
   async function auto(name) {
     info = await invoke("license_auto", { name });
@@ -601,7 +612,7 @@ const License = (() => {
     renderTiles();
     return info;
   }
-  return { load, needs, locked, ask, auto, renderSettings, info: () => info };
+  return { load, needs, locked, ask, auto, check, renderSettings, info: () => info };
 })();
 window.License = License;
 
@@ -1446,7 +1457,8 @@ window.BackHooks = BackHooks;
 window.refreshBack = refreshBack;
 
 async function openTool(id) {
-  // 工具箱分類的工具要授權
+  // 工具箱分類的工具要授權；開之前即時問一次作者有沒有移除授權
+  await License.check(id);
   if (License.locked(id)) {
     if (!(await License.ask(id))) return;
   }
