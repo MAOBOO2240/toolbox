@@ -40,6 +40,9 @@ window.NameHistory = (() => {
     title.className = "nh-title";
     title.textContent = "用過的角色";
     p.appendChild(title);
+    const list = document.createElement("div");
+    list.className = "nh-list";
+    p.appendChild(list);
     cur.items.forEach((name, i) => {
       const row = document.createElement("div");
       row.className = "nh-row" + (i === cur.sel ? " on" : "");
@@ -54,8 +57,10 @@ window.NameHistory = (() => {
       x.addEventListener("click", (e) => { e.stopPropagation(); remove(name); show(cur.input, cur.onPick); });
       row.addEventListener("click", () => pick(name));
       row.append(t, x);
-      p.appendChild(row);
+      list.appendChild(row);
     });
+    // 鍵盤選到的那列要在可見範圍內
+    list.querySelector(".nh-row.on")?.scrollIntoView({ block: "nearest" });
   }
   function pick(name) {
     const { input, onPick } = cur;
@@ -68,8 +73,8 @@ window.NameHistory = (() => {
   }
   function show(input, onPick) {
     if (picking) return;
-    const q = input.value.trim();
-    const items = read().filter((n) => !q || n.includes(q)).slice(0, 10);
+    // 全部列出（不照欄位裡的字過濾，才不用先把名稱刪掉才能選別的）；超過 5 個用滾輪
+    const items = read();
     if (!items.length) { hide(); return; }
     cur = { input, onPick, items, sel: -1 };
     render();
@@ -84,7 +89,7 @@ window.NameHistory = (() => {
     input.setAttribute("spellcheck", "false");
     input.addEventListener("focus", () => show(input, onPick));
     input.addEventListener("click", () => { if (!cur) show(input, onPick); });
-    input.addEventListener("input", () => show(input, onPick));
+    input.addEventListener("input", () => { if (cur && cur.input === input) render(); });
     input.addEventListener("blur", () => setTimeout(() => { if (cur && cur.input === input && document.activeElement !== input) hide(); }, 120));
     input.addEventListener("keydown", (e) => {
       if (!cur || cur.input !== input || pop.hidden) return;
