@@ -4,6 +4,7 @@
 //! - 授權碼 = 用 Ed25519 私鑰對序號簽名，程式用內建的公鑰驗證；沒有網路也能驗
 //! - 私鑰只在作者電腦上（app 資料夾的 license-admin.key），程式碼公開也沒關係
 //! - 「工具箱」分類的工具要授權才能開；楓之谷工具不用
+//! - 公會自動授權：使用者輸入角色名稱，Worker 查公會，符合就用 Worker 自己的金鑰簽授權碼回來（格式跟手簽的一樣）
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -11,6 +12,8 @@ use std::sync::{Mutex, OnceLock};
 
 /// 作者的公鑰（十六進位，32 bytes）。作者在「授權管理」產生金鑰後把公鑰貼到這裡；空字串 = 還沒設定（所有授權碼都不會通過）
 const PUBKEY_HEX: &str = "8f20ec48c8263df403ac0a5393159aae7dd09fcd645d629f9e0c449cb42d82a3";
+/// Worker 公會自動授權用的公鑰（儀表板「產生金鑰」後顯示的那串）。空字串 = 自動授權還沒開
+const PUBKEY2_HEX: &str = "";
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 static CACHE: Mutex<Option<Info>> = Mutex::new(None);
@@ -35,6 +38,26 @@ fn admin_key_path() -> PathBuf {
 #[serde(default)]
 struct Saved {
     code: String,
+    /// 公會自動授權用的角色名稱（手動輸入授權碼的話是空的）
+    name: String,
+    world: String,
+    guild: String,
+}
+
+fn read_saved() -> Saved {
+    std::fs::read_to_string(license_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn write_saved(s: &Saved) -> Result<(), String> {
+    let _ = std::fs::create_dir_all(dir());
+    std::fs::write(license_path(), serde_json::to_string(s).unwrap_or_default()).map_err(|e| e.to_string())?;
+    *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    Ok(())
+}
+
+/// 自動授權綁定的角色名稱（回報使用狀況用）；沒有就是空字串
+pub fn bound_name() -> String {
+    read_saved().name
 }
 
 /// 這台電腦的序號
@@ -87,10 +110,19 @@ fn computer_name() -> String {
     std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default()
 }
 
-fn pubkey() -> Option<VerifyingKey> {
-    let b = hex_bytes(PUBKEY_HEX.trim());
+fn key_of(hex: &str) -> Option<VerifyingKey> {
+    let b = hex_bytes(hex.trim());
     let arr: [u8; 32] = b.try_into().ok()?;
     VerifyingKey::from_bytes(&arr).ok()
+}
+
+fn pubkey() -> Option<VerifyingKey> {
+    key_of(PUBKEY_HEX)
+}
+
+/// 能驗授權碼的公鑰：作者手簽的 + Worker 自動授權的
+fn pubkeys() -> Vec<VerifyingKey> {
+    [PUBKEY_HEX, PUBKEY2_HEX].iter().filter_map(|h| key_of(h)).collect()
 }
 
 /// 授權碼：MB1- 加上簽名的 base64url
@@ -109,8 +141,8 @@ fn decode_code(code: &str) -> Option<Signature> {
 
 /// 授權碼對這個序號有沒有效
 pub fn verify_for(serial: &str, code: &str) -> bool {
-    let (Some(pk), Some(sig)) = (pubkey(), decode_code(code)) else { return false };
-    pk.verify(serial.as_bytes(), &sig).is_ok()
+    let Some(sig) = decode_code(code) else { return false };
+    pubkeys().iter().any(|pk| pk.verify(serial.as_bytes(), &sig).is_ok())
 }
 
 #[derive(Clone, Serialize)]
@@ -121,11 +153,17 @@ pub struct Info {
     pub admin: bool,
     /// 公鑰還沒放進程式（開發中的版本）
     pub no_pubkey: bool,
+    /// 公會自動授權綁定的角色（空 = 不是自動授權）
+    pub name: String,
+    pub world: String,
+    pub guild: String,
+    /// 這個版本有沒有開公會自動授權
+    pub auto_available: bool,
 }
 
 fn compute() -> Info {
     let serial = serial();
-    let saved: Saved = std::fs::read_to_string(license_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let saved = read_saved();
     let no_pubkey = pubkey().is_none();
     // 作者模式：私鑰跟程式內建的公鑰相符才算（隨便放一個私鑰檔不會變成作者）；還沒內建公鑰的版本有私鑰就算，方便作者第一次產生金鑰
     let admin = match admin_key() {
@@ -133,7 +171,9 @@ fn compute() -> Info {
         None => false,
     };
     // 還沒內建公鑰的版本：所有工具都能用（過渡期）
-    Info { ok: no_pubkey || admin || verify_for(&serial, &saved.code), serial, admin, no_pubkey }
+    let ok = no_pubkey || admin || verify_for(&serial, &saved.code);
+    let auto_available = key_of(PUBKEY2_HEX).is_some() && !crate::stats::STATS_URL.trim().is_empty();
+    Info { ok, serial, admin, no_pubkey, name: saved.name, world: saved.world, guild: saved.guild, auto_available }
 }
 
 pub fn info() -> Info {
@@ -161,9 +201,52 @@ pub fn license_activate(code: String) -> Result<Info, String> {
     if !verify_for(&serial, &code) {
         return Err("授權碼不正確，或不是這台電腦的（請確認序號有給對）".into());
     }
-    let _ = std::fs::create_dir_all(dir());
-    std::fs::write(license_path(), serde_json::to_string(&Saved { code }).unwrap_or_default()).map_err(|e| e.to_string())?;
-    *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    write_saved(&Saved { code, ..Default::default() })?;
+    Ok(info())
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct AutoResp {
+    ok: bool,
+    msg: String,
+    code: String,
+    name: String,
+    world: String,
+    guild: String,
+}
+
+/// 公會自動授權：把序號和角色名稱交給 Worker，公會符合就拿回授權碼
+#[tauri::command]
+pub fn license_auto(name: String) -> Result<Info, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("請輸入角色名稱".into());
+    }
+    if !info().auto_available {
+        return Err("這個版本還沒開放公會自動授權".into());
+    }
+    let serial = serial();
+    let body = serde_json::json!({ "serial": serial, "name": name });
+    let resp = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(25))
+        .build()
+        .post(&format!("{}/auto", crate::stats::STATS_URL.trim_end_matches('/')))
+        .set("User-Agent", "MAOBOO-toolbox")
+        .set("Content-Type", "application/json")
+        .send_string(&body.to_string());
+    let text = match resp {
+        Ok(r) | Err(ureq::Error::Status(_, r)) => r.into_string().map_err(|e| format!("回應讀不到：{e}"))?,
+        Err(e) => return Err(format!("無法連線到授權伺服器：{e}")),
+    };
+    let r: AutoResp = serde_json::from_str(&text).map_err(|_| "授權伺服器回應看不懂".to_string())?;
+    if !r.ok {
+        return Err(if r.msg.is_empty() { "自動授權失敗".into() } else { r.msg });
+    }
+    if !verify_for(&serial, &r.code) {
+        return Err("伺服器回的授權碼驗證不過（程式內建的公鑰可能跟伺服器不符）".into());
+    }
+    write_saved(&Saved { code: r.code, name: r.name, world: r.world, guild: r.guild })?;
     Ok(info())
 }
 
@@ -231,6 +314,15 @@ mod tests {
         assert!(sk.verifying_key().verify(serial.as_bytes(), &sig).is_ok());
         assert!(sk.verifying_key().verify(b"MB-OTHER", &sig).is_err());
         assert!(decode_code("MB1-xx").is_none());
+    }
+
+    /// Worker（WebCrypto Ed25519）簽出來的授權碼，程式這邊要驗得過
+    #[test]
+    fn worker_signature_format() {
+        let pk = key_of("009cae4485d2c01441154fdbe89761f60a287c7e24c1b87860277f70c07940c9").unwrap();
+        let sig = decode_code("MB1-h3Oza4DkRK23Nd4hEimnCNEbOMLvPCsXYyaPg44zLKfaf84lRSiT3BNappu3SsSDriR949VcWpa55vlYHquMDQ").unwrap();
+        assert!(pk.verify(b"MB-AAAA-BBBB-CCCC-DDDD", &sig).is_ok());
+        assert!(pk.verify(b"MB-AAAA-BBBB-CCCC-EEEE", &sig).is_err());
     }
 
     #[test]

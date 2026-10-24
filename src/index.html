@@ -155,7 +155,11 @@
                 <span>授權狀態<small class="muted" id="licState">—</small></span>
                 <button class="cbtn small c-green" id="licEnter">輸入授權碼</button>
               </div>
-              <p class="muted lic-privacy">程式會定期向作者回報使用狀況：這台電腦的序號、程式版本、Windows 版本、有沒有授權，以及你在程式裡輸入過的楓之谷角色名稱。不會送帳號、密碼或遊戲資料。</p>
+              <div class="set-row" id="licAutoRow">
+                <span>公會自動授權<small class="muted" id="licAutoNote">公會成員輸入自己的角色名稱就能直接授權（一個角色最多 3 台電腦）</small></span>
+                <span class="lic-sign"><input type="text" id="licAutoName" placeholder="角色名稱" spellcheck="false" autocomplete="off" maxlength="20" /><button class="cbtn small c-orange" id="licAuto">驗證</button></span>
+              </div>
+              <p class="muted lic-privacy">程式會定期向作者回報使用狀況：這台電腦的序號、程式版本、Windows 版本、有沒有授權，以及公會自動授權時綁定的角色名稱。不會送帳號、密碼或遊戲資料。</p>
             </div>
             <div id="licAdmin" hidden>
               <div class="set-row">
@@ -1251,7 +1255,12 @@
   <!-- 輸入授權碼 -->
   <div class="alert-backdrop" id="licBackdrop">
     <div class="alert lic-box" role="dialog" aria-modal="true">
-      <h3 class="alert-msg">「<span id="licAskName"></span>」需要授權碼</h3>
+      <h3 class="alert-msg">「<span id="licAskName"></span>」需要授權</h3>
+      <div class="lic-auto" id="licAskAuto">
+        <p class="muted lic-note"><b>公會成員</b>：輸入自己的角色名稱，程式會查公會，符合就直接授權（一個角色最多 3 台電腦）。</p>
+        <div class="lic-sign"><input type="text" id="licAskAutoName" placeholder="角色名稱" spellcheck="false" autocomplete="off" maxlength="20" /><button class="cbtn small c-orange" id="licAskAutoBtn">驗證</button></div>
+        <div class="lic-or">或</div>
+      </div>
       <p class="muted lic-note">把下面的序號給作者，作者會回你一組專屬這台電腦的授權碼，貼進來就可以用。「工具箱」分類的工具只要輸入一次。</p>
       <div class="lic-serial"><code id="licAskSerial"></code><button class="cbtn small c-blue" id="licCopy">複製序號</button></div>
       <input type="text" id="licCode" placeholder="貼上授權碼（MB1- 開頭）" spellcheck="false" autocomplete="off" />

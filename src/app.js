@@ -530,8 +530,11 @@ const License = (() => {
     const el = $("#licSerial");
     if (!el) return;
     el.textContent = info.serial || "—";
-    $("#licState").textContent = info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" : "尚未授權";
+    const bound = info.name ? `（公會自動授權：${info.name}／${info.world} ${info.guild}）` : "";
+    $("#licState").textContent = info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" + bound : "尚未授權";
     $("#licState").className = "muted " + (info.ok ? "lic-ok" : "lic-no");
+    // 公會自動授權：這個版本有開才顯示；已經自動授權過就收起輸入框
+    $("#licAutoRow").style.display = !info.auto_available || info.name ? "none" : "";
     // 作者模式：只顯示簽發，使用者用的那些收起來；還沒內建公鑰的版本也顯示作者區，讓作者第一次產生金鑰
     const admin = info.admin || info.no_pubkey;
     $("#licAdmin").hidden = !admin;
@@ -555,15 +558,28 @@ const License = (() => {
     $("#licAskSerial").textContent = info.serial;
     $("#licAskName").textContent = TOOL[id]?.name || "";
     $("#licCode").value = "";
+    $("#licAskAutoName").value = "";
     $("#licErr").textContent = "";
+    $("#licAskAuto").style.display = info.auto_available ? "" : "none";
     back.classList.add("show");
-    setTimeout(() => $("#licCode").focus(), 50);
+    setTimeout(() => (info.auto_available ? $("#licAskAutoName") : $("#licCode")).focus(), 50);
     return new Promise((resolve) => {
-      const done = (v) => { back.classList.remove("show"); $("#licOk").onclick = $("#licCancel").onclick = $("#licCopy").onclick = null; document.removeEventListener("keydown", onKey, true); resolve(v); };
+      const done = (v) => { back.classList.remove("show"); $("#licOk").onclick = $("#licCancel").onclick = $("#licCopy").onclick = $("#licAskAutoBtn").onclick = null; document.removeEventListener("keydown", onKey, true); resolve(v); };
       const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); done(false); } };
       document.addEventListener("keydown", onKey, true);
       $("#licCancel").onclick = () => done(false);
       $("#licCopy").onclick = () => { copyItemName(info.serial); };
+      $("#licAskAutoBtn").onclick = async () => {
+        const name = $("#licAskAutoName").value.trim();
+        if (!name) { $("#licErr").textContent = "請輸入角色名稱"; return; }
+        $("#licErr").textContent = "查詢中…";
+        $("#licAskAutoBtn").disabled = true;
+        try {
+          info = await auto(name);
+          done(true);
+        } catch (e) { $("#licErr").textContent = String(e); }
+        $("#licAskAutoBtn").disabled = false;
+      };
       $("#licOk").onclick = async () => {
         const code = $("#licCode").value.trim();
         if (!code) { $("#licErr").textContent = "請貼上授權碼"; return; }
@@ -577,7 +593,15 @@ const License = (() => {
       };
     });
   }
-  return { load, needs, locked, ask, renderSettings, info: () => info };
+  /** 公會自動授權：成功後更新畫面並回傳新的授權資訊；失敗丟出錯誤訊息 */
+  async function auto(name) {
+    info = await invoke("license_auto", { name });
+    toast(`授權成功：${info.name}（${info.world} ${info.guild}）`);
+    renderSettings();
+    renderTiles();
+    return info;
+  }
+  return { load, needs, locked, ask, auto, renderSettings, info: () => info };
 })();
 window.License = License;
 
@@ -1646,24 +1670,19 @@ $("#currentSerial").addEventListener("click", () =>
   });
 })();
 
-// 使用狀況回報：把程式裡輸入過的角色名稱交給後端（設定頁的授權區有說明）
-function reportNames() {
-  if (!TAURI) return;
-  try {
-    const names = [];
-    const add = (n) => { if (n && typeof n === "string" && n.trim()) names.push(n.trim()); };
-    try { (JSON.parse(localStorage.getItem("track-v1") || "{}").names || []).forEach(add); } catch (_) {}
-    try { add(JSON.parse(localStorage.getItem("beauty-v1") || "{}").charName); } catch (_) {}
-    add((store.get("side-doll", {}) || {}).name);
-    invoke("stats_names", { names }).catch(() => {});
-  } catch (_) {}
-}
-setTimeout(reportNames, 5000);
-setInterval(reportNames, 30 * 60 * 1000);
-
 // 設定 → 授權
 $("#licCopySerial")?.addEventListener("click", () => copyItemName(License.info().serial));
 $("#licEnter")?.addEventListener("click", () => License.ask("timer"));
+$("#licAuto")?.addEventListener("click", () => run(async () => {
+  const name = $("#licAutoName").value.trim();
+  if (!name) { toast("請輸入角色名稱"); return; }
+  $("#licAuto").disabled = true;
+  $("#licAutoNote").textContent = "查詢中…";
+  try { await License.auto(name); } catch (e) { toast(String(e)); $("#licAutoNote").textContent = String(e); }
+  $("#licAuto").disabled = false;
+}));
+$("#licAutoName")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licAuto").click(); });
+$("#licAskAutoName")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licAskAutoBtn").click(); });
 $("#licKeygen")?.addEventListener("click", () => run(async () => {
   if (!(await confirmBox("要產生新的金鑰嗎？私鑰會存在這台電腦，之後所有授權碼都用它簽；產生後要把公鑰交給開發者放進程式。"))) return;
   try { await invoke("license_admin_keygen"); toast("金鑰已產生"); } catch (e) { toast(String(e)); }

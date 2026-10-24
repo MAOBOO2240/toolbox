@@ -1,14 +1,14 @@
 //! 使用狀況回報：程式開啟時與之後每 6 小時，向作者的 Cloudflare Worker 回報一次。
 //!
-//! 只送：這台電腦的序號（跟授權用的同一個）、安裝編號（第一次執行時隨機產生）、程式版本、Windows 版本、有沒有授權。
-//! 不送帳號、角色名稱、金鑰、網址或任何遊戲資料。STATS_URL 空白時什麼都不送。
+//! 只送：這台電腦的序號（跟授權用的同一個）、安裝編號（第一次執行時隨機產生）、程式版本、Windows 版本、有沒有授權、
+//! 公會自動授權綁定的角色名稱（沒用自動授權就是空的）。不送帳號、金鑰、網址或任何遊戲資料。STATS_URL 空白時什麼都不送。
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-/// 作者的 Worker 網址（例如 https://maboo-stats.xxx.workers.dev）。空白 = 不回報
-const STATS_URL: &str = "https://maboo-stats.1735aam.workers.dev";
+/// 作者的 Worker 網址（例如 https://maboo-stats.xxx.workers.dev）。空白 = 不回報、也沒有公會自動授權
+pub const STATS_URL: &str = "https://maboo-stats.1735aam.workers.dev";
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 
@@ -16,34 +16,6 @@ static DIR: OnceLock<PathBuf> = OnceLock::new();
 #[serde(default)]
 struct Local {
     install: String,
-    /// 使用者在程式裡輸入過的楓之谷角色名稱（經驗追蹤、美容美髮、側欄）；設定頁有說明會回報
-    names: Vec<String>,
-}
-
-fn read_local() -> Local {
-    std::fs::read_to_string(local_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
-}
-
-fn write_local(l: &Local) {
-    let _ = std::fs::create_dir_all(DIR.get().cloned().unwrap_or_default());
-    let _ = std::fs::write(local_path(), serde_json::to_string(&l).unwrap_or_default());
-}
-
-/// 前端把目前用到的角色名稱交過來（最多 20 個）
-#[tauri::command]
-pub fn stats_names(names: Vec<String>) {
-    let mut l = read_local();
-    let mut out: Vec<String> = Vec::new();
-    for n in names.into_iter().map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) {
-        if !out.contains(&n) {
-            out.push(n);
-        }
-    }
-    out.truncate(20);
-    if l.names != out {
-        l.names = out;
-        write_local(&l);
-    }
 }
 
 fn local_path() -> PathBuf {
@@ -51,11 +23,12 @@ fn local_path() -> PathBuf {
 }
 
 fn install_id() -> String {
-    let mut l = read_local();
+    let mut l: Local = std::fs::read_to_string(local_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     if l.install.is_empty() {
         let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         l.install = crate::sha256::hex(format!("{t}|{}|{}", std::process::id(), crate::license::serial()).as_bytes())[..16].to_string();
-        write_local(&l);
+        let _ = std::fs::create_dir_all(DIR.get().cloned().unwrap_or_default());
+        let _ = std::fs::write(local_path(), serde_json::to_string(&l).unwrap_or_default());
     }
     l.install
 }
@@ -80,7 +53,8 @@ struct Ping<'a> {
     run: &'a str,
     os: String,
     licensed: bool,
-    names: Vec<String>,
+    /// 公會自動授權綁定的角色
+    name: String,
 }
 
 fn send() {
@@ -94,7 +68,7 @@ fn send() {
         run: option_env!("GITHUB_RUN_NUMBER").unwrap_or(""),
         os: os_version(),
         licensed: crate::license::licensed(),
-        names: read_local().names,
+        name: crate::license::bound_name(),
     };
     let _ = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(15))

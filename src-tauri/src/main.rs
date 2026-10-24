@@ -532,7 +532,7 @@ fn main() {
             license::license_admin_info,
             license::license_admin_keygen,
             license::license_admin_sign,
-            stats::stats_names
+            license::license_auto
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

@@ -697,6 +697,10 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .lic-note { font-size: 0.82rem; line-height: 1.5; margin: 0; }
 .lic-box input#licCode { width: 100%; padding: 0.55rem 0.7rem; border-radius: 0.6rem; border: 1px solid var(--sep); background: var(--card-2); color: var(--text); font: inherit; font-size: 0.85rem; }
 .lic-err { color: #e5484d; font-size: 0.8rem; min-height: 1em; margin: 0; }
+.lic-auto { display: flex; flex-direction: column; gap: 0.55rem; }
+.lic-auto .lic-sign input { flex: 1; min-width: 0; }
+.lic-or { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); font-size: 0.78rem; }
+.lic-or::before, .lic-or::after { content: ""; flex: 1; height: 1px; background: var(--sep); }
 .tile.locked .tile-in { opacity: 0.55; }
 .tile-lock { position: absolute; right: 10%; top: 9%; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, #f5a30b 22%, var(--card)); color: #f5a30b; }
 .tile-lock svg { width: 0.85rem; height: 0.85rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
