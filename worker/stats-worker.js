@@ -10,7 +10,7 @@
 // POST /cfg     { guilds }           允許的公會（每行一個公會名稱）
 // POST /keygen                       產生自動授權用的金鑰（只會產生一次）
 // POST /unbind  { name, serial }     解除某個角色跟某台電腦的綁定
-// POST /revoke  { serial, on }       移除／恢復某台電腦的授權（程式下次回報時會自己刪掉授權碼）
+// POST /revoke  { serial, on }       封鎖／解除封鎖某台電腦（程式下次回報時會自己刪掉授權碼）
 // POST /check   { serial }           程式輸入授權碼前問有沒有被移除（不用 key）
 // POST /recheck                      重新查所有綁定角色的公會
 //
@@ -125,7 +125,7 @@ async function authed(req, env) {
 function loginPage(err) {
   return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱後台</title>
 <style>${CSS}body{display:grid;place-items:center;min-height:100vh;padding:1rem}.login{width:min(26rem,100%)}.login input{max-width:none;width:100%;margin:.6rem 0;font-family:ui-monospace,Consolas,monospace}.err{color:var(--bad);font-size:.82rem;min-height:1.2em}</style>
-<form class="card login" method="post" action="/login"><h3>工具箱後台</h3><div class="muted" style="font-size:.82rem">在作者的工具箱 → 設定 → 作者模式 按「複製後台密碼」，貼到這裡。密碼只能用一次，3 分鐘內有效。</div>
+<form class="card login" method="post" action="/login"><h3>工具箱後台</h3><div class="muted" style="font-size:.82rem">在作者的工具箱 → 設定 → 作者模式 按「後台驗證」會直接登入；或按「複製後台密碼」貼到這裡。密碼只能用一次，3 分鐘內有效。</div>
 <input name="otp" placeholder="MA1-…" autocomplete="off" spellcheck="false" autofocus required><div class="err">${err ? esc(err) : ""}</div><button class="primary" type="submit">登入</button></form>`);
 }
 
@@ -283,7 +283,7 @@ async function dashboard(env) {
   const day = 86400000, now = Date.now();
   const active = (ms) => list.filter((x) => now - Date.parse(x.last) < ms).length;
   const bad = chars.filter((c) => c.viaGuild && !allowed(gs, c));
-  const licBadge = (x) => x.revoked ? `<span class="badge b-off">已移除</span>` : x.licensed ? (x.auto ? `<span class="badge b-auto">自動</span>` : `<span class="badge b-manual">手動</span>`) : `<span class="badge b-none">未授權</span>`;
+  const licBadge = (x) => x.revoked ? `<span class="badge b-off">已封鎖</span>` : x.licensed ? (x.auto ? `<span class="badge b-auto">自動</span>` : `<span class="badge b-manual">手動</span>`) : `<span class="badge b-none">未授權</span>`;
   const rows = list.map((x) => {
     const c = x.char ? cmap[x.char] : null;
     const ok = c ? (c.viaGuild ? allowed(gs, c) : null) : null; // 不是靠公會授權的，公會只是顯示
@@ -296,7 +296,7 @@ async function dashboard(env) {
       <td title="${esc(x.first)}">${tw(x.first)}</td>
       <td title="${esc(x.last)}">${tw(x.last)}</td>
       <td title="${esc(x.os)}"><span class="muted">${esc(String(x.version || "").slice(0, 7))}${x.run ? " #" + esc(x.run) : ""}</span></td>
-      <td><div class="actions">${x.char ? `<button data-unbind="${esc(x.char)}" data-serial="${esc(x.serial)}">解除綁定</button>` : ""}${x.revoked ? `<button data-revoke="0" data-serial="${esc(x.serial)}">恢復授權</button>` : x.licensed ? `<button class="danger" data-revoke="1" data-serial="${esc(x.serial)}">移除授權</button>` : ""}</div></td></tr>`;
+      <td><div class="actions">${x.char ? `<button data-unbind="${esc(x.char)}" data-serial="${esc(x.serial)}">解除綁定</button>` : ""}${x.revoked ? `<button data-revoke="0" data-serial="${esc(x.serial)}">解除封鎖</button>` : x.licensed ? `<button class="danger" data-revoke="1" data-serial="${esc(x.serial)}">封鎖</button>` : ""}</div></td></tr>`;
   }).join("");
   const badRows = bad.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.world)}</td><td><span class="badge b-bad">${esc(c.guild || "無")}</span></td><td>${c.serials.map((s) => `<code>${esc(s)}</code>`).join("<br>")}</td><td title="${esc(c.checked)}">${tw(c.checked)}</td><td><div class="actions">${c.serials.map((s) => `<button data-unbind="${esc(c.name)}" data-serial="${esc(s)}">解除 …${esc(s.slice(-4))}</button>`).join("")}</div></td></tr>`).join("");
   const rejRows = rejects.slice(0, 200).map((r) => `<tr><td title="${esc(r.ts)}">${tw(r.ts)}</td><td><code>${esc(r.serial)}</code></td><td><b>${esc(r.name)}</b></td><td>${esc(r.world) || `<span class="muted">—</span>`}</td><td>${r.world ? `<span class="badge ${r.reason === "公會不符" ? "b-bad" : "b-good"}">${esc(r.guild || "無")}</span>` : `<span class="muted">—</span>`}</td><td>${esc(r.reason)}</td><td><div class="actions">${r.k ? `<button class="danger" data-rejdel="${esc(r.k)}">刪除</button>` : ""}</div></td></tr>`).join("");
@@ -327,12 +327,12 @@ ${table(`<th>角色</th><th>伺服器</th><th>目前公會</th><th>綁定的電�
 <h2>被拒絕的自動授權<span class="n">${rejects.length}</span>${rejects.length ? `<button class="danger h2btn" id="rejAll">全部清除</button>` : ""}</h2>
 ${table(`<th>時間</th><th>序號</th><th>輸入的角色</th><th>伺服器</th><th>公會</th><th>原因</th><th></th>`, rejRows, "最近 90 天沒有被拒絕的嘗試")}
 <p class="foot">備註改完會自動儲存。程式每 10 分鐘回報一次（最後一次使用最多晚 1 小時）：序號、版本、有沒有授權、綁定的角色；綁定角色的公會每天重查一次。<br>
-「移除授權」：對方的程式最晚 10 分鐘內（開工具時會立刻再確認一次）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；按「恢復授權」後對方再驗證一次（或重貼授權碼）就能用。「解除綁定」後對方程式會把角色清掉（公會自動授權的也會一起鎖回去），重新輸入角色名稱就能再綁。</p>
+「封鎖」：對方的程式最晚 10 分鐘內（開工具時也會再確認）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；「解除封鎖」後對方再綁定一次（或重貼授權碼）就能用。「解除綁定」後對方程式會把角色清掉（公會自動授權的也會一起鎖回去），重新輸入角色名稱就能再綁。</p>
 <script>
 const post=async(p,b)=>{const r=await fetch(p,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
 document.querySelectorAll("input[data-serial]").forEach((i)=>i.addEventListener("change",async()=>{await post("/note",{serial:i.dataset.serial,note:i.value});i.style.borderColor="var(--good)";}));
 document.querySelectorAll("button[data-unbind]").forEach((b)=>b.addEventListener("click",async()=>{if(!confirm("解除「"+b.dataset.unbind+"」跟 "+b.dataset.serial+" 的綁定？"))return;await post("/unbind",{name:b.dataset.unbind,serial:b.dataset.serial});location.reload();}));
-document.querySelectorAll("button[data-revoke]").forEach((b)=>b.addEventListener("click",async()=>{const on=b.dataset.revoke==="1";if(!confirm((on?"移除":"恢復")+" "+b.dataset.serial+" 的授權？"))return;await post("/revoke",{serial:b.dataset.serial,on});location.reload();}));
+document.querySelectorAll("button[data-revoke]").forEach((b)=>b.addEventListener("click",async()=>{const on=b.dataset.revoke==="1";if(!confirm((on?"封鎖":"解除封鎖")+" "+b.dataset.serial+"？"))return;await post("/revoke",{serial:b.dataset.serial,on});location.reload();}));
 document.querySelectorAll("button[data-rejdel]").forEach((b)=>b.addEventListener("click",async()=>{await post("/rejdel",{k:b.dataset.rejdel});b.closest("tr").remove();}));
 const ra=document.getElementById("rejAll");if(ra)ra.onclick=async()=>{if(!confirm("清除所有被拒絕的紀錄？"))return;await post("/rejdel",{all:true});location.reload();};
 document.getElementById("saveG").onclick=async()=>{await post("/cfg",{guilds:document.getElementById("guilds").value});location.reload();};
@@ -391,8 +391,8 @@ export default {
       const p = await req.json().catch(() => ({}));
       try { return json(await auto(env, p)); } catch (e) { return json({ ok: false, msg: String(e.message || e) }); }
     }
-    if (req.method === "POST" && url.pathname === "/login") {
-      const otp = (await req.formData().catch(() => null))?.get("otp");
+    if (url.pathname === "/login" && (req.method === "POST" || url.searchParams.has("otp"))) {
+      const otp = req.method === "POST" ? (await req.formData().catch(() => null))?.get("otp") : url.searchParams.get("otp");
       if (!(await verifyOtp(env, otp))) return loginPage("密碼不對、過期或已經用過，再複製一次");
       return new Response(null, { status: 303, headers: { location: "/admin", "set-cookie": await sessionCookie(env) } });
     }

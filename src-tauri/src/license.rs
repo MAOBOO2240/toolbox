@@ -399,14 +399,15 @@ fn base36(mut n: u64) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-/// 用瀏覽器開後台
+/// 後台驗證：產生一次性密碼，用瀏覽器開後台並直接登入
 #[tauri::command]
 pub fn license_admin_open() -> Result<(), String> {
     let url = crate::stats::STATS_URL.trim_end_matches('/');
     if url.is_empty() {
         return Err("還沒設定收集端網址".into());
     }
-    crate::winsys::open(&format!("{url}/admin"))
+    let otp = license_admin_otp()?;
+    crate::winsys::open(&format!("{url}/login?otp={otp}"))
 }
 
 #[cfg(test)]
