@@ -16,6 +16,34 @@ static DIR: OnceLock<PathBuf> = OnceLock::new();
 #[serde(default)]
 struct Local {
     install: String,
+    /// 使用者在程式裡輸入過的楓之谷角色名稱（經驗追蹤、美容美髮、側欄）；設定頁有說明會回報
+    names: Vec<String>,
+}
+
+fn read_local() -> Local {
+    std::fs::read_to_string(local_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn write_local(l: &Local) {
+    let _ = std::fs::create_dir_all(DIR.get().cloned().unwrap_or_default());
+    let _ = std::fs::write(local_path(), serde_json::to_string(&l).unwrap_or_default());
+}
+
+/// 前端把目前用到的角色名稱交過來（最多 20 個）
+#[tauri::command]
+pub fn stats_names(names: Vec<String>) {
+    let mut l = read_local();
+    let mut out: Vec<String> = Vec::new();
+    for n in names.into_iter().map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) {
+        if !out.contains(&n) {
+            out.push(n);
+        }
+    }
+    out.truncate(20);
+    if l.names != out {
+        l.names = out;
+        write_local(&l);
+    }
 }
 
 fn local_path() -> PathBuf {
@@ -23,12 +51,11 @@ fn local_path() -> PathBuf {
 }
 
 fn install_id() -> String {
-    let mut l: Local = std::fs::read_to_string(local_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let mut l = read_local();
     if l.install.is_empty() {
         let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         l.install = crate::sha256::hex(format!("{t}|{}|{}", std::process::id(), crate::license::serial()).as_bytes())[..16].to_string();
-        let _ = std::fs::create_dir_all(DIR.get().cloned().unwrap_or_default());
-        let _ = std::fs::write(local_path(), serde_json::to_string(&l).unwrap_or_default());
+        write_local(&l);
     }
     l.install
 }
@@ -53,6 +80,7 @@ struct Ping<'a> {
     run: &'a str,
     os: String,
     licensed: bool,
+    names: Vec<String>,
 }
 
 fn send() {
@@ -66,6 +94,7 @@ fn send() {
         run: option_env!("GITHUB_RUN_NUMBER").unwrap_or(""),
         os: os_version(),
         licensed: crate::license::licensed(),
+        names: read_local().names,
     };
     let _ = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(15))

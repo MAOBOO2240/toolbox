@@ -530,20 +530,23 @@ const License = (() => {
     const el = $("#licSerial");
     if (!el) return;
     el.textContent = info.serial || "—";
-    $("#licState").textContent = info.admin ? "作者模式（不用授權碼）" : info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" : "尚未授權";
+    $("#licState").textContent = info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" : "尚未授權";
     $("#licState").className = "muted " + (info.ok ? "lic-ok" : "lic-no");
-    // 作者模式；還沒內建公鑰的版本也顯示，讓作者第一次產生金鑰
-    $("#licAdmin").hidden = !(info.admin || info.no_pubkey);
-    if (info.admin || info.no_pubkey) renderAdmin();
+    // 作者模式：只顯示簽發，使用者用的那些收起來；還沒內建公鑰的版本也顯示作者區，讓作者第一次產生金鑰
+    const admin = info.admin || info.no_pubkey;
+    $("#licAdmin").hidden = !admin;
+    $("#licCard .lic-user").hidden = info.admin;
+    if (admin) renderAdmin();
   }
   async function renderAdmin() {
     try {
       const a = await invoke("license_admin_info");
       $("#licPub").textContent = a.pubkey || "—";
-      $("#licPubState").textContent = !a.has_key ? "還沒有金鑰：按「產生金鑰」（只有作者需要做這件事）" : a.matches_builtin ? "程式內建的公鑰跟這把私鑰相符" : "程式內建的公鑰跟這把私鑰不符：把下面的公鑰交給開發者放進程式，重新發布後簽出的授權碼才有效";
+      $("#licKeyPath").textContent = a.key_path || "";
+      $("#licPubState").textContent = !a.has_key ? "還沒有金鑰：到「進階」按「產生金鑰」（只有作者需要）" : a.matches_builtin ? "私鑰與程式內建的公鑰相符" : "私鑰與程式內建的公鑰不符：把進階裡的公鑰交給開發者放進程式";
       $("#licPubState").className = "muted " + (a.matches_builtin ? "lic-ok" : "lic-no");
-      $("#licKeygen").hidden = a.has_key;
-      $("#licCopyPub").hidden = !a.has_key;
+      $("#licKeygen").style.display = a.has_key ? "none" : "";
+      $("#licCopyPub").style.display = a.has_key ? "" : "none";
     } catch (e) { toast(String(e)); }
   }
   /** 開啟授權視窗；回傳是否已授權 */
@@ -1643,6 +1646,21 @@ $("#currentSerial").addEventListener("click", () =>
   });
 })();
 
+// 使用狀況回報：把程式裡輸入過的角色名稱交給後端（設定頁的授權區有說明）
+function reportNames() {
+  if (!TAURI) return;
+  try {
+    const names = [];
+    const add = (n) => { if (n && typeof n === "string" && n.trim()) names.push(n.trim()); };
+    try { (JSON.parse(localStorage.getItem("track-v1") || "{}").names || []).forEach(add); } catch (_) {}
+    try { add(JSON.parse(localStorage.getItem("beauty-v1") || "{}").charName); } catch (_) {}
+    add((store.get("side-doll", {}) || {}).name);
+    invoke("stats_names", { names }).catch(() => {});
+  } catch (_) {}
+}
+setTimeout(reportNames, 5000);
+setInterval(reportNames, 30 * 60 * 1000);
+
 // 設定 → 授權
 $("#licCopySerial")?.addEventListener("click", () => copyItemName(License.info().serial));
 $("#licEnter")?.addEventListener("click", () => License.ask("timer"));
@@ -1656,6 +1674,7 @@ $("#licSign")?.addEventListener("click", () => run(async () => {
   try {
     const code = await invoke("license_admin_sign", { serial });
     $("#licSignOut").value = code;
+    $("#licSignOutRow").hidden = false;
     copyItemName(code);
   } catch (e) { toast(String(e)); }
 }));

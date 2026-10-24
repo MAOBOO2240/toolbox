@@ -130,28 +130,6 @@
             </div>
           </div>
           <div class="card set-card">
-            <h3>授權</h3>
-            <div class="set-row">
-              <span>這台電腦的序號<small class="muted">「工具箱」分類的工具需要授權碼。把序號給作者，作者會給你專屬這台電腦的授權碼；楓之谷工具不用授權</small></span>
-              <span class="lic-serial"><code id="licSerial">—</code><button class="cbtn small c-blue" id="licCopySerial">複製序號</button></span>
-            </div>
-            <div class="set-row">
-              <span>授權狀態<small class="muted" id="licState">—</small></span>
-              <button class="cbtn small c-green" id="licEnter">輸入授權碼</button>
-            </div>
-            <div id="licAdmin" hidden>
-              <div class="set-row">
-                <span>作者模式：公鑰<small class="muted" id="licPubState"></small><small class="muted lic-pub" id="licPub">—</small></span>
-                <span class="lic-serial"><button class="cbtn small c-silver" id="licCopyPub">複製公鑰</button><button class="cbtn small c-amber" id="licKeygen">產生金鑰</button></span>
-              </div>
-              <div class="set-row">
-                <span>簽發授權碼<small class="muted">貼上對方的序號，按「簽發」後授權碼會自動複製</small></span>
-                <span class="lic-sign"><input type="text" id="licSignSerial" placeholder="MB-XXXX-XXXX-XXXX-XXXX" spellcheck="false" autocomplete="off" /><button class="cbtn small c-purple" id="licSign">簽發</button></span>
-              </div>
-              <div class="set-row"><span>授權碼</span><input type="text" id="licSignOut" class="lic-out" readonly placeholder="簽發後顯示在這裡" /></div>
-            </div>
-          </div>
-          <div class="card set-card">
             <h3>更新</h3>
             <div class="set-row"><span>目前版本</span><span class="muted" id="verText">1.0.0</span></div>
             <div class="set-row">
@@ -164,6 +142,39 @@
             <div class="set-row">
               <span class="muted" id="updStatus">程式開啟時會自動檢查一次</span>
               <button class="cbtn c-teal small" id="updCheck">檢查更新</button>
+            </div>
+          </div>
+          <div class="card set-card" id="licCard">
+            <h3>授權</h3>
+            <div class="lic-user">
+              <div class="set-row">
+                <span>這台電腦的序號<small class="muted">「工具箱」分類的工具需要授權碼。把序號給作者，作者會給你專屬這台電腦的授權碼；楓之谷工具不用授權</small></span>
+                <span class="lic-serial"><code id="licSerial">—</code><button class="cbtn small c-blue" id="licCopySerial">複製序號</button></span>
+              </div>
+              <div class="set-row">
+                <span>授權狀態<small class="muted" id="licState">—</small></span>
+                <button class="cbtn small c-green" id="licEnter">輸入授權碼</button>
+              </div>
+              <p class="muted lic-privacy">程式會定期向作者回報使用狀況：這台電腦的序號、程式版本、Windows 版本、有沒有授權，以及你在程式裡輸入過的楓之谷角色名稱。不會送帳號、密碼或遊戲資料。</p>
+            </div>
+            <div id="licAdmin" hidden>
+              <div class="set-row">
+                <span>作者模式<small class="muted" id="licAdminNote">這台電腦有簽發用的私鑰，所有工具直接能用</small></span>
+                <span class="muted" id="licPubState"></span>
+              </div>
+              <div class="set-row">
+                <span>簽發授權碼<small class="muted">貼上對方的序號，按「簽發」後授權碼會自動複製</small></span>
+                <span class="lic-sign"><input type="text" id="licSignSerial" placeholder="MB-XXXX-XXXX-XXXX-XXXX" spellcheck="false" autocomplete="off" /><button class="cbtn small c-purple" id="licSign">簽發</button></span>
+              </div>
+              <div class="set-row" id="licSignOutRow" hidden><span style="white-space:nowrap">授權碼</span><input type="text" id="licSignOut" class="lic-out" readonly /></div>
+              <details class="lic-more">
+                <summary class="muted">進階（公鑰、金鑰檔）</summary>
+                <div class="set-row">
+                  <span>公鑰<small class="muted lic-pub" id="licPub">—</small></span>
+                  <span class="lic-serial"><button class="cbtn small c-silver" id="licCopyPub">複製公鑰</button><button class="cbtn small c-amber" id="licKeygen">產生金鑰</button></span>
+                </div>
+                <div class="set-row"><span>私鑰檔<small class="muted">請備份這個檔案；換電腦時放回同一個位置就會回到作者模式</small><small class="muted lic-pub" id="licKeyPath"></small></span></div>
+              </details>
             </div>
           </div>
           <div class="card set-card">
