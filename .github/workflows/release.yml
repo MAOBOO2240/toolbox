@@ -1,6 +1,6 @@
 name: Build & Release
 
-# 推送到 main 或手動觸發時，在 Windows 上編譯並覆蓋發布 v1.0.0
+# 推送到 main 或手動觸發時，在 Windows 上編譯並發布 v<版本號>（版本號在 src-tauri/tauri.conf.json，每次更新 +0.0.1）
 on:
   push:
     branches: [main]
@@ -74,16 +74,21 @@ jobs:
           Get-ChildItem dist | Select-Object Name, Length
           Get-Content dist/MAOBOO.sha256
 
-      - name: Replace v1.0.0 release
+      - name: Publish release v<version>
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete v1.0.0 --cleanup-tag --yes || true
-          git push origin :refs/tags/v1.0.0 || true
-          gh release create v1.0.0 dist/MAOBOO.zip dist/MAOBOO.sha256 \
+          VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG="v$VER"
+          echo "::notice title=版本::$TAG"
+          # 同一個版本號重新建置時覆蓋掉原本的
+          gh release delete "$TAG" --cleanup-tag --yes || true
+          git push origin ":refs/tags/$TAG" || true
+          gh release create "$TAG" dist/MAOBOO.zip dist/MAOBOO.sha256 \
+            --latest \
             --target "$GITHUB_SHA" \
-            --title "工具箱 v1.0.0" \
+            --title "工具箱 $TAG" \
             --notes "Windows 10/11 免安裝版，下載 MAOBOO.zip 解壓縮後執行 MAOBOO.exe。
 
           最後更新：$(date -u '+%Y-%m-%d %H:%M UTC')（commit ${GITHUB_SHA::7}）

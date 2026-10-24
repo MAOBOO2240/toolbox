@@ -489,6 +489,7 @@ fn main() {
             toast::toast_status,
             toast::open_notify_settings,
             update::update_info,
+            update::open_repo,
             update::update_check,
             update::update_install,
             autostart::autostart_get,

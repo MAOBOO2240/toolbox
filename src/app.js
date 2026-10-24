@@ -1714,6 +1714,7 @@ $("#licSign")?.addEventListener("click", () => run(async () => {
   } catch (e) { toast(String(e)); }
 }));
 $("#licCopyPub")?.addEventListener("click", () => copyItemName($("#licPub").textContent.trim()));
+$("#aboutRepo")?.addEventListener("click", (e) => { e.preventDefault(); if (TAURI) invoke("open_repo").catch((err) => toast(String(err))); else window.open("https://github.com/MAOBOO2240/toolbox"); });
 $("#licOtp")?.addEventListener("click", () => run(async () => {
   try { await invoke("copy_text", { text: await invoke("license_admin_otp") }); toast("後台密碼已複製，3 分鐘內貼到登入頁"); } catch (e) { toast(String(e)); }
 }));
@@ -1738,10 +1739,11 @@ window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
 
   async function refresh() {
     try { info = await invoke("update_info"); } catch (_) { return; }
-    $("#verText").textContent = "1.0.0";
+    if (!info) return;
+    $("#verText").textContent = info.version || "—";
     $("#verText").title = info.current ? `編譯 #${info.run}（${info.current}）` : "自行編譯版";
     // 關於：編譯編號（和你發布的版本對照，確認是不是同一份）
-    $("#aboutBuild").textContent = info.current ? `版本 1.0.0・編譯 #${info.run}（${info.current}）` : "版本 1.0.0・自行編譯版";
+    $("#aboutBuild").textContent = info.current ? `版本 ${info.version}・編譯 #${info.run}（${info.current}）` : `版本 ${info.version}・自行編譯版`;
   }
 
   const closeDialog = () => $("#updBackdrop").classList.remove("show");

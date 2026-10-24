@@ -701,4 +701,7 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .lic-more[open] summary { margin-bottom: 0.2rem; }
 /* 點到沒授權的工具時，授權卡片閃一下 */
 #licCard.flash { animation: lic-flash 1.6s ease-out; }
+.about-title { display: inline-flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.about-link { font-weight: 400; font-size: 0.82rem; color: #3b82f6; text-decoration: none; }
+.about-link:hover { text-decoration: underline; }
 @keyframes lic-flash { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, #f5a30b 70%, transparent); } 100% { box-shadow: none; } }
