@@ -96,3 +96,19 @@ jobs:
           使用前請先看壓縮檔裡的「使用規範.txt」。
 
           首次執行若出現 SmartScreen「Windows 已保護您的電腦」，請點「其他資訊」→「仍要執行」。"
+
+      - name: Mirror to v1.0.0 (for old builds' updater)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 1.0.1 之前的程式只會看 v1.0.0 這個發行版本，所以同樣的檔案再放一份到 v1.0.0，讓舊版也能自動更新上來
+          VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          [ "v$VER" = "v1.0.0" ] && exit 0
+          gh release delete v1.0.0 --cleanup-tag --yes || true
+          git push origin :refs/tags/v1.0.0 || true
+          gh release create v1.0.0 dist/MAOBOO.zip dist/MAOBOO.sha256 \
+            --latest=false \
+            --target "$GITHUB_SHA" \
+            --title "工具箱（舊版自動更新用，內容同 v$VER）" \
+            --notes "這個發行版本只是給 1.0.1 之前的程式自動更新用，內容和 v$VER 一樣。請到 v$VER 下載。"
