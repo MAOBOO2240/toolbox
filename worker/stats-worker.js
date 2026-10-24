@@ -4,8 +4,8 @@
 // POST /ping   程式回報：{ serial, install, version, run, os, licensed, name }（每 10 分鐘；回 { revoked } 讓程式即時鎖回去）
 // POST /auto   綁定角色：{ serial, name, licensed } → { ok, code, signed, name, world, guild } 或 { ok:false, msg }
 //              還沒授權的要公會在名單裡才綁、並簽授權碼；已授權的只綁定（左下角的角色）
-// 以下都要 ?key=ADMIN_KEY
-// GET  /admin                        儀表板
+// 後台：先用作者程式產生的一次性密碼登入（POST /login），之後 12 小時內用 cookie；ADMIN_KEY 只拿來簽 cookie
+// GET  /admin                        儀表板（沒登入就顯示登入頁）
 // POST /note    { serial, note }     幫某個序號加備註
 // POST /cfg     { guilds }           允許的公會（每行一個公會名稱）
 // POST /keygen                       產生自動授權用的金鑰（只會產生一次）
@@ -17,6 +17,9 @@
 // KV 內容：s:<序號> 每台電腦；c:<角色> 綁定角色；r:<時間> 被拒絕的紀錄；cfg:guilds / cfg:sk / cfg:pk
 
 const NEXON = "https://open.api.nexon.com/maplestorytw/v1";
+// 作者簽授權碼用的公鑰（跟程式 license.rs 的 PUBKEY_HEX 一樣）：後台登入的一次性密碼就是作者程式用私鑰簽出來的
+const ADMIN_PUBKEY_HEX = "8f20ec48c8263df403ac0a5393159aae7dd09fcd645d629f9e0c449cb42d82a3";
+const SESSION_HOURS = 12;
 const MAX_PC = 3; // 一個角色最多綁幾台電腦
 const DEFAULT_GUILDS = [{ guild: "楓林小築" }];
 
@@ -87,6 +90,43 @@ async function reject(env, o) {
   // key 用「倒過來的時間」讓最新的排最前面；90 天後自動刪
   const k = "r:" + String(9999999999999 - Date.now()).padStart(13, "0") + ":" + Math.random().toString(36).slice(2, 6);
   await env.STATS.put(k, JSON.stringify({ ...o, k, ts: new Date().toISOString() }), { expirationTtl: 90 * 86400 });
+}
+
+/* ---------- 後台登入：一次性密碼（作者程式用私鑰簽「maboo-admin|分鐘數」）→ 12 小時的登入 cookie ---------- */
+const unb64url = (t) => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - t.length % 4) % 4)), (c) => c.charCodeAt(0));
+async function verifyOtp(env, otp) {
+  const m = /^MA1-([0-9a-z]+)-([A-Za-z0-9_-]{80,90})$/.exec(String(otp || "").trim());
+  if (!m) return false;
+  const ts = parseInt(m[1], 36);
+  const now = Math.floor(Date.now() / 60000);
+  if (!Number.isFinite(ts) || Math.abs(now - ts) > 3) return false; // 前後 3 分鐘內有效
+  if (await env.STATS.get("otp:" + m[2])) return false; // 用過就不能再用
+  const pk = Uint8Array.from(ADMIN_PUBKEY_HEX.match(/../g).map((h) => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey("raw", pk, { name: "Ed25519" }, false, ["verify"]);
+  let ok = false;
+  try { ok = await crypto.subtle.verify({ name: "Ed25519" }, key, unb64url(m[2]), new TextEncoder().encode("maboo-admin|" + ts)); } catch { ok = false; }
+  if (ok) await env.STATS.put("otp:" + m[2], "1", { expirationTtl: 600 });
+  return ok;
+}
+async function hmac(env, text) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("sess|" + env.ADMIN_KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return hex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text)));
+}
+async function sessionCookie(env) {
+  const exp = Date.now() + SESSION_HOURS * 3600000;
+  return `ms=${exp}.${await hmac(env, String(exp))}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_HOURS * 3600}`;
+}
+async function authed(req, env) {
+  if (!env.ADMIN_KEY) return false;
+  const m = /(?:^|;\s*)ms=(\d+)\.([0-9a-f]{64})/.exec(req.headers.get("cookie") || "");
+  if (!m || Number(m[1]) < Date.now()) return false;
+  return (await hmac(env, m[1])) === m[2];
+}
+function loginPage(err) {
+  return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱後台</title>
+<style>${CSS}body{display:grid;place-items:center;min-height:100vh;padding:1rem}.login{width:min(26rem,100%)}.login input{max-width:none;width:100%;margin:.6rem 0;font-family:ui-monospace,Consolas,monospace}.err{color:var(--bad);font-size:.82rem;min-height:1.2em}</style>
+<form class="card login" method="post" action="/login"><h3>工具箱後台</h3><div class="muted" style="font-size:.82rem">在作者的工具箱 → 設定 → 作者模式 按「複製後台密碼」，貼到這裡。密碼只能用一次，3 分鐘內有效。</div>
+<input name="otp" placeholder="MA1-…" autocomplete="off" spellcheck="false" autofocus required><div class="err">${err ? esc(err) : ""}</div><button class="primary" type="submit">登入</button></form>`);
 }
 
 /* ---------- Ed25519 簽名（跟程式裡的 license.rs 相同格式：MB1- + base64url(簽名)） ---------- */
@@ -187,6 +227,7 @@ const CSS = `
 body{font:14px/1.5 -apple-system,"Segoe UI",system-ui,"Noto Sans TC",sans-serif;margin:0;padding:2rem clamp(1rem,3vw,3rem) 3rem;background:var(--bg);color:var(--text)}
 h1{font-size:1.5rem;margin:0 0 1.2rem;letter-spacing:.02em}
 h1 small{font-size:.8rem;color:var(--muted);font-weight:400;margin-left:.8rem}
+h1 .logout{float:right;font-size:.8rem;color:var(--muted);text-decoration:none}h1 .logout:hover{color:var(--accent)}
 h2{font-size:1rem;margin:2rem 0 .7rem;color:var(--muted);font-weight:600;text-transform:none;letter-spacing:.04em}
 h2 .h2btn{margin-left:.8rem;font-size:.78rem;padding:.2rem .6rem;font-weight:400}
 h2 .n{display:inline-block;min-width:1.5em;padding:0 .45em;margin-left:.4em;border-radius:999px;background:var(--card2);color:var(--text);font-size:.8rem;text-align:center}
@@ -262,7 +303,7 @@ async function dashboard(env) {
   const gtext = gs.map((g) => g.guild).join("\n");
   const table = (head, body, emptyText) => `<div class="tbl">${body ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : `<div class="empty">${emptyText}</div>`}</div>`;
   return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱使用狀況</title><style>${CSS}</style>
-<h1>工具箱使用狀況<small>台灣時間 ${tw(new Date().toISOString())}</small></h1>
+<h1>工具箱使用狀況<small>台灣時間 ${tw(new Date().toISOString())}</small><a class="logout" href="/logout">登出</a></h1>
 <div class="sum">
   <div><span>總安裝數</span><b>${list.length}</b></div>
   <div><span>今天有開</span><b>${active(day)}</b></div>
@@ -288,8 +329,7 @@ ${table(`<th>時間</th><th>序號</th><th>輸入的角色</th><th>伺服器</th
 <p class="foot">備註改完會自動儲存。程式每 10 分鐘回報一次（最後一次使用最多晚 1 小時）：序號、版本、有沒有授權、綁定的角色；綁定角色的公會每天重查一次。<br>
 「移除授權」：對方的程式最晚 10 分鐘內（開工具時會立刻再確認一次）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；按「恢復授權」後對方再驗證一次（或重貼授權碼）就能用。「解除綁定」後對方程式會把角色清掉（公會自動授權的也會一起鎖回去），重新輸入角色名稱就能再綁。</p>
 <script>
-const K="?key="+encodeURIComponent(new URLSearchParams(location.search).get("key"));
-const post=async(p,b)=>{const r=await fetch(p+K,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
+const post=async(p,b)=>{const r=await fetch(p,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
 document.querySelectorAll("input[data-serial]").forEach((i)=>i.addEventListener("change",async()=>{await post("/note",{serial:i.dataset.serial,note:i.value});i.style.borderColor="var(--good)";}));
 document.querySelectorAll("button[data-unbind]").forEach((b)=>b.addEventListener("click",async()=>{if(!confirm("解除「"+b.dataset.unbind+"」跟 "+b.dataset.serial+" 的綁定？"))return;await post("/unbind",{name:b.dataset.unbind,serial:b.dataset.serial});location.reload();}));
 document.querySelectorAll("button[data-revoke]").forEach((b)=>b.addEventListener("click",async()=>{const on=b.dataset.revoke==="1";if(!confirm((on?"移除":"恢復")+" "+b.dataset.serial+" 的授權？"))return;await post("/revoke",{serial:b.dataset.serial,on});location.reload();}));
@@ -351,7 +391,16 @@ export default {
       const p = await req.json().catch(() => ({}));
       try { return json(await auto(env, p)); } catch (e) { return json({ ok: false, msg: String(e.message || e) }); }
     }
-    if (url.searchParams.get("key") !== env.ADMIN_KEY || !env.ADMIN_KEY) return new Response("Not found", { status: 404 });
+    if (req.method === "POST" && url.pathname === "/login") {
+      const otp = (await req.formData().catch(() => null))?.get("otp");
+      if (!(await verifyOtp(env, otp))) return loginPage("密碼不對、過期或已經用過，再複製一次");
+      return new Response(null, { status: 303, headers: { location: "/admin", "set-cookie": await sessionCookie(env) } });
+    }
+    if (url.pathname === "/logout") return new Response(null, { status: 303, headers: { location: "/admin", "set-cookie": "ms=; Path=/; Max-Age=0" } });
+    if (!(await authed(req, env))) {
+      if (url.pathname === "/admin" || url.pathname === "/") return loginPage("");
+      return new Response("Not found", { status: 404 });
+    }
     if (req.method === "POST") {
       const p = await req.json().catch(() => ({}));
       try {

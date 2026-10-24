@@ -1700,6 +1700,12 @@ $("#licSign")?.addEventListener("click", () => run(async () => {
   } catch (e) { toast(String(e)); }
 }));
 $("#licCopyPub")?.addEventListener("click", () => copyItemName($("#licPub").textContent.trim()));
+$("#licOtp")?.addEventListener("click", () => run(async () => {
+  try { await invoke("copy_text", { text: await invoke("license_admin_otp") }); toast("後台密碼已複製，3 分鐘內貼到登入頁"); } catch (e) { toast(String(e)); }
+}));
+$("#licAdminOpen")?.addEventListener("click", () => run(async () => {
+  try { await invoke("license_admin_open"); } catch (e) { toast(String(e)); }
+}));
 
 window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
 

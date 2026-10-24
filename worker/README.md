@@ -11,7 +11,7 @@
 7. 再「Add」一個：名稱 `NEXON_API_KEY`，值填 Nexon Open API 金鑰（查公會用），型別選 Secret，儲存。
 8. Worker 的網址在 Overview 頁，長得像 `https://maboo-stats.xxxx.workers.dev`。把這個網址填進程式 `src-tauri/src/stats.rs` 的 `STATS_URL`。
 
-看儀表板：`https://maboo-stats.xxxx.workers.dev/admin?key=你的密碼`
+看儀表板：`https://maboo-stats.xxxx.workers.dev/admin`，要用一次性密碼登入：作者的工具箱 → 設定 → 作者模式 →「複製後台密碼」（私鑰簽的，3 分鐘內有效、只能用一次），登入後 12 小時內不用再輸入。`ADMIN_KEY` 現在只拿來簽登入 cookie，隨便一串就好。
 
 ## 公會自動授權
 

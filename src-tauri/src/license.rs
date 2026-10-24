@@ -375,6 +375,40 @@ pub fn license_admin_sign(serial: String) -> Result<String, String> {
     Ok(encode_code(&sk.sign(s.as_bytes())))
 }
 
+/// 後台一次性密碼：用作者私鑰簽「maboo-admin|目前分鐘數」，Worker 用內建的作者公鑰驗、用過就作廢
+#[tauri::command]
+pub fn license_admin_otp() -> Result<String, String> {
+    let sk = admin_key().ok_or("沒有私鑰")?;
+    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 60).unwrap_or(0);
+    let sig = sk.sign(format!("maboo-admin|{ts}").as_bytes());
+    use base64::Engine;
+    Ok(format!("MA1-{}-{}", base36(ts), base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sig.to_bytes())))
+}
+
+fn base36(mut n: u64) -> String {
+    const D: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    if n == 0 {
+        return "0".into();
+    }
+    let mut out = Vec::new();
+    while n > 0 {
+        out.push(D[(n % 36) as usize]);
+        n /= 36;
+    }
+    out.reverse();
+    String::from_utf8(out).unwrap_or_default()
+}
+
+/// 用瀏覽器開後台
+#[tauri::command]
+pub fn license_admin_open() -> Result<(), String> {
+    let url = crate::stats::STATS_URL.trim_end_matches('/');
+    if url.is_empty() {
+        return Err("還沒設定收集端網址".into());
+    }
+    crate::winsys::open(&format!("{url}/admin"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -398,6 +432,14 @@ mod tests {
         let sig = decode_code("MB1-h3Oza4DkRK23Nd4hEimnCNEbOMLvPCsXYyaPg44zLKfaf84lRSiT3BNappu3SsSDriR949VcWpa55vlYHquMDQ").unwrap();
         assert!(pk.verify(b"MB-AAAA-BBBB-CCCC-DDDD", &sig).is_ok());
         assert!(pk.verify(b"MB-AAAA-BBBB-CCCC-EEEE", &sig).is_err());
+    }
+
+    #[test]
+    fn base36_ok() {
+        assert_eq!(base36(0), "0");
+        assert_eq!(base36(35), "z");
+        assert_eq!(base36(36), "10");
+        assert_eq!(u64::from_str_radix(&base36(29_876_543), 36).unwrap(), 29_876_543);
     }
 
     #[test]
