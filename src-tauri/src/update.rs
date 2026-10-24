@@ -36,7 +36,8 @@ fn inner() -> std::sync::MutexGuard<'static, Inner> {
 // 編譯時由 build.rs 產生：K_SEED、K_LEN、K_A、K_B
 include!(concat!(env!("OUT_DIR"), "/update_token.rs"));
 
-/// 還原內建的權杖（沒有內建時是空字串）
+/// 還原內建的權杖（沒有內建時是空字串；倉庫公開後已不再使用，留著給測試）
+#[allow(dead_code)]
 #[inline(never)]
 fn builtin() -> String {
     let mut enc = vec![0u8; K_LEN];
@@ -115,12 +116,8 @@ pub fn open_repo() -> Result<(), String> {
 }
 
 fn token() -> Result<String, String> {
-    let mut t = builtin();
-    if t.trim().is_empty() {
-        t = inner().cfg.token.clone();
-    }
-    // 倉庫是公開的，不用權杖；有設定的話（私人倉庫時代留下的）還是會帶上
-    Ok(t)
+    // 倉庫是公開的，不用權杖（私人倉庫時代留下的舊權杖已經失效，帶上反而會被拒）
+    Ok(String::new())
 }
 
 fn github(url: &str, token: &str, accept: &str) -> Result<ureq::Response, String> {
@@ -135,7 +132,23 @@ fn github(url: &str, token: &str, accept: &str) -> Result<ureq::Response, String
         .call()
         .map_err(|e| match e {
             ureq::Error::Status(401, _) => "更新權限已失效（權杖過期）".to_string(),
-            ureq::Error::Status(403, _) => "沒有更新權限，或 GitHub 暫時限制查詢次數".to_string(),
+            ureq::Error::Status(403, r) | ureq::Error::Status(429, r) => {
+                // 沒帶權杖時 GitHub 每小時每個 IP 只給 60 次；把剩餘次數與重設時間一起告訴使用者
+                let reset = r
+                    .header("x-ratelimit-reset")
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .and_then(|t| {
+                        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+                        Some(t.saturating_sub(now) / 60 + 1)
+                    });
+                let remaining = r.header("x-ratelimit-remaining").map(str::to_string);
+                let msg: String = r.into_json::<serde_json::Value>().ok().and_then(|v| v["message"].as_str().map(str::to_string)).unwrap_or_default();
+                if remaining.as_deref() == Some("0") || msg.to_lowercase().contains("rate limit") {
+                    format!("GitHub 暫時限制查詢次數，請 {} 分鐘後再試", reset.unwrap_or(60))
+                } else {
+                    format!("GitHub 拒絕了這次查詢：{}", if msg.is_empty() { "403".into() } else { msg })
+                }
+            }
             ureq::Error::Status(404, _) => "找不到發行版本".to_string(),
             ureq::Error::Status(c, _) => format!("GitHub 回應錯誤 {c}"),
             e => format!("連線失敗：{e}"),
