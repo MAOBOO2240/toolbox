@@ -170,7 +170,7 @@ async function boundOf(env, rec, serial) {
  * 綁定角色：{ serial, name, licensed }
  * - 已經有授權的（作者、輸入過授權碼）：只綁定，不看公會、不簽碼
  * - 還沒授權的：公會在名單裡才綁，並簽一組授權碼回去
- * 一台電腦只綁一個角色（換角色就把舊的解掉）；一個角色最多綁 MAX_PC 台電腦
+ * 一台電腦只綁一個角色，綁了就不能自己換（要作者解除綁定）；一個角色最多綁 MAX_PC 台電腦
  */
 async function auto(env, p) {
   const serial = String(p.serial || "").trim().toUpperCase();
@@ -180,7 +180,7 @@ async function auto(env, p) {
   if (!name || name.length > 20) throw new Error("請輸入角色名稱");
   const sk = "s:" + serial;
   const rec = (await env.STATS.get(sk, "json")) || { serial, first: new Date().toISOString(), last: new Date().toISOString(), pings: 0, note: "" };
-  if (rec.revoked) throw new Error("這台電腦的授權已被作者移除，請作者在儀表板按「恢復授權」");
+  if (rec.revoked) throw new Error("這台電腦已被作者封鎖，請作者在儀表板按「解除封鎖」");
   if (!licensed && !(await env.STATS.get("cfg:pk"))) throw new Error("作者還沒在儀表板產生自動授權金鑰");
   // 每台電腦一天最多試 20 次，省 API 次數
   const day = new Date().toISOString().slice(0, 10);
@@ -200,6 +200,12 @@ async function auto(env, p) {
     await reject(env, { serial, name: info.name, world: info.world, guild: info.guild, reason: "公會不符" });
     throw new Error(`角色「${info.name}」（${info.world}）的公會是「${info.guild || "無"}」，不在允許名單裡`);
   }
+  // 一台電腦綁定後就不能自己換角色（作者也一樣），要換請作者在儀表板「解除綁定」
+  const curBound = await boundOf(env, rec, serial);
+  if (curBound && curBound !== info.name) {
+    await reject(env, { serial, name: info.name, world: info.world, guild: info.guild, reason: `這台已綁定「${curBound}」，想改綁` });
+    throw new Error(`這台電腦已經綁定「${curBound}」，要換角色請找作者解除綁定`);
+  }
   const ck = "c:" + info.name;
   const c = (await env.STATS.get(ck, "json")) || { name: info.name, serials: [], first: new Date().toISOString() };
   if (!c.serials.includes(serial)) {
@@ -207,8 +213,6 @@ async function auto(env, p) {
       await reject(env, { serial, name: info.name, world: info.world, guild: info.guild, reason: "這個角色綁定的電腦已達上限" });
       throw new Error(`角色「${info.name}」綁定的電腦已達上限，請找作者解除`);
     }
-    // 換角色：把這台從舊角色解掉
-    if (rec.char && rec.char !== info.name) await unbindSerial(env, rec.char, serial);
     c.serials.push(serial);
   }
   const signed = !licensed && inGuild;

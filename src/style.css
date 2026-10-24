@@ -706,6 +706,7 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .about-link:hover { text-decoration: underline; }
 @keyframes lic-flash { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, #f5a30b 70%, transparent); } 100% { box-shadow: none; } }
 
+#sideName[readonly] { cursor: default; }
 /* ---------- 用過的角色名稱（取代瀏覽器內建的自動填入） ---------- */
 .nh-pop { position: fixed; z-index: 9000; min-width: 12rem; max-width: 20rem; padding: 0.35rem; border-radius: 0.9rem; background: var(--card); border: 1px solid var(--sep); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); font-size: 0.88rem; }
 .nh-title { padding: 0.25rem 0.6rem 0.3rem; font-size: 0.72rem; color: var(--muted); }

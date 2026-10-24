@@ -1207,7 +1207,9 @@ const SideDoll = (() => {
     $("#sideSync").checked = !!cfg.sync;
     const name = bound();
     inp.placeholder = "綁定角色";
-    inp.title = name ? `已綁定 ${name}；輸入別的名稱可以換角色` : "輸入角色名稱按 Enter 綁定；公會成員會直接取得授權";
+    // 綁定後就不能自己換（作者也一樣），要換請作者在儀表板解除綁定
+    inp.readOnly = TAURI && !!name;
+    inp.title = name ? `已綁定 ${name}；要換角色請找作者解除綁定` : "輸入角色名稱按 Enter 綁定；公會成員會直接取得授權";
     if (document.activeElement !== inp) inp.value = name;
     if (cfg.sync) {
       // 同步美容美髮：美容美髮裡現在是哪隻、什麼造型，左下角就照那樣（綁定角色時才會把美容美髮切過去）
@@ -1236,6 +1238,7 @@ const SideDoll = (() => {
   async function submit() {
     const name = inp.value.trim();
     if (!name || name === bound() || binding) { if (!name) inp.value = bound(); return; }
+    if (TAURI && bound()) { toast(`這台電腦已經綁定 ${bound()}，要換角色請找作者解除綁定`); inp.value = bound(); return; }
     if (!TAURI) { cfg.name = name; saveCfg(); load(true); return; }
     binding = true;
     inp.disabled = true;
