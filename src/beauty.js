@@ -867,6 +867,7 @@ if (typeof document !== "undefined") (() => {
     try {
       ch = await invoke("maple_lookup", { name, force: !!force });
       st.charName = ch.name;
+      window.NameHistory?.add(ch.name);
       // 換了角色才依角色性別切換預設（之後使用者自己切換的會保留）
       if (st.genderFor !== ch.name && charGender()) { st.gender = charGender(); st.genderFor = ch.name; }
       save();
@@ -1046,6 +1047,7 @@ if (typeof document !== "undefined") (() => {
   }));
   $("#bLookup").addEventListener("click", () => lookup(false));
   $("#bName").addEventListener("keydown", (e) => { if (e.key === "Enter") lookup(false); });
+  window.NameHistory?.attach($("#bName"), { onPick: () => lookup(false) });
   $("#bRestore").addEventListener("click", () => {
     st.tryHair = st.tryFace = st.hairColor = st.faceColor = st.hairMix = st.faceMix = null;
     closeMix();

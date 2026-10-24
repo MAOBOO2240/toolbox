@@ -1241,6 +1241,7 @@ const SideDoll = (() => {
     inp.disabled = true;
     try {
       await window.License.bind(name);
+      window.NameHistory?.add(bound());
       // 開著同步時，美容美髮也切到剛綁定的角色
       if (cfg.sync && window.Beauty?.setName) { try { await window.Beauty.setName(bound()); } catch (_) {} }
     } catch (e) {
@@ -1253,6 +1254,7 @@ const SideDoll = (() => {
   }
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); inp.blur(); } });
   inp.addEventListener("change", submit);
+  window.NameHistory?.attach(inp, { onPick: () => { submit(); inp.blur(); } });
   $("#sideSync").addEventListener("change", (e) => { cfg.sync = e.target.checked; saveCfg(); load(true); });
   document.addEventListener("beauty-doll", (e) => {
     if (!cfg.sync) return;

@@ -465,12 +465,14 @@ if (typeof document !== "undefined") (() => {
     if (!name) return;
     if (st.names.includes(name)) { toast("已經在追蹤這隻角色了"); return; }
     st.names.push(name);
+    window.NameHistory?.add(name);
     $("#tkName").value = "";
     save();
     refresh(false);
   }
   $("#tkAddBtn").addEventListener("click", add);
   $("#tkName").addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
+  window.NameHistory?.attach($("#tkName"));
   $("#tkRefresh").addEventListener("click", () => refresh(true));
   // 7 天／30 天平均切換：資料都已經有了，直接重算；舊資料沒有 7 天前的就補查
   $$("#tkViews .cbtn").forEach((b) => b.addEventListener("click", () => {

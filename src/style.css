@@ -705,3 +705,12 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .about-link { font-weight: 400; font-size: 0.82rem; color: #3b82f6; text-decoration: none; }
 .about-link:hover { text-decoration: underline; }
 @keyframes lic-flash { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, #f5a30b 70%, transparent); } 100% { box-shadow: none; } }
+
+/* ---------- 用過的角色名稱（取代瀏覽器內建的自動填入） ---------- */
+.nh-pop { position: fixed; z-index: 9000; min-width: 12rem; max-width: 20rem; padding: 0.35rem; border-radius: 0.9rem; background: var(--card); border: 1px solid var(--sep); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); font-size: 0.88rem; }
+.nh-title { padding: 0.25rem 0.6rem 0.3rem; font-size: 0.72rem; color: var(--muted); }
+.nh-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.4rem 0.42rem 0.65rem; border-radius: 0.6rem; cursor: pointer; }
+.nh-row:hover, .nh-row.on { background: var(--card-2); }
+.nh-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-x { flex: none; width: 1.4rem; height: 1.4rem; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font: inherit; font-size: 1rem; line-height: 1; cursor: pointer; }
+.nh-x:hover { background: color-mix(in srgb, #e5484d 18%, transparent); color: #e5484d; }
