@@ -682,3 +682,21 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .side-doll-name.tagged input::placeholder { color: inherit; opacity: 0.6; }
 .side-doll-sync { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0 0.2rem; font-size: 0.8rem; font-weight: 600; color: var(--text-2); cursor: pointer; }
 .set-row .seg { flex-wrap: nowrap; }
+
+/* ---------- 授權 ---------- */
+.lic-serial { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.lic-serial code { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.25rem 0.5rem; border-radius: 0.5rem; background: var(--card-2); user-select: text; }
+.lic-ok { color: #22b45e !important; }
+.lic-no { color: #e5484d !important; }
+.lic-pub { font-family: ui-monospace, Consolas, monospace; word-break: break-all; user-select: text; }
+.lic-sign { display: flex; gap: 0.4rem; align-items: center; }
+.lic-sign input, .lic-out { padding: 0.4rem 0.6rem; border-radius: 0.6rem; border: 1px solid var(--sep); background: var(--card-2); color: var(--text); font: inherit; font-size: 0.85rem; min-width: 16rem; }
+.lic-out { width: 100%; font-family: ui-monospace, Consolas, monospace; user-select: text; }
+.alert.lic-box { width: min(30rem, calc(100vw - 2rem)); max-width: none; display: flex; flex-direction: column; gap: 0.7rem; text-align: left; }
+.lic-box .alert-msg { margin: 0; }
+.lic-note { font-size: 0.82rem; line-height: 1.5; margin: 0; }
+.lic-box input#licCode { width: 100%; padding: 0.55rem 0.7rem; border-radius: 0.6rem; border: 1px solid var(--sep); background: var(--card-2); color: var(--text); font: inherit; font-size: 0.85rem; }
+.lic-err { color: #e5484d; font-size: 0.8rem; min-height: 1em; margin: 0; }
+.tile.locked .tile-in { opacity: 0.55; }
+.tile-lock { position: absolute; right: 10%; top: 9%; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, #f5a30b 22%, var(--card)); color: #f5a30b; }
+.tile-lock svg { width: 0.85rem; height: 0.85rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }

@@ -17,15 +17,6 @@ const DATA_TTL_SECS: u64 = 60 * 60;
 
 /* ---------------- 金鑰（混淆儲存） ---------------- */
 
-const SHARD_A: [u8; 51] = [0x98, 0x39, 0xBB, 0xBF, 0x26, 0x2D, 0x9F, 0xFD, 0xDA, 0x69, 0xF2, 0xC0, 0xDE, 0x27, 0xC6, 0x78, 0x79, 0xBF, 0xF3, 0x60, 0x4A, 0x86, 0xB0, 0x18, 0x78, 0xBD, 0x64, 0xE8, 0xAE, 0x50, 0xC9, 0xCB, 0x77, 0xE6, 0xFD, 0xDB, 0x2C, 0x70, 0x42, 0x77, 0xF0, 0x82, 0x67, 0x7E, 0x05, 0xBA, 0x82, 0x19, 0x5D, 0x55, 0xDC];
-const SHARD_B: [u8; 50] = [0xD6, 0xEB, 0x3A, 0xC9, 0x32, 0x99, 0x10, 0x15, 0x43, 0x97, 0x3F, 0x73, 0xD4, 0x03, 0x51, 0x99, 0x4C, 0xFE, 0xFB, 0xA6, 0x2B, 0xD7, 0x8D, 0xB8, 0x07, 0xF0, 0x1B, 0x43, 0x7E, 0x29, 0xFF, 0xCF, 0xA2, 0xF3, 0x5C, 0xF7, 0xC8, 0xC5, 0x64, 0xB0, 0xD0, 0xDC, 0x5A, 0x51, 0x04, 0x32, 0x74, 0x07, 0xD4, 0x6E];
-
-fn ks_next(x: &mut u64) -> u8 {
-    *x ^= *x >> 12;
-    *x ^= *x << 25;
-    *x ^= *x >> 27;
-    (x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 56) as u8
-}
 
 // 編譯時由 build.rs 產生：NK_SEED、NK_LEN、NK_A、NK_B（GitHub 祕密 NEXON_API_KEY 有設定時才有內容）
 include!(concat!(env!("OUT_DIR"), "/nexon_key.rs"));
@@ -52,27 +43,12 @@ fn secret_key() -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-/// 使用的金鑰：GitHub 祕密有設定就用那個（換金鑰只要改祕密），否則用程式碼裡原本的。
+/// 使用的金鑰：只有 GitHub 祕密 NEXON_API_KEY（編譯時混淆後編進程式；原始碼裡沒有金鑰）。
 /// 執行時才解出金鑰，用完即丟，不保存在任何全域變數
 fn api_key() -> String {
-    let s = secret_key();
-    if !s.trim().is_empty() {
-        return s;
-    }
-    builtin_key()
+    secret_key()
 }
 
-fn builtin_key() -> String {
-    let n = SHARD_A.len() + SHARD_B.len();
-    let mut state: u64 = 0x5A17_C3E9_2B6D_8F41;
-    let mut out = Vec::with_capacity(n);
-    for i in 0..n {
-        let e = if i % 2 == 0 { SHARD_A[i / 2] } else { SHARD_B[i / 2] };
-        let k = ks_next(&mut state);
-        out.push(e ^ k ^ ((i as u32 * 31 + 7) & 0xFF) as u8);
-    }
-    String::from_utf8(out).unwrap_or_default()
-}
 
 /* ---------------- 快取 ---------------- */
 
@@ -563,11 +539,8 @@ mod tests {
 
     #[test]
     fn key_decodes() {
-        let k = builtin_key();
-        assert!(k.starts_with("test_"));
-        assert_eq!(k.len(), 101);
-        // GitHub 祕密的金鑰：沒設定時是空的（用原本的），有設定時長度一致
+        // GitHub 祕密的金鑰：沒設定時是空的，有設定時長度一致（原始碼裡沒有金鑰）
         assert_eq!(secret_key().len(), NK_LEN);
-        assert!(!api_key().is_empty());
+        assert_eq!(api_key().len(), NK_LEN);
     }
 }

@@ -39,7 +39,6 @@ jobs:
         working-directory: src-tauri
         shell: bash
         env:
-          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
           NEXON_API_KEY: ${{ secrets.NEXON_API_KEY }}
         run: |
           set -o pipefail
@@ -51,13 +50,11 @@ jobs:
       - name: Build exe
         shell: bash
         env:
-          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
           NEXON_API_KEY: ${{ secrets.NEXON_API_KEY }}
         run: |
           set -o pipefail
-          # 只回報有沒有設定，不會顯示權杖、金鑰內容
-          if [ -n "$UPDATE_TOKEN" ]; then echo "::notice title=更新權限::已內建"; else echo "::notice title=更新權限::未設定 UPDATE_TOKEN"; fi
-          if [ -n "$NEXON_API_KEY" ]; then echo "::notice title=Nexon 金鑰::使用 NEXON_API_KEY 祕密"; else echo "::notice title=Nexon 金鑰::使用程式碼裡原本的金鑰"; fi
+          # 只回報有沒有設定，不會顯示金鑰內容。沒有設定的話，程式查不到楓之谷資料
+          if [ -n "$NEXON_API_KEY" ]; then echo "::notice title=Nexon 金鑰::使用 NEXON_API_KEY 祕密"; else echo "::error title=Nexon 金鑰::沒有設定 NEXON_API_KEY，這個版本查不到楓之谷資料"; fi
           if ! npm run build 2>&1 | tee build.log; then
             bash .github/report.sh "build" "$PWD/build.log"
             exit 1

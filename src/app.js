@@ -514,6 +514,70 @@ const CATS = {
 const TOOL = {};
 for (const [cat, c] of Object.entries(CATS)) c.tools.forEach((t, i) => (TOOL[t.id] = { ...t, cat, def: i }));
 
+/* ---------- 授權：「工具箱」分類的工具要輸入授權碼才能用 ---------- */
+const License = (() => {
+  let info = { serial: "", ok: !TAURI, admin: false, no_pubkey: false };
+  const needs = (id) => TOOL[id]?.cat === "tools";
+  const locked = (id) => needs(id) && !info.ok;
+  async function load() {
+    if (!TAURI) return info;
+    try { info = await invoke("license_info"); } catch (_) {}
+    renderSettings();
+    if (typeof renderTiles === "function" && $("#tiles")) renderTiles();
+    return info;
+  }
+  function renderSettings() {
+    const el = $("#licSerial");
+    if (!el) return;
+    el.textContent = info.serial || "—";
+    $("#licState").textContent = info.admin ? "作者模式（不用授權碼）" : info.no_pubkey ? "這個版本還沒放入公鑰，先不用授權碼" : info.ok ? "已授權" : "尚未授權";
+    $("#licState").className = "muted " + (info.ok ? "lic-ok" : "lic-no");
+    // 作者模式；還沒內建公鑰的版本也顯示，讓作者第一次產生金鑰
+    $("#licAdmin").hidden = !(info.admin || info.no_pubkey);
+    if (info.admin || info.no_pubkey) renderAdmin();
+  }
+  async function renderAdmin() {
+    try {
+      const a = await invoke("license_admin_info");
+      $("#licPub").textContent = a.pubkey || "—";
+      $("#licPubState").textContent = !a.has_key ? "還沒有金鑰：按「產生金鑰」（只有作者需要做這件事）" : a.matches_builtin ? "程式內建的公鑰跟這把私鑰相符" : "程式內建的公鑰跟這把私鑰不符：把下面的公鑰交給開發者放進程式，重新發布後簽出的授權碼才有效";
+      $("#licPubState").className = "muted " + (a.matches_builtin ? "lic-ok" : "lic-no");
+      $("#licKeygen").hidden = a.has_key;
+      $("#licCopyPub").hidden = !a.has_key;
+    } catch (e) { toast(String(e)); }
+  }
+  /** 開啟授權視窗；回傳是否已授權 */
+  function ask(id) {
+    const back = $("#licBackdrop");
+    $("#licAskSerial").textContent = info.serial;
+    $("#licAskName").textContent = TOOL[id]?.name || "";
+    $("#licCode").value = "";
+    $("#licErr").textContent = "";
+    back.classList.add("show");
+    setTimeout(() => $("#licCode").focus(), 50);
+    return new Promise((resolve) => {
+      const done = (v) => { back.classList.remove("show"); $("#licOk").onclick = $("#licCancel").onclick = $("#licCopy").onclick = null; document.removeEventListener("keydown", onKey, true); resolve(v); };
+      const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); done(false); } };
+      document.addEventListener("keydown", onKey, true);
+      $("#licCancel").onclick = () => done(false);
+      $("#licCopy").onclick = () => { copyItemName(info.serial); };
+      $("#licOk").onclick = async () => {
+        const code = $("#licCode").value.trim();
+        if (!code) { $("#licErr").textContent = "請貼上授權碼"; return; }
+        try {
+          info = await invoke("license_activate", { code });
+          toast("授權成功");
+          renderSettings();
+          renderTiles();
+          done(true);
+        } catch (e) { $("#licErr").textContent = String(e); }
+      };
+    });
+  }
+  return { load, needs, locked, ask, renderSettings, info: () => info };
+})();
+window.License = License;
+
 let currentCat = store.get("toolbox-cat", "maple");
 if (!CATS[currentCat]) currentCat = "maple";
 
@@ -615,6 +679,14 @@ function renderTiles() {
     inner.className = "tile-in";
     inner.append(toolIcon(t), strong, small);
     btn.append(inner);
+    if (License.locked(t.id)) {
+      btn.classList.add("locked");
+      btn.title = "需要授權碼才能使用（點一下輸入）";
+      const lk = document.createElement("span");
+      lk.className = "tile-lock";
+      lk.innerHTML = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+      btn.append(lk);
+    }
     btn.addEventListener("click", () => openTool(t.id));
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
@@ -1346,7 +1418,11 @@ function refreshBack() {
 window.BackHooks = BackHooks;
 window.refreshBack = refreshBack;
 
-function openTool(id) {
+async function openTool(id) {
+  // 工具箱分類的工具要授權
+  if (License.locked(id)) {
+    if (!(await License.ask(id))) return;
+  }
   // 從其他地方開啟時，返回鍵回到這個工具所在的分類（從我的最愛開啟就回到我的最愛）
   if (TOOL[id] && currentCat !== "fav" && TOOL[id].cat !== currentCat) {
     currentCat = TOOL[id].cat;
@@ -1557,6 +1633,7 @@ $("#currentSerial").addEventListener("click", () =>
   state = st;
   $("#rawInput").value = st.raw || "";
   render();
+  await License.load();
   showCat(currentCat);
   renderFavCount();
   api.onChange((next) => {
@@ -1565,6 +1642,24 @@ $("#currentSerial").addEventListener("click", () =>
     if (!wasDone && state.index >= state.serials.length) toast("已全部使用完畢");
   });
 })();
+
+// 設定 → 授權
+$("#licCopySerial")?.addEventListener("click", () => copyItemName(License.info().serial));
+$("#licEnter")?.addEventListener("click", () => License.ask("timer"));
+$("#licKeygen")?.addEventListener("click", () => run(async () => {
+  if (!(await confirmBox("要產生新的金鑰嗎？私鑰會存在這台電腦，之後所有授權碼都用它簽；產生後要把公鑰交給開發者放進程式。"))) return;
+  try { await invoke("license_admin_keygen"); toast("金鑰已產生"); } catch (e) { toast(String(e)); }
+  License.load();
+}));
+$("#licSign")?.addEventListener("click", () => run(async () => {
+  const serial = $("#licSignSerial").value.trim().toUpperCase();
+  try {
+    const code = await invoke("license_admin_sign", { serial });
+    $("#licSignOut").value = code;
+    copyItemName(code);
+  } catch (e) { toast(String(e)); }
+}));
+$("#licCopyPub")?.addEventListener("click", () => copyItemName($("#licPub").textContent.trim()));
 
 window.App = { invoke, listen, toast, run, store, confirmBox, $, $$, TAURI };
 

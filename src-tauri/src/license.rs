@@ -1,0 +1,244 @@
+//! 授權：每台電腦有一組獨一無二的序號，使用者把序號給作者，作者用私鑰簽出專屬這個序號的授權碼。
+//!
+//! - 序號 = 這台電腦的 MachineGuid 與電腦名稱做雜湊，顯示成 MB-XXXX-XXXX-XXXX-XXXX
+//! - 授權碼 = 用 Ed25519 私鑰對序號簽名，程式用內建的公鑰驗證；沒有網路也能驗
+//! - 私鑰只在作者電腦上（app 資料夾的 license-admin.key），程式碼公開也沒關係
+//! - 「工具箱」分類的工具要授權才能開；楓之谷工具不用
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+
+/// 作者的公鑰（十六進位，32 bytes）。作者在「授權管理」產生金鑰後把公鑰貼到這裡；空字串 = 還沒設定（所有授權碼都不會通過）
+const PUBKEY_HEX: &str = "";
+
+static DIR: OnceLock<PathBuf> = OnceLock::new();
+static CACHE: Mutex<Option<Info>> = Mutex::new(None);
+
+pub fn init(dir: PathBuf) {
+    let _ = DIR.set(dir);
+}
+
+fn dir() -> PathBuf {
+    DIR.get().cloned().unwrap_or_default()
+}
+
+fn license_path() -> PathBuf {
+    dir().join("license.json")
+}
+
+fn admin_key_path() -> PathBuf {
+    dir().join("license-admin.key")
+}
+
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct Saved {
+    code: String,
+}
+
+/// 這台電腦的序號
+pub fn serial() -> String {
+    let raw = format!("MAOBOO|{}|{}", machine_guid(), computer_name().to_uppercase());
+    let h = crate::sha256::hex(raw.as_bytes());
+    // 取前 80 bits 轉成 16 個好讀的字（去掉 0 O 1 I）
+    const ALPHABET: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let bytes = hex_bytes(&h[..20]);
+    let mut acc: u128 = 0;
+    for b in &bytes {
+        acc = (acc << 8) | *b as u128;
+    }
+    let mut chars = Vec::new();
+    for _ in 0..16 {
+        chars.push(ALPHABET[(acc & 31) as usize] as char);
+        acc >>= 5;
+    }
+    let s: String = chars.into_iter().collect();
+    format!("MB-{}-{}-{}-{}", &s[0..4], &s[4..8], &s[8..12], &s[12..16])
+}
+
+fn hex_bytes(h: &str) -> Vec<u8> {
+    (0..h.len() / 2).filter_map(|i| u8::from_str_radix(&h[i * 2..i * 2 + 2], 16).ok()).collect()
+}
+
+#[cfg(windows)]
+fn machine_guid() -> String {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RRF_SUBKEY_WOW6464KEY};
+    let sub: Vec<u16> = "SOFTWARE\\Microsoft\\Cryptography".encode_utf16().chain(std::iter::once(0)).collect();
+    let name: Vec<u16> = "MachineGuid".encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let mut buf = [0u16; 128];
+        let mut len = (buf.len() * 2) as u32;
+        let flags = RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY;
+        if RegGetValueW(HKEY_LOCAL_MACHINE, sub.as_ptr(), name.as_ptr(), flags, std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut len) == 0 {
+            let n = (len as usize / 2).saturating_sub(1).min(buf.len());
+            return String::from_utf16_lossy(&buf[..n]).trim().to_string();
+        }
+    }
+    String::new()
+}
+
+#[cfg(not(windows))]
+fn machine_guid() -> String {
+    std::fs::read_to_string("/etc/machine-id").unwrap_or_default().trim().to_string()
+}
+
+fn computer_name() -> String {
+    std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default()
+}
+
+fn pubkey() -> Option<VerifyingKey> {
+    let b = hex_bytes(PUBKEY_HEX.trim());
+    let arr: [u8; 32] = b.try_into().ok()?;
+    VerifyingKey::from_bytes(&arr).ok()
+}
+
+/// 授權碼：MB1- 加上簽名的 base64url
+fn encode_code(sig: &Signature) -> String {
+    use base64::Engine;
+    format!("MB1-{}", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sig.to_bytes()))
+}
+
+fn decode_code(code: &str) -> Option<Signature> {
+    use base64::Engine;
+    let body = code.trim().strip_prefix("MB1-")?;
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(body.trim()).ok()?;
+    let arr: [u8; 64] = bytes.try_into().ok()?;
+    Some(Signature::from_bytes(&arr))
+}
+
+/// 授權碼對這個序號有沒有效
+pub fn verify_for(serial: &str, code: &str) -> bool {
+    let (Some(pk), Some(sig)) = (pubkey(), decode_code(code)) else { return false };
+    pk.verify(serial.as_bytes(), &sig).is_ok()
+}
+
+#[derive(Clone, Serialize)]
+pub struct Info {
+    pub serial: String,
+    pub ok: bool,
+    /// 作者模式（有私鑰檔）
+    pub admin: bool,
+    /// 公鑰還沒放進程式（開發中的版本）
+    pub no_pubkey: bool,
+}
+
+fn compute() -> Info {
+    let serial = serial();
+    let saved: Saved = std::fs::read_to_string(license_path()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let no_pubkey = pubkey().is_none();
+    // 作者模式：私鑰跟程式內建的公鑰相符才算（隨便放一個私鑰檔不會變成作者）；還沒內建公鑰的版本有私鑰就算，方便作者第一次產生金鑰
+    let admin = match admin_key() {
+        Some(k) => no_pubkey || crate::sha256::hex_of(&k.verifying_key().to_bytes()) == PUBKEY_HEX.trim().to_lowercase(),
+        None => false,
+    };
+    // 還沒內建公鑰的版本：所有工具都能用（過渡期）
+    Info { ok: no_pubkey || admin || verify_for(&serial, &saved.code), serial, admin, no_pubkey }
+}
+
+pub fn info() -> Info {
+    let mut c = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if c.is_none() {
+        *c = Some(compute());
+    }
+    c.clone().unwrap()
+}
+
+pub fn licensed() -> bool {
+    info().ok
+}
+
+#[tauri::command]
+pub fn license_info() -> Info {
+    info()
+}
+
+/// 輸入授權碼
+#[tauri::command]
+pub fn license_activate(code: String) -> Result<Info, String> {
+    let code = code.trim().to_string();
+    let serial = serial();
+    if !verify_for(&serial, &code) {
+        return Err("授權碼不正確，或不是這台電腦的（請確認序號有給對）".into());
+    }
+    let _ = std::fs::create_dir_all(dir());
+    std::fs::write(license_path(), serde_json::to_string(&Saved { code }).unwrap_or_default()).map_err(|e| e.to_string())?;
+    *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    Ok(info())
+}
+
+/* ---------------- 作者用 ---------------- */
+
+fn admin_key() -> Option<SigningKey> {
+    let t = std::fs::read_to_string(admin_key_path()).ok()?;
+    let b = hex_bytes(t.trim());
+    let arr: [u8; 32] = b.try_into().ok()?;
+    Some(SigningKey::from_bytes(&arr))
+}
+
+#[derive(Serialize)]
+pub struct AdminInfo {
+    pub has_key: bool,
+    pub pubkey: String,
+    /// 程式內建的公鑰跟私鑰配不配（不配的話簽出來的授權碼使用者那邊不會過）
+    pub matches_builtin: bool,
+    pub key_path: String,
+}
+
+#[tauri::command]
+pub fn license_admin_info() -> AdminInfo {
+    let k = admin_key();
+    let pk = k.as_ref().map(|k| crate::sha256::hex_of(&k.verifying_key().to_bytes())).unwrap_or_default();
+    AdminInfo { has_key: k.is_some(), matches_builtin: !pk.is_empty() && pk == PUBKEY_HEX.trim().to_lowercase(), pubkey: pk, key_path: admin_key_path().to_string_lossy().into_owned() }
+}
+
+/// 產生新的金鑰（已經有就不覆蓋）
+#[tauri::command]
+pub fn license_admin_keygen() -> Result<AdminInfo, String> {
+    if admin_key_path().is_file() {
+        return Err("已經有私鑰了，不會覆蓋（要重做請先把私鑰檔移走）".into());
+    }
+    let mut rng = rand::rngs::OsRng;
+    let sk = SigningKey::generate(&mut rng);
+    let _ = std::fs::create_dir_all(dir());
+    std::fs::write(admin_key_path(), crate::sha256::hex_of(&sk.to_bytes())).map_err(|e| e.to_string())?;
+    *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    Ok(license_admin_info())
+}
+
+/// 對某個序號簽出授權碼
+#[tauri::command]
+pub fn license_admin_sign(serial: String) -> Result<String, String> {
+    let sk = admin_key().ok_or("沒有私鑰")?;
+    let s = serial.trim().to_uppercase();
+    if !s.starts_with("MB-") || s.len() != 22 {
+        return Err("序號格式不對，應該像 MB-XXXX-XXXX-XXXX-XXXX".into());
+    }
+    Ok(encode_code(&sk.sign(s.as_bytes())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sign_and_verify() {
+        let sk = SigningKey::from_bytes(&[7u8; 32]);
+        let serial = "MB-2345-6789-ABCD-EFGH";
+        let code = encode_code(&sk.sign(serial.as_bytes()));
+        assert!(code.starts_with("MB1-"));
+        let sig = decode_code(&code).unwrap();
+        assert!(sk.verifying_key().verify(serial.as_bytes(), &sig).is_ok());
+        assert!(sk.verifying_key().verify(b"MB-OTHER", &sig).is_err());
+        assert!(decode_code("MB1-xx").is_none());
+    }
+
+    #[test]
+    fn serial_shape() {
+        let s = serial();
+        assert_eq!(s.len(), 22);
+        assert!(s.starts_with("MB-"));
+        assert!(!s.contains('0') && !s.contains('O') && !s.contains('1') && !s.contains('I'));
+        assert_eq!(s, serial());
+    }
+}

@@ -8,6 +8,7 @@ mod elevate;
 mod fg;
 mod input;
 mod itemup;
+mod license;
 mod maple_api;
 mod patches;
 mod notify;
@@ -20,6 +21,7 @@ mod winsys;
 #[allow(dead_code)]
 mod wz;
 mod serial;
+mod stats;
 mod sha256;
 mod timers;
 mod toast;
@@ -343,6 +345,8 @@ fn main() {
             toast::init(dir.clone());
             watch::init(app.handle(), dir.join("watch.json"));
             web::init(app.handle(), dir.join("web.json"));
+            license::init(dir.clone());
+            stats::start(dir.clone());
             if let Err(e) = setup_tray(app) {
                 eprintln!("無法建立右下角圖示：{e}");
             }
@@ -522,7 +526,12 @@ fn main() {
             userscripts::web_scripts_toggle,
             userscripts::web_scripts_delete,
             userscripts::web_scripts_open_dir,
-            userscripts::web_scripts_reload
+            userscripts::web_scripts_reload,
+            license::license_info,
+            license::license_activate,
+            license::license_admin_info,
+            license::license_admin_keygen,
+            license::license_admin_sign
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

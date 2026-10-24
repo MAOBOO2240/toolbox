@@ -93,11 +93,10 @@ pub struct UpdInfo {
 
 #[tauri::command]
 pub fn update_info() -> UpdInfo {
-    let g = inner();
     UpdInfo {
         current: current().chars().take(7).collect(),
         run: option_env!("GITHUB_RUN_NUMBER").unwrap_or("").to_string(),
-        token_set: K_LEN > 0 || !g.cfg.token.trim().is_empty(),
+        token_set: true,
     }
 }
 
@@ -106,17 +105,16 @@ fn token() -> Result<String, String> {
     if t.trim().is_empty() {
         t = inner().cfg.token.clone();
     }
-    if t.trim().is_empty() {
-        Err("這個版本沒有內建更新權限".into())
-    } else {
-        Ok(t)
-    }
+    // 倉庫是公開的，不用權杖；有設定的話（私人倉庫時代留下的）還是會帶上
+    Ok(t)
 }
 
 fn github(url: &str, token: &str, accept: &str) -> Result<ureq::Response, String> {
-    ureq::get(url)
-        .set("Authorization", &format!("Bearer {token}"))
-        .set("Accept", accept)
+    let mut req = ureq::get(url);
+    if !token.trim().is_empty() {
+        req = req.set("Authorization", &format!("Bearer {token}"));
+    }
+    req.set("Accept", accept)
         .set("User-Agent", "MAOBOO-updater")
         .set("X-GitHub-Api-Version", "2022-11-28")
         .timeout(Duration::from_secs(60))

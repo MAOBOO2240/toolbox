@@ -36,6 +36,22 @@ pub mod reg {
         }
     }
 
+    /// 讀 HKLM 的字串值（沒有時為 None）
+    pub fn get_lm(sub: &str, name: &str) -> Option<String> {
+        use windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE;
+        let (sub, name) = (wide(sub), wide(name));
+        unsafe {
+            let mut buf = [0u16; 256];
+            let mut len = (buf.len() * 2) as u32;
+            if RegGetValueW(HKEY_LOCAL_MACHINE, sub.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut len) != ERROR_SUCCESS {
+                return None;
+            }
+            let text = &buf[..(len as usize / 2).min(buf.len())];
+            let end = text.iter().position(|&c| c == 0).unwrap_or(text.len());
+            Some(String::from_utf16_lossy(&text[..end]))
+        }
+    }
+
     /// 寫字串值（機碼不存在時建立）
     pub fn set(sub: &str, name: &str, value: &str) -> bool {
         let sub = wide(sub);
