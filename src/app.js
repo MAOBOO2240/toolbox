@@ -571,11 +571,19 @@ const License = (() => {
     toast(`「${TOOL[id]?.name || ""}」需要授權：公會成員在左下角輸入角色名稱，其他人把序號給作者換授權碼`);
     return false;
   }
-  /** 開工具箱工具前即時確認授權、綁定還在不在（作者移除會馬上生效） */
-  async function check(id) {
+  /** 開工具箱工具時在背景確認授權、綁定還在不在（作者移除會馬上生效）；不擋開啟，一分鐘內只問一次 */
+  let lastCheck = 0;
+  function check(id) {
     if (!TAURI || !needs(id) || (!info.ok && !info.name)) return;
     if (info.admin && !info.name) return;
-    try { apply(await invoke("license_check")); } catch (_) {}
+    if (Date.now() - lastCheck < 60000) return;
+    lastCheck = Date.now();
+    invoke("license_check").then((next) => {
+      const had = info.ok;
+      apply(next);
+      // 開到一半被收回：退回工具列表
+      if (had && !info.ok && typeof showView === "function") showView("cat");
+    }).catch(() => {});
   }
   /** 輸入作者給的授權碼 */
   async function activate(code) {
@@ -1454,9 +1462,9 @@ window.BackHooks = BackHooks;
 window.refreshBack = refreshBack;
 
 async function openTool(id) {
-  // 工具箱分類的工具要授權；開之前即時問一次作者有沒有移除授權
-  await License.check(id);
+  // 工具箱分類的工具要授權；開的同時在背景問一次作者有沒有移除授權（不等回應，不卡）
   if (License.locked(id)) { License.ask(id); return; }
+  License.check(id);
   // 從其他地方開啟時，返回鍵回到這個工具所在的分類（從我的最愛開啟就回到我的最愛）
   if (TOOL[id] && currentCat !== "fav" && TOOL[id].cat !== currentCat) {
     currentCat = TOOL[id].cat;
