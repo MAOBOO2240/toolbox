@@ -1200,13 +1200,14 @@ const SideDoll = (() => {
     inp.title = name ? `已綁定 ${name}；輸入別的名稱可以換角色` : "輸入角色名稱按 Enter 綁定；公會成員會直接取得授權";
     if (document.activeElement !== inp) inp.value = name;
     if (cfg.sync) {
-      // 同步美容美髮：美容美髮也查這隻角色，造型跟著那邊改
+      // 同步美容美髮：美容美髮裡現在是哪隻、什麼造型，左下角就照那樣（綁定角色時才會把美容美髮切過去）
       const cur = window.Beauty?.current?.();
-      if (name && window.Beauty?.setName && cur && cur.name !== name) { try { await window.Beauty.setName(name); } catch (e) { if (manual) toast(String(e)); } }
-      const now = window.Beauty?.current?.();
-      show(now?.doll || null);
-      styleName(now?.name ? now?.tags : null);
-      return;
+      if (cur?.doll) {
+        show(cur.doll);
+        styleName(cur.name ? cur.tags : null);
+        return;
+      }
+      // 美容美髮還沒有角色：先用綁定角色的官方造型
     }
     if (!name || !TAURI || !window.Beauty?.charLook) { show(null); styleName(null); return; }
     const my = ++gen;
@@ -1230,6 +1231,8 @@ const SideDoll = (() => {
     inp.disabled = true;
     try {
       await window.License.bind(name);
+      // 開著同步時，美容美髮也切到剛綁定的角色
+      if (cfg.sync && window.Beauty?.setName) { try { await window.Beauty.setName(bound()); } catch (_) {} }
     } catch (e) {
       toast(String(e));
       inp.value = bound();
