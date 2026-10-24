@@ -281,11 +281,11 @@ async function dashboard(env) {
   list.sort((a, b) => (b.last || "").localeCompare(a.last || ""));
   const day = 86400000, now = Date.now();
   const active = (ms) => list.filter((x) => now - Date.parse(x.last) < ms).length;
-  const bad = chars.filter((c) => c.viaGuild && !allowed(gs, c));
+  const bad = chars.filter((c) => !allowed(gs, c));
   const licBadge = (x) => x.revoked ? `<span class="badge b-off">已封鎖</span>` : x.licensed ? (x.auto ? `<span class="badge b-auto">自動</span>` : `<span class="badge b-manual">${x.grant ? "後台" : "手動"}</span>`) : `<span class="badge b-none">未授權</span>`;
   const rows = list.map((x) => {
     const c = x.char ? cmap[x.char] : null;
-    const ok = c ? (c.viaGuild ? allowed(gs, c) : null) : null; // 不是靠公會授權的，公會只是顯示
+    const ok = c ? allowed(gs, c) : null; // 綠 = 公會在名單裡，紅 = 不在
     return `<tr>
       <td><code>${esc(x.serial)}</code></td>
       <td><input value="${esc(x.note)}" data-serial="${esc(x.serial)}" placeholder="這是誰" /></td>
