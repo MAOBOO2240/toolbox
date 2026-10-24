@@ -378,7 +378,8 @@ if (typeof document !== "undefined") (() => {
   async function charLook(name) {
     const c = await invoke("maple_lookup", { name, force: false });
     try {
-      const out = await invoke("beauty_render", { req: charReq(c) });
+      // 側欄要的是會動的站姿（點一下會動）
+      const out = await invoke("beauty_render", { req: { ...charReq(c), action: "stand", stance: st.stance || "basic" } });
       const tags = await fetchTags({ ids: ringIdsOf(out.equips) });
       return { name: c.name, png: out.png, w: out.w, h: out.h, cx: out.cx, cy: out.cy, fx: out.fx, fy: out.fy, anim: out.anim || null, tags };
     } catch (e) {

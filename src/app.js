@@ -521,11 +521,12 @@ const License = (() => {
   const locked = (id) => needs(id) && !info.ok;
   const apply = (next, quiet) => {
     if (!next || typeof next !== "object") return;
-    const lostLic = info.ok && !next.ok, lostBind = info.name && !next.name;
+    const lostLic = info.ok && !next.ok, lostBind = info.name && !next.name, nameChanged = info.name !== next.name;
     info = next;
     renderSettings();
     if (typeof renderTiles === "function" && $("#tiles")) renderTiles();
-    window.SideDoll?.load?.(false);
+    // 綁定的角色變了才重畫左下角（每次重畫會把正在播的動畫停掉）
+    if (nameChanged) window.SideDoll?.load?.(false);
     if (!quiet && lostLic) toast("這台電腦的授權已被作者移除");
     else if (!quiet && lostBind) toast("作者解除了這台電腦的角色綁定");
   };
