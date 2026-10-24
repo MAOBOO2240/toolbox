@@ -14,6 +14,7 @@ mod notify;
 mod scale;
 mod update;
 mod watch;
+mod userscripts;
 mod web;
 mod winsys;
 #[allow(dead_code)]
@@ -197,6 +198,7 @@ fn setup_main_window(app: &tauri::App, st: &AppState) {
     #[cfg(windows)]
     if let Ok(h) = win.hwnd() {
         fg::set_main_hwnd(h.0 as isize);
+        scale::watch_main(app.handle(), h.0 as isize);
     }
     // 跟螢幕等比例：大小用畫面像素記錄（HD 和 4K 上看起來一樣）
     let saved = st.settings.view_w.zip(st.settings.view_h);
@@ -514,7 +516,13 @@ fn main() {
             web::web_bm_delete,
             web::web_menu_open,
             web::web_menu_init,
-            web::web_menu_pick
+            web::web_menu_pick,
+            userscripts::web_scripts_list,
+            userscripts::web_scripts_import,
+            userscripts::web_scripts_toggle,
+            userscripts::web_scripts_delete,
+            userscripts::web_scripts_open_dir,
+            userscripts::web_scripts_reload
         ])
         .run(tauri::generate_context!())
         .expect("啟動失敗");

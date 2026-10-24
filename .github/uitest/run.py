@@ -339,6 +339,16 @@ web_json = {
 }
 with open(os.path.join(data_dir, "web.json"), "w", encoding="utf-8") as f:
     json.dump(web_json, f, ensure_ascii=False)
+# 測試用的使用者腳本
+os.makedirs(os.path.join(data_dir, "web-scripts"), exist_ok=True)
+with open(os.path.join(data_dir, "web-scripts", "t1.user.js"), "w", encoding="utf-8") as f:
+    f.write("// ==UserScript==\n// @name 測試腳本一\n// @match http://127.0.0.1:8765/test.html*\n// @grant GM_setValue\n// ==/UserScript==\n"
+            "GM_setValue('n', (GM_getValue('n', 0) || 0) + 1);\nfetch('/log?m=' + encodeURIComponent('[us] end ran n=' + GM_getValue('n') + ' ' + location.pathname));\n")
+with open(os.path.join(data_dir, "web-scripts", "t2.user.js"), "w", encoding="utf-8") as f:
+    f.write("// ==UserScript==\n// @name 測試腳本二\n// @match http://127.0.0.1:8765/*\n// @match http://localhost:8765/*\n// @exclude http://localhost:8765/frame.html\n// @run-at document-start\n// ==/UserScript==\n"
+            "fetch('/log?m=' + encodeURIComponent('[us] start ran ' + location.pathname + ' body=' + !!document.body));\n")
+with open(os.path.join(data_dir, "web-scripts", "t3.user.js"), "w", encoding="utf-8") as f:
+    f.write("// ==UserScript==\n// @name 不該跑\n// @match https://example.com/*\n// ==/UserScript==\nfetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[us] WRONG'));\n")
 # 測試用的擴充功能（放在待安裝的資料夾）
 EXT_ID = "eamehjingoajmedombhecpkpagoadodo"
 shutil.copytree(os.path.join(HERE, "ext"), os.path.join(data_dir, "web-ext", "b1", EXT_ID))
@@ -1041,6 +1051,16 @@ def s_ext():
     check("點外面：小視窗關掉", len(after2) == len(before), f"{len(after2)}")
 
 
+def s_scripts():
+    lines = [l for l in page_log().splitlines() if "[us]" in l]
+    log("腳本記錄：", lines[-8:])
+    check("使用者腳本：載入後跑的有執行", any("end ran" in l and "test.html" in l for l in lines))
+    check("使用者腳本：GM_setValue 有記住", any("end ran n=2" in l or "end ran n=3" in l for l in lines), f"{[l for l in lines if 'end ran' in l][-3:]}")
+    check("使用者腳本：document-start 的有執行", any("start ran /test.html" in l for l in lines))
+    check("使用者腳本：@exclude 有效（內嵌框不跑）", not any("start ran /frame.html" in l for l in lines))
+    check("使用者腳本：不符合的網站不跑", not any("WRONG" in l for l in lines))
+
+
 def s_minimize():
     click_bar(BTN_MIN, (W() - 115, 20), wait=1.2)
     check("按縮小：縮到工作列", user32.IsIconic(web))
@@ -1071,6 +1091,7 @@ for name, fn in [
     ("dpi", s_dpi),
     ("fullscreen", s_fullscreen),
     ("ext", s_ext),
+    ("scripts", s_scripts),
     ("minimize", s_minimize),
     ("close", s_close),
 ]:

@@ -122,7 +122,8 @@ const EXT_TABS_JS: &str = r#"(() => {
   try {
     const t = chrome.tabs, w = chrome.windows;
     const q = t.query.bind(t);
-    const mine = () => q({}).then((tabs) => tabs.find((x) => same(x.url, PAGE)) || null);
+    const host = (u) => { try { return new URL(u).host; } catch (_) { return ""; } };
+    const mine = () => q({}).then((tabs) => tabs.find((x) => same(x.url, PAGE)) || tabs.find((x) => host(x.url) && host(x.url) === host(PAGE)) || null);
     const wants = (info) => !!info && (info.active || info.currentWindow || info.lastFocusedWindow || info.windowId !== undefined);
     const call = (p, cb) => { if (typeof cb === "function") { p.then(cb, () => cb([])); return undefined; } return p; };
     t.query = (info, cb) => call(wants(info) ? mine().then((m) => (m ? [m] : q(info))) : q(info), cb);
@@ -804,6 +805,11 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
     if let Some(dir) = ext {
         b = b.extensions_path(dir);
     }
+    // 使用者腳本（document-start 的）：網頁一開始就跑
+    let us = crate::userscripts::start_script();
+    if !us.is_empty() {
+        b = b.initialization_script_for_all_frames(&us);
+    }
     b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
         .disable_drag_drop_handler()
@@ -860,6 +866,12 @@ fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, start
         }
     });
     if !started {
+        // 使用者腳本（載入完成後跑的）
+        if web_url(url) {
+            for code in crate::userscripts::scripts_for(url.as_str()) {
+                let _ = wv.eval(&code);
+            }
+        }
         let (app2, w2, t2) = (app.clone(), wid.to_string(), tid.to_string());
         let _ = wv.eval_with_callback(ICON_JS, move |res| {
             if let Ok(icon) = serde_json::from_str::<String>(&res) {
@@ -1252,8 +1264,11 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
             layout(&app2, &id2, &win2, *s);
             let max = win2.is_maximized().unwrap_or(false);
             let (w, h) = (s.width, s.height);
+            let hwnd = rt(|m| m.get(&id2).map(|r| r.hwnd).unwrap_or(0));
+            // 螢幕關掉、拔掉時 Windows 會把視窗縮小塞進剩下的螢幕：那不是使用者調的，不記錄（螢幕回來後會放回原本的大小）
+            let record = crate::scale::user_change(hwnd);
             let changed = edit(&id2, |c| {
-                if !max {
+                if !max && record {
                     (c.w, c.h) = (w, h);
                 }
                 c.min = false;
@@ -1298,8 +1313,10 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
             close_ext_popup(&app2, &id2);
             let (x, y) = (p.x, p.y);
             let max = win2.is_maximized().unwrap_or(false);
+            let hwnd = rt(|m| m.get(&id2).map(|r| r.hwnd).unwrap_or(0));
+            let record = crate::scale::user_change(hwnd);
             edit(&id2, |c| {
-                if !max && !c.max {
+                if !max && !c.max && record {
                     (c.x, c.y) = (x, y);
                 }
             });
@@ -1856,6 +1873,11 @@ mod win32 {
                 }
                 DefSubclassProc(hwnd, msg, wp, lp)
             }
+            WM_DISPLAYCHANGE => {
+                crate::scale::display_changed();
+                super::restore_later();
+                DefSubclassProc(hwnd, msg, wp, lp)
+            }
             WM_ENTERSIZEMOVE => {
                 lock(&MOVING).push((hwnd as isize, 0));
                 DefSubclassProc(hwnd, msg, wp, lp)
@@ -2050,6 +2072,39 @@ mod win32 {
     }
 }
 
+static RESTORE_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// 螢幕配置改變後幾秒：把每個瀏覽器視窗放回記錄的大小與位置（Windows 暫時塞進小螢幕時會把它縮小）
+fn restore_later() {
+    let now = Instant::now();
+    *lock(&RESTORE_AT) = Some(now);
+    let Some(app) = APP_HANDLE.get().cloned() else { return };
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(2500));
+        if *lock(&RESTORE_AT) != Some(now) {
+            return;
+        }
+        for cfg in st().file.wins.iter().filter(|w| w.open).cloned().collect::<Vec<_>>() {
+            let Some(win) = app.get_window(&win_label(&cfg.id)) else { continue };
+            if win.is_minimized().unwrap_or(false) || win.is_maximized().unwrap_or(false) || rt(|m| m.get(&cfg.id).is_some_and(|r| r.full)) {
+                continue;
+            }
+            let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
+            let old_sf = rt(|m| m.get_mut(&cfg.id).map(|r| std::mem::replace(&mut r.sf, sf))).unwrap_or(sf);
+            let (w, h) = (((cfg.w as f64) / old_sf * sf).round() as u32, ((cfg.h as f64) / old_sf * sf).round() as u32);
+            let (x, y) = app_on_screen(&app, cfg.x, cfg.y, w, h);
+            edit(&cfg.id, |c| (c.w, c.h, c.x, c.y) = (w, h, x, y));
+            let _ = win.set_position(PhysicalPosition::new(x, y));
+            let _ = win.set_size(PhysicalSize::new(w, h));
+            if let Ok(size) = win.inner_size() {
+                layout(&app, &cfg.id, &win, size);
+            }
+        }
+    });
+}
+
+static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+
 /// 所有開著的 web 視窗
 fn web_hwnds() -> Vec<isize> {
     rt(|m| m.values().map(|r| r.hwnd).filter(|h| *h != 0).collect())
@@ -2085,7 +2140,8 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
     let x = (anchor.2 - origin.x - w).max(4).min(size.width as i32 - w - 4);
     let y = (anchor.3 - origin.y + 4).max(0).min(size.height as i32 - h);
     // 擴充功能問「目前的分頁」時，回答目前顯示的網頁（WebView2 把每個網頁當成各自的視窗，不這樣做擴充功能只會看到自己）
-    let page = get(wid).map(|w| w.url).unwrap_or_default();
+    // 用網頁目前真正的網址（YouTube 這類不換頁就換網址的網站，記錄的網址會舊）
+    let page = active_page(app, wid).and_then(|p| p.url().ok()).map(|u| u.to_string()).or_else(|| get(wid).map(|w| w.url)).unwrap_or_default();
     let patch = EXT_TABS_JS.replace("__PAGE_URL__", &serde_json::to_string(&page).unwrap_or_else(|_| "\"\"".into()));
     let b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
         .data_directory(profile_dir())
@@ -2171,8 +2227,10 @@ fn leave_typing(app: &AppHandle, id: &str, hwnd: isize, give_back: bool) {
 /* ---------------- 背景執行緒 ---------------- */
 
 pub fn init(app: &AppHandle, path: PathBuf) {
+    let _ = APP_HANDLE.set(app.clone());
     if let Some(dir) = path.parent() {
         let _ = WEB_DIR.set(dir.to_path_buf());
+        crate::userscripts::init(dir.to_path_buf());
     }
     #[cfg(windows)]
     let _ = app.run_on_main_thread(win32::hook_foreground);

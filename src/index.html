@@ -971,7 +971,8 @@
           <div class="card web-sum">
             <div class="web-sum-item"><span class="web-sum-ic" style="--c:#f5c542">★</span><div><strong>書籤</strong><span class="muted" id="webBmCount">還沒有書籤</span></div></div>
             <div class="web-sum-item"><span class="web-sum-ic" style="--c:#14b8a6">⚙</span><div><strong>擴充功能</strong><span class="muted" id="webExtCount">讀取中…</span></div></div>
-            <button class="cbtn small c-purple" id="webSetup">書籤與擴充功能設定</button>
+            <div class="web-sum-item"><span class="web-sum-ic" style="--c:#22b45e">{}</span><div><strong>使用者腳本</strong><span class="muted" id="webScriptSum">讀取中…</span></div></div>
+            <button class="cbtn small c-purple" id="webSetup">設定</button>
           </div>
           <div class="web-list" id="webList"></div>
         </div>
@@ -1172,7 +1173,7 @@
   <!-- 瀏覽器：書籤與擴充功能設定 -->
   <div class="alert-backdrop" id="webSetupBack">
     <div class="alert web-setup" role="dialog" aria-modal="true">
-      <div class="web-setup-head"><h3 class="alert-msg">書籤與擴充功能</h3><button class="web-setup-x" id="webSetupClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="web-setup-head"><h3 class="alert-msg">書籤、擴充功能與腳本</h3><button class="web-setup-x" id="webSetupClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
       <div class="web-bmcard">
         <div class="web-bmhead">
           <div class="web-name">
@@ -1197,6 +1198,20 @@
           <button class="cbtn small c-purple" id="webExtSync">重新同步</button>
         </div>
         <div class="web-exts" id="webExts"></div>
+      </div>
+      <div class="web-bmcard">
+        <div class="web-bmhead">
+          <div class="web-name">
+            <strong class="web-tipt" data-tip="篡改猴（Tampermonkey）的 .user.js 腳本由瀏覽器視窗自己執行，不用裝篡改猴。可以匯入篡改猴「匯出」的備份 zip，或單一 .user.js。支援 @match、@include、@exclude、@run-at、@require、@resource 與常用的 GM_ 功能（GM_getValue／GM_setValue、GM_addStyle、GM_xmlhttpRequest、unsafeWindow…）。新匯入或改變的腳本，重新整理網頁後生效；document-start 的腳本要重開視窗。">使用者腳本 <i class="info">i</i></strong>
+            <span class="muted" id="webScriptCount">讀取中…</span>
+          </div>
+          <div class="web-chrome">
+            <button class="cbtn small c-green" id="webScriptImport">匯入腳本／備份</button>
+            <button class="cbtn small c-blue" id="webScriptDir" title="腳本放在這個資料夾；自己放 .user.js 進去後按「重新讀取」">開啟資料夾</button>
+            <button class="cbtn small c-silver" id="webScriptReload">重新讀取</button>
+          </div>
+        </div>
+        <div class="web-scripts" id="webScripts"></div>
       </div>
     </div>
   </div>

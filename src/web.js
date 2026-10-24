@@ -16,6 +16,12 @@ if (typeof document !== "undefined") (() => {
     importChrome: (dir) => invoke("web_chrome_import", { dir: dir ?? null }),
     sync: (on) => invoke("web_chrome_sync", { on }),
     exts: () => invoke("web_ext_list"),
+    scripts: () => invoke("web_scripts_list"),
+    scriptsImport: () => invoke("web_scripts_import"),
+    scriptsToggle: (file, on) => invoke("web_scripts_toggle", { file, on }),
+    scriptsDelete: (file) => invoke("web_scripts_delete", { file }),
+    scriptsDir: () => invoke("web_scripts_open_dir"),
+    scriptsReload: () => invoke("web_scripts_reload"),
     extSync: () => invoke("web_ext_sync"),
     onChange: (cb) => listen("web-changed", cb),
   } : mockApi();
@@ -142,7 +148,46 @@ if (typeof document !== "undefined") (() => {
     renderBm();
     await renderChrome();
     renderExt(await wapi.exts());
+    renderScripts(await wapi.scripts());
   }
+
+  /* ---------- 使用者腳本 ---------- */
+  function renderScripts(x) {
+    const list = (x && x.list) || [];
+    const on = list.filter((s) => !s.off).length;
+    const t = list.length ? `${list.length} 個（${on} 個啟用）` : "還沒有腳本";
+    $("#webScriptCount").textContent = t;
+    $("#webScriptSum").textContent = t;
+    const box = $("#webScripts");
+    box.innerHTML = "";
+    for (const sc of list) {
+      const el = document.createElement("div");
+      el.className = "web-script" + (sc.off ? " off" : "");
+      const where = [...(sc.meta.matches || []), ...(sc.meta.includes || [])].join("、");
+      el.innerHTML = `<label class="switch sm"><input type="checkbox" ${sc.off ? "" : "checked"} /><span class="slider"></span></label>
+        <div class="web-script-name"><strong></strong><span class="muted"></span></div>
+        <button class="web-script-del" title="刪除這個腳本">×</button>`;
+      el.querySelector("strong").textContent = sc.meta.name + (sc.meta.version ? ` v${sc.meta.version}` : "");
+      const sub = el.querySelector(".muted");
+      if (sc.missing && sc.missing.length) { sub.textContent = `有外部檔案沒下載到，不會執行：${sc.missing.join("、")}`; sub.classList.add("bad"); }
+      else sub.textContent = where;
+      el.title = sc.meta.description || where;
+      el.querySelector("input").addEventListener("change", (e) => run(async () => { await wapi.scriptsToggle(sc.file, e.target.checked); renderScripts(await wapi.scripts()); }));
+      el.querySelector(".web-script-del").addEventListener("click", () => run(async () => {
+        if (!(await confirmBox(`確定要刪除腳本「${sc.meta.name}」嗎？`))) return;
+        await wapi.scriptsDelete(sc.file);
+        renderScripts(await wapi.scripts());
+      }));
+      box.append(el);
+    }
+  }
+  $("#webScriptImport").addEventListener("click", () => run(async () => {
+    const msg = await wapi.scriptsImport();
+    if (msg) toast(msg);
+    renderScripts(await wapi.scripts());
+  }));
+  $("#webScriptDir").addEventListener("click", () => run(() => wapi.scriptsDir()));
+  $("#webScriptReload").addEventListener("click", () => run(async () => renderScripts(await wapi.scriptsReload())));
 
   /* ---------- 擴充功能 ---------- */
   function renderExt(x) {
@@ -257,6 +302,12 @@ if (typeof document !== "undefined") (() => {
       sync: async (on) => { f.sync = on; },
       exts: async () => ({ broken: false, list: [{ id: "a", name: "uBlock Origin Lite", version: "1" }, { id: "b", name: "Dark Reader", version: "4" }, { id: "c", name: "Google 翻譯", version: "2" }] }),
       extSync: async () => ({ broken: false, list: [{ id: "a", name: "uBlock Origin Lite", version: "1" }] }),
+      scripts: async () => ({ list: f.scripts || [], dir: "" }),
+      scriptsImport: async () => { f.scripts = [{ file: "a.user.js", off: false, missing: [], meta: { name: "YouTube Shorts 自動下一部", version: "1.2", matches: ["https://www.youtube.com/*"], includes: [] } }]; return "已匯入 1 個腳本"; },
+      scriptsToggle: async (file, on) => { const x = (f.scripts || []).find((s) => s.file === file); if (x) x.off = !on; },
+      scriptsDelete: async (file) => { f.scripts = (f.scripts || []).filter((s) => s.file !== file); },
+      scriptsDir: async () => {},
+      scriptsReload: async () => ({ list: f.scripts || [], dir: "" }),
       onChange: () => {},
     };
   }

@@ -75,3 +75,15 @@ label.web-opt { cursor: pointer; }
 .web-ext { padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
   background: color-mix(in srgb, var(--c) 16%, transparent); color: color-mix(in srgb, var(--c) 75%, var(--text)); }
 .web-ext.off { opacity: 0.5; }
+/* 使用者腳本清單 */
+.web-scripts { display: flex; flex-direction: column; gap: 0.3rem; max-height: 14rem; overflow-y: auto; }
+.web-scripts:empty { display: none; }
+.web-script { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.5rem; border-radius: 0.6rem; background: var(--card); }
+.web-script-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.05rem; }
+.web-script-name strong { font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-script-name .muted { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.web-script.off .web-script-name { opacity: 0.5; }
+.web-script .bad { color: var(--red, #e5484d); }
+.web-script-del { flex: none; width: 1.7rem; height: 1.7rem; border: 0; border-radius: 50%; background: none; color: var(--text-2); cursor: pointer; display: grid; place-items: center; font-size: 1rem; }
+.web-script-del:hover { background: color-mix(in srgb, #e5484d 16%, transparent); color: #e5484d; }
+.web-sum-ic { font-family: ui-monospace, Consolas, monospace; }

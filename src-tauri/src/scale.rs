@@ -124,6 +124,10 @@ pub fn setup_main<R: Runtime>(w: &WebviewWindow<R>, saved: Option<(u32, u32)>) {
 /// 使用者調整主視窗大小：回傳要記錄的內容大小（畫面像素）；換螢幕途中的大小改變不算
 pub fn main_resized<R: Runtime>(w: &WebviewWindow<R>, size: PhysicalSize<u32>) -> Option<(u32, u32)> {
     let wv: &Webview<R> = w.as_ref();
+    #[cfg(windows)]
+    if !user_change(w.hwnd().map(|h| h.0 as isize).unwrap_or(0)) {
+        return None;
+    }
     let now = current(wv)?;
     if !applied(wv.label()).is_some_and(|a| same(a, now)) {
         return None;
@@ -155,6 +159,89 @@ pub fn main_moved(app: &AppHandle) {
         let (cw, ch) = MAIN_VIEW.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or((MAIN_W, MAIN_H));
         fit_main(&w, cw, ch, false);
     });
+}
+
+/* ---------------- 螢幕關掉再開（或接上、拔掉螢幕）後把視窗大小還原 ----------------
+ * 螢幕關掉時 Windows 會把視窗塞進剩下的（或暫時的小）螢幕，視窗被縮小；
+ * 這段時間的大小、位置變動不算使用者調整的，螢幕回來後照記錄的大小放回去。 */
+
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
+/// 最近一次螢幕配置改變的時間
+static DISPLAY_CHANGED: Mutex<Option<Instant>> = Mutex::new(None);
+/// 使用者正在拖曳或拉大小的視窗
+static SIZING: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+static APP: OnceLock<AppHandle> = OnceLock::new();
+/// 螢幕配置改變後多久內的變動不記錄
+const SETTLE: Duration = Duration::from_secs(8);
+
+/// 螢幕配置剛改變（視窗大小可能是 Windows 暫時塞的，不是使用者調的）
+pub fn settling() -> bool {
+    DISPLAY_CHANGED.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| t.elapsed() < SETTLE)
+}
+
+pub fn user_sizing(hwnd: isize) -> bool {
+    SIZING.lock().unwrap_or_else(|e| e.into_inner()).contains(&hwnd)
+}
+
+/// 視窗大小變動算不算使用者調的（拖曳中一定算；螢幕剛變動時不算）
+pub fn user_change(hwnd: isize) -> bool {
+    user_sizing(hwnd) || !settling()
+}
+
+/// 螢幕配置改變了：過幾秒等 Windows 安定後，把主視窗放回記錄的大小
+pub fn display_changed() {
+    *DISPLAY_CHANGED.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
+    let Some(app) = APP.get().cloned() else { return };
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(2500));
+        // 這段時間又變了：交給最後那一次
+        if DISPLAY_CHANGED.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| t.elapsed() < Duration::from_millis(2400)) {
+            return;
+        }
+        let app2 = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let Some(w) = app2.get_webview_window("main") else { return };
+            if w.is_minimized().unwrap_or(false) || w.is_maximized().unwrap_or(false) || !w.is_visible().unwrap_or(false) {
+                return;
+            }
+            let (cw, ch) = MAIN_VIEW.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or((MAIN_W, MAIN_H));
+            fit_main(&w, cw, ch, true);
+        });
+    });
+}
+
+#[cfg(windows)]
+mod disp {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_DISPLAYCHANGE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE};
+
+    const ID: usize = 0x4D42_4453;
+
+    unsafe extern "system" fn proc_(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _d: usize) -> LRESULT {
+        match msg {
+            WM_DISPLAYCHANGE => super::display_changed(),
+            WM_ENTERSIZEMOVE => super::SIZING.lock().unwrap_or_else(|e| e.into_inner()).push(hwnd as isize),
+            WM_EXITSIZEMOVE => super::SIZING.lock().unwrap_or_else(|e| e.into_inner()).retain(|h| *h != hwnd as isize),
+            _ => {}
+        }
+        DefSubclassProc(hwnd, msg, wp, lp)
+    }
+
+    pub fn watch(hwnd: isize) {
+        unsafe { SetWindowSubclass(hwnd as HWND, Some(proc_), ID, 0) };
+    }
+}
+
+/// 主視窗：監看螢幕配置改變與使用者拖曳（要在主執行緒呼叫）
+pub fn watch_main(app: &AppHandle, hwnd: isize) {
+    let _ = APP.set(app.clone());
+    #[cfg(windows)]
+    disp::watch(hwnd);
+    #[cfg(not(windows))]
+    let _ = hwnd;
 }
 
 #[cfg(test)]
