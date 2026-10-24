@@ -1,5 +1,5 @@
-//! 自動更新：讀取 GitHub 最新的發行版本（每次更新版本號 +0.0.1，標籤 v版本號），
-//! 新舊以 commit 判斷，有新版就下載 MAOBOO.zip、替換執行檔並重新開啟。
+//! 自動更新：讀取 GitHub 的 v1.0.0 發行版本（版本號固定 1.0.0，以編譯編號／commit 分新舊），
+//! 有新版就下載 MAOBOO.zip、替換執行檔並重新開啟。
 
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -143,7 +143,7 @@ fn github(url: &str, token: &str, accept: &str) -> Result<ureq::Response, String
 }
 
 fn release(token: &str) -> Result<serde_json::Value, String> {
-    github(&format!("https://api.github.com/repos/{REPO}/releases/latest"), token, "application/vnd.github+json")?
+    github(&format!("https://api.github.com/repos/{REPO}/releases/tags/v1.0.0"), token, "application/vnd.github+json")?
         .into_json::<serde_json::Value>()
         .map_err(|e| e.to_string())
 }

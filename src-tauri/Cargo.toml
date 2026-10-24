@@ -1,6 +1,6 @@
 [package]
 name = "toolbox"
-version = "1.0.2"
+version = "1.0.0"
 description = "工具箱：綜合多功能桌面工具"
 edition = "2021"
 

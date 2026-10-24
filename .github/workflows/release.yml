@@ -1,6 +1,6 @@
 name: Build & Release
 
-# 推送到 main 或手動觸發時，在 Windows 上編譯並發布 v<版本號>（版本號在 src-tauri/tauri.conf.json，每次更新 +0.0.1）
+# 推送到 main 或手動觸發時，在 Windows 上編譯並覆蓋發布 v1.0.0（版本號固定，以編譯編號／commit 分新舊）
 on:
   push:
     branches: [main]
@@ -74,41 +74,21 @@ jobs:
           Get-ChildItem dist | Select-Object Name, Length
           Get-Content dist/MAOBOO.sha256
 
-      - name: Publish release v<version>
+      - name: Replace v1.0.0 release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          TAG="v$VER"
-          echo "::notice title=版本::$TAG"
-          # 同一個版本號重新建置時覆蓋掉原本的
-          gh release delete "$TAG" --cleanup-tag --yes || true
-          git push origin ":refs/tags/$TAG" || true
-          gh release create "$TAG" dist/MAOBOO.zip dist/MAOBOO.sha256 \
+          gh release delete v1.0.0 --cleanup-tag --yes || true
+          git push origin :refs/tags/v1.0.0 || true
+          gh release create v1.0.0 dist/MAOBOO.zip dist/MAOBOO.sha256 \
             --latest \
             --target "$GITHUB_SHA" \
-            --title "工具箱 $TAG" \
+            --title "工具箱 v1.0.0（編譯 #${GITHUB_RUN_NUMBER}）" \
             --notes "Windows 10/11 免安裝版，下載 MAOBOO.zip 解壓縮後執行 MAOBOO.exe。
 
-          最後更新：$(date -u '+%Y-%m-%d %H:%M UTC')（commit ${GITHUB_SHA::7}）
+          最後更新：$(date -u '+%Y-%m-%d %H:%M UTC')（編譯 #${GITHUB_RUN_NUMBER}，commit ${GITHUB_SHA::7}）
 
           使用前請先看壓縮檔裡的「使用規範.txt」。
 
           首次執行若出現 SmartScreen「Windows 已保護您的電腦」，請點「其他資訊」→「仍要執行」。"
-
-      - name: Mirror to v1.0.0 (for old builds' updater)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 1.0.1 之前的程式只會看 v1.0.0 這個發行版本，所以同樣的檔案再放一份到 v1.0.0，讓舊版也能自動更新上來
-          VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          [ "v$VER" = "v1.0.0" ] && exit 0
-          gh release delete v1.0.0 --cleanup-tag --yes || true
-          git push origin :refs/tags/v1.0.0 || true
-          gh release create v1.0.0 dist/MAOBOO.zip dist/MAOBOO.sha256 \
-            --latest=false \
-            --target "$GITHUB_SHA" \
-            --title "工具箱（舊版自動更新用，內容同 v$VER）" \
-            --notes "這個發行版本只是給 1.0.1 之前的程式自動更新用，內容和 v$VER 一樣。請到 v$VER 下載。"
