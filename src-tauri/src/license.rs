@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 /// 作者的公鑰（十六進位，32 bytes）。作者在「授權管理」產生金鑰後把公鑰貼到這裡；空字串 = 還沒設定（所有授權碼都不會通過）
-const PUBKEY_HEX: &str = "";
+const PUBKEY_HEX: &str = "8f20ec48c8263df403ac0a5393159aae7dd09fcd645d629f9e0c449cb42d82a3";
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 static CACHE: Mutex<Option<Info>> = Mutex::new(None);
