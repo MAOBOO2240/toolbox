@@ -1,7 +1,7 @@
 // 工具箱使用狀況收集端 + 公會自動授權（Cloudflare Worker）
 // 綁定：KV 命名空間 STATS；Secret：ADMIN_KEY（看儀表板用的密碼）、NEXON_API_KEY（查公會用）
 //
-// POST /ping   程式回報：{ serial, install, version, run, os, licensed, name }（每 10 分鐘；回 { revoked } 讓程式即時鎖回去）
+// POST /ping   程式回報：{ serial, install, version, run, os, licensed, name, usage? }（每 10 分鐘；usage 每小時帶一次；回 { revoked, bound, grant }）
 // POST /auto   綁定角色：{ serial, name, licensed } → { ok, code, signed, name, world, guild } 或 { ok:false, msg }
 //              還沒授權的要公會在名單裡才綁、並簽授權碼；已授權的只綁定（左下角的角色）
 // 後台：先用作者程式產生的一次性密碼登入（POST /login），之後 12 小時內用 cookie；ADMIN_KEY 只拿來簽 cookie
@@ -272,6 +272,9 @@ code{font-family:ui-monospace,Consolas,monospace;color:var(--accent);font-size:.
 .b-good{background:rgba(74,222,128,.12);color:var(--good)}
 .b-bad{background:rgba(248,113,113,.12);color:var(--bad)}
 .sub{color:var(--muted);font-size:.76rem;margin-left:.35rem}
+td.wrap{white-space:normal;max-width:60rem}
+.chip{display:inline-block;margin:.15rem .35rem .15rem 0;padding:.15rem .55rem;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:.78rem}
+.chip b{font-weight:600;color:var(--accent)}
 .muted{color:var(--muted)}
 .actions{display:flex;gap:.35rem;justify-content:flex-end}
 .empty{color:var(--muted);padding:1rem 1.1rem}
@@ -304,6 +307,17 @@ async function dashboard(env) {
   const badRows = bad.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.world)}</td><td><span class="badge b-bad">${esc(c.guild || "無")}</span></td><td>${c.serials.map((s) => `<code>${esc(s)}</code>`).join("<br>")}</td><td title="${esc(c.checked)}">${tw(c.checked)}</td><td><div class="actions">${c.serials.map((s) => `<button data-unbind="${esc(c.name)}" data-serial="${esc(s)}">解除 …${esc(s.slice(-4))}</button>`).join("")}</div></td></tr>`).join("");
   const rejRows = rejects.slice(0, 200).map((r) => `<tr><td title="${esc(r.ts)}">${tw(r.ts)}</td><td><code>${esc(r.serial)}</code></td><td><b>${esc(r.name)}</b></td><td>${esc(r.world) || `<span class="muted">—</span>`}</td><td>${r.world ? `<span class="badge ${r.reason === "公會不符" ? "b-bad" : "b-good"}">${esc(r.guild || "無")}</span>` : `<span class="muted">—</span>`}</td><td>${esc(r.reason)}</td><td><div class="actions">${r.k ? `<button class="danger" data-rejdel="${esc(r.k)}">刪除</button>` : ""}</div></td></tr>`).join("");
   const gtext = gs.map((g) => g.guild).join("\n");
+  // 工具使用統計：每個人 + 全部加總
+  const dur = (sec) => { sec = Math.round(sec || 0); if (sec < 60) return `${sec} 秒`; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h ? `${h} 小時 ${m} 分` : `${m} 分`; };
+  const who = (x) => esc(x.note || x.char || x.serial);
+  const total = {};
+  for (const x of list) for (const [id, u] of Object.entries(x.usage || {})) { const t = total[id] || { s: 0, n: 0, users: 0, name: u.name || id }; t.s += u.s || 0; t.n += u.n || 0; t.users++; if (u.name) t.name = u.name; total[id] = t; }
+  const totalRows = Object.entries(total).sort((a, b) => b[1].s - a[1].s).map(([id, t]) => `<tr><td><b>${esc(t.name)}</b><span class="sub">${esc(id)}</span></td><td>${dur(t.s)}</td><td>${t.n}</td><td>${t.users}</td></tr>`).join("");
+  const userRows = list.filter((x) => x.usage && Object.keys(x.usage).length).map((x) => {
+    const items = Object.entries(x.usage).sort((a, b) => b[1].s - a[1].s);
+    const sum = items.reduce((a, [, u]) => a + (u.s || 0), 0);
+    return `<tr><td><b>${who(x)}</b><span class="sub"><code>${esc(x.serial)}</code></span></td><td>${dur(sum)}</td><td class="wrap">${items.map(([id, u]) => `<span class="chip" title="${esc(id)}">${esc(u.name || id)} <b>${dur(u.s)}</b> · ${u.n} 次</span>`).join("")}</td></tr>`;
+  }).join("");
   const table = (head, body, emptyText) => `<div class="tbl">${body ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : `<div class="empty">${emptyText}</div>`}</div>`;
   return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱使用狀況</title><style>${CSS}</style>
 <h1>工具箱使用狀況<small>台灣時間 ${tw(new Date().toISOString())}</small><a class="logout" href="/logout">登出</a></h1>
@@ -326,11 +340,15 @@ async function dashboard(env) {
 ${pk ? `<details class="pkd"><summary>自動授權金鑰已設定</summary><div class="pk">${esc(pk)}</div></details>` : ""}
 <h2>所有電腦<span class="n">${list.length}</span></h2>
 ${table(`<th>序號</th><th>備註</th><th>授權</th><th>綁定角色</th><th>公會</th><th>第一次使用</th><th>最後一次使用</th><th>版本</th><th></th>`, rows, "還沒有任何電腦回報")}
+<h2>全部人用了哪些工具<span class="n">${Object.keys(total).length}</span></h2>
+${table(`<th>工具</th><th>總時間</th><th>開啟次數</th><th>幾個人用過</th>`, totalRows, "還沒有工具使用資料（程式每小時彙總一次）")}
+<h2>每個人用了哪些工具<span class="n">${list.filter((x) => x.usage && Object.keys(x.usage).length).length}</span></h2>
+${table(`<th>誰</th><th>總時間</th><th>工具（時間 · 次數）</th>`, userRows, "還沒有工具使用資料")}
 <h2>公會不符<span class="n">${bad.length}</span></h2>
 ${table(`<th>角色</th><th>伺服器</th><th>目前公會</th><th>綁定的電腦</th><th>上次查詢</th><th></th>`, badRows, "已綁定的角色都還在名單裡的公會")}
 <h2>被拒絕的自動授權<span class="n">${rejects.length}</span>${rejects.length ? `<button class="danger h2btn" id="rejAll">全部清除</button>` : ""}</h2>
 ${table(`<th>時間</th><th>序號</th><th>輸入的角色</th><th>伺服器</th><th>公會</th><th>原因</th><th></th>`, rejRows, "最近 90 天沒有被拒絕的嘗試")}
-<p class="foot">備註改完會自動儲存。程式每 10 分鐘回報一次（最後一次使用最多晚 1 小時）：序號、版本、有沒有授權、綁定的角色；綁定角色的公會每天重查一次。<br>
+<p class="foot">備註改完會自動儲存。程式每 10 分鐘回報一次（最後一次使用最多晚 1 小時）：序號、版本、有沒有授權、綁定的角色；工具使用時間只算程式視窗看得到、停在該工具頁面的時間，每小時彙總一次送上來；綁定角色的公會每天重查一次。<br>
 「封鎖」：對方的程式最晚 10 分鐘內（開工具時也會再確認）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；「解除封鎖」後對方再綁定一次（或重貼授權碼）就能用。「解除綁定」後對方程式會把角色清掉（公會自動授權的也會一起鎖回去），重新輸入角色名稱就能再綁。</p>
 <script>
 const post=async(p,b)=>{const r=await fetch(p,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
@@ -384,7 +402,21 @@ export default {
         ip_country: req.headers.get("cf-ipcountry") || "",
       };
       // 程式每 10 分鐘回報一次，但 KV 免費額度一天只能寫 1000 次：內容沒變的話每小時才寫一次
-      const changed = ["install", "version", "run", "os", "licensed", "char"].some((k) => rec[k] !== old[k]);
+      // 工具使用量：程式每小時帶一次 { id: { s: 秒, n: 次數, name } }，累加到這台電腦的紀錄
+      rec.usage = old.usage || {};
+      let usageChanged = false;
+      if (p.usage && typeof p.usage === "object") {
+        for (const [id, u] of Object.entries(p.usage).slice(0, 64)) {
+          const sec = Math.max(0, Math.min(Number(u?.s) || 0, 7 * 86400)), n = Math.max(0, Math.min(Number(u?.n) || 0, 100000));
+          if (!sec && !n) continue;
+          const e = rec.usage[id] || { s: 0, n: 0, name: "" };
+          e.s += sec; e.n += n;
+          if (u?.name) e.name = String(u.name).slice(0, 20);
+          rec.usage[String(id).slice(0, 32)] = e;
+          usageChanged = true;
+        }
+      }
+      const changed = usageChanged || ["install", "version", "run", "os", "licensed", "char"].some((k) => rec[k] !== old[k]);
       if (changed || !old.last || Date.now() - Date.parse(old.last) > 3600000) await env.STATS.put(key, JSON.stringify(rec));
       return json({ ok: true, revoked: rec.revoked, bound: ch, grant: rec.grant || "" });
     }

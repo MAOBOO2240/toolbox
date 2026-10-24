@@ -536,6 +536,7 @@ fn main() {
             license::license_bind,
             license::license_admin_otp,
             license::license_admin_open,
+            stats::stats_usage,
             license::license_check
         ])
         .run(tauri::generate_context!())

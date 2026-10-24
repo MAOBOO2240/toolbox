@@ -514,6 +514,40 @@ const CATS = {
 const TOOL = {};
 for (const [cat, c] of Object.entries(CATS)) c.tools.forEach((t, i) => (TOOL[t.id] = { ...t, cat, def: i }));
 
+/* ---------- 工具使用統計：哪個工具開了幾次、停留多久（只在視窗看得到時計時），每分鐘交給後端累積，回報時一起送給作者 ---------- */
+const Usage = (() => {
+  let cur = null, since = 0;
+  const pend = {};
+  const toolOf = (view) => Object.values(TOOL).find((t) => (t.view || t.id) === view);
+  function tick() {
+    if (!cur) return;
+    const now = Date.now();
+    if (document.visibilityState === "visible") { pend[cur].s += (now - since) / 1000; }
+    since = now;
+  }
+  /** 切換畫面時呼叫：進到工具就開始計、離開就停 */
+  function view(name) {
+    tick();
+    const t = toolOf(name);
+    if (!t || t.id === cur) { if (!t) cur = null; return; }
+    cur = t.id;
+    since = Date.now();
+    pend[cur] ??= { s: 0, n: 0, name: t.name };
+    pend[cur].n++;
+  }
+  async function flush() {
+    tick();
+    const tools = {};
+    for (const [id, v] of Object.entries(pend)) { if (v.s >= 1 || v.n) tools[id] = { s: Math.round(v.s), n: v.n, name: v.name }; }
+    if (!Object.keys(tools).length || !TAURI) return;
+    try { await invoke("stats_usage", { tools }); for (const id of Object.keys(tools)) pend[id] = { s: 0, n: 0, name: pend[id].name }; } catch (_) {}
+  }
+  document.addEventListener("visibilitychange", () => { tick(); since = Date.now(); if (document.visibilityState === "hidden") flush(); });
+  setInterval(flush, 60 * 1000);
+  return { view, flush };
+})();
+
+
 /* ---------- 授權：「工具箱」分類的工具要輸入授權碼才能用 ---------- */
 const License = (() => {
   let info = { serial: "", ok: !TAURI, admin: false, no_pubkey: false, name: "", world: "", guild: "", auto_available: false };
@@ -1449,6 +1483,7 @@ function showView(name) {
     });
   }
   currentView = name;
+  Usage.view(name);
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
   $("#gearBtn").classList.toggle("on", name === "settings");
   // 讓各工具知道換頁了（例如離開美容美髮時收起浮動視窗）
