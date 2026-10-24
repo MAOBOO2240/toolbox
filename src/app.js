@@ -520,6 +520,7 @@ const License = (() => {
   const needs = (id) => TOOL[id]?.cat === "tools";
   const locked = (id) => needs(id) && !info.ok;
   const apply = (next, quiet) => {
+    if (!next || typeof next !== "object") return;
     const lostLic = info.ok && !next.ok, lostBind = info.name && !next.name;
     info = next;
     renderSettings();
@@ -957,7 +958,7 @@ const UiArt = (() => {
 const SideDoll = (() => {
   let cfg = { name: "", sync: false, ...(store.get("side-doll", {}) || {}) };
   /** 綁定的角色名稱：正式版來自授權資料；瀏覽器裡測試時用本機存的 */
-  const bound = () => (TAURI ? (window.License?.info?.().name || "") : cfg.name);
+  const bound = () => (TAURI ? ((window.License?.info?.() || {}).name || "") : cfg.name);
   let doll = null, gen = 0;
   const saveCfg = () => store.set("side-doll", cfg);
   const img = $("#sideDollImg"), empty = $("#sideDollEmpty"), box = $("#sideDollPic"), inp = $("#sideName");
