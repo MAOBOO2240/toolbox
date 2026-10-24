@@ -663,7 +663,7 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 /* 會動的樣子：和圖片擺在同一個位置 */
 .side-doll-pic canvas { image-rendering: pixelated; display: block; margin-bottom: 0.3rem; max-width: 100%; max-height: 100%; }
 .side-doll-pic canvas.body { position: absolute; margin: 0; max-width: none; max-height: none; }
-.side-doll-pic canvas[hidden] { display: none; }
+.side-doll-pic canvas[hidden], .side-doll-pic img[hidden] { display: none; }
 .side-doll-empty { width: 3.2rem; height: 4.8rem; margin-bottom: 0.6rem; fill: none; stroke: var(--sep); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 4 4; }
 .side-doll-empty[hidden] { display: none; }
 .side-doll-name input {
