@@ -95,17 +95,17 @@ async function reject(env, o) {
 /* ---------- 後台登入：一次性密碼（作者程式用私鑰簽「maboo-admin|分鐘數」）→ 12 小時的登入 cookie ---------- */
 const unb64url = (t) => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - t.length % 4) % 4)), (c) => c.charCodeAt(0));
 async function verifyOtp(env, otp) {
-  const m = /^MA1-([0-9a-z]+)-([A-Za-z0-9_-]{80,90})$/.exec(String(otp || "").trim());
+  const m = /^MA1-([0-9a-z]+)-([0-9a-z]+)-([A-Za-z0-9_-]{80,90})$/.exec(String(otp || "").trim());
   if (!m) return false;
-  const ts = parseInt(m[1], 36);
+  const ts = parseInt(m[1], 36), nonce = m[2], sigB64 = m[3];
   const now = Math.floor(Date.now() / 60000);
   if (!Number.isFinite(ts) || Math.abs(now - ts) > 3) return false; // 前後 3 分鐘內有效
-  if (await env.STATS.get("otp:" + m[2])) return false; // 用過就不能再用
+  if (await env.STATS.get("otp:" + sigB64)) return false; // 用過就不能再用
   const pk = Uint8Array.from(ADMIN_PUBKEY_HEX.match(/../g).map((h) => parseInt(h, 16)));
   const key = await crypto.subtle.importKey("raw", pk, { name: "Ed25519" }, false, ["verify"]);
   let ok = false;
-  try { ok = await crypto.subtle.verify({ name: "Ed25519" }, key, unb64url(m[2]), new TextEncoder().encode("maboo-admin|" + ts)); } catch { ok = false; }
-  if (ok) await env.STATS.put("otp:" + m[2], "1", { expirationTtl: 600 });
+  try { ok = await crypto.subtle.verify({ name: "Ed25519" }, key, unb64url(sigB64), new TextEncoder().encode(`maboo-admin|${ts}|${nonce}`)); } catch { ok = false; }
+  if (ok) await env.STATS.put("otp:" + sigB64, "1", { expirationTtl: 600 });
   return ok;
 }
 async function hmac(env, text) {
@@ -236,7 +236,6 @@ h2 .n{display:inline-block;min-width:1.5em;padding:0 .45em;margin-left:.4em;bord
 .sum span{display:block;color:var(--muted);font-size:.78rem}
 .sum b{display:block;font-size:1.7rem;font-weight:600;margin-top:.1rem}
 .cfg{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
-.cfg:has(> .card:only-child){grid-template-columns:1fr}
 .pkd{margin-top:.6rem;color:var(--muted);font-size:.78rem}.pkd summary{cursor:pointer}.pkd .pk{margin-top:.4rem;max-width:40rem}
 @media(max-width:900px){.cfg{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem}
@@ -283,7 +282,7 @@ async function dashboard(env) {
   const day = 86400000, now = Date.now();
   const active = (ms) => list.filter((x) => now - Date.parse(x.last) < ms).length;
   const bad = chars.filter((c) => c.viaGuild && !allowed(gs, c));
-  const licBadge = (x) => x.revoked ? `<span class="badge b-off">已封鎖</span>` : x.licensed ? (x.auto ? `<span class="badge b-auto">自動</span>` : `<span class="badge b-manual">手動</span>`) : `<span class="badge b-none">未授權</span>`;
+  const licBadge = (x) => x.revoked ? `<span class="badge b-off">已封鎖</span>` : x.licensed ? (x.auto ? `<span class="badge b-auto">自動</span>` : `<span class="badge b-manual">${x.grant ? "後台" : "手動"}</span>`) : `<span class="badge b-none">未授權</span>`;
   const rows = list.map((x) => {
     const c = x.char ? cmap[x.char] : null;
     const ok = c ? (c.viaGuild ? allowed(gs, c) : null) : null; // 不是靠公會授權的，公會只是顯示
@@ -296,7 +295,7 @@ async function dashboard(env) {
       <td title="${esc(x.first)}">${tw(x.first)}</td>
       <td title="${esc(x.last)}">${tw(x.last)}</td>
       <td title="${esc(x.os)}"><span class="muted">${esc(String(x.version || "").slice(0, 7))}${x.run ? " #" + esc(x.run) : ""}</span></td>
-      <td><div class="actions">${x.char ? `<button data-unbind="${esc(x.char)}" data-serial="${esc(x.serial)}">解除綁定</button>` : ""}${x.revoked ? `<button data-revoke="0" data-serial="${esc(x.serial)}">解除封鎖</button>` : x.licensed ? `<button class="danger" data-revoke="1" data-serial="${esc(x.serial)}">封鎖</button>` : ""}</div></td></tr>`;
+      <td><div class="actions">${x.char ? `<button data-unbind="${esc(x.char)}" data-serial="${esc(x.serial)}">解除綁定</button>` : ""}${x.revoked ? `<button data-revoke="0" data-serial="${esc(x.serial)}">解除封鎖</button>` : x.licensed ? `<button class="danger" data-revoke="1" data-serial="${esc(x.serial)}">封鎖</button>` : `<button data-grant="${esc(x.serial)}">授權</button>`}</div></td></tr>`;
   }).join("");
   const badRows = bad.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.world)}</td><td><span class="badge b-bad">${esc(c.guild || "無")}</span></td><td>${c.serials.map((s) => `<code>${esc(s)}</code>`).join("<br>")}</td><td title="${esc(c.checked)}">${tw(c.checked)}</td><td><div class="actions">${c.serials.map((s) => `<button data-unbind="${esc(c.name)}" data-serial="${esc(s)}">解除 …${esc(s.slice(-4))}</button>`).join("")}</div></td></tr>`).join("");
   const rejRows = rejects.slice(0, 200).map((r) => `<tr><td title="${esc(r.ts)}">${tw(r.ts)}</td><td><code>${esc(r.serial)}</code></td><td><b>${esc(r.name)}</b></td><td>${esc(r.world) || `<span class="muted">—</span>`}</td><td>${r.world ? `<span class="badge ${r.reason === "公會不符" ? "b-bad" : "b-good"}">${esc(r.guild || "無")}</span>` : `<span class="muted">—</span>`}</td><td>${esc(r.reason)}</td><td><div class="actions">${r.k ? `<button class="danger" data-rejdel="${esc(r.k)}">刪除</button>` : ""}</div></td></tr>`).join("");
@@ -316,7 +315,8 @@ async function dashboard(env) {
 <div class="cfg">
   <div class="card"><h3>允許自動授權的公會</h3><textarea id="guilds" spellcheck="false">${esc(gtext)}</textarea>
     <div class="row"><button class="primary" id="saveG">儲存名單</button><button id="recheck">重新查所有人的公會</button></div>
-    <small>每行一個公會名稱（不用寫伺服器）。改完名單後已綁定的人不會失效，只會列在「公會不符」。</small></div>
+    <small>公會名稱用空格或換行隔開，幾個都可以（不用寫伺服器）。改完名單後已綁定的人不會失效，只會列在「公會不符」。</small></div>
+  <div class="card"><h3>手動授權</h3><div class="row"><input id="grantSerial" placeholder="MB-XXXX-XXXX-XXXX-XXXX" spellcheck="false" style="max-width:16rem;font-family:ui-monospace,Consolas,monospace"><button class="primary" id="grantBtn">授權</button></div><div id="grantOut" class="pk" style="display:none;margin-top:.6rem"></div><small>貼上對方的序號按「授權」：對方的程式最晚 10 分鐘內（開工具時也會）自動拿到授權；下面也會顯示授權碼，想直接給對方貼也可以。</small></div>
   ${pk ? "" : `<div class="card"><h3>自動授權金鑰（公鑰）</h3><div class="row"><button class="primary" id="keygen">產生金鑰</button></div><small>產生後把公鑰交給開發者放進程式，自動授權才會生效。</small></div>`}
 </div>
 ${pk ? `<details class="pkd"><summary>自動授權金鑰已設定</summary><div class="pk">${esc(pk)}</div></details>` : ""}
@@ -335,6 +335,9 @@ document.querySelectorAll("button[data-unbind]").forEach((b)=>b.addEventListener
 document.querySelectorAll("button[data-revoke]").forEach((b)=>b.addEventListener("click",async()=>{const on=b.dataset.revoke==="1";if(!confirm((on?"封鎖":"解除封鎖")+" "+b.dataset.serial+"？"))return;await post("/revoke",{serial:b.dataset.serial,on});location.reload();}));
 document.querySelectorAll("button[data-rejdel]").forEach((b)=>b.addEventListener("click",async()=>{await post("/rejdel",{k:b.dataset.rejdel});b.closest("tr").remove();}));
 const ra=document.getElementById("rejAll");if(ra)ra.onclick=async()=>{if(!confirm("清除所有被拒絕的紀錄？"))return;await post("/rejdel",{all:true});location.reload();};
+const grant=async(serial)=>{const j=await post("/grant",{serial});if(j.ok){const o=document.getElementById("grantOut");o.style.display="";o.textContent=j.code;}return j;};
+document.getElementById("grantBtn").onclick=async()=>{const s=document.getElementById("grantSerial").value.trim().toUpperCase();if(!s)return;const j=await grant(s);if(j.ok)setTimeout(()=>location.reload(),1500);};
+document.querySelectorAll("button[data-grant]").forEach((b)=>b.addEventListener("click",async()=>{const j=await grant(b.dataset.grant);if(j.ok){alert("已授權 "+b.dataset.grant);location.reload();}}));
 document.getElementById("saveG").onclick=async()=>{await post("/cfg",{guilds:document.getElementById("guilds").value});location.reload();};
 document.getElementById("recheck").onclick=async()=>{const b=document.getElementById("recheck");b.disabled=true;b.textContent="查詢中…";const j=await post("/recheck");alert("已重查 "+(j.n||0)+" 個角色");location.reload();};
 const kg=document.getElementById("keygen");if(kg)kg.onclick=async()=>{if(!confirm("產生自動授權金鑰？只能產生一次。"))return;await post("/keygen");location.reload();};
@@ -368,6 +371,7 @@ export default {
         licensed: !!p.licensed,
         auto: !!old.auto,
         revoked: !!old.revoked,
+        grant: old.grant || "",
         char: ch,
         first: old.first || now,
         last: now,
@@ -378,14 +382,14 @@ export default {
       // 程式每 10 分鐘回報一次，但 KV 免費額度一天只能寫 1000 次：內容沒變的話每小時才寫一次
       const changed = ["install", "version", "run", "os", "licensed", "char"].some((k) => rec[k] !== old[k]);
       if (changed || !old.last || Date.now() - Date.parse(old.last) > 3600000) await env.STATS.put(key, JSON.stringify(rec));
-      return json({ ok: true, revoked: rec.revoked, bound: ch });
+      return json({ ok: true, revoked: rec.revoked, bound: ch, grant: rec.grant || "" });
     }
     // 程式輸入授權碼前先問：這台有沒有被移除授權
     if (req.method === "POST" && url.pathname === "/check") {
       const p = await req.json().catch(() => ({}));
       const serial = String(p.serial || "").toUpperCase();
       const rec = await env.STATS.get("s:" + serial, "json");
-      return json({ ok: true, revoked: !!(rec && rec.revoked), bound: await boundOf(env, rec, serial) });
+      return json({ ok: true, revoked: !!(rec && rec.revoked), bound: await boundOf(env, rec, serial), grant: (rec && rec.grant) || "" });
     }
     if (req.method === "POST" && url.pathname === "/auto") {
       const p = await req.json().catch(() => ({}));
@@ -413,7 +417,7 @@ export default {
           return json({ ok: true });
         }
         if (url.pathname === "/cfg") {
-          const gs = String(p.guilds || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((guild) => ({ guild }));
+          const gs = [...new Set(String(p.guilds || "").split(/\s+/).map((l) => l.trim()).filter(Boolean))].map((guild) => ({ guild }));
           await env.STATS.put("cfg:guilds", JSON.stringify(gs));
           return json({ ok: true, n: gs.length });
         }
@@ -423,7 +427,7 @@ export default {
           const rec = await env.STATS.get(sk, "json");
           if (!rec) return json({ ok: false, msg: "找不到這個序號" }, 404);
           rec.revoked = !!p.on;
-          if (rec.revoked) rec.licensed = false;
+          if (rec.revoked) { rec.licensed = false; rec.grant = ""; }
           await env.STATS.put(sk, JSON.stringify(rec));
           return json({ ok: true });
         }
@@ -433,6 +437,17 @@ export default {
           const rec = await env.STATS.get(sk, "json");
           if (rec && rec.char === p.name) { rec.char = ""; rec.auto = false; await env.STATS.put(sk, JSON.stringify(rec)); }
           return json({ ok: true });
+        }
+        // 作者在儀表板直接幫某台電腦授權：簽一組授權碼存著，程式下次回報／開工具時自己拿走；也回給作者可以手動給對方
+        if (url.pathname === "/grant") {
+          const serial = String(p.serial || "").trim().toUpperCase();
+          if (!SERIAL_RE.test(serial)) return json({ ok: false, msg: "序號格式不對，應該像 MB-XXXX-XXXX-XXXX-XXXX" });
+          const code = await signCode(env, serial);
+          const sk = "s:" + serial;
+          const rec = (await env.STATS.get(sk, "json")) || { serial, first: new Date().toISOString(), last: "", pings: 0, note: "" };
+          Object.assign(rec, { grant: code, licensed: true, revoked: false });
+          await env.STATS.put(sk, JSON.stringify(rec));
+          return json({ ok: true, code });
         }
         if (url.pathname === "/rejdel") {
           const keys = p.all ? (await env.STATS.list({ prefix: "r:" })).keys.map((k) => k.name) : [String(p.k || "")].filter((k) => k.startsWith("r:"));

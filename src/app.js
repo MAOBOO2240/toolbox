@@ -521,13 +521,14 @@ const License = (() => {
   const locked = (id) => needs(id) && !info.ok;
   const apply = (next, quiet) => {
     if (!next || typeof next !== "object") return;
-    const lostLic = info.ok && !next.ok, lostBind = info.name && !next.name, nameChanged = info.name !== next.name;
+    const lostLic = info.ok && !next.ok, gotLic = !info.ok && next.ok, lostBind = info.name && !next.name, nameChanged = info.name !== next.name;
     info = next;
     renderSettings();
     if (typeof renderTiles === "function" && $("#tiles")) renderTiles();
     // 綁定的角色變了才重畫左下角（每次重畫會把正在播的動畫停掉）
     if (nameChanged) window.SideDoll?.load?.(false);
-    if (!quiet && lostLic) toast("這台電腦的授權已被作者移除");
+    if (!quiet && lostLic) toast("這台電腦的授權已被作者封鎖");
+    else if (!quiet && gotLic) toast("作者已幫這台電腦授權");
     else if (!quiet && lostBind) toast("作者解除了這台電腦的角色綁定");
   };
   async function load() {
@@ -562,6 +563,7 @@ const License = (() => {
   }
   /** 點到還沒授權的工具：帶到設定的授權區，不另外開視窗 */
   function ask(id) {
+    check(id, true); // 作者可能剛在後台幫這台授權：馬上問一次
     $$(".cat").forEach((b) => b.classList.remove("on"));
     showView("settings");
     $("#app").classList.remove("collapsed");
@@ -573,10 +575,10 @@ const License = (() => {
   }
   /** 開工具箱工具時在背景確認授權、綁定還在不在（作者移除會馬上生效）；不擋開啟，一分鐘內只問一次 */
   let lastCheck = 0;
-  function check(id) {
-    if (!TAURI || !needs(id) || (!info.ok && !info.name)) return;
+  function check(id, force) {
+    if (!TAURI || !needs(id)) return;
     if (info.admin && !info.name) return;
-    if (Date.now() - lastCheck < 60000) return;
+    if (!force && Date.now() - lastCheck < 60000) return;
     lastCheck = Date.now();
     invoke("license_check").then((next) => {
       const had = info.ok;

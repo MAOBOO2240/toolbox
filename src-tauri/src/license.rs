@@ -78,6 +78,8 @@ pub fn revoke_local() -> bool {
 pub struct Remote {
     pub revoked: bool,
     pub bound: String,
+    /// 作者在儀表板直接幫這台授權時簽的授權碼
+    pub grant: String,
 }
 
 /// 問 Worker 這台的狀態；連不上回 None
@@ -100,6 +102,10 @@ pub fn apply_remote(r: &Remote) -> bool {
     let s = read_saved();
     if r.revoked && !s.code.is_empty() {
         return revoke_local();
+    }
+    // 作者在儀表板幫這台授權：還沒有授權碼就收下
+    if !r.revoked && s.code.is_empty() && !r.grant.is_empty() && verify_for(&serial(), &r.grant) {
+        return write_saved(&Saved { code: r.grant.clone(), name: s.name, world: s.world, guild: s.guild, auto: false }).is_ok();
     }
     if !s.name.is_empty() && r.bound != s.name {
         if s.auto {
@@ -263,8 +269,7 @@ pub fn license_activate(code: String) -> Result<Info, String> {
 #[tauri::command]
 pub fn license_check() -> Info {
     let i = info();
-    let s = read_saved();
-    if !s.code.is_empty() || !s.name.is_empty() {
+    if !i.admin || !read_saved().name.is_empty() {
         if let Some(r) = remote_status(&i.serial) {
             let r = if i.admin { Remote { revoked: false, ..r } } else { r };
             apply_remote(&r);
@@ -380,9 +385,11 @@ pub fn license_admin_sign(serial: String) -> Result<String, String> {
 pub fn license_admin_otp() -> Result<String, String> {
     let sk = admin_key().ok_or("沒有私鑰")?;
     let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 60).unwrap_or(0);
-    let sig = sk.sign(format!("maboo-admin|{ts}").as_bytes());
+    // 加一段亂數，每次產生的密碼都不一樣（Ed25519 簽同樣的內容會得到同樣的簽名）
+    let nonce = base36(rand::RngCore::next_u64(&mut rand::rngs::OsRng) >> 20);
+    let sig = sk.sign(format!("maboo-admin|{ts}|{nonce}").as_bytes());
     use base64::Engine;
-    Ok(format!("MA1-{}-{}", base36(ts), base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sig.to_bytes())))
+    Ok(format!("MA1-{}-{}-{}", base36(ts), nonce, base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sig.to_bytes())))
 }
 
 fn base36(mut n: u64) -> String {
