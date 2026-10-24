@@ -346,7 +346,7 @@ fn main() {
             watch::init(app.handle(), dir.join("watch.json"));
             web::init(app.handle(), dir.join("web.json"));
             license::init(dir.clone());
-            stats::start(dir.clone());
+            stats::start(app.handle().clone(), dir.clone());
             if let Err(e) = setup_tray(app) {
                 eprintln!("無法建立右下角圖示：{e}");
             }

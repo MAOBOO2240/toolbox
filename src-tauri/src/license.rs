@@ -60,6 +60,27 @@ pub fn bound_name() -> String {
     read_saved().name
 }
 
+/// 作者在儀表板移除了這台電腦的授權：刪掉本機存的授權碼。回傳有沒有真的刪掉東西（作者模式不受影響）
+pub fn revoke_local() -> bool {
+    if read_saved().code.is_empty() {
+        return false;
+    }
+    let _ = std::fs::remove_file(license_path());
+    *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    true
+}
+
+/// 問 Worker 這個序號有沒有被作者移除授權；連不上就當沒有
+fn revoked_remotely(serial: &str) -> bool {
+    let url = crate::stats::STATS_URL.trim_end_matches('/');
+    if url.is_empty() {
+        return false;
+    }
+    let body = serde_json::json!({ "serial": serial }).to_string();
+    let Ok(r) = ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(8)).build().post(&format!("{url}/check")).set("Content-Type", "application/json").send_string(&body) else { return false };
+    r.into_string().ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).map(|v| v["revoked"].as_bool().unwrap_or(false)).unwrap_or(false)
+}
+
 /// 這台電腦的序號
 pub fn serial() -> String {
     let raw = format!("MAOBOO|{}|{}", machine_guid(), computer_name().to_uppercase());
@@ -200,6 +221,9 @@ pub fn license_activate(code: String) -> Result<Info, String> {
     let serial = serial();
     if !verify_for(&serial, &code) {
         return Err("授權碼不正確，或不是這台電腦的（請確認序號有給對）".into());
+    }
+    if revoked_remotely(&serial) {
+        return Err("這台電腦的授權已被作者移除".into());
     }
     write_saved(&Saved { code, ..Default::default() })?;
     Ok(info())

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::Duration;
+use tauri::{AppHandle, Emitter};
 
 /// 作者的 Worker 網址（例如 https://maboo-stats.xxx.workers.dev）。空白 = 不回報、也沒有公會自動授權
 pub const STATS_URL: &str = "https://maboo-stats.1735aam.workers.dev";
@@ -57,7 +58,14 @@ struct Ping<'a> {
     name: String,
 }
 
-fn send() {
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Pong {
+    /// 作者在儀表板按了「移除授權」
+    revoked: bool,
+}
+
+fn send(app: &AppHandle) {
     if STATS_URL.trim().is_empty() {
         return;
     }
@@ -70,25 +78,30 @@ fn send() {
         licensed: crate::license::licensed(),
         name: crate::license::bound_name(),
     };
-    let _ = ureq::AgentBuilder::new()
+    let resp = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(15))
         .build()
         .post(&format!("{}/ping", STATS_URL.trim_end_matches('/')))
         .set("User-Agent", "MAOBOO-toolbox")
         .set("Content-Type", "application/json")
         .send_string(&serde_json::to_string(&p).unwrap_or_default());
+    let pong: Pong = resp.ok().and_then(|r| r.into_string().ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    // 作者移除了這台電腦的授權：把本機的授權碼刪掉，畫面重新上鎖
+    if pong.revoked && p.licensed && crate::license::revoke_local() {
+        let _ = app.emit("license-changed", ());
+    }
 }
 
 /// 程式啟動時呼叫：背景回報，之後每 6 小時一次
-pub fn start(dir: PathBuf) {
+pub fn start(app: AppHandle, dir: PathBuf) {
     let _ = DIR.set(dir);
     if STATS_URL.trim().is_empty() {
         return;
     }
-    std::thread::spawn(|| {
+    std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(20));
         loop {
-            send();
+            send(&app);
             std::thread::sleep(Duration::from_secs(6 * 3600));
         }
     });

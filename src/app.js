@@ -1683,6 +1683,8 @@ $("#licAuto")?.addEventListener("click", () => run(async () => {
 }));
 $("#licAutoName")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licAuto").click(); });
 $("#licAskAutoName")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licAskAutoBtn").click(); });
+// 作者在儀表板移除了這台電腦的授權：重新讀授權狀態、把工具鎖回去
+if (TAURI) listen("license-changed", () => { License.load(); toast("這台電腦的授權已被作者移除"); });
 $("#licKeygen")?.addEventListener("click", () => run(async () => {
   if (!(await confirmBox("要產生新的金鑰嗎？私鑰會存在這台電腦，之後所有授權碼都用它簽；產生後要把公鑰交給開發者放進程式。"))) return;
   try { await invoke("license_admin_keygen"); toast("金鑰已產生"); } catch (e) { toast(String(e)); }
