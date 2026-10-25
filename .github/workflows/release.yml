@@ -1,16 +1,17 @@
 name: Build & Release
 
-# 推送到 main 或手動觸發時，在 Windows 上編譯並覆蓋發布 v1.0.0（版本號固定，以編譯編號／commit 分新舊）
+# 推送到 main 或手動觸發時，在 Windows 上編譯並覆蓋發布 v1.0.0（版本號固定，以編譯編號／commit 分新舊）。
+# 推送到 dev 則覆蓋發布「測試版」（tag：test，標成預先發布）：程式的自動更新只看 v1.0.0，所以測試版不會推給使用者。
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release
+  group: release-${{ github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -74,18 +75,29 @@ jobs:
           Get-ChildItem dist | Select-Object Name, Length
           Get-Content dist/MAOBOO.sha256
 
-      - name: Replace v1.0.0 release
+      - name: Replace release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete v1.0.0 --cleanup-tag --yes || true
-          git push origin :refs/tags/v1.0.0 || true
-          gh release create v1.0.0 dist/MAOBOO.zip dist/MAOBOO.sha256 \
-            --latest \
+          if [ "$GITHUB_REF_NAME" = "dev" ]; then
+            TAG=test
+            TITLE="工具箱 測試版（編譯 #${GITHUB_RUN_NUMBER}）"
+            FLAGS="--prerelease"
+            NOTE="這是作者的測試版本，不會自動推送給使用者；一般使用者請用 v1.0.0。"
+          else
+            TAG=v1.0.0
+            TITLE="工具箱 v1.0.0（編譯 #${GITHUB_RUN_NUMBER}）"
+            FLAGS="--latest"
+            NOTE="Windows 10/11 免安裝版，下載 MAOBOO.zip 解壓縮後執行 MAOBOO.exe。"
+          fi
+          gh release delete "$TAG" --cleanup-tag --yes || true
+          git push origin ":refs/tags/$TAG" || true
+          gh release create "$TAG" dist/MAOBOO.zip dist/MAOBOO.sha256 \
+            $FLAGS \
             --target "$GITHUB_SHA" \
-            --title "工具箱 v1.0.0（編譯 #${GITHUB_RUN_NUMBER}）" \
-            --notes "Windows 10/11 免安裝版，下載 MAOBOO.zip 解壓縮後執行 MAOBOO.exe。
+            --title "$TITLE" \
+            --notes "$NOTE
 
           最後更新：$(date -u '+%Y-%m-%d %H:%M UTC')（編譯 #${GITHUB_RUN_NUMBER}，commit ${GITHUB_SHA::7}）
 
