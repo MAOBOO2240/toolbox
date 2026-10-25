@@ -1437,6 +1437,8 @@ enum Act {
     Rename(String),
     Delete(String),
     TabReload(String),
+    /// 清掉這個分頁網站的 Cookie 與儲存資料（登入狀態），然後重新整理
+    TabClearSite(String),
     TabClose(String),
     TabOthers(String),
     TabRight(String),
@@ -1565,6 +1567,8 @@ fn ext_ctx(id: &str) -> Option<(Vec<MenuItem>, Vec<Act>)> {
 
 fn tab_ctx(tid: &str) -> (Vec<MenuItem>, Vec<Act>) {
     let t = tid.to_string();
+    let mut clear = item("act", "清除這個網站的資料（Cookie、登入狀態）", "delete");
+    clear.danger = true;
     (
         vec![
             item("act", "重新整理", "reload"),
@@ -1572,9 +1576,92 @@ fn tab_ctx(tid: &str) -> (Vec<MenuItem>, Vec<Act>) {
             item("act", "關閉分頁", "close"),
             item("act", "關閉其他分頁", "close"),
             item("act", "關閉右側分頁", "close"),
+            item("sep", "", ""),
+            clear,
         ],
-        vec![Act::TabReload(t.clone()), Act::Nothing, Act::TabClose(t.clone()), Act::TabOthers(t.clone()), Act::TabRight(t)],
+        vec![
+            Act::TabReload(t.clone()),
+            Act::Nothing,
+            Act::TabClose(t.clone()),
+            Act::TabOthers(t.clone()),
+            Act::TabRight(t.clone()),
+            Act::Nothing,
+            Act::TabClearSite(t),
+        ],
     )
+}
+
+/// 這個網址要清的來源：本身、去掉子網域的主網域、www.主網域，各有 http / https
+fn site_origins(url: &str) -> Vec<String> {
+    let Some(host) = host_of(url) else { return Vec::new() };
+    let host = host.to_lowercase();
+    let mut hosts = vec![host.clone()];
+    if host.parse::<std::net::IpAddr>().is_err() && host != "localhost" {
+        let labels: Vec<&str> = host.split('.').collect();
+        // 像 co.uk、com.tw 這種第二層網域要多留一層
+        let n = if labels.len() >= 3 && matches!(labels[labels.len() - 2], "co" | "com" | "net" | "org" | "gov" | "edu" | "ac") { 3 } else { 2 };
+        let base = if labels.len() > n { labels[labels.len() - n..].join(".") } else { host.clone() };
+        hosts.push(base.clone());
+        hosts.push(format!("www.{base}"));
+    }
+    let mut out = Vec::new();
+    for h in hosts {
+        if h.is_empty() {
+            continue;
+        }
+        for scheme in ["https", "http"] {
+            let o = format!("{scheme}://{h}");
+            if !out.contains(&o) {
+                out.push(o);
+            }
+        }
+    }
+    out
+}
+
+/// 清掉分頁網站的 Cookie 與儲存資料，全部清完後重新整理
+#[cfg(windows)]
+fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Arc;
+    use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
+    use windows_core::HSTRING;
+    let Some(url) = get(owner).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url) else { return };
+    let origins = site_origins(&url);
+    if origins.is_empty() {
+        return;
+    }
+    let label = page_label(owner, tid);
+    let Some(wv) = app.get_webview(&label) else { return };
+    let app2 = app.clone();
+    let _ = wv.with_webview(move |pw| unsafe {
+        let Ok(core) = pw.controller().CoreWebView2() else { return };
+        let left = Arc::new(AtomicUsize::new(origins.len()));
+        for o in origins {
+            let params = serde_json::json!({ "origin": o, "storageTypes": "all" }).to_string();
+            let (app3, label3, left3) = (app2.clone(), label.clone(), left.clone());
+            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |_, _| {
+                if left3.fetch_sub(1, Ordering::SeqCst) == 1 {
+                    std::thread::spawn(move || {
+                        if let Some(p) = app3.get_webview(&label3) {
+                            let _ = p.reload();
+                        }
+                    });
+                }
+                Ok(())
+            }));
+            if core.CallDevToolsProtocolMethod(&HSTRING::from("Storage.clearDataForOrigin"), &HSTRING::from(params), &handler).is_err() {
+                left.fetch_sub(1, Ordering::SeqCst);
+            }
+        }
+    });
+}
+
+#[cfg(not(windows))]
+fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
+    if let Some(p) = app.get_webview(&page_label(owner, tid)) {
+        let _ = p.reload();
+    }
 }
 
 fn menu_height(items: &[MenuItem]) -> f64 {
@@ -3239,7 +3326,7 @@ pub async fn web_menu_open(
             ))
         }
         "bm" => bm_read(|b| bm_find_any(b, &target).map(bm_ctx)).map(|x| (x, 220.0)),
-        "tab" => Some((tab_ctx(&target), 220.0)),
+        "tab" => Some((tab_ctx(&target), 300.0)),
         "ext" => Some((ext_items(), 300.0)),
         _ => None,
     };
@@ -3331,6 +3418,10 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
                 let _ = p.reload();
             }
         }
+        Act::TabClearSite(t) => {
+            hide_menu(&app, false);
+            clear_site(&app, &owner, &t);
+        }
         Act::TabClose(t) => {
             hide_menu(&app, false);
             let _ = close_tab(&app, &owner, &t);
@@ -3394,6 +3485,21 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clear_site_origins() {
+        let o = site_origins("https://x.com/home");
+        assert_eq!(o, ["https://x.com", "http://x.com", "https://www.x.com", "http://www.x.com"]);
+        let o = site_origins("https://accounts.google.com/signin");
+        assert!(o.contains(&"https://accounts.google.com".to_string()));
+        assert!(o.contains(&"https://google.com".to_string()));
+        assert!(o.contains(&"https://www.google.com".to_string()));
+        let o = site_origins("https://shop.example.co.uk/");
+        assert!(o.contains(&"https://example.co.uk".to_string()));
+        assert!(!o.contains(&"https://co.uk".to_string()));
+        assert_eq!(site_origins("http://127.0.0.1:8080/"), ["https://127.0.0.1", "http://127.0.0.1"]);
+        assert!(site_origins("about:blank").is_empty());
+    }
 
     #[test]
     fn address_bar() {

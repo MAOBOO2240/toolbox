@@ -27,6 +27,8 @@ rand = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
+# 跟 webview2-com 用同一版的字串型別（CallDevToolsProtocolMethod 的參數）
+windows-core = "0.62"
 windows = { version = "0.58", features = ["Foundation", "Foundation_Collections", "Data_Xml_Dom", "UI_Notifications", "Media_SpeechSynthesis", "Storage_Streams"] }
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
