@@ -125,7 +125,7 @@ async function authed(req, env) {
 function loginPage(err) {
   return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱後台</title>
 <style>${CSS}body{display:grid;place-items:center;min-height:100vh;padding:1rem}.login{width:min(26rem,100%)}.login input{max-width:none;width:100%;margin:.6rem 0;font-family:ui-monospace,Consolas,monospace}.err{color:var(--bad);font-size:.82rem;min-height:1.2em}</style>
-<form class="card login" method="post" action="/login"><h3>工具箱後台</h3><div class="muted" style="font-size:.82rem">在作者的工具箱 → 設定 → 作者模式 按「後台驗證」會直接登入；或按「複製後台密碼」貼到這裡。密碼只能用一次，3 分鐘內有效。</div>
+<form class="card login" method="post" action="/login"><h3>工具箱後台</h3><div class="muted" style="font-size:.82rem">在作者的工具箱 → 設定 → 作者模式 按「開啟後台」會直接登入；或按「複製後台密碼」貼到這裡。密碼只能用一次，3 分鐘內有效。</div>
 <input name="otp" placeholder="MA1-…" autocomplete="off" spellcheck="false" autofocus required><div class="err">${err ? esc(err) : ""}</div><button class="primary" type="submit">登入</button></form>`);
 }
 
