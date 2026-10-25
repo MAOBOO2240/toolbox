@@ -454,7 +454,7 @@
             </div>
             <div class="b-slots" id="bSlots"></div>
             <div class="b-pick-tools">
-              <input type="text" id="bPickSearch" placeholder="搜尋道具名稱或編號" />
+              <input type="text" id="bPickSearch" placeholder="搜尋名稱、編號，或顏色（紅色、白色帽子、紅色刀）" autocomplete="off" spellcheck="false" />
               <button class="cbtn c-amber small" id="bPickCash" title="只列出點裝（現金道具）">只看點裝</button>
               <span class="muted" id="bPickCount"></span>
             </div>
@@ -871,6 +871,26 @@
         </div>
       </section>
 
+      <section class="view" id="view-iconfind">
+        <nav class="navbar">
+          <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
+          <span class="nav-title">點裝辨識</span>
+          <div class="g-pages"><label class="side-doll-sync if-cash"><span>只找點裝</span><span class="switch sm"><input type="checkbox" id="ifCash" checked /><span class="slider"></span></span></label><button class="cbtn c-indigo" id="ifPick">選擇圖片</button></div>
+        </nav>
+        <div class="if-page">
+          <div class="card if-drop" id="ifDrop" tabindex="0">
+            <img id="ifPreview" alt="" hidden />
+            <div class="if-drop-text" id="ifDropText">
+              <strong>把截圖拖到這裡、按 Ctrl+V 貼上，或按右上角「選擇圖片」</strong>
+              <span class="muted">裝備欄、背包、商城的截圖都可以；程式會把裡面每個道具格子拿去跟遊戲資料的點裝圖示比對。整隻角色的圖只能大概試試，結果不一定準。</span>
+            </div>
+          </div>
+          <div class="card if-status" id="ifStatus" hidden></div>
+          <div class="if-results" id="ifResults"></div>
+          <input type="file" id="ifFile" accept="image/*" hidden />
+        </div>
+      </section>
+
       <section class="view" id="view-track">
         <nav class="navbar">
           <button class="back" data-back><span class="back-chev">‹</span><span class="back-label"></span></button>
@@ -1280,6 +1300,7 @@
   <script src="watch.js"></script>
   <script src="patch.js"></script>
   <script src="itemup.js"></script>
+  <script src="iconfind.js"></script>
   <script src="web.js"></script>
 </body>
 </html>

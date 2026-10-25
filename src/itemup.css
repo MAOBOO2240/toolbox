@@ -71,3 +71,28 @@
 :root[data-theme="dark"] .iu-desc .d-blue { color: #74c0fc; }
 :root[data-theme="dark"] .iu-desc .d-red { color: #ff8787; }
 :root[data-theme="dark"] .iu-desc .d-green { color: #8ce99a; }
+
+/* ---------- 點裝辨識 ---------- */
+.if-page { max-width: 64rem; width: 100%; margin: 0 auto; padding: 0.8rem 0.9rem 1.2rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.if-drop { min-height: 9rem; display: grid; place-items: center; text-align: center; padding: 1rem; border: 2px dashed var(--sep); cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.if-drop.over { border-color: #5865f2; background: color-mix(in srgb, #5865f2 10%, var(--card)); }
+.if-drop-text { display: flex; flex-direction: column; gap: 0.4rem; max-width: 34rem; font-size: 0.9rem; line-height: 1.5; }
+.if-drop-text span { font-size: 0.8rem; }
+.if-drop-text[hidden] { display: none; }
+.if-drop:has(img:not([hidden])) { cursor: default; min-height: 0; }
+.if-drop img { max-width: 100%; max-height: 16rem; image-rendering: pixelated; border-radius: 0.6rem; }
+.if-status { font-size: 0.88rem; line-height: 1.5; padding: 0.7rem 0.9rem; }
+.if-status.err { color: #e5484d; }
+.if-bar { height: 0.45rem; border-radius: 999px; background: var(--card-2); overflow: hidden; margin-top: 0.5rem; }
+.if-bar i { display: block; height: 100%; background: #5865f2; transition: width 0.3s; }
+.if-note { font-size: 0.8rem; line-height: 1.5; padding: 0 0.3rem; }
+.if-results { display: flex; flex-direction: column; gap: 0.55rem; }
+.if-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.7rem; }
+.if-tag { flex: none; min-width: 5.2rem; justify-content: center; }
+.if-list { display: flex; gap: 0.4rem; flex-wrap: nowrap; overflow-x: auto; padding: 0.15rem; scrollbar-width: thin; }
+.if-icon { flex: none; width: 2.8rem; height: 2.8rem; }
+.if-icon img { width: 2.2rem; height: 2.2rem; object-fit: contain; image-rendering: pixelated; }
+.if-icon.none::after { content: "?"; color: var(--text-2); font-weight: 800; }
+.if-icon.fav::after { content: ""; position: absolute; right: 0.15rem; top: 0.15rem; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #e8489a; }
+.if-list .if-icon:first-child { outline: 2px solid color-mix(in srgb, #5865f2 70%, transparent); outline-offset: 1px; }
+.if-cash { margin-right: 0.3rem; font-size: 0.82rem; }

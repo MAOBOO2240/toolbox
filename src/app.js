@@ -460,6 +460,7 @@ const ICONS = {
   crystal: '<svg viewBox="0 0 24 24"><path d="M12 2.5 18.5 9 12 21.5 5.5 9z"/><path d="M5.5 9h13M9 9l3 12.5L15 9M9 9l3-6.5L15 9"/></svg>',
   trend: '<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   box: '<svg viewBox="0 0 24 24"><path d="M12 2.8 20 7v10l-8 4.2L4 17V7z"/><path d="M4 7l8 4.2L20 7M12 11.2v10"/><path d="M8 4.9l8 4.2"/></svg>',
+  scan: '<svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><circle cx="12" cy="12" r="3.2"/><path d="M14.4 14.4 17 17"/></svg>',
   shirt: '<svg viewBox="0 0 24 24"><path d="M9 3.5 5 5.5 3.5 10l2.8 1.1V20a1 1 0 0 0 1 1h9.4a1 1 0 0 0 1-1v-8.9l2.8-1.1L19 5.5l-4-2"/><path d="M9 3.5a3 3 0 0 0 6 0"/></svg>',
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5S9.6 5.8 12 3.5z"/></svg>',
   news: '<svg viewBox="0 0 24 24"><path fill-rule="evenodd" d="M6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3zM8 7.2v1.7h8V7.2zm0 4v1.7h8v-1.7zm0 4v1.7h5v-1.7z"/></svg>',
@@ -490,6 +491,7 @@ const CATS = {
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "dress", name: "變更點裝", desc: "直接換上點裝看看效果，收藏喜歡的搭配", color: "purple", icon: "shirt", view: "beauty", randomItem: cometTopItem },
+      { id: "iconfind", name: "點裝辨識", desc: "丟一張裝備欄或背包的截圖，找出裡面是哪幾件點裝", color: "indigo", icon: "scan" },
       { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", img: "assets/crystal/monthly.png" },
     ],
   },
@@ -1535,6 +1537,7 @@ async function openTool(id) {
   if (id === "track" && window.Track) window.Track.onShow();
   if (id === "patch" && window.Patches) window.Patches.onShow();
   if (id === "itemup" && window.ItemUpdates) window.ItemUpdates.onShow();
+  if (id === "iconfind" && window.IconFind) window.IconFind.onShow();
   // 抽獎模擬器：檢查官網有沒有換獎池
   if (typeof OfficialPools !== "undefined") OfficialPools.onOpen(id);
 }

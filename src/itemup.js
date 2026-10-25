@@ -274,7 +274,7 @@ if (typeof document !== "undefined") (() => {
   $("#iuModal").addEventListener("pointerdown", (e) => { if (e.target === $("#iuModal")) closeDetail(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#iuModal").hidden) closeDetail(); });
   // 離開這個工具時收起說明
-  document.addEventListener("viewchange", (e) => { if (e.detail !== "itemup") closeDetail(); });
+  document.addEventListener("viewchange", (e) => { if (e.detail !== "itemup" && e.detail !== "iconfind") closeDetail(); });
 
   /* ---------- 讀取 ---------- */
   async function load(force, quiet) {
@@ -312,7 +312,7 @@ if (typeof document !== "undefined") (() => {
   $("#iuRefresh").addEventListener("click", () => load(true));
 
   render();
-  window.ItemUpdates = { onShow: () => load(false) };
+  window.ItemUpdates = { onShow: () => load(false), openDetail };
   // 程式一打開就在背景檢查（遊戲改版後第一次開程式時記下新增的道具）；主頁的道具圖示先讀完
   if (TAURI) setTimeout(() => (window.ItemIcons?.idle?.() || Promise.resolve()).then(() => load(false, true)), 2500);
 })();

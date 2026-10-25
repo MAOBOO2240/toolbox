@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 const HAIR_COLORS: [&str; 8] = ["黑", "紅", "橘", "黃", "綠", "藍", "紫", "褐"];
 
-struct Ctx {
+pub(crate) struct Ctx {
     dir: PathBuf,
     data: Data,
     zmap: HashMap<String, i32>,
@@ -551,6 +551,21 @@ impl Ctx {
         v
     }
 
+    /// 裝備圖示的原始像素（RGBA），給點裝圖示索引用
+    pub(crate) fn icon_pixels(&mut self, id: u32) -> Option<(u32, u32, Vec<u8>)> {
+        let (_, cat) = self.equip_by_id(id)?;
+        let rel = format!("Character/{cat}");
+        let img = format!("{id:08}.img");
+        let info = self.data.img_child(&rel, &img, "info").ok()??;
+        let node = ["icon", "iconRaw"].iter().find_map(|k| info.get(k).filter(|n| matches!(n, Node::Canvas(..))))?.clone();
+        self.data.pixels_of(&rel, &img, &node).ok()
+    }
+
+    /// 遊戲版本（String 的 WZ 版本）
+    pub(crate) fn game_version(&mut self) -> u32 {
+        self.data.package("String").ok().and_then(|p| p.files.first().map(|f| f.version)).unwrap_or(0)
+    }
+
     fn vslot(&mut self, rel: &str, id: u32) -> String {
         self.data
             .img(rel, &format!("{id:08}.img"))
@@ -785,7 +800,7 @@ pub struct WzStatus {
     pub message: String,
 }
 
-fn with_ctx<T>(hint: Option<&str>, f: impl FnOnce(&mut Ctx) -> Result<T, String>) -> Result<T, String> {
+pub(crate) fn with_ctx<T>(hint: Option<&str>, f: impl FnOnce(&mut Ctx) -> Result<T, String>) -> Result<T, String> {
     let dir = find_game_dir(hint).ok_or("找不到新楓之谷安裝資料夾，請到「解析」頁選擇遊戲資料夾")?;
     let mut guard = CTX.lock().unwrap_or_else(|e| e.into_inner());
     touch();
@@ -1809,7 +1824,7 @@ pub async fn dress_item(game_dir: Option<String>, id: u32) -> Result<ItemOut, St
     .map_err(|e| e.to_string())?
 }
 
-fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
+pub(crate) fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
     if let Some(v) = ctx.lists.get(slot) {
         return Ok(v.clone());
     }

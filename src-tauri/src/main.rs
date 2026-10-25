@@ -8,6 +8,7 @@ mod elevate;
 mod fg;
 mod input;
 mod itemup;
+mod iconidx;
 mod license;
 mod maple_api;
 mod patches;
@@ -347,6 +348,7 @@ fn main() {
             watch::init(app.handle(), dir.join("watch.json"));
             web::init(app.handle(), dir.join("web.json"));
             license::init(dir.clone());
+            iconidx::init(dir.clone());
             stats::start(app.handle().clone(), dir.clone());
             if let Err(e) = setup_tray(app) {
                 eprintln!("無法建立右下角圖示：{e}");
@@ -470,6 +472,9 @@ fn main() {
             avatar::pick_game_dir,
             avatar::beauty_items,
             avatar::dress_item,
+            iconidx::iconidx_status,
+            iconidx::icon_match,
+            iconidx::iconidx_color_search,
             avatar::beauty_icons,
             avatar::beauty_skins,
             avatar::beauty_styles,

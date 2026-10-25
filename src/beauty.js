@@ -1426,13 +1426,32 @@ if (typeof document !== "undefined") (() => {
     $$("#bIcons .b-icon, #bSaved .b-icon").forEach((el) => el.classList.toggle("on", on.has(Number(el.dataset.id))));
   }
 
+  /* 顏色搜尋：「紅色」「白色帽子」「紅色刀」這種開頭是顏色的字，交給後端用圖示顏色找（需要點裝辨識的圖示索引） */
+  const COLOR_Q = /^(粉紅|粉|桃|紅|橘|橙|黃|金|綠|青|藍|紫|白|黑|灰|銀|棕|咖啡|褐|深)/;
+  let colorRes = { q: "", items: null, pending: false, note: "" };
+  async function colorSearch(q) {
+    if (colorRes.q === q && (colorRes.items || colorRes.pending)) return;
+    colorRes = { q, items: null, pending: true, note: "" };
+    try {
+      const st0 = await invoke("iconidx_status", { gameDir: st.gamePath || null, start: true });
+      if (!st0.ready) {
+        colorRes = { q, items: [], pending: false, note: st0.error ? `圖示索引建立失敗：${st0.error}` : `顏色搜尋要先建立圖示索引（${st0.total ? `${st0.done} / ${st0.total}` : "準備中"}），好了會自動顯示` };
+        setTimeout(() => { if (($("#bPickSearch").value || "").trim() === q) { colorRes.q = ""; renderPick(); } }, 1500);
+        return;
+      }
+      const items = await invoke("iconidx_color_search", { gameDir: st.gamePath || null, query: q });
+      colorRes = { q, items, pending: false, note: "" };
+    } catch (e) { colorRes = { q, items: [], pending: false, note: String(e) }; }
+  }
   function filtered() {
     const ring = /^Ring/.test(st.pickSlot);
-    const list = (itemLists[listKey(st.pickSlot)] || []).filter((it) => !ring || it.slot === st.pickSlot);
     const q = ($("#bPickSearch").value || "").trim();
-    return list.filter((it) =>
+    const color = COLOR_Q.test(q) && colorRes.q === q && colorRes.items;
+    // 顏色搜尋：用後端回來的清單，再照目前選的欄位過濾；一般搜尋：照名稱／編號
+    const base = color ? colorRes.items.filter((it) => st.pickSlot === "All" || (ring ? it.slot === st.pickSlot : listKey(it.slot) === st.pickSlot)) : (itemLists[listKey(st.pickSlot)] || []).filter((it) => !ring || it.slot === st.pickSlot);
+    return base.filter((it) =>
       (!st.pickCash || it.cash) &&
-      (!q || it.name.includes(q) || String(it.id).includes(q)) &&
+      (color || !q || it.name.includes(q) || String(it.id).includes(q)) &&
       (!st.pickG || (() => { const g = Math.floor(it.id / 1000) % 10; return g > 1 || (st.pickG === "F" ? g === 1 : g === 0); })())
     );
   }
@@ -1470,6 +1489,11 @@ if (typeof document !== "undefined") (() => {
       try { itemLists[key] = await invoke("beauty_items", { gameDir: st.gamePath || null, slot: key }); }
       catch (e) { box.innerHTML = `<div class="g-empty">${String(e)}</div>`; return; }
       if (slot !== st.pickSlot) return;
+    }
+    const q0 = ($("#bPickSearch").value || "").trim();
+    if (COLOR_Q.test(q0) && TAURI) {
+      if (colorRes.q !== q0 || (!colorRes.items && !colorRes.pending)) { await colorSearch(q0); if (($("#bPickSearch").value || "").trim() !== q0) return; }
+      if (colorRes.note) { box.innerHTML = `<div class="g-empty">${colorRes.note}</div>`; $("#bPickCount").textContent = ""; return; }
     }
     const list = filtered();
     box.innerHTML = "";
