@@ -774,7 +774,11 @@ static POPUP_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new
 /// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉
 fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
     let n = POPUP_N.fetch_add(1, Ordering::SeqCst) + 1;
+    // 要跟網頁用同一個設定檔、同樣的環境選項：WebView2 才會把它當成同一個瀏覽器開出來的視窗
+    // （開它的網頁才拿得到 window.opener、登入結果才送得回去；Google 登入 X.com 就是靠這個）
     let win = WebviewWindowBuilder::new(app, format!("webpop-{n}"), WebviewUrl::External("about:blank".parse().ok()?))
+        .data_directory(profile_dir())
+        .browser_extensions_enabled(true)
         .window_features(features)
         .title(url.host_str().unwrap_or("登入"))
         .focused(true)
