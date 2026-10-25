@@ -2006,6 +2006,10 @@ if (typeof document !== "undefined") (() => {
       save(); renderPage(); renderPick(); renderEquipped();
     },
     charLook,
+    /** 其他工具（更新道具）把一件時裝加進變更點裝的收藏；回傳現在有沒有在收藏裡 */
+    isFav,
+    addFav: (item) => { addFav(item); return isFav(item.id); },
+    removeFav: (item) => { removeFav(item); toast(`已移除收藏「${item.name}」`); },
   };
   document.dispatchEvent(new CustomEvent("beauty-ready"));
 })();

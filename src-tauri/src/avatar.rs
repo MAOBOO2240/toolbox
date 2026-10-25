@@ -1782,6 +1782,33 @@ pub async fn beauty_items(game_dir: Option<String>, slot: String) -> Result<Vec<
 
 const ALL_SLOTS: [&str; 12] = ["Cap", "Face", "Eye", "Ear", "Coat", "Longcoat", "Pants", "Shoes", "Glove", "Cape", "Shield", "Weapon"];
 
+/// 單一道具（給「更新道具」的收藏鈕用）：找出它在變更點裝裡的欄位；不是能穿的時裝就回錯誤
+#[tauri::command]
+pub async fn dress_item(game_dir: Option<String>, id: u32) -> Result<ItemOut, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_ctx(game_dir.as_deref(), |ctx| {
+            let (name, cat) = ctx.equip.iter().find(|(i, _, _)| *i == id).map(|(_, n, c)| (n.clone(), *c)).ok_or("這不是裝備")?;
+            if cat == "Ring" {
+                let (_, _, cash) = ctx.ring_info(id);
+                let slot = ctx.ring_slot(id);
+                if slot == "Ring" {
+                    return Err("這個戒指不是名牌戒指或聊天戒指，變更點裝不能用".into());
+                }
+                return Ok(ItemOut { id, name, slot, cash, dye: None });
+            }
+            let slot = slot_key(id, cat);
+            if !ALL_SLOTS.contains(&slot) {
+                return Err("這個道具不是變更點裝能穿的欄位".into());
+            }
+            let rel = format!("Character/{cat}");
+            let cash = ctx.data.img_child(&rel, &format!("{id:08}.img"), "info").ok().flatten().and_then(|info| info.get("cash").and_then(|v| v.as_int())).map(|v| v == 1).unwrap_or(false);
+            Ok(ItemOut { id, name, slot, cash, dye: None })
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn items_of(ctx: &mut Ctx, slot: &str) -> Result<Vec<ItemOut>, String> {
     if let Some(v) = ctx.lists.get(slot) {
         return Ok(v.clone());

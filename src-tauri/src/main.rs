@@ -469,6 +469,7 @@ fn main() {
             avatar::beauty_wz_status,
             avatar::pick_game_dir,
             avatar::beauty_items,
+            avatar::dress_item,
             avatar::beauty_icons,
             avatar::beauty_skins,
             avatar::beauty_styles,

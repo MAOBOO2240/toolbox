@@ -218,10 +218,38 @@ if (typeof document !== "undefined") (() => {
     return out;
   }
 
+  /** 時裝：名稱右邊的「收藏」鈕，按下直接加進變更點裝的收藏 */
+  let favItem = null;
+  async function setupFav(it) {
+    const btn = $("#iuDetFav");
+    favItem = null;
+    btn.hidden = true;
+    if (!TAURI || catOf(it) !== "outfit" || !window.Beauty?.addFav) return;
+    try {
+      const item = await invoke("dress_item", { gameDir: gameDir(), id: it.id });
+      favItem = { id: item.id, name: item.name || it.name, slot: item.slot };
+      renderFav();
+      btn.hidden = false;
+    } catch (_) { /* 不是變更點裝能穿的，就不顯示收藏鈕 */ }
+  }
+  function renderFav() {
+    const btn = $("#iuDetFav");
+    const on = favItem && window.Beauty.isFav(favItem.id);
+    btn.textContent = on ? "已收藏" : "收藏";
+    btn.classList.toggle("solid", !!on);
+    btn.title = on ? "已經在變更點裝的收藏裡，再按一下移除" : "加到變更點裝的收藏";
+  }
+  $("#iuDetFav").addEventListener("click", () => {
+    if (!favItem) return;
+    if (window.Beauty.isFav(favItem.id)) window.Beauty.removeFav(favItem); else window.Beauty.addFav(favItem);
+    renderFav();
+  });
+
   async function openDetail(it) {
     const m = $("#iuModal");
     $("#iuDetName").textContent = it.name || `道具 ${it.id}`;
     $("#iuDetMeta").textContent = `${catName(catOf(it))}・編號 ${it.id}`;
+    setupFav(it);
     const ic = $("#iuDetIc");
     const key = `${it.folder}|${it.id}`;
     fillIcon(ic, icons.get(key) || null);
