@@ -187,8 +187,6 @@ pub struct WebWin {
     pub min: bool,
     /// 放到最大
     pub max: bool,
-    /// 用電腦上的 Chrome 開（一般的 Chrome 視窗：帳號、書籤、擴充功能都是 Chrome 的），不是內建瀏覽器
-    pub chrome: bool,
     pub tabs: Vec<Tab>,
     pub active: String,
     pub next_tab: u32,
@@ -211,7 +209,6 @@ impl Default for WebWin {
             open: false,
             min: false,
             max: false,
-            chrome: false,
             tabs: Vec::new(),
             active: String::new(),
             next_tab: 0,
@@ -1172,9 +1169,6 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     })
     .ok_or("找不到這個視窗")?;
     let cfg = get(id).ok_or("找不到這個視窗")?;
-    if cfg.chrome {
-        return chrome_open(app, id, &cfg);
-    }
     let label = win_label(id);
     if app.get_window(&label).is_some() {
         // 已經開著（可能縮小了）：叫出來
@@ -1390,22 +1384,11 @@ fn close_window(app: &AppHandle, id: &str) {
     if let Some(h) = app.get_window(&win_label(id)).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize) {
         shot_take(id, h);
     }
-    if let Some(h) = chrome_rt(|m| m.get(id).copied()).filter(|&h| h > 0) {
-        shot_take(id, h);
-    }
     shot_keep(id);
     edit(id, |w| {
         w.open = false;
         w.min = false;
     });
-    if let Some(h) = chrome_rt(|m| m.remove(id)) {
-        if win32::alive(h) {
-            win32::close(h);
-        }
-        if let Some(m) = lock(&CHROME_FOCUS).as_mut() {
-            m.remove(id);
-        }
-    }
     if let Some(win) = app.get_window(&win_label(id)) {
         let _ = win.destroy();
     }
@@ -1501,234 +1484,6 @@ pub fn web_shot(id: String) -> String {
     match png {
         Some(b) => format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(&b)),
         None => String::new(),
-    }
-}
-
-/* ---------------- Chrome 視窗 ---------------- */
-
-/// 用 Chrome 開的視窗：視窗代號 → Chrome 視窗的 HWND（-1 = 剛開、還在等它出現）
-static CHROME: Mutex<Option<HashMap<String, isize>>> = Mutex::new(None);
-
-fn chrome_rt<T>(f: impl FnOnce(&mut HashMap<String, isize>) -> T) -> T {
-    let mut g = lock(&CHROME);
-    f(g.get_or_insert_with(HashMap::new))
-}
-
-/// 遊戲在前景時怎麼跟 Chrome 視窗互動的狀態
-#[derive(Default)]
-struct ChromeFocus {
-    /// 上一次在網頁內容上點的時間與位置（連點兩下＝要打字）
-    last_click: Option<(Instant, i32, i32)>,
-    /// 是我們把鍵盤切給 Chrome 的（點了分頁列／網址列或連點兩下）；滑鼠離開 Chrome 一會兒就還給遊戲
-    from_game: bool,
-    /// 切給 Chrome 後，滑鼠離開 Chrome 視窗的時間
-    out_since: Option<Instant>,
-}
-
-static CHROME_FOCUS: Mutex<Option<HashMap<String, ChromeFocus>>> = Mutex::new(None);
-
-fn chrome_focus<T>(id: &str, f: impl FnOnce(&mut ChromeFocus) -> T) -> T {
-    let mut g = lock(&CHROME_FOCUS);
-    f(g.get_or_insert_with(HashMap::new).entry(id.to_string()).or_default())
-}
-
-/// Chrome 視窗標題後面的「 - Google Chrome」拿掉
-fn chrome_title(t: &str) -> String {
-    let t = t.trim();
-    for suf in [" - Google Chrome", " – Google Chrome"] {
-        if let Some(x) = t.strip_suffix(suf) {
-            return x.trim().to_string();
-        }
-    }
-    t.to_string()
-}
-
-/// Chrome 視窗的代號（是我們開的才有）
-fn chrome_id_of(h: isize) -> Option<String> {
-    chrome_rt(|m| m.iter().find(|(_, &v)| v == h).map(|(k, _)| k.clone()))
-}
-
-/// 遊戲在前景時點了 Chrome 視窗、Chrome 把自己切到前景了（前景事件裡呼叫）：要不要馬上把前景還給遊戲？
-/// 點分頁列／網址列、或在網頁內容連點兩下 → 不還（要打字）；點網頁內容一下 → 還給遊戲（只用滑鼠操作）
-#[cfg(windows)]
-fn chrome_click_gives_back(id: &str, h: isize) -> bool {
-    let (cx, cy) = win32::cursor();
-    let Some((x, y, w, hh)) = win32::rect(h) else { return false };
-    if cx < x || cx >= x + w || cy < y || cy >= y + hh {
-        // 不是點視窗造成的（例如從工作列切過來）：當作一般切換
-        return false;
-    }
-    let strip = (100.0 * win32::dpi_scale(h)).round() as i32;
-    let on_strip = cy - y < strip;
-    chrome_focus(id, |f| {
-        let double = f.last_click.is_some_and(|(t, px, py)| t.elapsed() < Duration::from_millis(600) && (px - cx).abs() < 12 && (py - cy).abs() < 12);
-        f.last_click = if double { None } else { Some((Instant::now(), cx, cy)) };
-        if on_strip || double {
-            f.from_game = true;
-            f.out_since = None;
-            false
-        } else {
-            true
-        }
-    })
-}
-
-/// 每 0.1 秒：遊戲在前景時 Chrome 視窗設成不搶焦點；是我們把鍵盤切給 Chrome 的話，滑鼠離開 Chrome 視窗 0.7 秒就還給遊戲
-#[cfg(windows)]
-fn chrome_focus_tick(id: &str, h: isize, is_game: bool, fg_hwnd: isize) {
-    let game = win32::GAME_HWND.load(Ordering::SeqCst);
-    let (down, _) = win32::left_button();
-    let (cx, cy) = win32::cursor();
-    let inside = win32::rect(h).is_some_and(|(x, y, w, hh)| cx >= x && cx < x + w && cy >= y && cy < y + hh);
-    let give_back = chrome_focus(id, |f| {
-        if fg_hwnd == h && f.from_game {
-            if inside {
-                f.out_since = None;
-            } else if f.out_since.is_none() {
-                f.out_since = Some(Instant::now());
-            } else if !down && f.out_since.is_some_and(|t| t.elapsed() >= Duration::from_millis(700)) {
-                f.from_game = false;
-                f.out_since = None;
-                return true;
-            }
-        } else if fg_hwnd != h {
-            f.from_game = false;
-            f.out_since = None;
-        }
-        false
-    });
-    if give_back {
-        if win32::alive(game) {
-            win32::activate(game);
-        }
-    } else {
-        win32::apply_style(h, is_game, false, 255);
-    }
-}
-
-/// 打開（或叫出）一個 Chrome 視窗：開新視窗後等它出現，記住它的 HWND
-fn chrome_open(app: &AppHandle, id: &str, cfg: &WebWin) -> Result<(), String> {
-    let h = chrome_rt(|m| m.get(id).copied()).unwrap_or(0);
-    if h == -1 {
-        return Ok(());
-    }
-    if win32::alive(h) {
-        edit(id, |w| {
-            w.open = true;
-            w.min = false;
-        });
-        win32::reveal(h);
-        emit_main(app);
-        return Ok(());
-    }
-    let before = win32::chrome_windows();
-    let url = if cfg.url.trim().is_empty() || cfg.url.starts_with("about:") { HOME.to_string() } else { cfg.url.clone() };
-    crate::winsys::open_in_chrome(&format!("--new-window {}", crate::elevate::quote(&url)))?;
-    chrome_rt(|m| {
-        m.insert(id.to_string(), -1);
-    });
-    edit(id, |w| {
-        w.open = true;
-        w.min = false;
-    });
-    emit_main(app);
-    let (app, id, cfg) = (app.clone(), id.to_string(), cfg.clone());
-    std::thread::spawn(move || {
-        let t0 = Instant::now();
-        let found = loop {
-            std::thread::sleep(Duration::from_millis(100));
-            if let Some(h) = win32::chrome_windows().into_iter().find(|h| !before.contains(h)) {
-                break Some(h);
-            }
-            if t0.elapsed() > Duration::from_secs(10) {
-                break None;
-            }
-        };
-        match found {
-            Some(h) => {
-                chrome_rt(|m| {
-                    m.insert(id.clone(), h);
-                });
-                // 放回上次的位置與大小（第一次開就用 Chrome 自己的）
-                if cfg.w > 0 && cfg.h > 0 {
-                    win32::place(h, cfg.x, cfg.y, cfg.w as i32, cfg.h as i32);
-                }
-                if cfg.max {
-                    win32::maximize(h);
-                }
-            }
-            None => {
-                chrome_rt(|m| {
-                    m.remove(&id);
-                });
-                edit(&id, |w| w.open = false);
-                eprintln!("等不到 Chrome 的視窗出現");
-            }
-        }
-        emit_main(&app);
-    });
-    Ok(())
-}
-
-/// 每 0.1 秒：Chrome 視窗還在嗎、標題與位置有沒有變；遊戲在前景時把它放到遊戲上面
-fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
-    let h = chrome_rt(|m| m.get(&cfg.id).copied()).unwrap_or(0);
-    if h == -1 {
-        return;
-    }
-    if !win32::alive(h) {
-        chrome_rt(|m| {
-            m.remove(&cfg.id);
-        });
-        shot_keep(&cfg.id);
-        edit(&cfg.id, |w| {
-            w.open = false;
-            w.min = false;
-        });
-        emit_main(app);
-        return;
-    }
-    let min = win32::iconic(h);
-    let max = win32::zoomed(h);
-    let title = chrome_title(&win32::title(h));
-    let rect = if !min && !max { win32::rect(h) } else { None };
-    let mut moved = false;
-    let changed = {
-        let mut st_ = st();
-        let Some(w) = st_.file.wins.iter_mut().find(|w| w.id == cfg.id) else { return };
-        let mut c = false;
-        if w.min != min {
-            w.min = min;
-            c = true;
-        }
-        if w.max != max {
-            w.max = max;
-            c = true;
-        }
-        if !title.is_empty() && w.title != title {
-            w.title = title;
-            c = true;
-        }
-        if let Some((x, y, ww, hh)) = rect {
-            if ww > 0 && hh > 0 && (w.x, w.y, w.w, w.h) != (x, y, ww as u32, hh as u32) {
-                (w.x, w.y, w.w, w.h) = (x, y, ww as u32, hh as u32);
-                moved = true;
-            }
-        }
-        if c || moved {
-            st_.dirty = true;
-        }
-        c
-    };
-    if changed {
-        emit_main(app);
-    }
-    if is_game && !min {
-        win32::keep_above(h, fg_hwnd);
-    }
-    #[cfg(windows)]
-    if !min {
-        chrome_focus_tick(&cfg.id, h, is_game, fg_hwnd);
     }
 }
 
@@ -2155,32 +1910,12 @@ fn pop_menu(app: &AppHandle) {
 
 /* ---------------- Windows：攔截訊息、焦點、樣式 ---------------- */
 
-/// 非 Windows（只為了編譯測試）：Chrome 視窗相關的都當作不存在
+/// 非 Windows（只為了編譯測試）
 #[cfg(not(windows))]
 mod win32 {
-    pub fn alive(_h: isize) -> bool {
-        false
-    }
-    pub fn close(_h: isize) {}
-    pub fn reveal(_h: isize) {}
-    pub fn chrome_windows() -> Vec<isize> {
-        Vec::new()
-    }
-    pub fn place(_h: isize, _x: i32, _y: i32, _w: i32, _hh: i32) {}
-    pub fn maximize(_h: isize) {}
     pub fn iconic(_h: isize) -> bool {
         false
     }
-    pub fn zoomed(_h: isize) -> bool {
-        false
-    }
-    pub fn title(_h: isize) -> String {
-        String::new()
-    }
-    pub fn rect(_h: isize) -> Option<(i32, i32, i32, i32)> {
-        None
-    }
-    pub fn keep_above(_h: isize, _game: isize) {}
     pub fn capture(_h: isize, _max_w: u32) -> Option<(u32, u32, Vec<u8>)> {
         None
     }
@@ -2219,23 +1954,11 @@ mod win32 {
 
     /// 遊戲剛到前景：馬上把 web 視窗放到遊戲上面（不搶焦點）
     unsafe extern "system" fn on_foreground(_h: HWINEVENTHOOK, _ev: u32, hwnd: HWND, _o: i32, _c: i32, _t: u32, _ms: u32) {
-        if hwnd.is_null() || is_own(hwnd as isize) {
-            return;
-        }
-        // 我們開的 Chrome 視窗把自己切到前景：遊戲剛才在前景、而且是點網頁內容造成的 → 馬上還給遊戲
-        if let Some(id) = super::chrome_id_of(hwnd as isize) {
-            let game = GAME_HWND.load(Ordering::SeqCst);
-            if super::GAME_FG.load(Ordering::SeqCst) && is_game(game as HWND) && super::chrome_click_gives_back(&id, hwnd as isize) {
-                activate(game);
-                raise(hwnd as isize);
-            }
-            return;
-        }
-        if !crate::fg::current().is_game {
+        if hwnd.is_null() || is_own(hwnd as isize) || !crate::fg::current().is_game {
             return;
         }
         GAME_HWND.store(hwnd as isize, Ordering::SeqCst);
-        for h in super::web_hwnds().into_iter().chain(super::chrome_hwnds()) {
+        for h in super::web_hwnds() {
             if IsWindowVisible(h as HWND) != 0 && IsIconic(h as HWND) == 0 {
                 raise(h);
             }
@@ -2484,12 +2207,6 @@ mod win32 {
         unsafe { [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].iter().any(|&k| GetAsyncKeyState(k as i32) < 0) }
     }
 
-    /// 左鍵：(現在按著, 上次查到現在有沒有按過) — 很快的點一下也抓得到
-    pub fn left_button() -> (bool, bool) {
-        let st = unsafe { GetAsyncKeyState(VK_LBUTTON as i32) } as u16;
-        (st & 0x8000 != 0, st & 1 != 0)
-    }
-
     pub fn visible(h: isize) -> bool {
         unsafe { IsWindowVisible(h as HWND) != 0 }
     }
@@ -2559,84 +2276,8 @@ mod win32 {
         unsafe { SetWindowPos(h as HWND, HWND_TOPMOST, x, y, w, hh, SWP_NOACTIVATE | SWP_SHOWWINDOW) };
     }
 
-    /* ---- 別的程式的視窗（Chrome） ---- */
-
-    unsafe extern "system" fn enum_chrome(h: HWND, lp: LPARAM) -> i32 {
-        let out = &mut *(lp as *mut Vec<isize>);
-        if IsWindowVisible(h) != 0 && GetWindow(h, GW_OWNER).is_null() {
-            let mut buf = [0u16; 64];
-            let n = GetClassNameW(h, buf.as_mut_ptr(), buf.len() as i32);
-            if n > 0 && String::from_utf16_lossy(&buf[..n as usize]) == "Chrome_WidgetWin_1" {
-                out.push(h as isize);
-            }
-        }
-        1
-    }
-
-    /// 目前看得到的 Chrome 視窗（由上到下）
-    pub fn chrome_windows() -> Vec<isize> {
-        let mut out: Vec<isize> = Vec::new();
-        unsafe { EnumWindows(Some(enum_chrome), &mut out as *mut Vec<isize> as LPARAM) };
-        out
-    }
-
-    pub fn title(h: isize) -> String {
-        let mut buf = [0u16; 512];
-        let n = unsafe { GetWindowTextW(h as HWND, buf.as_mut_ptr(), buf.len() as i32) };
-        if n <= 0 {
-            return String::new();
-        }
-        String::from_utf16_lossy(&buf[..n as usize])
-    }
-
     pub fn iconic(h: isize) -> bool {
         unsafe { IsIconic(h as HWND) != 0 }
-    }
-
-    pub fn zoomed(h: isize) -> bool {
-        unsafe { IsZoomed(h as HWND) != 0 }
-    }
-
-    /// 視窗的位置與大小（實體像素）
-    pub fn rect(h: isize) -> Option<(i32, i32, i32, i32)> {
-        let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        if unsafe { GetWindowRect(h as HWND, &mut r) } == 0 {
-            return None;
-        }
-        Some((r.left, r.top, r.right - r.left, r.bottom - r.top))
-    }
-
-    pub fn place(h: isize, x: i32, y: i32, w: i32, hh: i32) {
-        unsafe { SetWindowPos(h as HWND, std::ptr::null_mut(), x, y, w, hh, SWP_NOZORDER | SWP_NOACTIVATE) };
-    }
-
-    pub fn maximize(h: isize) {
-        unsafe { ShowWindow(h as HWND, SW_MAXIMIZE) };
-    }
-
-    /// 叫到前面（縮小的先還原）
-    pub fn reveal(h: isize) {
-        unsafe {
-            if IsIconic(h as HWND) != 0 {
-                ShowWindow(h as HWND, SW_RESTORE);
-            }
-            SetForegroundWindow(h as HWND);
-        }
-    }
-
-    /// 請視窗關閉（跟按右上角的 × 一樣）
-    pub fn close(h: isize) {
-        unsafe { PostMessageW(h as HWND, WM_CLOSE, 0, 0) };
-    }
-
-    /// 視窗所在螢幕的縮放比例（1.0 = 100%）
-    pub fn dpi_scale(h: isize) -> f64 {
-        let d = unsafe { windows_sys::Win32::UI::HiDpi::GetDpiForWindow(h as HWND) };
-        if d == 0 {
-            1.0
-        } else {
-            d as f64 / 96.0
-        }
     }
 
     /// 把視窗目前的畫面抓下來（含瀏覽器用顯示卡畫的內容），縮到最多 `max_w` 寬 → (寬, 高, RGBA)
@@ -2745,10 +2386,6 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 /// 所有開著的 web 視窗
 fn web_hwnds() -> Vec<isize> {
     rt(|m| m.values().map(|r| r.hwnd).filter(|h| *h != 0).collect())
-}
-
-fn chrome_hwnds() -> Vec<isize> {
-    chrome_rt(|m| m.values().copied().filter(|h| *h > 0).collect())
 }
 
 /// 擴充功能的小視窗：蓋在網頁上（像 Chrome 按擴充功能圖示那樣），目前的分頁不變，擴充功能才看得到「目前網頁」
@@ -2875,12 +2512,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     }
     #[cfg(windows)]
     let _ = app.run_on_main_thread(win32::hook_foreground);
-    let mut file = load(&path);
-    // Chrome 視窗不是本程式的，關掉程式時它還在 Chrome 裡，下次開程式不重開
-    for w in file.wins.iter_mut().filter(|w| w.chrome) {
-        w.open = false;
-        w.min = false;
-    }
+    let file = load(&path);
     let reopen: Vec<String> = file.wins.iter().filter(|w| w.open).map(|w| w.id.clone()).collect();
     let _ = STORE.set(Mutex::new(Store { file, path, dirty: false }));
     let app1 = app.clone();
@@ -3011,29 +2643,14 @@ fn tick(app: &AppHandle) {
     };
     if take_shots {
         for cfg in &open {
-            let h = if cfg.chrome {
-                chrome_rt(|m| m.get(&cfg.id).copied()).unwrap_or(0)
-            } else {
-                #[cfg(windows)]
-                {
-                    app.get_window(&win_label(&cfg.id)).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize).unwrap_or(0)
-                }
-                #[cfg(not(windows))]
-                {
-                    0
-                }
-            };
-            if h > 0 {
+            #[cfg(windows)]
+            if let Some(h) = app.get_window(&win_label(&cfg.id)).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize) {
                 shot_take(&cfg.id, h);
             }
         }
     }
 
     for cfg in open {
-        if cfg.chrome {
-            chrome_tick(app, &cfg, info.is_game, fg_hwnd);
-            continue;
-        }
         let id = cfg.id.clone();
         // 先在鎖內決定要做什麼，鎖外再動視窗
         let decided = rt(|m| {
@@ -3159,7 +2776,7 @@ pub async fn web_add(app: AppHandle) -> Result<WebWin, String> {
         let n = s.file.next_id;
         // 新視窗稍微錯開，不要完全疊在一起
         let k = (s.file.wins.len() % 6) as i32;
-        let mut w = WebWin { id: format!("w{n}"), x: 200 + k * 40, y: 150 + k * 40, chrome: true, ..WebWin::default() };
+        let mut w = WebWin { id: format!("w{n}"), x: 200 + k * 40, y: 150 + k * 40, ..WebWin::default() };
         fix_win(&mut w);
         s.file.wins.push(w.clone());
         s.dirty = true;
@@ -3191,18 +2808,7 @@ pub async fn web_delete(app: AppHandle, id: String) {
 
 /// 不透明度、鎖定、只在遊戲時顯示（背景執行緒 0.1 秒內套用）
 #[tauri::command]
-pub fn web_set(app: AppHandle, id: String, opacity: Option<u32>, locked: Option<bool>, game_only: Option<bool>, chrome: Option<bool>) {
-    if let Some(c) = chrome {
-        // 內建 ↔ Chrome：開著的話關掉重開
-        let was_open = get(&id).is_some_and(|w| w.open && w.chrome != c);
-        if was_open {
-            close_window(&app, &id);
-        }
-        edit(&id, |w| w.chrome = c);
-        if was_open {
-            let _ = open_window(&app, &id, true);
-        }
-    }
+pub fn web_set(id: String, opacity: Option<u32>, locked: Option<bool>, game_only: Option<bool>) {
     edit(&id, |w| {
         if let Some(o) = opacity {
             w.opacity = o.clamp(30, 100);
@@ -4091,17 +3697,6 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn chrome_window_title() {
-        assert_eq!(chrome_title("YouTube - Google Chrome"), "YouTube");
-        assert_eq!(chrome_title("  X 首頁 / X – Google Chrome "), "X 首頁 / X");
-        assert_eq!(chrome_title("新分頁"), "新分頁");
-        let w = WebWin::default();
-        assert!(!w.chrome);
-        let v: WebWin = serde_json::from_str(r#"{"id":"w1","url":"https://x.com/"}"#).unwrap();
-        assert!(!v.chrome && v.url == "https://x.com/");
-    }
 
     #[test]
     fn clear_site_origins() {
