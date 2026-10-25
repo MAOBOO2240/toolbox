@@ -30,6 +30,8 @@
 .web-card:not(.open) .web-dots i { background: #4a5263; }
 .web-wtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .web-state { flex: none; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; background: #3a4252; color: #9aa3b2; }
+.web-kind { flex: none; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; background: color-mix(in srgb, #ef4444 22%, transparent); color: #fca5a5; }
+.web-card.chrome .web-builtin { display: none; }
 .web-card.open .web-state { background: color-mix(in srgb, #0ea5e9 28%, transparent); color: #7dd3fc; }
 .web-card.open:not(.mini) .web-state { animation: web-breathe 2.2s ease-in-out infinite; }
 @keyframes web-breathe { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, #0ea5e9 18%, transparent); } }
@@ -66,7 +68,7 @@ label.web-opt { cursor: pointer; }
 .web-bmtip { font-size: 0.8rem; line-height: 1.5; }
 .web-profiles { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .web-profiles .muted { flex-basis: 100%; font-size: 0.8rem; }
-.web-profiles[hidden] { display: none; }
+.web-profiles[hidden], .web-tabsrow[hidden] { display: none; }
 .web-chrome { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .web-chrome-who { flex: 1; min-width: 8rem; font-size: 0.78rem; color: var(--text-2); overflow-wrap: anywhere; }
 .web-chrome-who.bad { color: var(--red, #e5484d); }

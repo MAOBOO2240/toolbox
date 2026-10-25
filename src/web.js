@@ -11,7 +11,7 @@ if (typeof document !== "undefined") (() => {
     open: (id) => invoke("web_open", { id }),
     close: (id) => invoke("web_close", { id }),
     del: (id) => invoke("web_delete", { id }),
-    set: (id, o) => invoke("web_set", { id, opacity: o.opacity ?? null, locked: o.locked ?? null, gameOnly: o.game_only ?? null }),
+    set: (id, o) => invoke("web_set", { id, opacity: o.opacity ?? null, locked: o.locked ?? null, gameOnly: o.game_only ?? null, chrome: o.chrome ?? null }),
     chrome: () => invoke("web_chrome_status"),
     importChrome: (dir) => invoke("web_chrome_import", { dir: dir ?? null }),
     sync: (on) => invoke("web_chrome_sync", { on }),
@@ -53,14 +53,16 @@ if (typeof document !== "undefined") (() => {
       el.className = `web-card${w.open ? " open" : ""}${w.open && w.min ? " mini" : ""}`;
       const tabs = w.tabs || [];
       const state = !w.open ? "未開啟" : w.min ? "已縮小到工作列" : "開啟中";
+      el.classList.toggle("chrome", !!w.chrome);
       el.innerHTML = `
         <div class="web-win">
           <div class="web-titlebar">
             <span class="web-dots"><i></i><i></i><i></i></span>
             <span class="web-wtitle"></span>
+            ${w.chrome ? '<span class="web-kind" title="用你電腦上的 Chrome 開：帳號、書籤、擴充功能都是 Chrome 的">Chrome</span>' : ""}
             <span class="web-state">${state}</span>
           </div>
-          <div class="web-tabsrow"></div>
+          <div class="web-tabsrow"${w.chrome ? " hidden" : ""}></div>
           <div class="web-screen">
             <span class="web-no">${i + 1}</span>
             <span class="web-host muted"></span>
@@ -72,12 +74,13 @@ if (typeof document !== "undefined") (() => {
           <button class="cbtn small c-red web-del">刪除</button>
         </div>
         <div class="web-opts">
-          <div class="web-opt"><span>不透明度</span>
+          <label class="web-opt" title="開啟：用你電腦上的 Chrome 開一般的 Chrome 視窗（帳號、書籤、擴充功能都是 Chrome 的）。關閉：用工具箱內建的瀏覽器"><span>Chrome 視窗</span>${sw("web-chrome", w.chrome)}</label>
+          <div class="web-opt web-builtin"><span>不透明度</span>
             <span class="web-range"><input type="range" class="range web-alpha" min="30" max="100" step="5" value="${w.opacity}" /><b>${w.opacity}%</b></span></div>
-          <label class="web-opt" title="鎖定後滑鼠會直接穿過視窗點到遊戲，視窗本身就不能點了；要操作時回到這裡解除"><span>鎖定（滑鼠穿透）</span>${sw("web-lock", w.locked)}</label>
+          <label class="web-opt web-builtin" title="鎖定後滑鼠會直接穿過視窗點到遊戲，視窗本身就不能點了；要操作時回到這裡解除"><span>鎖定（滑鼠穿透）</span>${sw("web-lock", w.locked)}</label>
         </div>`;
       el.querySelector(".web-wtitle").textContent = w.title || "新視窗";
-      el.querySelector(".web-host").textContent = [host(w.url), `${Math.max(1, tabs.length)} 個分頁`].filter(Boolean).join("・");
+      el.querySelector(".web-host").textContent = w.chrome ? host(w.url) : [host(w.url), `${Math.max(1, tabs.length)} 個分頁`].filter(Boolean).join("・");
       el.querySelector(".web-win").title = w.url;
       // 分頁列：每個分頁的網站圖示（抓不到就用第一個字）
       const row = el.querySelector(".web-tabsrow");
@@ -125,6 +128,12 @@ if (typeof document !== "undefined") (() => {
         alpha.value = Math.max(30, Math.min(100, +alpha.value + (e.deltaY < 0 ? 5 : -5)));
         alpha.dispatchEvent(new Event("input"));
       }, { passive: false });
+      el.querySelector(".web-chrome").addEventListener("change", (e) => run(async () => {
+        w.chrome = e.target.checked;
+        await wapi.set(w.id, { chrome: w.chrome });
+        await reload();
+        toast(w.chrome ? "這個視窗改用 Chrome 開" : "這個視窗改用內建瀏覽器");
+      }));
       el.querySelector(".web-lock").addEventListener("change", (e) => {
         w.locked = e.target.checked;
         run(() => wapi.set(w.id, { locked: w.locked }));
@@ -289,7 +298,7 @@ if (typeof document !== "undefined") (() => {
     const clone = (x) => JSON.parse(JSON.stringify(x));
     return {
       list: async () => clone(f),
-      add: async () => { f.next_id++; const w = { id: `w${f.next_id}`, url: "https://www.google.com/", title: "", opacity: 100, locked: false, game_only: false, open: true }; f.wins.push(w); return clone(w); },
+      add: async () => { f.next_id++; const w = { id: `w${f.next_id}`, url: "https://www.google.com/", title: "", opacity: 100, locked: false, game_only: false, open: true, chrome: true }; f.wins.push(w); return clone(w); },
       open: async (id) => { Object.assign(f.wins.find((w) => w.id === id), { open: true, min: false }); },
       close: async (id) => { f.wins.find((w) => w.id === id).open = false; },
       del: async (id) => { f.wins = f.wins.filter((w) => w.id !== id); },
