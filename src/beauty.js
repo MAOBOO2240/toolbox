@@ -1498,6 +1498,7 @@ if (typeof document !== "undefined") (() => {
     const list = filtered();
     box.innerHTML = "";
     $("#bPickCount").textContent = `${list.length} 件`;
+    $("#bPickCash").title = `只列出點裝（現金道具）；目前 ${list.length} 件`;
     if (!list.length) { box.innerHTML = '<div class="g-empty">沒有符合的道具</div>'; return; }
     const frag = document.createDocumentFragment();
     for (const it of list.slice(0, shown)) frag.appendChild(pickIcon(it));

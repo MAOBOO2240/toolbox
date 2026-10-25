@@ -194,8 +194,9 @@
 .b-pick-g { display: flex; gap: 0.3rem; }
 .b-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.35rem; }
 .b-slots .cbtn { padding: 0.45rem 0.15rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
-.b-pick-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.45rem; align-items: center; }
-.b-pick-tools .muted { font-size: 0.75rem; min-width: 3.2rem; text-align: right; }
+.b-pick-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.45rem; align-items: center; }
+/* 件數不顯示了（位置留給搜尋框），只放在「只看點裝」鈕的提示文字裡 */
+.b-pick-tools .muted { display: none; }
 .b-icons {
   flex: 1; min-height: 0; overflow-y: auto;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr)); grid-auto-rows: 3.1rem;
