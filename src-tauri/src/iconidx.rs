@@ -458,11 +458,11 @@ pub fn find_boxes(img: &Img) -> (Vec<(usize, usize, usize, usize)>, Vec<(usize, 
     for i in 0..n {
         *hist.entry(q(i)).or_default() += 1;
     }
-    let mut bg: Vec<[i32; 3]> = hist
-        .iter()
-        .filter(|(_, &c)| c as f32 / n as f32 >= 0.015)
-        .filter_map(|(&k, _)| if k == 0xFFFF { None } else { Some([((k >> 10) & 31) as i32 * 8 + 4, ((k >> 5) & 31) as i32 * 8 + 4, (k & 31) as i32 * 8 + 4]) })
-        .collect();
+    // 背景色：占比最高的幾種平色（格子底色、格線、視窗底）；最多取 6 種，容差小一點，灰色的道具才不會被吃掉
+    let mut top: Vec<(u16, u32)> = hist.into_iter().filter(|(k, c)| *k != 0xFFFF && *c as f32 / n as f32 >= 0.012).collect();
+    top.sort_by_key(|x| std::cmp::Reverse(x.1));
+    top.truncate(6);
+    let mut bg: Vec<[i32; 3]> = top.iter().map(|(k, _)| [((k >> 10) & 31) as i32 * 8 + 4, ((k >> 5) & 31) as i32 * 8 + 4, (k & 31) as i32 * 8 + 4]).collect();
     if bg.is_empty() {
         bg.push([255, 255, 255]);
     }
@@ -471,11 +471,11 @@ pub fn find_boxes(img: &Img) -> (Vec<(usize, usize, usize, usize)>, Vec<(usize, 
         if p[3] < 128 {
             return true;
         }
-        bg.iter().any(|c| (c[0] - p[0] as i32).abs() <= 14 && (c[1] - p[1] as i32).abs() <= 14 && (c[2] - p[2] as i32).abs() <= 14)
+        bg.iter().any(|c| (c[0] - p[0] as i32).abs() <= 10 && (c[1] - p[1] as i32).abs() <= 10 && (c[2] - p[2] as i32).abs() <= 10)
     };
     let mut paint: Vec<bool> = (0..n).map(|i| !is_bg(i)).collect();
     // 稍微膨脹一格，讓同一個圖示分開的小碎片連在一起
-    let orig = paint.clone();
+    let mut orig = paint.clone();
     for y in 0..h {
         for x in 0..w {
             if orig[y * w + x] {
@@ -530,7 +530,7 @@ pub fn find_boxes(img: &Img) -> (Vec<(usize, usize, usize, usize)>, Vec<(usize, 
             continue;
         }
         if bw.max(bh) <= 96 {
-            small.push((x0, y0, x1, y1));
+            small.push(strip_badges(img, &mut orig, (x0, y0, x1, y1)));
         } else {
             big.push((x0, y0, x1, y1));
         }
@@ -538,16 +538,82 @@ pub fn find_boxes(img: &Img) -> (Vec<(usize, usize, usize, usize)>, Vec<(usize, 
     (small, big, orig)
 }
 
+/// 遊戲會在道具圖示右下疊黃色的「C」（點裝）、左下疊綠色鎖頭：把那兩個角落裡的標誌顏色從 paint 拿掉，再重算區塊範圍
+fn strip_badges(img: &Img, paint: &mut [bool], (x0, y0, x1, y1): (usize, usize, usize, usize)) -> (usize, usize, usize, usize) {
+    let (bw, bh) = (x1 - x0, y1 - y0);
+    let badge = |p: &[u8]| -> bool {
+        let (r, g, b) = (p[0] as i32, p[1] as i32, p[2] as i32);
+        let yellow = r > 180 && g > 130 && b < 110 && r - b > 90; // 金黃色圓底
+        let dark_on_yellow = r < 110 && g < 90 && b < 70; // 圓裡的深色「C」
+        let green = g > 120 && g > r + 35 && g > b + 25; // 綠色鎖頭
+        yellow || dark_on_yellow || green
+    };
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let (fx, fy) = ((x - x0) as f32 / bw as f32, (y - y0) as f32 / bh as f32);
+            let corner = fy > 0.55 && (fx > 0.55 || fx < 0.45);
+            if !corner {
+                continue;
+            }
+            let i = y * img.w + x;
+            if paint[i] && badge(&img.px[i * 4..i * 4 + 4]) {
+                paint[i] = false;
+            }
+        }
+    }
+    // 重算範圍
+    let (mut nx0, mut ny0, mut nx1, mut ny1) = (x1, y1, x0, y0);
+    for y in y0..y1 {
+        for x in x0..x1 {
+            if paint[y * img.w + x] {
+                nx0 = nx0.min(x);
+                ny0 = ny0.min(y);
+                nx1 = nx1.max(x + 1);
+                ny1 = ny1.max(y + 1);
+            }
+        }
+    }
+    if nx1 > nx0 + 4 && ny1 > ny0 + 4 { (nx0, ny0, nx1, ny1) } else { (x0, y0, x1, y1) }
+}
+
 /// 一個區塊的縮圖（只算非背景的像素）
-fn crop_thumb(img: &Img, paint: &[bool], (x0, y0, x1, y1): (usize, usize, usize, usize)) -> Option<(Vec<u8>, Vec<u8>)> {
+/// 區塊裡的圖示範圍：從邊緣能走到的背景才是背景，被圖示包住的「洞」（顏色剛好跟格子底色很像的部分）算圖示
+pub fn crop_mask(img: &Img, paint: &[bool], (x0, y0, x1, y1): (usize, usize, usize, usize)) -> Vec<bool> {
     let (cw, ch) = (x1 - x0, y1 - y0);
+    let mut inside = vec![true; cw * ch];
+    let mut stack: Vec<usize> = Vec::new();
+    let is_paint = |x: usize, y: usize| paint[(y0 + y) * img.w + x0 + x];
+    for y in 0..ch {
+        for x in 0..cw {
+            if (x == 0 || y == 0 || x + 1 == cw || y + 1 == ch) && !is_paint(x, y) {
+                inside[y * cw + x] = false;
+                stack.push(y * cw + x);
+            }
+        }
+    }
+    while let Some(i) = stack.pop() {
+        let (x, y) = (i % cw, i / cw);
+        for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+            if nx < cw && ny < ch && inside[ny * cw + nx] && !is_paint(nx, ny) {
+                inside[ny * cw + nx] = false;
+                stack.push(ny * cw + nx);
+            }
+        }
+    }
+    inside
+}
+
+fn crop_thumb(img: &Img, paint: &[bool], bx: (usize, usize, usize, usize)) -> Option<(Vec<u8>, Vec<u8>)> {
+    let (x0, y0, x1, y1) = bx;
+    let (cw, ch) = (x1 - x0, y1 - y0);
+    let inside = crop_mask(img, paint, bx);
     let mut px = vec![0u8; cw * ch * 4];
     for y in 0..ch {
         for x in 0..cw {
             let si = ((y0 + y) * img.w + x0 + x) * 4;
             let di = (y * cw + x) * 4;
             px[di..di + 3].copy_from_slice(&img.px[si..si + 3]);
-            px[di + 3] = if paint[(y0 + y) * img.w + x0 + x] { 255 } else { 0 };
+            px[di + 3] = if inside[y * cw + x] { 255 } else { 0 };
         }
     }
     thumb_of(cw, ch, &px, |x, y| px[(y * cw + x) * 4 + 3] > 0)
@@ -574,7 +640,7 @@ fn score(e: &Entry, rgb: &[u8], mask: &[u8]) -> f32 {
         return 999.0;
     }
     let avg = diff / n / 3.0; // 0..255
-    avg + missing * 3.5 + extra * 1.5
+    avg + missing * 2.0 + extra * 1.0
 }
 
 fn sig_dist(a: &[u8; 27], b: &[u8; 27]) -> u32 {
@@ -620,7 +686,7 @@ pub async fn icon_match(game_dir: Option<String>, png_b64: String, cash_only: Op
         for b in &small {
             if let Some((rgb, mask)) = crop_thumb(&img, &paint, *b) {
                 for (i, s) in best_matches(&idx, &rgb, &mask, cash_only, 6) {
-                    if s < 70.0 {
+                    if s < 90.0 {
                         add(i, s);
                     }
                 }

@@ -91,7 +91,7 @@
     hideStatus();
     results.innerHTML = "";
     if (!out.groups.length) {
-      showStatus(out.candidates ? `找到 ${out.candidates} 個格子，但都對不到夠像的點裝。試試只截道具格子的部分，或關掉「只找點裝」。` : "圖裡找不到像道具格子的東西。請截裝備欄或背包的畫面（格子要看得清楚）。", true);
+      showStatus(out.big && !out.candidates ? "這張是整隻角色（或大張）的圖，沒辦法從身上穿的樣子認出點裝。請截裝備欄（遊戲裡按 E）或背包的畫面，程式是靠道具格子的圖示比對的。" : out.candidates ? `找到 ${out.candidates} 個格子，但都對不到夠像的點裝。試試只截道具格子的部分，或關掉「只找點裝」。` : "圖裡找不到像道具格子的東西。請截裝備欄或背包的畫面（格子要看得清楚）。", true);
       return;
     }
     const head = document.createElement("div");
