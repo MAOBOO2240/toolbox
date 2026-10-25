@@ -1517,8 +1517,6 @@ fn chrome_rt<T>(f: impl FnOnce(&mut HashMap<String, isize>) -> T) -> T {
 /// 遊戲在前景時怎麼跟 Chrome 視窗互動的狀態
 #[derive(Default)]
 struct ChromeFocus {
-    /// 上一刻滑鼠有沒有按著
-    down: bool,
     /// 上一次在網頁內容上點的時間與位置（連點兩下＝要打字）
     last_click: Option<(Instant, i32, i32)>,
     /// 是我們把鍵盤切給 Chrome 的（點了分頁列／網址列或連點兩下）；滑鼠離開 Chrome 一會兒就還給遊戲
@@ -1534,76 +1532,67 @@ fn chrome_focus<T>(id: &str, f: impl FnOnce(&mut ChromeFocus) -> T) -> T {
     f(g.get_or_insert_with(HashMap::new).entry(id.to_string()).or_default())
 }
 
-/// 遊戲在前景時：點 Chrome 的網頁內容只用滑鼠、鍵盤留在遊戲（視窗設成不搶焦點）；
-/// 點分頁列／網址列、或在網頁裡連點兩下 → 鍵盤切到 Chrome（可以打字）；之後滑鼠離開 Chrome 視窗 0.7 秒就把鍵盤還給遊戲
+/// Chrome 視窗的代號（是我們開的才有）
+fn chrome_id_of(h: isize) -> Option<String> {
+    chrome_rt(|m| m.iter().find(|(_, &v)| v == h).map(|(k, _)| k.clone()))
+}
+
+/// 遊戲在前景時點了 Chrome 視窗、Chrome 把自己切到前景了（前景事件裡呼叫）：要不要馬上把前景還給遊戲？
+/// 點分頁列／網址列、或在網頁內容連點兩下 → 不還（要打字）；點網頁內容一下 → 還給遊戲（只用滑鼠操作）
+#[cfg(windows)]
+fn chrome_click_gives_back(id: &str, h: isize) -> bool {
+    let (cx, cy) = win32::cursor();
+    let Some((x, y, w, hh)) = win32::rect(h) else { return false };
+    if cx < x || cx >= x + w || cy < y || cy >= y + hh {
+        // 不是點視窗造成的（例如從工作列切過來）：當作一般切換
+        return false;
+    }
+    let strip = (100.0 * win32::dpi_scale(h)).round() as i32;
+    let on_strip = cy - y < strip;
+    chrome_focus(id, |f| {
+        let double = f.last_click.is_some_and(|(t, px, py)| t.elapsed() < Duration::from_millis(600) && (px - cx).abs() < 12 && (py - cy).abs() < 12);
+        f.last_click = if double { None } else { Some((Instant::now(), cx, cy)) };
+        if on_strip || double {
+            f.from_game = true;
+            f.out_since = None;
+            false
+        } else {
+            true
+        }
+    })
+}
+
+/// 每 0.1 秒：遊戲在前景時 Chrome 視窗設成不搶焦點；是我們把鍵盤切給 Chrome 的話，滑鼠離開 Chrome 視窗 0.7 秒就還給遊戲
 #[cfg(windows)]
 fn chrome_focus_tick(id: &str, h: isize, is_game: bool, fg_hwnd: isize) {
     let game = win32::GAME_HWND.load(Ordering::SeqCst);
-    let (down, clicked) = win32::left_button();
+    let (down, _) = win32::left_button();
     let (cx, cy) = win32::cursor();
     let inside = win32::rect(h).is_some_and(|(x, y, w, hh)| cx >= x && cx < x + w && cy >= y && cy < y + hh);
-    let act = chrome_focus(id, |f| {
-        let pressed = (down && !f.down) || clicked;
-        f.down = down;
-        if is_game {
-            // 遊戲在前景：不搶焦點；看這一下點在哪
+    let give_back = chrome_focus(id, |f| {
+        if fg_hwnd == h && f.from_game {
+            if inside {
+                f.out_since = None;
+            } else if f.out_since.is_none() {
+                f.out_since = Some(Instant::now());
+            } else if !down && f.out_since.is_some_and(|t| t.elapsed() >= Duration::from_millis(700)) {
+                f.from_game = false;
+                f.out_since = None;
+                return true;
+            }
+        } else if fg_hwnd != h {
             f.from_game = false;
             f.out_since = None;
-            if pressed && inside {
-                let strip = (100.0 * win32::dpi_scale(h)).round() as i32;
-                let top = win32::rect(h).map(|r| r.1).unwrap_or(0);
-                let on_strip = cy - top < strip;
-                let double = f.last_click.is_some_and(|(t, x, y)| t.elapsed() < Duration::from_millis(500) && (x - cx).abs() < 12 && (y - cy).abs() < 12);
-                f.last_click = if double { None } else { Some((Instant::now(), cx, cy)) };
-                if on_strip || double {
-                    f.from_game = true;
-                    return 1; // 切鍵盤給 Chrome
-                }
-            }
-            0
-        } else if fg_hwnd == h {
-            // Chrome 在前景：是我們切過去的話，滑鼠離開一會兒就還給遊戲
-            if f.from_game {
-                if inside {
-                    f.out_since = None;
-                } else if f.out_since.is_none() {
-                    f.out_since = Some(Instant::now());
-                } else if f.out_since.is_some_and(|t| t.elapsed() >= Duration::from_millis(700)) && !down {
-                    f.from_game = false;
-                    f.out_since = None;
-                    return 2; // 還給遊戲
-                }
-            }
-            0
-        } else {
-            f.from_game = false;
-            f.out_since = None;
-            0
         }
+        false
     });
-    match act {
-        1 => {
-            win32::apply_style(h, false, false, 255);
-            win32::activate(h);
+    if give_back {
+        if win32::alive(game) {
+            win32::activate(game);
         }
-        2 => {
-            if win32::alive(game) {
-                win32::activate(game);
-            }
-        }
-        _ => win32::apply_style(h, is_game, false, 255),
+    } else {
+        win32::apply_style(h, is_game, false, 255);
     }
-}
-
-/// Chrome 視窗標題後面的「 - Google Chrome」拿掉
-fn chrome_title(t: &str) -> String {
-    let t = t.trim();
-    for suf in [" - Google Chrome", " – Google Chrome"] {
-        if let Some(x) = t.strip_suffix(suf) {
-            return x.trim().to_string();
-        }
-    }
-    t.to_string()
 }
 
 /// 打開（或叫出）一個 Chrome 視窗：開新視窗後等它出現，記住它的 HWND
@@ -2219,11 +2208,23 @@ mod win32 {
 
     /// 遊戲剛到前景：馬上把 web 視窗放到遊戲上面（不搶焦點）
     unsafe extern "system" fn on_foreground(_h: HWINEVENTHOOK, _ev: u32, hwnd: HWND, _o: i32, _c: i32, _t: u32, _ms: u32) {
-        if hwnd.is_null() || is_own(hwnd as isize) || !crate::fg::current().is_game {
+        if hwnd.is_null() || is_own(hwnd as isize) {
+            return;
+        }
+        // 我們開的 Chrome 視窗把自己切到前景：遊戲剛才在前景、而且是點網頁內容造成的 → 馬上還給遊戲
+        if let Some(id) = super::chrome_id_of(hwnd as isize) {
+            let game = GAME_HWND.load(Ordering::SeqCst);
+            if super::GAME_FG.load(Ordering::SeqCst) && is_game(game as HWND) && super::chrome_click_gives_back(&id, hwnd as isize) {
+                activate(game);
+                raise(hwnd as isize);
+            }
+            return;
+        }
+        if !crate::fg::current().is_game {
             return;
         }
         GAME_HWND.store(hwnd as isize, Ordering::SeqCst);
-        for h in super::web_hwnds() {
+        for h in super::web_hwnds().into_iter().chain(super::chrome_hwnds()) {
             if IsWindowVisible(h as HWND) != 0 && IsIconic(h as HWND) == 0 {
                 raise(h);
             }
@@ -2733,6 +2734,10 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 /// 所有開著的 web 視窗
 fn web_hwnds() -> Vec<isize> {
     rt(|m| m.values().map(|r| r.hwnd).filter(|h| *h != 0).collect())
+}
+
+fn chrome_hwnds() -> Vec<isize> {
+    chrome_rt(|m| m.values().copied().filter(|h| *h > 0).collect())
 }
 
 /// 擴充功能的小視窗：蓋在網頁上（像 Chrome 按擴充功能圖示那樣），目前的分頁不變，擴充功能才看得到「目前網頁」
