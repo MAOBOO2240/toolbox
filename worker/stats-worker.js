@@ -273,6 +273,7 @@ code{font-family:ui-monospace,Consolas,monospace;color:var(--accent);font-size:.
 .b-bad{background:rgba(248,113,113,.12);color:var(--bad)}
 .sub{color:var(--muted);font-size:.76rem;margin-left:.35rem}
 .sep{color:var(--muted);margin:0 .4rem}
+b.who{cursor:text;border-bottom:1px dashed transparent}b.who:hover{border-bottom-color:var(--muted)}
 td.wrap{white-space:normal;max-width:60rem}
 .chip{display:inline-block;margin:.15rem .35rem .15rem 0;padding:.15rem .55rem;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:.78rem}
 .chip b{font-weight:600;color:var(--accent)}
@@ -317,7 +318,7 @@ async function dashboard(env) {
     const items = Object.entries(x.usage).sort((a, b) => b[1].s - a[1].s);
     const sum = items.reduce((a, [, u]) => a + (u.s || 0), 0);
     // 誰：序號｜綁定角色；沒綁角色就顯示備註，沒備註就給一格可以填（跟上面那張表的備註同步）
-    const tag = x.char ? `<b>${esc(x.char)}</b>` : x.note ? `<b>${esc(x.note)}</b>` : `<input value="" data-serial="${esc(x.serial)}" placeholder="這是誰" />`;
+    const tag = x.char ? `<b>${esc(x.char)}</b>` : x.note ? `<b class="who" data-who="${esc(x.serial)}" title="點一下修改備註">${esc(x.note)}</b>` : `<input value="" data-who="${esc(x.serial)}" placeholder="這是誰" />`;
     return `<tr><td><code>${esc(x.serial)}</code><span class="sep">｜</span>${tag}</td><td>${dur(sum)}</td><td class="wrap">${items.map(([id, u]) => `<span class="chip" title="${esc(id)}">${esc(u.name || id)} <b>${dur(u.s)}</b> · ${u.n} 次</span>`).join("")}</td></tr>`;
   }).join("");
   const table = (head, body, emptyText) => `<div class="tbl">${body ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : `<div class="empty">${emptyText}</div>`}</div>`;
@@ -354,7 +355,12 @@ ${table(`<th>時間</th><th>序號</th><th>輸入的角色</th><th>伺服器</th
 「封鎖」：對方的程式最晚 10 分鐘內（開工具時也會再確認）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；「解除封鎖」後對方再綁定一次（或重貼授權碼）就能用。「解除綁定」後對方程式會把角色清掉（公會自動授權的也會一起鎖回去），重新輸入角色名稱就能再綁。</p>
 <script>
 const post=async(p,b)=>{const r=await fetch(p,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
-document.querySelectorAll("input[data-serial]").forEach((i)=>i.addEventListener("change",async()=>{await post("/note",{serial:i.dataset.serial,note:i.value});i.style.borderColor="var(--good)";document.querySelectorAll('input[data-serial="'+i.dataset.serial+'"]').forEach((o)=>{if(o!==i)o.value=i.value;});}));
+// 備註：上面表格的輸入框；下面「每個人」那欄按 Enter 後變成文字，點文字再變回輸入框。兩邊同步
+const whoText=(serial,note)=>{const b=document.createElement("b");b.className="who";b.dataset.who=serial;b.title="點一下修改備註";b.textContent=note;b.addEventListener("click",()=>whoInput(b,serial,note));return b;};
+const whoInput=(el,serial,note)=>{const i=document.createElement("input");i.dataset.who=serial;i.placeholder="這是誰";i.value=note||"";const done=async()=>{if(i.dataset.done)return;i.dataset.done="1";await post("/note",{serial,note:i.value});document.querySelectorAll('input[data-serial="'+serial+'"]').forEach((o)=>{o.value=i.value;});i.replaceWith(i.value?whoText(serial,i.value):whoInput(null,serial,""));};i.addEventListener("keydown",(e)=>{if(e.key==="Enter"){e.preventDefault();i.blur();}});i.addEventListener("blur",()=>{if(i.value!==(note||""))done();else if(note)i.replaceWith(whoText(serial,note));});if(el){el.replaceWith(i);i.focus();}return i;};
+document.querySelectorAll("b.who[data-who]").forEach((b)=>{const n=b.textContent;b.addEventListener("click",()=>whoInput(b,b.dataset.who,n));});
+document.querySelectorAll("input[data-who]").forEach((i)=>{const serial=i.dataset.who;i.addEventListener("keydown",(e)=>{if(e.key==="Enter"){e.preventDefault();i.blur();}});i.addEventListener("blur",async()=>{if(!i.value)return;await post("/note",{serial,note:i.value});document.querySelectorAll('input[data-serial="'+serial+'"]').forEach((o)=>{o.value=i.value;});i.replaceWith(whoText(serial,i.value));});});
+document.querySelectorAll("input[data-serial]").forEach((i)=>i.addEventListener("change",async()=>{await post("/note",{serial:i.dataset.serial,note:i.value});i.style.borderColor="var(--good)";document.querySelectorAll('[data-who="'+i.dataset.serial+'"]').forEach((o)=>{if(o.tagName==="INPUT")o.value=i.value;else if(i.value)o.textContent=i.value;else o.replaceWith(whoInput(null,i.dataset.serial,""));});}));
 document.querySelectorAll("button[data-unbind]").forEach((b)=>b.addEventListener("click",async()=>{if(!confirm("解除「"+b.dataset.unbind+"」跟 "+b.dataset.serial+" 的綁定？"))return;await post("/unbind",{name:b.dataset.unbind,serial:b.dataset.serial});location.reload();}));
 document.querySelectorAll("button[data-revoke]").forEach((b)=>b.addEventListener("click",async()=>{const on=b.dataset.revoke==="1";if(!confirm((on?"封鎖":"解除封鎖")+" "+b.dataset.serial+"？"))return;await post("/revoke",{serial:b.dataset.serial,on});location.reload();}));
 document.querySelectorAll("button[data-rejdel]").forEach((b)=>b.addEventListener("click",async()=>{await post("/rejdel",{k:b.dataset.rejdel});b.closest("tr").remove();}));
