@@ -23,6 +23,11 @@ window.NameHistory = (() => {
     document.body.appendChild(pop);
     window.addEventListener("resize", () => place(), { passive: true });
     document.addEventListener("scroll", () => place(), true);
+    // 點到欄位和清單以外的地方、或按 Esc：一定關掉（不靠欄位的 blur）
+    document.addEventListener("mousedown", (e) => { if (cur && !pop.hidden && !pop.contains(e.target) && e.target !== cur.input) hide(); }, true);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cur && !pop.hidden) hide(); }, true);
+    // 換頁一定關掉
+    document.addEventListener("viewchange", hide);
     return pop;
   }
   function place() {
@@ -72,7 +77,7 @@ window.NameHistory = (() => {
     if (onPick) onPick(name);
   }
   function show(input, onPick) {
-    if (picking) return;
+    if (picking || input.readOnly || input.disabled) return;
     // 全部列出（不照欄位裡的字過濾，才不用先把名稱刪掉才能選別的）；超過 5 個用滾輪
     const items = read();
     if (!items.length) { hide(); return; }

@@ -1294,7 +1294,8 @@ const SideDoll = (() => {
   }
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); inp.blur(); } });
   inp.addEventListener("change", submit);
-  window.NameHistory?.attach(inp, { onPick: () => { submit(); inp.blur(); } });
+  // 左下角的綁定角色欄位不列「用過的角色」（綁定後是唯讀的，跳出來也選不了）
+  inp.setAttribute("autocomplete", "off");
   $("#sideSync").addEventListener("change", (e) => { cfg.sync = e.target.checked; saveCfg(); load(true); });
   document.addEventListener("beauty-doll", (e) => {
     if (!cfg.sync) return;
