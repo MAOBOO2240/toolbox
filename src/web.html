@@ -69,6 +69,7 @@
     .b-fwd { --c: #8b5cf6; }
     .b-reload { --c: #22b45e; }
     .b-home { --c: #f5a30b; }
+    .b-chrome { --c: #ef4444; margin-left: 2px; }
     .b-ext { --c: #14b8a6; margin-left: 2px; }
     .addr-wrap { flex: 1; min-width: 0; height: 28px; position: relative; display: flex; align-items: center; margin-left: 2px; }
     .addr { width: 100%; height: 100%; padding: 0 34px 0 12px; border-radius: 14px; border: 1px solid transparent; outline: none;
@@ -123,6 +124,7 @@
       <input class="addr" id="addr" spellcheck="false" autocomplete="off" placeholder="輸入網址或搜尋" />
       <button class="star" id="star" title="加入書籤"><svg viewBox="0 0 24 24"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
     </div>
+    <button class="nb b-chrome" id="chrome" title="用 Chrome 開啟這個網頁（用你電腦上的 Chrome，帳號、書籤、擴充功能都是 Chrome 的）"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.3"/><path d="M12 8.7h8.1M9.2 13.7L5.1 6.7M14.8 13.7l-4 7"/></svg></button>
     <button class="nb b-ext" id="ext" title="擴充功能"><svg viewBox="0 0 24 24"><path d="M9 4.5a2 2 0 0 1 4 0V6h3.5A1.5 1.5 0 0 1 18 7.5V11h1.5a2 2 0 0 1 0 4H18v3.5a1.5 1.5 0 0 1-1.5 1.5H13v-1.5a2 2 0 0 0-4 0V20H5.5A1.5 1.5 0 0 1 4 18.5V15h1.5a2 2 0 0 0 0-4H4V7.5A1.5 1.5 0 0 1 5.5 6H9z"/></svg></button>
   </div>
   <div class="bms" id="bms">
@@ -491,6 +493,7 @@
         invoke("web_typing", { on: true });
         $("addr").focus();
       };
+      $("chrome").onclick = () => invoke("web_open_chrome");
       $("ext").onclick = () => openMenu($("ext"), "ext", "ext");
       $("cMin").onclick = () => invoke("web_win", { action: "min" });
       $("cMax").onclick = () => invoke("web_win", { action: "max" });

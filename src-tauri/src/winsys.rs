@@ -120,3 +120,23 @@ pub fn open(target: &str) -> Result<(), String> {
 pub fn open(_target: &str) -> Result<(), String> {
     Err("只支援 Windows".into())
 }
+
+/// 用電腦上的 Chrome 開網址（會用使用者自己的 Chrome：帳號、登入狀態、書籤、擴充功能都是 Chrome 的）。
+/// 沒有裝 Chrome 就改用預設瀏覽器。
+#[cfg(windows)]
+pub fn open_in_chrome(url: &str) -> Result<(), String> {
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let (op, file, params) = (wide("open"), wide("chrome.exe"), wide(url));
+    // ShellExecute 會從登錄檔的 App Paths 找到 chrome.exe（不管裝在哪裡）
+    let r = unsafe { ShellExecuteW(std::ptr::null_mut(), op.as_ptr(), file.as_ptr(), params.as_ptr(), std::ptr::null(), SW_SHOWNORMAL) };
+    if r as isize > 32 {
+        return Ok(());
+    }
+    open(url)
+}
+
+#[cfg(not(windows))]
+pub fn open_in_chrome(url: &str) -> Result<(), String> {
+    open(url)
+}

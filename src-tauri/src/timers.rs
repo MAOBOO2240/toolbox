@@ -591,12 +591,99 @@ pub fn overlay_resized(w: u32, h: u32) {
 
 /* ---------------- 背景執行緒 ---------------- */
 
+/// 自動更新重開前存下來的執行狀態（正在倒數的計時器、浮動視窗有沒有顯示），新版本開起來接著算
+#[derive(Serialize, Deserialize, Default)]
+struct Carry {
+    /// 存檔時的時間（Unix 毫秒），太舊就不理
+    at: u64,
+    show: bool,
+    timers: Vec<CarryTimer>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CarryTimer {
+    id: String,
+    /// "running" | "over" | "done"
+    phase: String,
+    /// running：開始的時間；over：超時開始的時間（Unix 毫秒）
+    since: u64,
+    total: u64,
+    round: u32,
+}
+
+fn carry_path(path: &Path) -> PathBuf {
+    path.with_file_name("timers-carry.json")
+}
+
+fn epoch_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// 自動更新要重開程式前呼叫：把正在跑的計時器與浮動視窗狀態存起來
+pub fn save_carry() {
+    let Some(lock) = ENGINE.get() else { return };
+    let Ok(e) = lock.lock() else { return };
+    let now = Instant::now();
+    let now_ms = epoch_ms();
+    let ago = |t: Instant| now_ms.saturating_sub(now.duration_since(t).as_millis() as u64);
+    let timers = e
+        .rt
+        .iter()
+        .filter_map(|(id, rt)| {
+            let (phase, since, total) = match rt.phase {
+                Phase::Running { start, total } => ("running", ago(start), total),
+                Phase::Over { since } => ("over", ago(since), 0),
+                Phase::Done => ("done", 0, 0),
+                Phase::Idle => return None,
+            };
+            Some(CarryTimer { id: id.clone(), phase: phase.into(), since, total, round: rt.round })
+        })
+        .collect();
+    let c = Carry { at: now_ms, show: e.file.prefs.overlay.show, timers };
+    if let Ok(json) = serde_json::to_string(&c) {
+        let _ = std::fs::write(carry_path(&e.path), json);
+    }
+}
+
+/// 新版本開起來：把更新前存的狀態接回來（只在 --after-update 開啟、而且存檔不超過 2 分鐘時）
+fn load_carry(path: &Path, after_update: bool, file: &mut TimersFile, rt: &mut HashMap<String, Rt>) {
+    let p = carry_path(path);
+    let Ok(s) = std::fs::read_to_string(&p) else { return };
+    let _ = std::fs::remove_file(&p);
+    if !after_update {
+        return;
+    }
+    let Ok(c) = serde_json::from_str::<Carry>(&s) else { return };
+    let now_ms = epoch_ms();
+    if now_ms.saturating_sub(c.at) > 120_000 {
+        return;
+    }
+    let now = Instant::now();
+    let back = |ms: u64| now.checked_sub(Duration::from_millis(now_ms.saturating_sub(ms))).unwrap_or(now);
+    file.prefs.overlay.show = c.show;
+    for t in c.timers {
+        if !file.timers.iter().any(|x| x.id == t.id) {
+            continue;
+        }
+        let phase = match t.phase.as_str() {
+            "running" => Phase::Running { start: back(t.since), total: t.total.max(1000) },
+            "over" => Phase::Over { since: back(t.since) },
+            "done" => Phase::Done,
+            _ => continue,
+        };
+        rt.insert(t.id, Rt { phase, round: t.round, ..Rt::default() });
+    }
+}
+
 pub fn init(app: &AppHandle, path: PathBuf) {
     let mut file = load(&path);
-    // 每次開啟程式，浮動視窗的顯示開關預設為關閉
+    // 每次開啟程式，浮動視窗的顯示開關預設為關閉（自動更新後重開的例外：接著更新前的狀態）
     file.prefs.overlay.show = false;
+    let mut rt = HashMap::new();
+    let after_update = std::env::args().any(|a| a.starts_with("--after-update="));
+    load_carry(&path, after_update, &mut file, &mut rt);
     GAME_ONLY.store(file.game_only, Ordering::SeqCst);
-    let _ = ENGINE.set(Mutex::new(Engine { file, rt: HashMap::new(), path, dirty: false }));
+    let _ = ENGINE.set(Mutex::new(Engine { file, rt, path, dirty: false }));
 
     let app = app.clone();
     std::thread::spawn(move || {
@@ -838,6 +925,52 @@ pub async fn pick_sound_file() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn carry_roundtrip() {
+        let dir = std::env::temp_dir().join(format!("carry-test-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("timers.json");
+        let now = epoch_ms();
+        let c = Carry {
+            at: now,
+            show: true,
+            timers: vec![
+                CarryTimer { id: "t1".into(), phase: "running".into(), since: now - 30_000, total: 60_000, round: 2 },
+                CarryTimer { id: "t2".into(), phase: "over".into(), since: now - 5_000, total: 0, round: 1 },
+                CarryTimer { id: "nope".into(), phase: "done".into(), since: 0, total: 0, round: 0 },
+            ],
+        };
+        std::fs::write(carry_path(&path), serde_json::to_string(&c).unwrap()).unwrap();
+        // 不是更新後重開：不接，而且檔案要刪掉
+        let mut file = TimersFile::default();
+        let mut rt = HashMap::new();
+        load_carry(&path, false, &mut file, &mut rt);
+        assert!(rt.is_empty() && !file.prefs.overlay.show && !carry_path(&path).exists());
+        // 更新後重開：接回來
+        std::fs::write(carry_path(&path), serde_json::to_string(&c).unwrap()).unwrap();
+        load_carry(&path, true, &mut file, &mut rt);
+        assert!(file.prefs.overlay.show);
+        assert_eq!(rt.len(), 2);
+        match rt["t1"].phase {
+            Phase::Running { start, total } => {
+                let el = start.elapsed().as_millis();
+                assert!((29_000..32_000).contains(&el), "{el}");
+                assert_eq!(total, 60_000);
+            }
+            _ => panic!("t1 應該在倒數"),
+        }
+        assert_eq!(rt["t1"].round, 2);
+        assert!(matches!(rt["t2"].phase, Phase::Over { .. }));
+        // 太舊的不接
+        let old = Carry { at: now - 300_000, ..Default::default() };
+        std::fs::write(carry_path(&path), serde_json::to_string(&old).unwrap()).unwrap();
+        let mut file2 = TimersFile::default();
+        let mut rt2 = HashMap::new();
+        load_carry(&path, true, &mut file2, &mut rt2);
+        assert!(rt2.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn cfg(mode: &str, comp: bool) -> TimerCfg {
         TimerCfg { duration_ms: 10_000, mode: mode.into(), overflow_comp: comp, ..TimerCfg::default() }

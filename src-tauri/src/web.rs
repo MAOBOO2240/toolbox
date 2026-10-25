@@ -1437,6 +1437,8 @@ enum Act {
     Rename(String),
     Delete(String),
     TabReload(String),
+    /// 用電腦上的 Chrome 開這個分頁的網址
+    TabChrome(String),
     /// 清掉這個分頁網站的 Cookie 與儲存資料（登入狀態），然後重新整理
     TabClearSite(String),
     TabClose(String),
@@ -1572,6 +1574,7 @@ fn tab_ctx(tid: &str) -> (Vec<MenuItem>, Vec<Act>) {
     (
         vec![
             item("act", "重新整理", "reload"),
+            item("act", "用 Chrome 開啟", "chrome"),
             item("sep", "", ""),
             item("act", "關閉分頁", "close"),
             item("act", "關閉其他分頁", "close"),
@@ -1581,6 +1584,7 @@ fn tab_ctx(tid: &str) -> (Vec<MenuItem>, Vec<Act>) {
         ],
         vec![
             Act::TabReload(t.clone()),
+            Act::TabChrome(t.clone()),
             Act::Nothing,
             Act::TabClose(t.clone()),
             Act::TabOthers(t.clone()),
@@ -1617,6 +1621,27 @@ fn site_origins(url: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// 把分頁（沒指定就是目前的分頁）的網址丟給電腦上的 Chrome 開
+fn open_tab_in_chrome(wid: &str, tid: Option<&str>) {
+    let Some(w) = get(wid) else { return };
+    let tid = tid.map(str::to_string).unwrap_or_else(|| w.active.clone());
+    let url = w.tabs.iter().find(|t| t.id == tid).map(|t| t.url.clone()).unwrap_or(w.url);
+    if url.trim().is_empty() || url.starts_with("about:") {
+        return;
+    }
+    if let Err(e) = crate::winsys::open_in_chrome(&url) {
+        eprintln!("用 Chrome 開啟失敗：{e}");
+    }
+}
+
+/// 工具列的「用 Chrome 開啟」：目前分頁的網址交給 Chrome
+#[tauri::command]
+pub async fn web_open_chrome(webview: Webview) {
+    if let Some(id) = id_of(&webview) {
+        open_tab_in_chrome(&id, None);
+    }
 }
 
 /// 清掉分頁網站的 Cookie 與儲存資料，全部清完後重新整理
@@ -3417,6 +3442,10 @@ pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
             if let Some(p) = app.get_webview(&page_label(&owner, &t)) {
                 let _ = p.reload();
             }
+        }
+        Act::TabChrome(t) => {
+            hide_menu(&app, false);
+            open_tab_in_chrome(&owner, Some(&t));
         }
         Act::TabClearSite(t) => {
             hide_menu(&app, false);

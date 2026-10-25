@@ -521,6 +521,7 @@ fn main() {
             web::web_ext_sync,
             web::web_ext_toggle,
             web::web_win,
+            web::web_open_chrome,
             web::web_bm_toggle,
             web::web_bm_open,
             web::web_bm_move,
