@@ -1,0 +1,71 @@
+    Updating crates.io index
+     Locking 571 packages to highest compatible versions
+      Adding base64 v0.22.1 (available: v0.23.1)
+      Adding ed25519-dalek v2.2.0 (available: v3.0.0)
+      Adding generic-array v0.14.7 (available: v0.14.9)
+      Adding png v0.17.16 (available: v0.18.1)
+      Adding rand v0.8.8 (available: v0.10.3)
+      Adding rfd v0.15.4 (available: v0.17.2)
+      Adding rodio v0.20.1 (available: v0.23.0)
+      Adding toml v0.8.2 (available: v0.8.23)
+      Adding toml_datetime v0.6.3 (available: v0.6.11)
+      Adding toml_edit v0.20.2 (available: v0.20.7)
+      Adding ureq v2.12.1 (available: v3.5.0)
+      Adding windows v0.58.0 (available: v0.62.2)
+      Adding windows-core v0.62.2 (available: v0.100.0)
+      Adding windows-sys v0.59.0 (available: v0.61.2)
+      Adding zip v2.6.1 (available: v9.1.0)
+   Compiling toolbox v1.0.0 (D:\a\toolbox\toolbox\src-tauri)
+error[E0425]: cannot find function `chrome_title` in this scope
+    --> src\web.rs:1682:17
+     |
+1682 |     let title = chrome_title(&win32::title(h));
+     |                 ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `chrome_title` in this scope
+    --> src\web.rs:4086:20
+     |
+1663 | fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
+     | ---------------------------------------------------------------------------- similarly named function `chrome_tick` defined here
+...
+4086 |         assert_eq!(chrome_title("YouTube - Google Chrome"), "YouTube");
+     |                    ^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+4086 -         assert_eq!(chrome_title("YouTube - Google Chrome"), "YouTube");
+4086 +         assert_eq!(chrome_tick("YouTube - Google Chrome"), "YouTube");
+     |
+
+error[E0425]: cannot find function `chrome_title` in this scope
+    --> src\web.rs:4087:20
+     |
+1663 | fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
+     | ---------------------------------------------------------------------------- similarly named function `chrome_tick` defined here
+...
+4087 |         assert_eq!(chrome_title("  X 首頁 / X – Google Chrome "), "X 首頁 / X");
+     |                    ^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+4087 -         assert_eq!(chrome_title("  X 首頁 / X – Google Chrome "), "X 首頁 / X");
+4087 +         assert_eq!(chrome_tick("  X 首頁 / X – Google Chrome "), "X 首頁 / X");
+     |
+
+error[E0425]: cannot find function `chrome_title` in this scope
+    --> src\web.rs:4088:20
+     |
+1663 | fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
+     | ---------------------------------------------------------------------------- similarly named function `chrome_tick` defined here
+...
+4088 |         assert_eq!(chrome_title("新分頁"), "新分頁");
+     |                    ^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+4088 -         assert_eq!(chrome_title("新分頁"), "新分頁");
+4088 +         assert_eq!(chrome_tick("新分頁"), "新分頁");
+     |
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `toolbox` (bin "toolbox" test) due to 4 previous errors
