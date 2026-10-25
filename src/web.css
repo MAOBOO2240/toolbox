@@ -30,6 +30,7 @@
 .web-card:not(.open) .web-dots i { background: #4a5263; }
 .web-wtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .web-state { flex: none; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; background: #3a4252; color: #9aa3b2; }
+.web-list .g-empty { grid-column: 1 / -1; text-align: center; }
 .web-kind { flex: none; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; background: color-mix(in srgb, #ef4444 22%, transparent); color: #fca5a5; }
 .web-card.chrome .web-builtin { display: none; }
 .web-card.open .web-state { background: color-mix(in srgb, #0ea5e9 28%, transparent); color: #7dd3fc; }
@@ -42,7 +43,14 @@
 .web-mtab img, .web-letter { flex: none; width: 0.85rem; height: 0.85rem; border-radius: 0.2rem; object-fit: contain; }
 .web-letter { display: grid; place-items: center; font-style: normal; font-size: 0.55rem; font-weight: 800; color: #fff; }
 .web-mtt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.web-screen { position: relative; display: flex; align-items: center; justify-content: center; height: 4.6rem; background: linear-gradient(160deg, #2d3340, #1c2029); }
+.web-screen { position: relative; display: flex; align-items: center; justify-content: center; height: 4.6rem; background: linear-gradient(160deg, #2d3340, #1c2029); overflow: hidden; }
+/* 視窗最後一幀畫面（開著時每兩秒更新，關掉後留最後一張）；有畫面時編號和網址貼在左下角 */
+.web-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.web-shot[hidden] { display: none; }
+.web-card.has-shot .web-screen { height: 7.2rem; }
+.web-card.has-shot .web-no { z-index: 1; }
+.web-card.has-shot .web-host { position: absolute; left: 0.6rem; bottom: 0.45rem; max-width: calc(100% - 1.2rem); padding: 0.1rem 0.45rem; border-radius: 999px; background: rgba(12, 14, 20, 0.72); color: #e5e9f0; font-size: 0.7rem; z-index: 1; }
+.web-card:not(.open).has-shot .web-shot { filter: saturate(0.6) brightness(0.75); }
 .web-screen .web-no { position: absolute; left: 0.6rem; top: 0.55rem; }
 .web-host { font-size: 0.78rem; color: #9aa3b2; max-width: 85%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .web-actions { display: flex; gap: 0.5rem; }

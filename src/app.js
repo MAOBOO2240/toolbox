@@ -1253,6 +1253,7 @@ const SideDoll = (() => {
       const cur = window.Beauty?.current?.();
       if (cur?.doll) {
         show(cur.doll);
+        showName(cur.name);
         styleName(cur.name ? cur.tags : null);
         return;
       }
@@ -1269,6 +1270,11 @@ const SideDoll = (() => {
       styleName(null);
       if (manual) toast(String(e));
     }
+  }
+  /** 同步美容美髮時，名牌顯示美容美髮裡那隻的名稱（只有綁定後、欄位唯讀時才這樣，沒綁定時欄位是拿來輸入的） */
+  function showName(n) {
+    if (document.activeElement === inp) return;
+    inp.value = inp.readOnly && cfg.sync && n ? n : bound();
   }
   let binding = false;
   /** 輸入角色名稱 → 向作者的伺服器綁定 */
@@ -1300,6 +1306,7 @@ const SideDoll = (() => {
   document.addEventListener("beauty-doll", (e) => {
     if (!cfg.sync) return;
     show(e.detail);
+    showName(e.detail?.name || window.Beauty?.current?.().name);
   });
   document.addEventListener("beauty-tags", (e) => { if (cfg.sync) styleName(window.Beauty?.current?.().name ? e.detail : null); });
   document.addEventListener("beauty-ready", () => load(false));

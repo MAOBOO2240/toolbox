@@ -677,8 +677,8 @@ fn load_carry(path: &Path, after_update: bool, file: &mut TimersFile, rt: &mut H
 
 pub fn init(app: &AppHandle, path: PathBuf) {
     let mut file = load(&path);
-    // 每次開啟程式，浮動視窗的顯示開關預設為關閉（自動更新後重開的例外：接著更新前的狀態）
-    file.prefs.overlay.show = false;
+    // 浮動視窗的顯示開關跟著總開關：總開關開著就開（有計時器在倒數才會真的出現）；自動更新後重開則接著更新前的狀態
+    file.prefs.overlay.show = file.master_on;
     let mut rt = HashMap::new();
     let after_update = std::env::args().any(|a| a.starts_with("--after-update="));
     load_carry(&path, after_update, &mut file, &mut rt);

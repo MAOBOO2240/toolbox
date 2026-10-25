@@ -1334,6 +1334,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         WindowEvent::Destroyed => {
             let hwnd = rt(|m| m.remove(&id2).map(|r| r.hwnd).unwrap_or(0));
             lock(&TYPING_HWND).retain(|h| *h != hwnd);
+            shot_keep(&id2);
             emit_main(&app2);
         }
         _ => {}
@@ -1384,6 +1385,15 @@ fn app_work_area(app: &AppHandle, x: i32, y: i32) -> Option<(PhysicalPosition<i3
 
 fn close_window(app: &AppHandle, id: &str) {
     hide_menu_of(app, id);
+    // 關之前再抓最後一張
+    #[cfg(windows)]
+    if let Some(h) = app.get_window(&win_label(id)).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize) {
+        shot_take(id, h);
+    }
+    if let Some(h) = chrome_rt(|m| m.get(id).copied()).filter(|&h| h > 0) {
+        shot_take(id, h);
+    }
+    shot_keep(id);
     edit(id, |w| {
         w.open = false;
         w.min = false;
@@ -1391,6 +1401,9 @@ fn close_window(app: &AppHandle, id: &str) {
     if let Some(h) = chrome_rt(|m| m.remove(id)) {
         if win32::alive(h) {
             win32::close(h);
+        }
+        if let Some(m) = lock(&CHROME_FOCUS).as_mut() {
+            m.remove(id);
         }
     }
     if let Some(win) = app.get_window(&win_label(id)) {
@@ -1420,6 +1433,77 @@ fn open_bm(app: &AppHandle, wid: &str, id: &str, new: bool) {
     }
 }
 
+/* ---------------- 視窗縮圖（卡片上顯示最後一幀畫面） ---------------- */
+
+/// 每個開著的視窗最近一次抓到的畫面（PNG）；關閉時存成檔案，卡片顯示
+static SHOTS: Mutex<Option<HashMap<String, Vec<u8>>>> = Mutex::new(None);
+const SHOT_W: u32 = 480;
+const SHOT_EVERY: Duration = Duration::from_secs(2);
+
+fn shot_path(id: &str) -> Option<PathBuf> {
+    WEB_DIR.get().map(|d| d.join("shots").join(format!("{id}.png")))
+}
+
+fn encode_png(w: u32, h: u32, px: &[u8]) -> Option<Vec<u8>> {
+    let mut buf = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut buf, w, h);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        enc.set_compression(png::Compression::Fast);
+        let mut wr = enc.write_header().ok()?;
+        wr.write_image_data(px).ok()?;
+    }
+    Some(buf)
+}
+
+/// 抓一張視窗畫面放在記憶體（縮小的視窗不抓，留上一張）
+fn shot_take(id: &str, hwnd: isize) {
+    if hwnd == 0 || win32::iconic(hwnd) {
+        return;
+    }
+    let Some((w, h, px)) = win32::capture(hwnd, SHOT_W) else { return };
+    // 整張全黑（例如被遮住、還沒畫出來）就不要
+    if px.chunks(4).step_by(97).all(|p| p[0] < 8 && p[1] < 8 && p[2] < 8) {
+        return;
+    }
+    if let Some(png) = encode_png(w, h, &px) {
+        let mut g = lock(&SHOTS);
+        g.get_or_insert_with(HashMap::new).insert(id.to_string(), png);
+    }
+}
+
+/// 視窗關了：把最後一張存成檔案
+fn shot_keep(id: &str) {
+    let png = lock(&SHOTS).as_mut().and_then(|m| m.remove(id));
+    let (Some(png), Some(path)) = (png, shot_path(id)) else { return };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::write(path, png);
+}
+
+fn shot_forget(id: &str) {
+    if let Some(m) = lock(&SHOTS).as_mut() {
+        m.remove(id);
+    }
+    if let Some(p) = shot_path(id) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// 卡片要顯示的畫面：開著的用最近抓到的，關了的用關閉時存的（data URL；沒有就空字串）
+#[tauri::command]
+pub fn web_shot(id: String) -> String {
+    use base64::Engine;
+    let mem = lock(&SHOTS).as_ref().and_then(|m| m.get(&id).cloned());
+    let png = mem.or_else(|| shot_path(&id).and_then(|p| std::fs::read(p).ok()));
+    match png {
+        Some(b) => format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(&b)),
+        None => String::new(),
+    }
+}
+
 /* ---------------- Chrome 視窗 ---------------- */
 
 /// 用 Chrome 開的視窗：視窗代號 → Chrome 視窗的 HWND（-1 = 剛開、還在等它出現）
@@ -1428,6 +1512,87 @@ static CHROME: Mutex<Option<HashMap<String, isize>>> = Mutex::new(None);
 fn chrome_rt<T>(f: impl FnOnce(&mut HashMap<String, isize>) -> T) -> T {
     let mut g = lock(&CHROME);
     f(g.get_or_insert_with(HashMap::new))
+}
+
+/// 遊戲在前景時怎麼跟 Chrome 視窗互動的狀態
+#[derive(Default)]
+struct ChromeFocus {
+    /// 上一刻滑鼠有沒有按著
+    down: bool,
+    /// 上一次在網頁內容上點的時間與位置（連點兩下＝要打字）
+    last_click: Option<(Instant, i32, i32)>,
+    /// 是我們把鍵盤切給 Chrome 的（點了分頁列／網址列或連點兩下）；滑鼠離開 Chrome 一會兒就還給遊戲
+    from_game: bool,
+    /// 切給 Chrome 後，滑鼠離開 Chrome 視窗的時間
+    out_since: Option<Instant>,
+}
+
+static CHROME_FOCUS: Mutex<Option<HashMap<String, ChromeFocus>>> = Mutex::new(None);
+
+fn chrome_focus<T>(id: &str, f: impl FnOnce(&mut ChromeFocus) -> T) -> T {
+    let mut g = lock(&CHROME_FOCUS);
+    f(g.get_or_insert_with(HashMap::new).entry(id.to_string()).or_default())
+}
+
+/// 遊戲在前景時：點 Chrome 的網頁內容只用滑鼠、鍵盤留在遊戲（視窗設成不搶焦點）；
+/// 點分頁列／網址列、或在網頁裡連點兩下 → 鍵盤切到 Chrome（可以打字）；之後滑鼠離開 Chrome 視窗 0.7 秒就把鍵盤還給遊戲
+#[cfg(windows)]
+fn chrome_focus_tick(id: &str, h: isize, is_game: bool, fg_hwnd: isize) {
+    let game = win32::GAME_HWND.load(Ordering::SeqCst);
+    let (down, clicked) = win32::left_button();
+    let (cx, cy) = win32::cursor();
+    let inside = win32::rect(h).is_some_and(|(x, y, w, hh)| cx >= x && cx < x + w && cy >= y && cy < y + hh);
+    let act = chrome_focus(id, |f| {
+        let pressed = (down && !f.down) || clicked;
+        f.down = down;
+        if is_game {
+            // 遊戲在前景：不搶焦點；看這一下點在哪
+            f.from_game = false;
+            f.out_since = None;
+            if pressed && inside {
+                let strip = (100.0 * win32::dpi_scale(h)).round() as i32;
+                let top = win32::rect(h).map(|r| r.1).unwrap_or(0);
+                let on_strip = cy - top < strip;
+                let double = f.last_click.is_some_and(|(t, x, y)| t.elapsed() < Duration::from_millis(500) && (x - cx).abs() < 12 && (y - cy).abs() < 12);
+                f.last_click = if double { None } else { Some((Instant::now(), cx, cy)) };
+                if on_strip || double {
+                    f.from_game = true;
+                    return 1; // 切鍵盤給 Chrome
+                }
+            }
+            0
+        } else if fg_hwnd == h {
+            // Chrome 在前景：是我們切過去的話，滑鼠離開一會兒就還給遊戲
+            if f.from_game {
+                if inside {
+                    f.out_since = None;
+                } else if f.out_since.is_none() {
+                    f.out_since = Some(Instant::now());
+                } else if f.out_since.is_some_and(|t| t.elapsed() >= Duration::from_millis(700)) && !down {
+                    f.from_game = false;
+                    f.out_since = None;
+                    return 2; // 還給遊戲
+                }
+            }
+            0
+        } else {
+            f.from_game = false;
+            f.out_since = None;
+            0
+        }
+    });
+    match act {
+        1 => {
+            win32::apply_style(h, false, false, 255);
+            win32::activate(h);
+        }
+        2 => {
+            if win32::alive(game) {
+                win32::activate(game);
+            }
+        }
+        _ => win32::apply_style(h, is_game, false, 255),
+    }
 }
 
 /// Chrome 視窗標題後面的「 - Google Chrome」拿掉
@@ -1515,6 +1680,7 @@ fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
         chrome_rt(|m| {
             m.remove(&cfg.id);
         });
+        shot_keep(&cfg.id);
         edit(&cfg.id, |w| {
             w.open = false;
             w.min = false;
@@ -1526,7 +1692,10 @@ fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
     let max = win32::zoomed(h);
     let title = chrome_title(&win32::title(h));
     let rect = if !min && !max { win32::rect(h) } else { None };
-    let changed = edit(&cfg.id, |w| {
+    let mut moved = false;
+    let changed = {
+        let mut st_ = st();
+        let Some(w) = st_.file.wins.iter_mut().find(|w| w.id == cfg.id) else { return };
         let mut c = false;
         if w.min != min {
             w.min = min;
@@ -1541,18 +1710,25 @@ fn chrome_tick(app: &AppHandle, cfg: &WebWin, is_game: bool, fg_hwnd: isize) {
             c = true;
         }
         if let Some((x, y, ww, hh)) = rect {
-            if ww > 0 && hh > 0 {
+            if ww > 0 && hh > 0 && (w.x, w.y, w.w, w.h) != (x, y, ww as u32, hh as u32) {
                 (w.x, w.y, w.w, w.h) = (x, y, ww as u32, hh as u32);
+                moved = true;
             }
         }
+        if c || moved {
+            st_.dirty = true;
+        }
         c
-    })
-    .unwrap_or(false);
+    };
     if changed {
         emit_main(app);
     }
     if is_game && !min {
         win32::keep_above(h, fg_hwnd);
+    }
+    #[cfg(windows)]
+    if !min {
+        chrome_focus_tick(&cfg.id, h, is_game, fg_hwnd);
     }
 }
 
@@ -2005,6 +2181,9 @@ mod win32 {
         None
     }
     pub fn keep_above(_h: isize, _game: isize) {}
+    pub fn capture(_h: isize, _max_w: u32) -> Option<(u32, u32, Vec<u8>)> {
+        None
+    }
 }
 
 #[cfg(windows)]
@@ -2293,6 +2472,12 @@ mod win32 {
         unsafe { [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].iter().any(|&k| GetAsyncKeyState(k as i32) < 0) }
     }
 
+    /// 左鍵：(現在按著, 上次查到現在有沒有按過) — 很快的點一下也抓得到
+    pub fn left_button() -> (bool, bool) {
+        let st = unsafe { GetAsyncKeyState(VK_LBUTTON as i32) } as u16;
+        (st & 0x8000 != 0, st & 1 != 0)
+    }
+
     pub fn visible(h: isize) -> bool {
         unsafe { IsWindowVisible(h as HWND) != 0 }
     }
@@ -2430,6 +2615,85 @@ mod win32 {
     /// 請視窗關閉（跟按右上角的 × 一樣）
     pub fn close(h: isize) {
         unsafe { PostMessageW(h as HWND, WM_CLOSE, 0, 0) };
+    }
+
+    /// 視窗所在螢幕的縮放比例（1.0 = 100%）
+    pub fn dpi_scale(h: isize) -> f64 {
+        let d = unsafe { windows_sys::Win32::UI::HiDpi::GetDpiForWindow(h as HWND) };
+        if d == 0 {
+            1.0
+        } else {
+            d as f64 / 96.0
+        }
+    }
+
+    /// 把視窗目前的畫面抓下來（含瀏覽器用顯示卡畫的內容），縮到最多 `max_w` 寬 → (寬, 高, RGBA)
+    pub fn capture(h: isize, max_w: u32) -> Option<(u32, u32, Vec<u8>)> {
+        use windows_sys::Win32::Graphics::Gdi::*;
+        use windows_sys::Win32::Storage::Xps::PrintWindow;
+        unsafe {
+            let hwnd = h as HWND;
+            let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if GetWindowRect(hwnd, &mut r) == 0 {
+                return None;
+            }
+            let (w, hh) = ((r.right - r.left).max(0) as u32, (r.bottom - r.top).max(0) as u32);
+            if w < 16 || hh < 16 {
+                return None;
+            }
+            let sdc = GetDC(std::ptr::null_mut());
+            let mdc = CreateCompatibleDC(sdc);
+            let mut bmi: BITMAPINFO = std::mem::zeroed();
+            bmi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+            bmi.bmiHeader.biWidth = w as i32;
+            bmi.bmiHeader.biHeight = -(hh as i32);
+            bmi.bmiHeader.biPlanes = 1;
+            bmi.bmiHeader.biBitCount = 32;
+            bmi.bmiHeader.biCompression = BI_RGB;
+            let mut bits: *mut std::ffi::c_void = std::ptr::null_mut();
+            let bmp = CreateDIBSection(sdc, &bmi, DIB_RGB_COLORS, &mut bits, std::ptr::null_mut(), 0);
+            let mut out = None;
+            if !bmp.is_null() && !bits.is_null() {
+                let old = SelectObject(mdc, bmp as HGDIOBJ);
+                if PrintWindow(hwnd, mdc, PW_RENDERFULLCONTENT) != 0 {
+                    let src = std::slice::from_raw_parts(bits as *const u8, (w * hh * 4) as usize);
+                    out = Some(shrink(src, w, hh, max_w));
+                }
+                SelectObject(mdc, old);
+                DeleteObject(bmp as HGDIOBJ);
+            }
+            DeleteDC(mdc);
+            ReleaseDC(std::ptr::null_mut(), sdc);
+            out
+        }
+    }
+
+    /// BGRA → 縮小（取平均）→ RGBA
+    fn shrink(src: &[u8], w: u32, h: u32, max_w: u32) -> (u32, u32, Vec<u8>) {
+        let k = (w as f64 / max_w as f64).ceil().max(1.0) as u32;
+        let (ow, oh) = ((w / k).max(1), (h / k).max(1));
+        let mut out = vec![0u8; (ow * oh * 4) as usize];
+        let n = (k * k) as u32;
+        for oy in 0..oh {
+            for ox in 0..ow {
+                let (mut r, mut g, mut b) = (0u32, 0u32, 0u32);
+                for dy in 0..k {
+                    let row = ((oy * k + dy) * w) as usize;
+                    for dx in 0..k {
+                        let i = (row + (ox * k + dx) as usize) * 4;
+                        b += src[i] as u32;
+                        g += src[i + 1] as u32;
+                        r += src[i + 2] as u32;
+                    }
+                }
+                let o = ((oy * ow + ox) * 4) as usize;
+                out[o] = (r / n) as u8;
+                out[o + 1] = (g / n) as u8;
+                out[o + 2] = (b / n) as u8;
+                out[o + 3] = 255;
+            }
+        }
+        (ow, oh, out)
     }
 }
 
@@ -2718,6 +2982,37 @@ fn tick(app: &AppHandle) {
     let now = Instant::now();
     let fresh = |t: Option<Instant>| t.is_some_and(|t| now.duration_since(t) < Duration::from_millis(1500));
 
+    // 每 2 秒抓一次每個視窗的畫面（卡片上顯示、關閉時留最後一張）
+    static LAST_SHOT: Mutex<Option<Instant>> = Mutex::new(None);
+    let take_shots = {
+        let mut g = lock(&LAST_SHOT);
+        if g.is_none_or(|t| t.elapsed() >= SHOT_EVERY) {
+            *g = Some(Instant::now());
+            true
+        } else {
+            false
+        }
+    };
+    if take_shots {
+        for cfg in &open {
+            let h = if cfg.chrome {
+                chrome_rt(|m| m.get(&cfg.id).copied()).unwrap_or(0)
+            } else {
+                #[cfg(windows)]
+                {
+                    app.get_window(&win_label(&cfg.id)).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize).unwrap_or(0)
+                }
+                #[cfg(not(windows))]
+                {
+                    0
+                }
+            };
+            if h > 0 {
+                shot_take(&cfg.id, h);
+            }
+        }
+    }
+
     for cfg in open {
         if cfg.chrome {
             chrome_tick(app, &cfg, info.is_game, fg_hwnd);
@@ -2872,6 +3167,7 @@ pub async fn web_close(app: AppHandle, id: String) {
 #[tauri::command]
 pub async fn web_delete(app: AppHandle, id: String) {
     close_window(&app, &id);
+    shot_forget(&id);
     let mut s = st();
     s.file.wins.retain(|w| w.id != id);
     s.dirty = true;

@@ -13,6 +13,7 @@ if (typeof document !== "undefined") (() => {
     del: (id) => invoke("web_delete", { id }),
     set: (id, o) => invoke("web_set", { id, opacity: o.opacity ?? null, locked: o.locked ?? null, gameOnly: o.game_only ?? null, chrome: o.chrome ?? null }),
     chrome: () => invoke("web_chrome_status"),
+    shot: (id) => invoke("web_shot", { id }),
     importChrome: (dir) => invoke("web_chrome_import", { dir: dir ?? null }),
     sync: (on) => invoke("web_chrome_sync", { on }),
     exts: () => invoke("web_ext_list"),
@@ -51,6 +52,7 @@ if (typeof document !== "undefined") (() => {
     file.wins.forEach((w, i) => {
       const el = document.createElement("div");
       el.className = `web-card${w.open ? " open" : ""}${w.open && w.min ? " mini" : ""}`;
+      el.dataset.id = w.id;
       const tabs = w.tabs || [];
       const state = !w.open ? "未開啟" : w.min ? "已縮小到工作列" : "開啟中";
       el.classList.toggle("chrome", !!w.chrome);
@@ -64,6 +66,7 @@ if (typeof document !== "undefined") (() => {
           </div>
           <div class="web-tabsrow"${w.chrome ? " hidden" : ""}></div>
           <div class="web-screen">
+            <img class="web-shot" alt="" draggable="false" hidden />
             <span class="web-no">${i + 1}</span>
             <span class="web-host muted"></span>
           </div>
@@ -80,6 +83,13 @@ if (typeof document !== "undefined") (() => {
           <label class="web-opt web-builtin" title="鎖定後滑鼠會直接穿過視窗點到遊戲，視窗本身就不能點了；要操作時回到這裡解除"><span>鎖定（滑鼠穿透）</span>${sw("web-lock", w.locked)}</label>
         </div>`;
       el.querySelector(".web-wtitle").textContent = w.title || "新視窗";
+      // 視窗的畫面：開著時最近抓到的、關了的最後一張
+      wapi.shot(w.id).then((src) => {
+        if (!src || !el.isConnected) return;
+        const im = el.querySelector(".web-shot");
+        im.src = src; im.hidden = false;
+        el.classList.add("has-shot");
+      }).catch(() => {});
       el.querySelector(".web-host").textContent = w.chrome ? host(w.url) : [host(w.url), `${Math.max(1, tabs.length)} 個分頁`].filter(Boolean).join("・");
       el.querySelector(".web-win").title = w.url;
       // 分頁列：每個分頁的網站圖示（抓不到就用第一個字）
@@ -286,6 +296,22 @@ if (typeof document !== "undefined") (() => {
     });
   });
   document.addEventListener("viewchange", (e) => { if (e.detail === "web") run(reload); });
+  // 開著的視窗：卡片上的畫面每 3 秒換一張（只換圖，不重畫卡片）
+  setInterval(() => {
+    if (!$("#view-web").classList.contains("active")) return;
+    for (const w of file.wins || []) {
+      if (!w.open) continue;
+      const el = [...$("#webList").children].find((c) => c.dataset.id === w.id);
+      if (!el) continue;
+      wapi.shot(w.id).then((src) => {
+        if (!src || !el.isConnected) return;
+        const im = el.querySelector(".web-shot");
+        if (im.src !== src) im.src = src;
+        im.hidden = false;
+        el.classList.add("has-shot");
+      }).catch(() => {});
+    }
+  }, 3000);
   run(reload);
 
   /* ---------- 瀏覽器預覽用的模擬後端 ---------- */
@@ -303,6 +329,7 @@ if (typeof document !== "undefined") (() => {
       close: async (id) => { f.wins.find((w) => w.id === id).open = false; },
       del: async (id) => { f.wins = f.wins.filter((w) => w.id !== id); },
       set: async (id, o) => { Object.assign(f.wins.find((w) => w.id === id), o); },
+      shot: async () => "",
       chrome: async () => {
         const profiles = [{ dir: "Default", name: "個人", account: "player@example.com", count: 24 }, { dir: "Profile 1", name: "工作", account: "", count: 7 }];
         return { sync: f.sync !== false, current: profiles[f.dir === "Profile 1" ? 1 : 0], profiles, error: "" };
