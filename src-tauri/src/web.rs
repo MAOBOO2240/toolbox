@@ -1532,6 +1532,17 @@ fn chrome_focus<T>(id: &str, f: impl FnOnce(&mut ChromeFocus) -> T) -> T {
     f(g.get_or_insert_with(HashMap::new).entry(id.to_string()).or_default())
 }
 
+/// Chrome 視窗標題後面的「 - Google Chrome」拿掉
+fn chrome_title(t: &str) -> String {
+    let t = t.trim();
+    for suf in [" - Google Chrome", " – Google Chrome"] {
+        if let Some(x) = t.strip_suffix(suf) {
+            return x.trim().to_string();
+        }
+    }
+    t.to_string()
+}
+
 /// Chrome 視窗的代號（是我們開的才有）
 fn chrome_id_of(h: isize) -> Option<String> {
     chrome_rt(|m| m.iter().find(|(_, &v)| v == h).map(|(k, _)| k.clone()))
