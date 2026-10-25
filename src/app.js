@@ -491,7 +491,8 @@ const CATS = {
       { id: "star", name: "星光錦囊", desc: "套娃抽獎：玲瓏星光合成、層層開啟與期望值", color: "star", icon: "star", item: "星光錦囊" },
       { id: "beauty", name: "美容美髮", desc: "載入角色造型，模擬皇家美髮／整形", color: "pink", icon: "scissors", item: "皇家美髮券(選擇型)" },
       { id: "dress", name: "變更點裝", desc: "直接換上點裝看看效果，收藏喜歡的搭配", color: "purple", icon: "shirt", view: "beauty", randomItem: cometTopItem },
-      { id: "iconfind", name: "點裝辨識", desc: "丟一張裝備欄或背包的截圖，找出裡面是哪幾件點裝", color: "indigo", icon: "scan" },
+      // 點裝辨識先收起來（準確度還不夠；程式碼留著，把 hidden 拿掉就會回來）
+      { id: "iconfind", name: "點裝辨識", desc: "丟一張裝備欄或背包的截圖，找出裡面是哪幾件點裝", color: "indigo", icon: "scan", hidden: true },
       { id: "boss", name: "BOSS 結晶", desc: "勾選每隻角色打的 BOSS，算出結晶每週能賣多少楓幣", color: "crystal", icon: "crystal", img: "assets/crystal/monthly.png" },
     ],
   },
@@ -663,7 +664,7 @@ function orderedTools(cat) {
   const ids = CATS[cat].tools.map((t) => t.id);
   const out = (tileOrder[cat] || []).filter((id) => ids.includes(id));
   for (const id of ids) if (!out.includes(id)) out.splice(Math.min(TOOL[id].def, out.length), 0, id);
-  return out.map((id) => TOOL[id]);
+  return out.map((id) => TOOL[id]).filter((t) => !t.hidden);
 }
 
 /** 工具圖示：有對應的遊戲道具時換成道具圖示（讀不到就保留原本的圖示）；item 可以是好幾個名稱，依序找 */
@@ -726,7 +727,7 @@ function renderTiles() {
   const tiles = $("#tiles");
   tiles.innerHTML = "";
   const isFavPage = currentCat === "fav";
-  const list = isFavPage ? favs.map((id) => TOOL[id]) : orderedTools(currentCat);
+  const list = isFavPage ? favs.map((id) => TOOL[id]).filter((t) => t && !t.hidden) : orderedTools(currentCat);
   $("#favEmpty").hidden = !(isFavPage && !list.length);
   // 沒有收藏時，空白提示緊接在標題下面
   tiles.style.display = isFavPage && !list.length ? "none" : "";
