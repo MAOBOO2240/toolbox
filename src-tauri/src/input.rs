@@ -6,6 +6,9 @@
 //! - 計時器：指派按鍵（含組合鍵、滑鼠側鍵）觸發重新計時
 //!
 //! 按鍵指派的擷取在介面端進行（程式視窗本身有焦點），名稱格式與這裡一致。
+//!
+//! 掛鉤不是一直掛著：只在「序號工具的自動切換開著」、「計時器頁面開著」或
+//! 「計時器總開關開著且有啟用的按鍵觸發計時器」時才安裝，其他時候拆掉（`refresh` 會依狀態裝／拆）。
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,6 +24,10 @@ pub const WIN: u8 = 8;
 
 /// 序號工具的自動切換是否啟用
 pub static PASTE_ACTIVE: AtomicBool = AtomicBool::new(false);
+/// 計時器頁面是不是開著（開著時要顯示「最後按鍵」、方便指派）
+pub static TIMER_VIEW: AtomicBool = AtomicBool::new(false);
+/// 掛鉤目前有沒有裝著
+static HOOKED: AtomicBool = AtomicBool::new(false);
 
 enum Raw {
     Key { vk: u32, down: bool },
@@ -46,7 +53,33 @@ pub fn start(app: AppHandle, paste_tx: Sender<()>) {
     let (tx, rx) = mpsc::channel();
     let _ = RAW_TX.set(tx);
     std::thread::spawn(move || worker(rx));
-    platform::install_hooks();
+    refresh();
+}
+
+/// 現在需不需要全域監聽
+fn wanted() -> bool {
+    PASTE_ACTIVE.load(Ordering::Relaxed) || TIMER_VIEW.load(Ordering::Relaxed) || crate::timers::needs_hook()
+}
+
+/// 依目前狀態裝上或拆掉掛鉤；狀態沒變就什麼都不做（計時器引擎每 0.1 秒會呼叫一次，序號工具切換時也會）
+pub fn refresh() {
+    let want = wanted();
+    if want == HOOKED.load(Ordering::SeqCst) {
+        return;
+    }
+    HOOKED.store(want, Ordering::SeqCst);
+    if want {
+        platform::install_hooks();
+    } else {
+        platform::remove_hooks();
+    }
+}
+
+/// 計時器頁面開關（前端切換畫面時呼叫）
+#[tauri::command]
+pub fn input_timer_view(open: bool) {
+    TIMER_VIEW.store(open, Ordering::SeqCst);
+    refresh();
 }
 
 /// 左右 Ctrl/Shift/Alt/Win 合併成同一個鍵
@@ -261,27 +294,55 @@ mod platform {
         CallNextHookEx(null_mut(), code, wparam, lparam)
     }
 
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, UnhookWindowsHookEx, WM_QUIT};
+
+    /// 掛鉤所在執行緒的 id（0 = 沒有掛著）
+    static HOOK_THREAD: AtomicU32 = AtomicU32::new(0);
+
     pub fn install_hooks() {
-        std::thread::spawn(|| unsafe {
+        // 等執行緒把自己的 id 存好再回來，之後 remove_hooks 才一定找得到它
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+        std::thread::spawn(move || unsafe {
             let hmod = GetModuleHandleW(null_mut());
             let kb = SetWindowsHookExW(WH_KEYBOARD_LL, Some(kb_proc), hmod, 0);
             let ms = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), hmod, 0);
             if kb.is_null() || ms.is_null() {
                 eprintln!("無法安裝輸入掛鉤");
             }
-            // 低階掛鉤需要所在執行緒持續處理訊息
+            HOOK_THREAD.store(GetCurrentThreadId(), Ordering::SeqCst);
+            let _ = ready_tx.send(());
+            // 低階掛鉤需要所在執行緒持續處理訊息；收到 WM_QUIT（remove_hooks）就拆掉掛鉤結束
             let mut msg: MSG = std::mem::zeroed();
             while GetMessageW(&mut msg, null_mut(), 0, 0) > 0 {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
+            if !kb.is_null() {
+                UnhookWindowsHookEx(kb);
+            }
+            if !ms.is_null() {
+                UnhookWindowsHookEx(ms);
+            }
         });
+        let _ = ready_rx.recv_timeout(std::time::Duration::from_secs(2));
+    }
+
+    pub fn remove_hooks() {
+        let tid = HOOK_THREAD.swap(0, Ordering::SeqCst);
+        if tid != 0 {
+            unsafe {
+                PostThreadMessageW(tid, WM_QUIT, 0, 0);
+            }
+        }
     }
 }
 
 #[cfg(not(windows))]
 mod platform {
     pub fn install_hooks() {}
+    pub fn remove_hooks() {}
 }
 
 #[cfg(test)]

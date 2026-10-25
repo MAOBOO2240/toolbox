@@ -210,6 +210,13 @@ fn eng() -> MutexGuard<'static, Engine> {
     ENGINE.get().expect("計時器尚未初始化").lock().unwrap()
 }
 
+/// 計時器需不需要全域按鍵監聽：總開關開著，而且有啟用的「按鍵觸發」計時器（不管在哪一頁、有沒有正在計時都要聽，按鍵才能重新計時）
+pub fn needs_hook() -> bool {
+    let Some(lock) = ENGINE.get() else { return false };
+    let Ok(e) = lock.try_lock() else { return true };
+    e.file.master_on && e.file.timers.iter().any(|t| t.enabled && t.mode == "key" && !t.keys.is_empty())
+}
+
 fn load(path: &Path) -> TimersFile {
     std::fs::read_to_string(path)
         .ok()
@@ -598,6 +605,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let mut wait = TICK;
         loop {
             std::thread::sleep(wait);
+            crate::input::refresh();
             let now = Instant::now();
             let info = fg::current();
             // 自己的浮動視窗在前景（例如正在拖曳）時，維持原本的遊戲判定

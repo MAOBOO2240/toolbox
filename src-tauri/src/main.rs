@@ -81,6 +81,7 @@ fn sync_clipboard(st: &AppState) -> Result<(), String> {
 
 fn commit(shared: &Shared, st: &AppState) {
     input::PASTE_ACTIVE.store(st.active, Ordering::SeqCst);
+    input::refresh();
     st.save(&shared.path);
 }
 
@@ -537,6 +538,7 @@ fn main() {
             license::license_admin_otp,
             license::license_admin_open,
             stats::stats_usage,
+            input::input_timer_view,
             license::license_check
         ])
         .run(tauri::generate_context!())

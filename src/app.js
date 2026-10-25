@@ -1484,6 +1484,8 @@ function showView(name) {
   }
   currentView = name;
   Usage.view(name);
+  // 計時器頁面開著時才需要全域按鍵監聽（顯示最後按鍵、方便指派）
+  if (TAURI) invoke("input_timer_view", { open: name === "timer" }).catch(() => {});
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
   $("#gearBtn").classList.toggle("on", name === "settings");
   // 讓各工具知道換頁了（例如離開美容美髮時收起浮動視窗）
