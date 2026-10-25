@@ -272,6 +272,7 @@ code{font-family:ui-monospace,Consolas,monospace;color:var(--accent);font-size:.
 .b-good{background:rgba(74,222,128,.12);color:var(--good)}
 .b-bad{background:rgba(248,113,113,.12);color:var(--bad)}
 .sub{color:var(--muted);font-size:.76rem;margin-left:.35rem}
+.sep{color:var(--muted);margin:0 .4rem}
 td.wrap{white-space:normal;max-width:60rem}
 .chip{display:inline-block;margin:.15rem .35rem .15rem 0;padding:.15rem .55rem;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:.78rem}
 .chip b{font-weight:600;color:var(--accent)}
@@ -309,14 +310,15 @@ async function dashboard(env) {
   const gtext = gs.map((g) => g.guild).join("\n");
   // 工具使用統計：每個人 + 全部加總
   const dur = (sec) => { sec = Math.round(sec || 0); if (sec < 60) return `${sec} 秒`; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h ? `${h} 小時 ${m} 分` : `${m} 分`; };
-  const who = (x) => esc(x.note || x.char || x.serial);
   const total = {};
   for (const x of list) for (const [id, u] of Object.entries(x.usage || {})) { const t = total[id] || { s: 0, n: 0, users: 0, name: u.name || id }; t.s += u.s || 0; t.n += u.n || 0; t.users++; if (u.name) t.name = u.name; total[id] = t; }
   const totalRows = Object.entries(total).sort((a, b) => b[1].s - a[1].s).map(([id, t]) => `<tr><td><b>${esc(t.name)}</b><span class="sub">${esc(id)}</span></td><td>${dur(t.s)}</td><td>${t.n}</td><td>${t.users}</td></tr>`).join("");
   const userRows = list.filter((x) => x.usage && Object.keys(x.usage).length).map((x) => {
     const items = Object.entries(x.usage).sort((a, b) => b[1].s - a[1].s);
     const sum = items.reduce((a, [, u]) => a + (u.s || 0), 0);
-    return `<tr><td><b>${who(x)}</b><span class="sub"><code>${esc(x.serial)}</code></span></td><td>${dur(sum)}</td><td class="wrap">${items.map(([id, u]) => `<span class="chip" title="${esc(id)}">${esc(u.name || id)} <b>${dur(u.s)}</b> · ${u.n} 次</span>`).join("")}</td></tr>`;
+    // 誰：序號｜綁定角色；沒綁角色就顯示備註，沒備註就給一格可以填（跟上面那張表的備註同步）
+    const tag = x.char ? `<b>${esc(x.char)}</b>` : x.note ? `<b>${esc(x.note)}</b>` : `<input value="" data-serial="${esc(x.serial)}" placeholder="這是誰" />`;
+    return `<tr><td><code>${esc(x.serial)}</code><span class="sep">｜</span>${tag}</td><td>${dur(sum)}</td><td class="wrap">${items.map(([id, u]) => `<span class="chip" title="${esc(id)}">${esc(u.name || id)} <b>${dur(u.s)}</b> · ${u.n} 次</span>`).join("")}</td></tr>`;
   }).join("");
   const table = (head, body, emptyText) => `<div class="tbl">${body ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : `<div class="empty">${emptyText}</div>`}</div>`;
   return html(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>工具箱使用狀況</title><style>${CSS}</style>
@@ -352,7 +354,7 @@ ${table(`<th>時間</th><th>序號</th><th>輸入的角色</th><th>伺服器</th
 「封鎖」：對方的程式最晚 10 分鐘內（開工具時也會再確認）會自動刪掉授權碼並鎖回去，也不能再用自動授權或舊授權碼；「解除封鎖」後對方再綁定一次（或重貼授權碼）就能用。「解除綁定」後對方程式會把角色清掉（公會自動授權的也會一起鎖回去），重新輸入角色名稱就能再綁。</p>
 <script>
 const post=async(p,b)=>{const r=await fetch(p,{method:"POST",body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!j.ok)alert(j.msg||"失敗");return j;};
-document.querySelectorAll("input[data-serial]").forEach((i)=>i.addEventListener("change",async()=>{await post("/note",{serial:i.dataset.serial,note:i.value});i.style.borderColor="var(--good)";}));
+document.querySelectorAll("input[data-serial]").forEach((i)=>i.addEventListener("change",async()=>{await post("/note",{serial:i.dataset.serial,note:i.value});i.style.borderColor="var(--good)";document.querySelectorAll('input[data-serial="'+i.dataset.serial+'"]').forEach((o)=>{if(o!==i)o.value=i.value;});}));
 document.querySelectorAll("button[data-unbind]").forEach((b)=>b.addEventListener("click",async()=>{if(!confirm("解除「"+b.dataset.unbind+"」跟 "+b.dataset.serial+" 的綁定？"))return;await post("/unbind",{name:b.dataset.unbind,serial:b.dataset.serial});location.reload();}));
 document.querySelectorAll("button[data-revoke]").forEach((b)=>b.addEventListener("click",async()=>{const on=b.dataset.revoke==="1";if(!confirm((on?"封鎖":"解除封鎖")+" "+b.dataset.serial+"？"))return;await post("/revoke",{serial:b.dataset.serial,on});location.reload();}));
 document.querySelectorAll("button[data-rejdel]").forEach((b)=>b.addEventListener("click",async()=>{await post("/rejdel",{k:b.dataset.rejdel});b.closest("tr").remove();}));
