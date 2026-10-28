@@ -584,6 +584,12 @@ const License = (() => {
     const admin = info.admin || info.no_pubkey;
     $("#licAdmin").hidden = !admin;
     $("#licCodeRow").style.display = info.admin || info.ok ? "none" : "";
+    // 綁定角色：已綁定就顯示名稱、不能改（要換請作者解除綁定）
+    const bIn = $("#licBindIn"), bBtn = $("#licBindBtn");
+    if (bIn && document.activeElement !== bIn) bIn.value = info.name || "";
+    if (bIn) { bIn.readOnly = !!info.name; bIn.placeholder = info.name ? "" : "角色名稱"; }
+    if (bBtn) bBtn.hidden = !!info.name;
+    $("#licBindNote").textContent = info.name ? `已綁定 ${info.name}（${info.world || ""} ${info.guild || "無公會"}）；要換角色請找作者解除綁定` : "輸入角色名稱按「綁定」；公會成員會直接取得授權。綁定後要換角色請找作者解除綁定";
     $("#licCard .lic-privacy").style.display = info.admin ? "none" : "";
     if (admin) renderAdmin();
   }
@@ -1751,6 +1757,20 @@ $("#licCodeBtn")?.addEventListener("click", () => run(async () => {
   $("#licCodeBtn").disabled = false;
 }));
 $("#licCodeIn")?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#licCodeBtn").click(); });
+$("#licBindBtn")?.addEventListener("click", () => run(async () => {
+  const name = $("#licBindIn").value.trim();
+  if (!name) { toast("請輸入角色名稱"); return; }
+  if (License.info().name) { toast(`這台電腦已經綁定 ${License.info().name}，要換角色請找作者解除綁定`); return; }
+  $("#licBindBtn").disabled = true;
+  try {
+    await License.bind(name);
+    window.NameHistory?.add(License.info().name);
+    window.SideDoll?.load?.(true);
+  } catch (e) { toast(String(e)); }
+  $("#licBindBtn").disabled = false;
+}));
+$("#licBindIn")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#licBindBtn").click(); } });
+window.NameHistory?.attach($("#licBindIn"));
 // 作者在儀表板移除了授權或解除了綁定：重新讀狀態、把工具鎖回去
 if (TAURI) listen("license-changed", () => License.refresh());
 $("#licKeygen")?.addEventListener("click", () => run(async () => {

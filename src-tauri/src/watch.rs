@@ -142,11 +142,7 @@ fn deliver(app: &AppHandle, cfg: &WatchCfg, title: &str, body: &str) {
         let (app, url, user, t, b) = (app.clone(), cfg.discord_url.clone(), cfg.discord_user.clone(), title.to_string(), body.to_string());
         std::thread::spawn(move || {
             if let Err(e) = discord_send(&url, &user, &t, &b) {
-                {
-                    let mut g = inner();
-                    g.status.events.insert(0, WatchEvent { at: now_ms(), text: format!("Discord 通知失敗：{e}") });
-                    g.status.events.truncate(30);
-                }
+                log(format!("Discord 通知失敗：{e}"));
                 if !use_win {
                     windows_notify(&app, &t, &b);
                 }
@@ -156,6 +152,7 @@ fn deliver(app: &AppHandle, cfg: &WatchCfg, title: &str, body: &str) {
 }
 
 #[derive(Serialize, Clone, Default)]
+#[derive(Deserialize)]
 pub struct WatchEvent {
     pub at: u64,
     pub text: String,
@@ -363,10 +360,28 @@ const LOGIN_PORT: u16 = 8484;
 
 /* ---------------- 背景執行緒 ---------------- */
 
+/// 紀錄最多留這麼多筆（存在檔案裡，重開程式還在；只有按「清除」才會刪）
+const LOG_MAX: usize = 500;
+
+fn log_path(cfg_path: &Path) -> PathBuf {
+    cfg_path.with_file_name("watch-log.json")
+}
+
+fn load_log(cfg_path: &Path) -> Vec<WatchEvent> {
+    std::fs::read_to_string(log_path(cfg_path)).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+}
+
+fn save_log(g: &Inner) {
+    if let Ok(s) = serde_json::to_string(&g.status.events) {
+        let _ = std::fs::write(log_path(&g.path), s);
+    }
+}
+
 fn log(text: String) {
     let mut g = inner();
     g.status.events.insert(0, WatchEvent { at: now_ms(), text });
-    g.status.events.truncate(30);
+    g.status.events.truncate(LOG_MAX);
+    save_log(&g);
 }
 
 /// 發出通知；週三維護時間（maint）只記錄、不通知
@@ -383,7 +398,8 @@ fn alert(app: &AppHandle, title: &str, body: &str, maint: bool) {
 
 pub fn init(app: &AppHandle, path: PathBuf) {
     let cfg = load(&path);
-    let _ = INNER.set(Mutex::new(Inner { cfg, path, status: WatchStatus { state: "off".into(), ..Default::default() } }));
+    let events = load_log(&path);
+    let _ = INNER.set(Mutex::new(Inner { cfg, path, status: WatchStatus { state: "off".into(), events, ..Default::default() } }));
     let app = app.clone();
     std::thread::spawn(move || {
         let mut first = true;
@@ -461,9 +477,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 state = "off";
             } else if game_conns > 0 {
                 if fired {
-                    let mut g = inner();
-                    g.status.events.insert(0, WatchEvent { at: now_ms(), text: "已重新進入遊戲".into() });
-                    g.status.events.truncate(30);
+                    log("已重新進入遊戲".into());
                 }
                 had_game = true;
                 lost_since = None;
@@ -546,7 +560,9 @@ pub fn watch_set(cfg: WatchCfg) {
 
 #[tauri::command]
 pub fn watch_clear_log() {
-    inner().status.events.clear();
+    let mut g = inner();
+    g.status.events.clear();
+    let _ = std::fs::remove_file(log_path(&g.path));
 }
 
 /// 測試通知：用目前的通知方式與音效（有開 Discord 也會送一則）

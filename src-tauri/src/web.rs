@@ -1722,13 +1722,14 @@ pub async fn web_open_chrome(webview: Webview) {
     }
 }
 
-/// 清掉分頁網站的 Cookie 與儲存資料，全部清完後重新整理
+/// 清掉分頁網站的 Cookie 與儲存資料，然後重新整理。
+/// Cookie 用 WebView2 的 Cookie 管理：把「開這個網址時會送出的 cookie」（含 .x.com 這種整個網域的）全部刪掉；
+/// 其他資料（localStorage、IndexedDB、快取、Service Worker）用 DevTools 的 Storage.clearDataForOrigin
 #[cfg(windows)]
 fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
-    use std::sync::atomic::AtomicUsize;
-    use std::sync::Arc;
-    use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
-    use windows_core::HSTRING;
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_2;
+    use webview2_com::{CallDevToolsProtocolMethodCompletedHandler, GetCookiesCompletedHandler};
+    use windows_core::{Interface, HSTRING};
     let Some(url) = get(owner).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url) else { return };
     let origins = site_origins(&url);
     if origins.is_empty() {
@@ -1736,26 +1737,44 @@ fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
     }
     let label = page_label(owner, tid);
     let Some(wv) = app.get_webview(&label) else { return };
-    let app2 = app.clone();
     let _ = wv.with_webview(move |pw| unsafe {
         let Ok(core) = pw.controller().CoreWebView2() else { return };
-        let left = Arc::new(AtomicUsize::new(origins.len()));
-        for o in origins {
-            let params = serde_json::json!({ "origin": o, "storageTypes": "all" }).to_string();
-            let (app3, label3, left3) = (app2.clone(), label.clone(), left.clone());
-            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |_, _| {
-                if left3.fetch_sub(1, Ordering::SeqCst) == 1 {
-                    std::thread::spawn(move || {
-                        if let Some(p) = app3.get_webview(&label3) {
-                            let _ = p.reload();
+        if let Ok(cm) = core.cast::<ICoreWebView2_2>().and_then(|c| c.CookieManager()) {
+            for o in &origins {
+                let cm2 = cm.clone();
+                let handler = GetCookiesCompletedHandler::create(Box::new(move |_, list| {
+                    if let Some(list) = list {
+                        let mut n = 0u32;
+                        let _ = list.Count(&mut n);
+                        for i in 0..n {
+                            if let Ok(c) = list.GetValueAtIndex(i) {
+                                let _ = cm2.DeleteCookie(&c);
+                            }
                         }
-                    });
+                    }
+                    Ok(())
+                }));
+                if let Err(e) = cm.GetCookies(&HSTRING::from(format!("{o}/")), &handler) {
+                    eprintln!("讀取 cookie 失敗：{e}");
                 }
-                Ok(())
-            }));
-            if core.CallDevToolsProtocolMethod(&HSTRING::from("Storage.clearDataForOrigin"), &HSTRING::from(params), &handler).is_err() {
-                left.fetch_sub(1, Ordering::SeqCst);
             }
+        } else {
+            eprintln!("這個 WebView2 版本沒有 Cookie 管理");
+        }
+        for o in &origins {
+            let params = serde_json::json!({ "origin": o, "storageTypes": "all" }).to_string();
+            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|_, _| Ok(())));
+            if let Err(e) = core.CallDevToolsProtocolMethod(&HSTRING::from("Storage.clearDataForOrigin"), &HSTRING::from(params), &handler) {
+                eprintln!("清除網站資料失敗：{e}");
+            }
+        }
+    });
+    // 清完（最多等一秒多）再重新整理，不靠上面的回呼
+    let (app, label) = (app.clone(), label);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1200));
+        if let Some(p) = app.get_webview(&label) {
+            let _ = p.reload();
         }
     });
 }
