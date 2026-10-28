@@ -713,6 +713,7 @@ body.tool-dragging .tile:hover .cat-icon { transform: none; }
 .nh-pop { position: fixed; z-index: 9000; min-width: 12rem; max-width: 20rem; padding: 0.35rem; border-radius: 0.9rem; background: var(--card); border: 1px solid var(--sep); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); font-size: 0.88rem; }
 .nh-title { padding: 0.25rem 0.6rem 0.3rem; font-size: 0.72rem; color: var(--muted); }
 .nh-pop { display: flex; flex-direction: column; }
+.nh-pop[hidden] { display: none; }
 .nh-list { max-height: calc(5 * 2.1rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .nh-row { display: flex; align-items: center; gap: 0.5rem; height: 2.1rem; padding: 0 0.4rem 0 0.65rem; border-radius: 0.6rem; cursor: pointer; }
 .nh-row:hover, .nh-row.on { background: var(--card-2); }
