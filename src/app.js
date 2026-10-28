@@ -1770,7 +1770,8 @@ $("#licBindBtn")?.addEventListener("click", () => run(async () => {
   $("#licBindBtn").disabled = false;
 }));
 $("#licBindIn")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#licBindBtn").click(); } });
-window.NameHistory?.attach($("#licBindIn"));
+// 從「用過的角色」選一個就直接綁定
+window.NameHistory?.attach($("#licBindIn"), { onPick: () => $("#licBindBtn").click() });
 // 作者在儀表板移除了授權或解除了綁定：重新讀狀態、把工具鎖回去
 if (TAURI) listen("license-changed", () => License.refresh());
 $("#licKeygen")?.addEventListener("click", () => run(async () => {
