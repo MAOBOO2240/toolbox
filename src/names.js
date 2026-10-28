@@ -23,8 +23,12 @@ window.NameHistory = (() => {
     document.body.appendChild(pop);
     window.addEventListener("resize", () => place(), { passive: true });
     document.addEventListener("scroll", () => place(), true);
-    // 點到欄位和清單以外的地方、或按 Esc：一定關掉（不靠欄位的 blur）
-    document.addEventListener("mousedown", (e) => { if (cur && !pop.hidden && !pop.contains(e.target) && e.target !== cur.input) hide(); }, true);
+    // 點到欄位和清單以外的地方、或按 Esc：一定關掉（不靠欄位的 blur）。
+    // pointerdown、mousedown、touchstart 都接（有些地方的 pointerdown 會把 mousedown 吃掉），在 window 的捕獲階段最先收到
+    const outside = (e) => { if (cur && !pop.hidden && !pop.contains(e.target) && e.target !== cur.input) hide(); };
+    for (const ev of ["pointerdown", "mousedown", "touchstart"]) window.addEventListener(ev, outside, true);
+    // 切到別的視窗也關
+    window.addEventListener("blur", () => hide());
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cur && !pop.hidden) hide(); }, true);
     // 換頁一定關掉
     document.addEventListener("viewchange", hide);
