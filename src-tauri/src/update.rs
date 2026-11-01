@@ -174,14 +174,22 @@ fn check_blocking() -> Result<Check, String> {
     let rel = release(&t)?;
     let latest = rel["target_commitish"].as_str().unwrap_or("").to_string();
     let cur = current();
+    // 同一個 commit 也可能重新編譯（例如換了 API 金鑰後手動再跑一次）：比編譯編號
+    let latest_run = run_of(rel["name"].as_str().unwrap_or(""));
+    let cur_run: u64 = option_env!("GITHUB_RUN_NUMBER").and_then(|r| r.parse().ok()).unwrap_or(0);
     // 自己在電腦上編譯的版本（沒有 commit）不更新
-    let has_update = !cur.is_empty() && !latest.is_empty() && latest != cur;
+    let has_update = !cur.is_empty() && !latest.is_empty() && (latest != cur || (cur_run > 0 && latest_run > cur_run));
     Ok(Check {
         has_update,
         current: cur.chars().take(7).collect(),
         latest: latest.chars().take(7).collect(),
         published: rel["published_at"].as_str().unwrap_or("").to_string(),
     })
+}
+
+/// 發行版本名稱裡的編譯編號：「工具箱 v1.0.0（編譯 #171）」→ 171；沒有就 0
+fn run_of(name: &str) -> u64 {
+    name.split('#').nth(1).map(|t| t.chars().take_while(|c| c.is_ascii_digit()).collect::<String>()).and_then(|d| d.parse().ok()).unwrap_or(0)
 }
 
 #[tauri::command]
@@ -273,6 +281,14 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn run_number_from_release_name() {
+        assert_eq!(super::run_of("工具箱 v1.0.0（編譯 #171）"), 171);
+        assert_eq!(super::run_of("工具箱 測試版（編譯 #3）"), 3);
+        assert_eq!(super::run_of("v1.0.0"), 0);
+        assert_eq!(super::run_of(""), 0);
+    }
+
     #[test]
     fn hash_file_format() {
         let h = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
