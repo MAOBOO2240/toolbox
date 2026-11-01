@@ -2,7 +2,7 @@
 //!
 //! 節省每日呼叫次數：
 //! - 角色名稱 → OCID 永久快取（OCID 失效時才重新查）
-//! - 角色資料（基本、髮型臉型膚色、點裝）快取 1 小時，可手動強制更新
+//! - 角色資料（基本、髮型臉型膚色、點裝）快取 6 小時，可手動強制更新（所有人共用同一把金鑰，每日額度有限）
 //! - 只呼叫需要的 3 個端點
 
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const BASE: &str = "https://open.api.nexon.com/maplestorytw/v1";
-const DATA_TTL_SECS: u64 = 60 * 60;
+const DATA_TTL_SECS: u64 = 6 * 60 * 60;
 
 /* ---------------- 金鑰（混淆儲存） ---------------- */
 
@@ -131,6 +131,13 @@ pub fn init(path: PathBuf) {
 
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// 這台電腦今天（台灣時間）呼叫了幾次 Nexon API：(日期, 次數)，給使用回報用
+pub fn calls_today() -> (String, u32) {
+    let today = today_tw();
+    let n = STORE.get().and_then(|m| m.lock().ok()).map(|s| if s.cache.calls_day == today { s.cache.calls } else { 0 }).unwrap_or(0);
+    (today, n)
 }
 
 /// 台灣時間的日期字串（用來每天歸零呼叫次數）

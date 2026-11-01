@@ -107,6 +107,9 @@ struct Ping<'a> {
     /// 這次一起送的工具使用量（一小時送一次；沒有就不帶）
     #[serde(skip_serializing_if = "Option::is_none")]
     usage: Option<HashMap<String, ToolUse>>,
+    /// 這台電腦今天呼叫了幾次 Nexon API（台灣日期）：後台加總後可以跟 Nexon 的統計對照，看金鑰有沒有被別人拿去用
+    api_day: String,
+    api_calls: u32,
 }
 
 
@@ -114,6 +117,7 @@ fn send(app: &AppHandle) {
     if STATS_URL.trim().is_empty() {
         return;
     }
+    let api = crate::maple_api::calls_today();
     // 累積滿一小時（或第一次）才把使用量帶上
     let usage = {
         let _g = LOCAL.lock().unwrap_or_else(|e| e.into_inner());
@@ -129,6 +133,8 @@ fn send(app: &AppHandle) {
         licensed: crate::license::licensed(),
         name: crate::license::bound_name(),
         usage: usage.clone(),
+        api_day: api.0,
+        api_calls: api.1,
     };
     let resp = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(15))

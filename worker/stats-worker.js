@@ -1,7 +1,7 @@
 // 工具箱使用狀況收集端 + 公會自動授權（Cloudflare Worker）
 // 綁定：KV 命名空間 STATS；Secret：ADMIN_KEY（看儀表板用的密碼）、NEXON_API_KEY（查公會用）
 //
-// POST /ping   程式回報：{ serial, install, version, run, os, licensed, name, usage? }（每 10 分鐘；usage 每小時帶一次；回 { revoked, bound, grant }）
+// POST /ping   程式回報：{ serial, install, version, run, os, licensed, name, usage?, api_day, api_calls }（每 10 分鐘；usage 每小時帶一次；回 { revoked, bound, grant }）
 // POST /auto   綁定角色：{ serial, name, licensed } → { ok, code, signed, name, world, guild } 或 { ok:false, msg }
 //              還沒授權的要公會在名單裡才綁、並簽授權碼；已授權的只綁定（左下角的角色）
 // 後台：先用作者程式產生的一次性密碼登入（POST /login），之後 12 小時內用 cookie；ADMIN_KEY 只拿來簽 cookie
@@ -292,6 +292,10 @@ async function dashboard(env) {
   const active = (ms) => list.filter((x) => now - Date.parse(x.last) < ms).length;
   const bad = chars.filter((c) => !allowed(gs, c));
   const licBadge = (x) => x.revoked ? `<span class="badge b-off">已封鎖</span>` : x.licensed ? (x.auto ? `<span class="badge b-auto">自動</span>` : `<span class="badge b-manual">${x.grant ? "後台" : "手動"}</span>`) : `<span class="badge b-none">未授權</span>`;
+  // 今天（台灣日期）各電腦回報的 Nexon API 呼叫次數
+  const todayTw = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  const apiOf = (x) => (x.api && x.api.d === todayTw ? x.api.n : 0);
+  const apiTotal = list.reduce((n, x) => n + apiOf(x), 0);
   const rows = list.map((x) => {
     const c = x.char ? cmap[x.char] : null;
     const ok = c ? allowed(gs, c) : null; // 綠 = 公會在名單裡，紅 = 不在
@@ -304,6 +308,7 @@ async function dashboard(env) {
       <td title="${esc(x.first)}">${tw(x.first)}</td>
       <td title="${esc(x.last)}">${tw(x.last)}</td>
       <td title="${esc(x.os)}"><span class="muted">${esc(String(x.version || "").slice(0, 7))}${x.run ? " #" + esc(x.run) : ""}</span></td>
+      <td>${apiOf(x) ? apiOf(x) : `<span class="muted">0</span>`}</td>
       <td><div class="actions">${x.char ? `<button data-unbind="${esc(x.char)}" data-serial="${esc(x.serial)}">解除綁定</button>` : ""}${x.revoked ? `<button data-revoke="0" data-serial="${esc(x.serial)}">解除封鎖</button>` : x.licensed ? `<button class="danger" data-revoke="1" data-serial="${esc(x.serial)}">封鎖</button>` : `<button data-grant="${esc(x.serial)}">授權</button>`}</div></td></tr>`;
   }).join("");
   const badRows = bad.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.world)}</td><td><span class="badge b-bad">${esc(c.guild || "無")}</span></td><td>${c.serials.map((s) => `<code>${esc(s)}</code>`).join("<br>")}</td><td title="${esc(c.checked)}">${tw(c.checked)}</td><td><div class="actions">${c.serials.map((s) => `<button data-unbind="${esc(c.name)}" data-serial="${esc(s)}">解除 …${esc(s.slice(-4))}</button>`).join("")}</div></td></tr>`).join("");
@@ -332,6 +337,7 @@ async function dashboard(env) {
   <div><span>已授權</span><b>${list.filter((x) => x.licensed && !x.revoked).length}</b></div>
   <div><span>綁定角色</span><b>${chars.length}</b></div>
   <div><span>公會不符</span><b style="${bad.length ? "color:var(--bad)" : ""}">${bad.length}</b></div>
+  <div title="各電腦回報的今天（台灣時間）Nexon API 呼叫次數加總，最多晚一小時。跟 Nexon 開發者頁面「統計數據」比對：那邊明顯比這裡多，就是金鑰被別人拿去用了"><span>今天 API 呼叫</span><b>${apiTotal}</b></div>
 </div>
 <div class="cfg">
   <div class="card"><h3>允許自動授權的公會</h3><textarea id="guilds" spellcheck="false">${esc(gtext)}</textarea>
@@ -342,7 +348,7 @@ async function dashboard(env) {
 </div>
 ${pk ? `<details class="pkd"><summary>自動授權金鑰已設定</summary><div class="pk">${esc(pk)}</div></details>` : ""}
 <h2>所有電腦<span class="n">${list.length}</span></h2>
-${table(`<th>序號</th><th>備註</th><th>授權</th><th>綁定角色</th><th>公會</th><th>第一次使用</th><th>最後一次使用</th><th>版本</th><th></th>`, rows, "還沒有任何電腦回報")}
+${table(`<th>序號</th><th>備註</th><th>授權</th><th>綁定角色</th><th>公會</th><th>第一次使用</th><th>最後一次使用</th><th>版本</th><th title="今天呼叫 Nexon API 的次數">API</th><th></th>`, rows, "還沒有任何電腦回報")}
 <h2>全部人用了哪些工具<span class="n">${Object.keys(total).length}</span></h2>
 ${table(`<th>工具</th><th>總時間</th><th>開啟次數</th><th>幾個人用過</th>`, totalRows, "還沒有工具使用資料（程式每小時彙總一次）")}
 <h2>每個人用了哪些工具<span class="n">${list.filter((x) => x.usage && Object.keys(x.usage).length).length}</span></h2>
@@ -408,6 +414,8 @@ export default {
         pings: (old.pings || 0) + 1,
         note: old.note || "",
         ip_country: req.headers.get("cf-ipcountry") || "",
+        // 這台電腦今天打了幾次 Nexon API（台灣日期）；只跟著其他變動或每小時一起寫，最多晚一小時
+        api: { d: String(p.api_day || "").slice(0, 10), n: Math.max(0, Math.min(Number(p.api_calls) || 0, 1000000)) },
       };
       // 程式每 10 分鐘回報一次，但 KV 免費額度一天只能寫 1000 次：內容沒變的話每小時才寫一次
       // 工具使用量：程式每小時帶一次 { id: { s: 秒, n: 次數, name } }，累加到這台電腦的紀錄
