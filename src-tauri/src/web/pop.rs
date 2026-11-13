@@ -1052,7 +1052,7 @@ pub async fn web_pop_size(app: AppHandle, webview: Webview, gen: u64, w: f64, h:
     let (ax, ay) = match &place {
         Place::Below { rect, .. } => (rect.0, rect.1),
         Place::Cursor(x, y) => (*x, *y),
-        Place::Side { parent, top } => (parent.0, *top),
+        Place::Side { parent, top, .. } => (parent.0, *top),
     };
     let rect = place_rect(&place, pw.max(8), ph.max(8), work_area(&app, &owner, ax, ay), (OVERLAP * sf).round() as i32);
     {
@@ -1080,9 +1080,11 @@ pub async fn web_pop_hover(app: AppHandle, webview: Webview, gen: u64, index: us
         let Some(l) = p.levels.get(i).filter(|l| l.gen == gen && l.visible) else { return };
         let Some(act) = l.acts.get(index).cloned() else { return };
         let open_from = p.levels.get(i + 1).and_then(|n| n.from);
-        (p.owner.clone(), p.tid.clone(), p.sf, l.rect, act, open_from)
+        // 這一層是不是開在它上一層的左邊
+        let left = i >= 1 && p.levels.get(i - 1).is_some_and(|up| l.rect.0 < up.rect.0);
+        (p.owner.clone(), p.tid.clone(), p.sf, l.rect, act, open_from, left)
     };
-    let (owner, tid, sf, parent, act, open_from) = info;
+    let (owner, tid, sf, parent, act, open_from, left) = info;
     match act {
         Act::Sub(sub) => {
             if open_from == Some(index) {
@@ -1091,7 +1093,7 @@ pub async fn web_pop_hover(app: AppHandle, webview: Webview, gen: u64, index: us
             let menu = sub_menu(&owner, &tid, &sub);
             // 跟上一層的項目對齊（上面有 8 像素的留白）
             let top = parent.1 + ((rect[1] - 8.0) * sf).round() as i32;
-            push_level(&app, i, Some(index), menu, Place::Side { parent, top });
+            push_level(&app, i, Some(index), menu, Place::Side { parent, top, left });
         }
         _ => close_deeper(&app, i),
     }

@@ -1282,8 +1282,9 @@ pub enum Place {
     /// 貼在按鈕下面（左、上、右、下）；right = 靠按鈕的右邊對齊
     Below { rect: (i32, i32, i32, i32), right: bool },
     Cursor(i32, i32),
-    /// 上一層的某一項旁邊：上一層的範圍、那一項的上緣
-    Side { parent: (i32, i32, i32, i32), top: i32 },
+    /// 上一層的某一項旁邊：上一層的範圍、那一項的上緣。
+    /// left = 上一層自己是往左開的：這一層也優先往左，一路往同一個方向展開，才不會蓋到更上面那幾層
+    Side { parent: (i32, i32, i32, i32), top: i32, left: bool },
 }
 
 /// 算出小視窗的範圍：超出螢幕就往上或往另一邊擺
@@ -1310,11 +1311,16 @@ pub fn place_rect(place: &Place, w: i32, h: i32, wa: Option<(i32, i32, i32, i32)
                 y = if cy - h >= wt { cy - h } else { wb - h };
             }
         }
-        Place::Side { parent: (pl, _, pr, _), top } => {
-            x = pr - overlap;
-            if x + w > wr {
-                x = pl - w + overlap;
-            }
+        Place::Side { parent: (pl, _, pr, _), top, left } => {
+            let (right_x, left_x) = (pr - overlap, pl - w + overlap);
+            x = if *left {
+                // 左邊放不下才換右邊
+                if left_x >= wl { left_x } else { right_x }
+            } else if right_x + w > wr {
+                left_x
+            } else {
+                right_x
+            };
             y = *top;
         }
     }
@@ -1342,8 +1348,12 @@ mod tests {
         assert_eq!(place_rect(&Place::Cursor(10, 10), 200, 300, wa, 3), (10, 10, 210, 310));
         assert_eq!(place_rect(&Place::Cursor(950, 700), 200, 300, wa, 3), (750, 400, 950, 700));
         // 下一層：在上一層右邊（重疊一點）；放不下就放左邊
-        assert_eq!(place_rect(&Place::Side { parent: (100, 100, 300, 500), top: 150 }, 200, 300, wa, 3), (297, 150, 497, 450));
-        assert_eq!(place_rect(&Place::Side { parent: (700, 100, 950, 500), top: 150 }, 200, 300, wa, 3), (503, 150, 703, 450));
+        assert_eq!(place_rect(&Place::Side { parent: (100, 100, 300, 500), top: 150, left: false }, 200, 300, wa, 3), (297, 150, 497, 450));
+        assert_eq!(place_rect(&Place::Side { parent: (700, 100, 950, 500), top: 150, left: false }, 200, 300, wa, 3), (503, 150, 703, 450));
+        // 上一層是往左開的：右邊雖然放得下，還是繼續往左（不蓋到更上面那一層）
+        assert_eq!(place_rect(&Place::Side { parent: (503, 150, 703, 450), top: 200, left: true }, 200, 100, wa, 3), (306, 200, 506, 300));
+        // 往左放不下了：換右邊
+        assert_eq!(place_rect(&Place::Side { parent: (50, 150, 250, 450), top: 200, left: true }, 200, 100, wa, 3), (247, 200, 447, 300));
         // 比螢幕還高：縮到螢幕的高度
         let r = place_rect(&Place::Cursor(10, 10), 200, 2000, wa, 3);
         assert_eq!((r.1, r.3), (8, 800));
