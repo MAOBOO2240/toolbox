@@ -223,6 +223,8 @@
       const $ = (id) => document.getElementById(id);
       // 設定提示文字（按下去之後暫時收起來的，先記著，滑鼠移開時才放回去）
       const setTip = (el, text) => { if (el.dataset.tip !== undefined) el.dataset.tip = text; else el.title = text; };
+      // 圖示沒變就不重放：重放會把滑鼠底下的元素換掉，之後滑鼠移開時網頁就收不到「移開」了
+      const setIcon = (el, key, html) => { if (el.dataset.ic !== key) { el.dataset.ic = key; el.innerHTML = html; } };
       const MAX = '<svg viewBox="0 0 10 10"><path d="M0.5 0.5h9v9h-9z"/></svg>';
       const RESTORE = '<svg viewBox="0 0 10 10"><path d="M0.5 2.5h7v7h-7zM2.5 2.5v-2h7v7h-2"/></svg>';
       // 內部頁面的分頁圖示
@@ -433,26 +435,30 @@
         document.body.classList.toggle("incognito", !!st.incognito);
         $("inco").hidden = !st.incognito;
         $("profile").hidden = !!st.incognito;
-        $("cMax").innerHTML = st.max || st.full ? RESTORE : MAX;
+        setIcon($("cMax"), st.max || st.full ? "restore" : "max", st.max || st.full ? RESTORE : MAX);
         setTip($("cMax"), st.max || st.full ? "還原" : "最大化");
         $("back").disabled = !st.back;
         $("fwd").disabled = !st.forward;
         const loading = st.tabs.some((t) => t.id === st.active && t.loading);
-        $("reload").innerHTML = loading ? ICONS.stop : ICONS.reload;
+        setIcon($("reload"), loading ? "stop" : "reload", loading ? ICONS.stop : ICONS.reload);
         setTip($("reload"), loading ? "停止載入這個網頁" : "重新載入這個網頁");
         $("reload").dataset.loading = loading ? "1" : "";
         $("home").hidden = !st.home;
-        // 網址列左邊的圓鈕
-        const [ic, label, cls] = CHIP[st.kind] || CHIP.other;
+        // 網址列左邊的圓鈕（樣子沒變就不重放）
+        const chip = CHIP[st.kind] ? st.kind : "other";
         const site = $("site");
-        site.className = `chip ${cls}`;
-        site.innerHTML = "";
-        site.append(icon(ic, ""));
-        if (label) {
-          const l = document.createElement("span");
-          l.className = "cl";
-          l.textContent = label;
-          site.append(l);
+        if (site.dataset.ic !== chip) {
+          const [ic, label, cls] = CHIP[chip];
+          site.dataset.ic = chip;
+          site.className = `chip ${cls}` + (site.classList.contains("open") ? " open" : "");
+          site.innerHTML = "";
+          site.append(icon(ic, ""));
+          if (label) {
+            const l = document.createElement("span");
+            l.className = "cl";
+            l.textContent = label;
+            site.append(l);
+          }
         }
         site.disabled = st.kind === "newtab";
         // 沒在打字時顯示的網址：網域亮、後面的路徑暗一點
@@ -478,7 +484,7 @@
         const star = $("star");
         star.hidden = st.kind === "newtab" || st.kind === "internal" || st.kind === "source" || st.kind === "ext";
         star.classList.toggle("on", !!st.bookmarked);
-        star.innerHTML = st.bookmarked ? ICONS["star-on"] : ICONS.star;
+        setIcon(star, st.bookmarked ? "star-on" : "star", st.bookmarked ? ICONS["star-on"] : ICONS.star);
         setTip(star, st.bookmarked ? "編輯這個分頁的書籤" : "將這個分頁加入書籤");
         $("zoomBtn").hidden = !st.zoomed;
         setTip($("zoomBtn"), `縮放：${st.zoom}%`);
@@ -486,13 +492,17 @@
         const dl = $("dl");
         dl.hidden = !st.dl.any;
         dl.classList.toggle("active-dl", st.dl.active > 0);
-        dl.innerHTML = ICONS.download;
-        if (st.dl.active > 0) {
-          const ring = document.createElement("span");
-          ring.className = "ring" + (st.dl.pct < 0 ? " busy" : "");
-          if (st.dl.pct >= 0) ring.style.setProperty("--pct", st.dl.pct);
-          dl.append(ring);
+        const dlKey = st.dl.active > 0 ? (st.dl.pct < 0 ? "busy" : "pct") : "idle";
+        if (dl.dataset.ic !== dlKey) {
+          dl.dataset.ic = dlKey;
+          dl.innerHTML = ICONS.download;
+          if (st.dl.active > 0) {
+            const ring = document.createElement("span");
+            ring.className = "ring" + (st.dl.pct < 0 ? " busy" : "");
+            dl.append(ring);
+          }
         }
+        if (dlKey === "pct") dl.querySelector(".ring").style.setProperty("--pct", st.dl.pct);
       }
       function renderExts() {
         const box = $("exts");
@@ -859,18 +869,36 @@
       // 不要讓文字、圖片被拖走
       document.addEventListener("dragstart", (e) => e.preventDefault());
 
-      // 提示文字（滑鼠停在按鈕上跳出來的小字）：按下去之後先不要再跳出來，不然會蓋住剛打開的選單。滑鼠移開就恢復
+      // 提示文字（滑鼠停在按鈕上跳出來的小字）：按下去之後先收起來，不然會蓋住剛打開的選單。
+      // 等滑鼠移開、它打開的選單也關了才恢復
+      let tipEl = null, tipAway = false;
+      function tipBack(force) {
+        const el = tipEl;
+        if (!el || (!force && (!tipAway || el.classList.contains("open")))) return;
+        tipEl = null;
+        if (el.dataset.tip === undefined) return;
+        if (!el.hasAttribute("title")) el.setAttribute("title", el.dataset.tip);
+        delete el.dataset.tip;
+      }
       document.addEventListener("mousedown", (e) => {
         const el = e.target.closest && e.target.closest("[title]");
         if (!el) return;
+        tipBack(true);
         el.dataset.tip = el.getAttribute("title");
         el.removeAttribute("title");
-        el.addEventListener("mouseleave", () => {
-          if (el.dataset.tip === undefined) return;
-          if (!el.hasAttribute("title")) el.setAttribute("title", el.dataset.tip);
-          delete el.dataset.tip;
-        }, { once: true });
+        tipEl = el;
+        tipAway = false;
       }, true);
+      // 滑鼠移到別的地方了沒有：看滑鼠移動（按鈕裡的圖示被換掉時收不到 mouseleave，不能只靠它）
+      document.addEventListener("mousemove", (e) => {
+        if (!tipEl) return;
+        tipAway = !tipEl.contains(e.target);
+        tipBack(false);
+      }, true);
+      // 滑鼠離開工具列、或從外面回到工具列
+      for (const type of ["mouseleave", "mouseenter"]) {
+        document.documentElement.addEventListener(type, () => { tipAway = true; tipBack(false); });
+      }
 
       // 工具列放不下時一步一步收起按鈕，讓網址列至少留一點寬度
       function fitTool() {
@@ -911,6 +939,7 @@
       T.event.listen("web-menu-closed", (e) => {
         if (e.payload !== me) return;
         document.querySelectorAll(".open").forEach((x) => x.classList.remove("open"));
+        tipBack(false);
         if (sug.open) { sug.open = false; sug.list = []; }
       });
       T.event.listen("web-omni-focus", (e) => { const p = e.payload; if (p && p.id === me) focusOmni(!!p.select); });
