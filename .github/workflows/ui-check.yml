@@ -1,0 +1,44 @@
+name: UI check
+
+# Only runs on the ui-check branch. Starts the test build (the one the dev branch produced) on a real
+# Windows desktop, clicks through the browser window and saves screenshots as a workflow artifact.
+# Nothing is released from here.
+on:
+  push:
+    branches: [ui-check]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-check
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download test build
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download test -R $env:GITHUB_REPOSITORY -p MAOBOO.zip -D dl
+          Expand-Archive dl/MAOBOO.zip -DestinationPath app
+          Get-ChildItem app | Select-Object Name, Length
+          gh release view test -R $env:GITHUB_REPOSITORY --json name,targetCommitish,publishedAt
+
+      - name: Run scenario
+        shell: powershell
+        continue-on-error: true
+        run: ./.github/ui-check/run.ps1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots
+          path: shots
+          retention-days: 2
