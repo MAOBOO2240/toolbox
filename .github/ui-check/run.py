@@ -1892,8 +1892,92 @@ def s_shortcuts():
     home()
 
 
+def tip_diag(el, tag):
+    """（查問題用）工具列某個元素現在的名稱、樣式、說明文字，和滑鼠底下是什麼"""
+    try:
+        n = el(bar_tree())
+        if n is None:
+            log(f"  [{tag}] 找不到元素")
+        else:
+            extra = []
+            for attr in ("HelpText", "AcceleratorKey", "ItemStatus"):
+                try:
+                    extra.append(f"{attr}={getattr(n.ctrl, attr)!r}")
+                except Exception as e:
+                    extra.append(f"{attr}=?")
+            try:
+                lp = n.ctrl.GetLegacyIAccessiblePattern()
+                extra.append(f"legacy name={lp.Name!r} desc={lp.Description!r} help={lp.Help!r}")
+            except Exception as e:
+                extra.append(f"legacy=? {e}")
+            log(f"  [{tag}] name={n.name!r} cls={n.cls!r} en={n.en} rect={(n.l, n.t, n.r, n.b)} kids={[(k.type, k.name, k.cls) for k in n.kids]} {' '.join(extra)}")
+        pt = wt.POINT()
+        user32.GetCursorPos(ctypes.byref(pt))
+        try:
+            c = auto.ControlFromPoint(pt.x, pt.y)
+            log(f"  [{tag}] 滑鼠 {(pt.x, pt.y)} 底下：{c.ControlTypeName} name={c.Name!r} cls={c.ClassName!r} id={c.AutomationId!r}")
+        except Exception as e:
+            log(f"  [{tag}] 滑鼠底下讀不到：{e}")
+    except Exception as e:
+        log(f"  [{tag}] 讀不到：{e}")
+
+
+def tips_now():
+    res = []
+    for h in top_windows():
+        if not user32.IsWindowVisible(h) or title(h) == MENU_TITLE:
+            continue
+        c = cls(h)
+        r = wrect(h)
+        w_, h_ = r[2] - r[0], r[3] - r[1]
+        if w_ <= 0 or h_ <= 0:
+            continue
+        owner = proc_name(pid_of(h)).lower()
+        if "tooltip" in c.lower() or (owner in ("msedgewebview2.exe", os.path.basename(EXE).lower()) and c.startswith("Chrome_WidgetWin") and h_ <= 90 and w_ <= 600):
+            res.append((c, owner, title(h), r))
+    return res
+
+
+def tip_watch(el, tag, secs=3.2):
+    """（查問題用）滑鼠停在元素上，每隔一下看提示文字出來了沒"""
+    p = bar_pt(el)
+    if not p:
+        log(f"  [{tag}] 找不到位置")
+        return
+    hover(*C(*p), settle=0.0)
+    seen = []
+    t0 = time.time()
+    while time.time() - t0 < secs:
+        seen.append((round(time.time() - t0, 1), len(tips_now())))
+        time.sleep(0.3)
+    log(f"  [{tag}] 停在 {C(*p)}：{seen}")
+    tip_diag(el, tag)
+    shot("diag_" + tag)
+    move(*PG(620, 330))
+    time.sleep(0.7)
+
+
 def s_bubbles():
     home()
+    # （查問題用）還沒按過之前：每個按鈕停上去會不會跳提示文字
+    for el, tag in ((SITE, "site_fresh"), (TABSEARCH, "tabs_fresh"), (STAR, "star_fresh"), (RELOAD, "reload_fresh"), (BACK, "back_fresh"), (EXT_BTN, "ext_fresh")):
+        tip_watch(el, tag)
+    # 從旁邊的按鈕慢慢滑進圓鈕
+    pr, ps = bar_pt(RELOAD), bar_pt(SITE)
+    if pr and ps:
+        a, b = C(*pr), C(*ps)
+        for i in range(0, 41):
+            move(a[0] + (b[0] - a[0]) * i / 40, a[1] + (b[1] - a[1]) * i / 40)
+            time.sleep(0.02)
+        seen = []
+        t0 = time.time()
+        while time.time() - t0 < 3.0:
+            seen.append((round(time.time() - t0, 1), len(tips_now())))
+            time.sleep(0.3)
+        log("  [site_slide] 從重新載入滑到圓鈕：", seen)
+        shot("diag_site_slide")
+        move(*PG(620, 330))
+        time.sleep(0.7)
     for el, key_, name, side in ((PROFILE, "profile", "頭像（Chrome 使用者）", "right"), (SITE, "site", "網址列左邊的圓鈕（網站資訊）", "left"), (TABSEARCH, "tabs", "左上角的搜尋分頁", "left"), (EXT_BTN, "ext", "擴充功能（拼圖）", "right")):
         ms = open_menu(el, name)
         shot("bubble_" + key_)
@@ -1907,6 +1991,9 @@ def s_bubbles():
         check(f"{name}：點外面關掉", not menu_wins())
         n = el(bar_tree())
         check(f"{name}：選單關了，按鈕恢復原樣", n is not None and not n.has("open"), n.cls if n is not None else "找不到按鈕")
+    # （查問題用）按過之後
+    for el, tag in ((SITE, "site_after"), (TABSEARCH, "tabs_after")):
+        tip_watch(el, tag)
     # 提示文字（滑鼠停在按鈕上跳出來的小字）：打開選單後不能蓋在選單上
     def tips():
         """畫面上看得到的提示文字視窗（瀏覽器核心自己開的小視窗：沒有標題、很矮）"""
