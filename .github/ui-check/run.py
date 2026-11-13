@@ -1016,6 +1016,21 @@ def select_title(part, wait=1.2):
     return True
 
 
+def ensure_web_fg():
+    """鍵盤要在 web 視窗上（它是前景視窗）。遊戲在前景時點 web 不會搶鍵盤，所以用系統的方式叫到前面"""
+    if fg() == web:
+        return True
+    # 先按一下 Alt：Windows 才允許別的程式把視窗叫到前景
+    user32.keybd_event(VK_ALT, 0, 0, 0)
+    user32.keybd_event(VK_ALT, 0, 2, 0)
+    user32.SetForegroundWindow(web)
+    time.sleep(0.6)
+    if fg() != web:
+        click_bar(DRAG, wait=0.6)
+    log("叫 web 視窗到前景：", fg() == web, "fg", fg(), repr(title(fg())))
+    return fg() == web
+
+
 def home(wait=1.2):
     """每一步開始前：選單關掉、回到測試頁那個分頁"""
     if menu_wins():
@@ -2133,7 +2148,10 @@ def s_game():
         check("遊戲在前景時滑到有下一層的項目：打開下一層", bool(wait_for(lambda: len(menu_wins()) >= 2, 3, 0.2)), f"{len(menu_wins())}")
         n0, keep = tab_count(), tab_ids()
         menu_click("新分頁", wait=1.5)
-        check("遊戲在前景時 ⋮ → 新分頁：有開、選單關掉、鍵盤還在遊戲", tab_count() == n0 + 1 and not menu_wins() and fg() == game, f"{tab_count()} fg={fg()}")
+        check("遊戲在前景時 ⋮ → 新分頁：有開、選單關掉、可以直接打網址", tab_count() == n0 + 1 and not menu_wins() and fg() == web, f"{tab_count()} fg={fg()}")
+        move(gx, gy)
+        time.sleep(1.3)
+        check("⋮ → 新分頁之後滑鼠移出 web：鍵盤還給遊戲", fg() == game, f"fg={fg()}")
         key(0x44)
         time.sleep(0.4)
         check("按 D：遊戲收到", "key:d" in game_keys(), game_keys()[-60:])
@@ -2186,7 +2204,8 @@ def s_notepad():
         click(wrect(np)[0] + 250, wrect(np)[1] + 200, wait=1.0)
         check("記事本在前景時可以蓋住 web 視窗", above(np, web), f"fg={fg()} np={np}")
         shot("notepad_over_web")
-        home(1.0)
+        i = active_tab() or 0
+        click_bar(TAB(i), wait=1.0)
         check("點 web 視窗：變成前景（一般視窗）", fg() == web and above(web, np), f"fg={fg()}")
     else:
         log("（記事本沒有開起來，略過）")
@@ -2253,6 +2272,7 @@ def s_dpi():
 
 def s_fullscreen():
     home(1.0)
+    ensure_web_fg()
     r0 = wrect(web)
     n0 = len(vis_kids())
     click(*PG(100, 420), wait=2.0)
@@ -2296,6 +2316,7 @@ def s_fullscreen():
 
 def s_ext():
     home()
+    ensure_web_fg()
     before = vis_kids()
     ms = open_menu(EXT_BTN, "按擴充功能按鈕")
     shot("ext_menu")
@@ -2356,9 +2377,13 @@ def s_scripts():
     if ms and menu_click("檢視網頁原始碼", wait=3.0):
         st = bar_state()
         shot("view_source")
-        check("右鍵 → 檢視網頁原始碼：在新分頁打開", "view-source:" in (st.get("shown") or "") or "view-source" in title(web), f"{st.get('shown')!r} {title(web)!r}")
+        check("右鍵 → 檢視網頁原始碼：在新分頁打開，網址列是 view-source: 開頭", "view-source:" in (st.get("shown") or ""), f"{st.get('shown')!r} {title(web)!r} {st}")
+        check("檢視原始碼的分頁：沒有星星（不能加書籤）", st.get("star") is False, f"{st}")
         ran = [l for l in page_log_since(t0) if "[us]" in l]
         check("檢視原始碼的頁面：不跑使用者腳本", not ran, f"{ran}")
+        time.sleep(1.5)
+        tabs = (saved().get("wins") or [{}])[0].get("tabs", [])
+        check("檢視原始碼的分頁：記的網址是 view-source: 開頭", any(str(t.get("url", "")).startswith("view-source:http://127.0.0.1") for t in tabs), f"{[t.get('url') for t in tabs]}")
         restore_tabs(keep)
     close_menus()
     home()
