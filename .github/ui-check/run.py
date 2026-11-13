@@ -1957,6 +1957,99 @@ def tip_watch(el, tag, secs=3.2):
     time.sleep(0.7)
 
 
+class GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wt.DWORD), ("flags", wt.DWORD), ("hwndActive", wt.HWND), ("hwndFocus", wt.HWND), ("hwndCapture", wt.HWND),
+                ("hwndMenuOwner", wt.HWND), ("hwndMoveSize", wt.HWND), ("hwndCaret", wt.HWND), ("rcCaret", wt.RECT)]
+
+
+def s_tipdiag():
+    """（查問題用）哪些地方停上去會跳提示文字"""
+    home()
+
+    def gui_info(tag):
+        try:
+            bh = bar_hwnd()
+            par = user32.GetParent(bh)
+            tid = user32.GetWindowThreadProcessId(par or bh, None)
+            gi = GUITHREADINFO()
+            gi.cbSize = ctypes.sizeof(GUITHREADINFO)
+            ok = user32.GetGUIThreadInfo(tid, ctypes.byref(gi))
+            d = lambda h: (cls(h), wrect(h)) if h else None
+            log(f"  [{tag}] thread={tid} ok={ok} flags={gi.flags:#x} active={d(gi.hwndActive)} focus={d(gi.hwndFocus)} capture={d(gi.hwndCapture)} fg={cls(user32.GetForegroundWindow())!r}")
+        except Exception as e:
+            log(f"  [{tag}] gui_info 失敗 {e}")
+
+    def all_tops(tag):
+        res = []
+        for h in top_windows():
+            if proc_name(pid_of(h)).lower() != "msedgewebview2.exe":
+                continue
+            ex = user32.GetWindowLongW(h, -20) & 0xffffffff
+            res.append((cls(h), bool(user32.IsWindowVisible(h)), wrect(h), hex(ex), title(h)[:16]))
+        log(f"  [{tag}] webview 的頂層視窗：{res}")
+
+    def watch_at(tag, x, y, secs=2.4, info=False):
+        hover(x, y, settle=0.0)
+        seen = []
+        t0 = time.time()
+        while time.time() - t0 < secs:
+            seen.append(len(tips_now()))
+            time.sleep(0.3)
+        log(f"  [{tag}] 停在 {(round(x), round(y))}：{''.join(str(n) for n in seen)}  {tips_now()}")
+        if info:
+            gui_info(tag)
+            all_tops(tag)
+        move(*PG(620, 330))
+        time.sleep(0.6)
+
+    def bar_c(el):
+        p = bar_pt(el)
+        return C(*p) if p else None
+
+    # 工具列：圓鈕的不同位置
+    c = bar_c(SITE)
+    if c:
+        for dx, dy in ((0, 0), (-6, -6), (6, 6), (-8, 0), (8, 0), (0, -9), (0, 9), (3, 0)):
+            watch_at(f"site{dx:+d}{dy:+d}", c[0] + dx * scale, c[1] + dy * scale, info=(dx == 0 and dy == 0))
+    # 工具列：旁邊的東西
+    for el, tag in ((E("home"), "home"), (STAR, "star"), (ADDR, "omni_text"), (BM("Example"), "bm_example"), (TAB(1), "tab1"), (NEWTAB, "newtab"), (PROFILE, "profile"), (BTN_MIN, "min")):
+        c2 = bar_c(el)
+        if c2:
+            watch_at(tag, c2[0], c2[1], info=(tag == "star"))
+        else:
+            log(f"  [{tag}] 找不到")
+    # 換到別種網頁再試圓鈕
+    for part in ("Example", "短影片"):
+        if select_title(part, 1.5):
+            log("  目前分頁：", active_tab(), bar_state())
+            tip_diag(SITE, "site@" + part)
+            c3 = bar_c(SITE)
+            if c3:
+                watch_at("site@" + part, c3[0], c3[1])
+                r = rect_of(SITE)
+                if r and r[2] > 40:
+                    # 有文字的圓鈕：停在文字上
+                    watch_at("site_label@" + part, *C(r[0] + r[2] - 14, r[1] + r[3] / 2))
+    home()
+    # 網頁裡照著做一個一樣的
+    go(f"http://127.0.0.1:{PORT}/tip.html", wait=3.0)
+    shot("tipdiag_page")
+    root = page_tree()
+    for i in ("b1", "c1", "s1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "d1", "d2", "d3", "d4"):
+        n = find_id(root, i)
+        if n is None:
+            log(f"  [page {i}] 找不到")
+            continue
+        watch_at("page " + i, (n.l + n.r) / 2, (n.t + n.b) / 2)
+    hover((find_id(root, "c1").l + find_id(root, "c1").r) / 2, (find_id(root, "c1").t + find_id(root, "c1").b) / 2, settle=1.5) if find_id(root, "c1") else None
+    shot("tipdiag_page_c1")
+    go(f"http://127.0.0.1:{PORT}/test.html", wait=2.5)
+    # 回到測試頁之後圓鈕再試一次
+    c = bar_c(SITE)
+    if c:
+        watch_at("site_end", c[0], c[1])
+
+
 def s_bubbles():
     home()
     # （查問題用）還沒按過之前：每個按鈕停上去會不會跳提示文字
@@ -2591,6 +2684,7 @@ STEPS = [
     ("context", s_context),
     ("internal_pages", s_internal_pages),
     ("shortcuts", s_shortcuts),
+    ("tipdiag", s_tipdiag),
     ("bubbles", s_bubbles),
     ("download", s_download),
     ("incognito", s_incognito),
