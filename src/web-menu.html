@@ -90,6 +90,12 @@
     .row.tab .rb { visibility: hidden; }
     .row.tab:hover .rb { visibility: visible; }
     .row.cur .t { color: var(--accent); }
+
+    /* 剛顯示、滑鼠還沒在裡面動過：不要有「滑過」的底色。
+       小視窗是重複使用的，上次關掉時滑鼠停的那個位置，下次打開時還會被當成「滑鼠在上面」 */
+    body.still .mi:not(.on):hover, body.still .row:not(.on):hover, body.still .sug:not(.on):hover,
+    body.still .zb:hover, body.still .row .rb:hover, body.still .zoom .reset:hover { background: none; }
+    body.still .row.tab:hover .rb { visibility: hidden; }
   </style>
 </head>
 <body>
@@ -165,7 +171,7 @@
         cur = m;
         hovered = -1;
         clearTimeout(hoverTimer);
-        document.body.className = m.style === "menu" ? "" : m.style;
+        document.body.className = (m.style === "menu" ? "" : m.style) + " still";
         menu.innerHTML = "";
         menu.style.width = m.width > 0 ? `${m.width}px` : "";
         document.getElementById("scroll").scrollTop = 0;
@@ -288,6 +294,8 @@
       }
 
       document.addEventListener("contextmenu", (e) => e.preventDefault());
+      // 滑鼠真的在裡面動了，才開始顯示「滑過」的底色
+      document.addEventListener("mousemove", () => document.body.classList.remove("still"));
       document.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
       document.addEventListener("dragstart", (e) => e.preventDefault());
       T.event.listen("web-pop", (e) => { if (e.payload && mine(e.payload)) render(e.payload); });

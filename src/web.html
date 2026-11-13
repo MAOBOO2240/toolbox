@@ -221,6 +221,8 @@
       const invoke = (cmd, args) => T.core.invoke(cmd, args).catch(() => {});
       const cmd = (name, tab) => invoke("web_cmd", { cmd: name, tab: tab ?? null });
       const $ = (id) => document.getElementById(id);
+      // 設定提示文字（按下去之後暫時收起來的，先記著，滑鼠移開時才放回去）
+      const setTip = (el, text) => { if (el.dataset.tip !== undefined) el.dataset.tip = text; else el.title = text; };
       const MAX = '<svg viewBox="0 0 10 10"><path d="M0.5 0.5h9v9h-9z"/></svg>';
       const RESTORE = '<svg viewBox="0 0 10 10"><path d="M0.5 2.5h7v7h-7zM2.5 2.5v-2h7v7h-2"/></svg>';
       // 內部頁面的分頁圖示
@@ -432,12 +434,12 @@
         $("inco").hidden = !st.incognito;
         $("profile").hidden = !!st.incognito;
         $("cMax").innerHTML = st.max || st.full ? RESTORE : MAX;
-        $("cMax").title = st.max || st.full ? "還原" : "最大化";
+        setTip($("cMax"), st.max || st.full ? "還原" : "最大化");
         $("back").disabled = !st.back;
         $("fwd").disabled = !st.forward;
         const loading = st.tabs.some((t) => t.id === st.active && t.loading);
         $("reload").innerHTML = loading ? ICONS.stop : ICONS.reload;
-        $("reload").title = loading ? "停止載入這個網頁" : "重新載入這個網頁";
+        setTip($("reload"), loading ? "停止載入這個網頁" : "重新載入這個網頁");
         $("reload").dataset.loading = loading ? "1" : "";
         $("home").hidden = !st.home;
         // 網址列左邊的圓鈕
@@ -477,9 +479,9 @@
         star.hidden = st.kind === "newtab" || st.kind === "internal" || st.kind === "source" || st.kind === "ext";
         star.classList.toggle("on", !!st.bookmarked);
         star.innerHTML = st.bookmarked ? ICONS["star-on"] : ICONS.star;
-        star.title = st.bookmarked ? "編輯這個分頁的書籤" : "將這個分頁加入書籤";
+        setTip(star, st.bookmarked ? "編輯這個分頁的書籤" : "將這個分頁加入書籤");
         $("zoomBtn").hidden = !st.zoomed;
-        $("zoomBtn").title = `縮放：${st.zoom}%`;
+        setTip($("zoomBtn"), `縮放：${st.zoom}%`);
         // 下載
         const dl = $("dl");
         dl.hidden = !st.dl.any;
@@ -856,6 +858,19 @@
       document.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
       // 不要讓文字、圖片被拖走
       document.addEventListener("dragstart", (e) => e.preventDefault());
+
+      // 提示文字（滑鼠停在按鈕上跳出來的小字）：按下去之後先不要再跳出來，不然會蓋住剛打開的選單。滑鼠移開就恢復
+      document.addEventListener("mousedown", (e) => {
+        const el = e.target.closest && e.target.closest("[title]");
+        if (!el) return;
+        el.dataset.tip = el.getAttribute("title");
+        el.removeAttribute("title");
+        el.addEventListener("mouseleave", () => {
+          if (el.dataset.tip === undefined) return;
+          if (!el.hasAttribute("title")) el.setAttribute("title", el.dataset.tip);
+          delete el.dataset.tip;
+        }, { once: true });
+      }, true);
 
       // 工具列放不下時一步一步收起按鈕，讓網址列至少留一點寬度
       function fitTool() {

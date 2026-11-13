@@ -685,6 +685,9 @@ struct Rt {
     bar_ready: bool,
     /// 工具列還沒載入好時就要求把鍵盤交給網址列：等它好了再做（值 = 要不要全選）
     want_omni: Option<bool>,
+    /// 正在「檢視原始碼」的分頁 → 被檢視的網址。
+    /// WebView2 回報這種分頁的網址時不會帶 view-source: 開頭，要自己記著才分得出來
+    source: HashMap<String, String>,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -1194,7 +1197,9 @@ fn apply_zoom(wv: &Webview, wid: &str, tid: &str, url: &str) {
 }
 
 fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, started: bool) {
-    let shown = tab_url(url);
+    let shown = shown_url(wid, tid, url, started);
+    // 檢視原始碼的頁面：不跑使用者腳本、不記到歷史記錄
+    let viewing = shown.as_deref().is_some_and(|s| s.starts_with("view-source:"));
     if let Some(s) = &shown {
         edit(wid, |w| {
             if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
@@ -1222,7 +1227,7 @@ fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, start
         if let Some(s) = &shown {
             apply_zoom(wv, wid, tid, s);
         }
-    } else if web_url(url) {
+    } else if web_url(url) && !viewing {
         // 使用者腳本（載入完成後跑的）
         for code in crate::userscripts::scripts_for(url.as_str()) {
             let _ = wv.eval(&code);
@@ -1246,7 +1251,7 @@ fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, start
 
 /// 網址變了但沒有重新載入（YouTube 這類不換頁就換網址的網站）
 fn on_source(app: &AppHandle, wid: &str, tid: &str, raw: &str) {
-    let Some(shown) = Url::parse(raw).ok().and_then(|u| tab_url(&u)) else { return };
+    let Some(shown) = Url::parse(raw).ok().and_then(|u| shown_url(wid, tid, &u, false)) else { return };
     let loading = rt(|m| m.get(wid).is_some_and(|r| r.loading.contains(tid)));
     let changed = edit(wid, |w| {
         let mut title = None;
@@ -1406,6 +1411,7 @@ fn ext_mark_loaded() {
 
 /// 加上分頁的網頁；載入擴充功能失敗就不載入再試一次
 fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> Result<(), String> {
+    source_mark(wid, tid, &url);
     let incognito = is_incognito(wid);
     // 無痕式視窗不載入擴充功能
     let ext = if incognito { None } else { ext_pending() };
@@ -1468,6 +1474,42 @@ fn toggle_fs(app: &AppHandle, wid: &str) {
 }
 
 /// 建立分頁的網頁（要在主執行緒以外呼叫）
+/// 分頁要前往某個網址：是「檢視原始碼」（view-source:…）就記下被檢視的網址，不是就取消
+fn source_mark(wid: &str, tid: &str, target: &Url) {
+    let inner = (target.scheme() == "view-source").then(|| target.as_str().trim_start_matches("view-source:")).and_then(|u| Url::parse(u).ok()).map(|u| u.to_string());
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            match inner {
+                Some(u) => {
+                    r.source.insert(tid.to_string(), u);
+                }
+                None => {
+                    r.source.remove(tid);
+                }
+            }
+        }
+    });
+}
+
+/// WebView2 回報的網址 → 分頁要記的網址（正在檢視原始碼的那個網址，補回 view-source: 開頭）。
+/// leaving = 開始前往別的網址了：不再是檢視原始碼
+fn shown_url(wid: &str, tid: &str, reported: &Url, leaving: bool) -> Option<String> {
+    let s = tab_url(reported)?;
+    let viewing = rt(|m| {
+        let r = m.get_mut(wid)?;
+        match r.source.get(tid) {
+            Some(u) if *u == s => Some(true),
+            Some(_) if leaving => {
+                r.source.remove(tid);
+                Some(false)
+            }
+            _ => Some(false),
+        }
+    })
+    .unwrap_or(false);
+    Some(if viewing { format!("view-source:{s}") } else { s })
+}
+
 fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<(), String> {
     let url = get(wid).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url).unwrap_or_default();
     let url = page_url(&url);
@@ -1551,6 +1593,7 @@ fn navigate_tab(app: &AppHandle, wid: &str, tid: &str, target: &str) {
     let url = page_url(target);
     match app.get_webview(&page_label(wid, tid)) {
         Some(p) => {
+            source_mark(wid, tid, &url);
             let _ = p.navigate(url);
         }
         None => {
@@ -1657,6 +1700,7 @@ fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
             r.audio.remove(tid);
             r.zoom.remove(tid);
             r.zoom_set.remove(tid);
+            r.source.remove(tid);
         }
     });
     match after {
@@ -1686,15 +1730,25 @@ fn reopen_tab(app: &AppHandle, wid: &str, index: usize) {
     let home = get(&c.win).is_some_and(|w| w.open && !w.incognito);
     let target = if home { c.win.clone() } else { wid.to_string() };
     if let Ok(tid) = add_tab(app, &target, c.url, true, None) {
-        edit(&target, |w| {
-            let Some(i) = w.tabs.iter().position(|t| t.id == tid) else { return };
+        let title = c.title.clone();
+        let shown = edit(&target, |w| {
+            let i = w.tabs.iter().position(|t| t.id == tid)?;
             let mut t = w.tabs.remove(i);
             t.title = c.title;
             t.icon = c.icon;
             let pinned = w.tabs.iter().filter(|x| x.pinned).count();
             let at = if home { c.index.clamp(pinned, w.tabs.len()) } else { w.tabs.len() };
             w.tabs.insert(at, t);
-        });
+            // 它是目前的分頁：視窗（工作列上）的標題也換成它的
+            (w.active == tid).then(|| {
+                w.title = title.clone();
+                w.incognito
+            })
+        })
+        .flatten();
+        if let (Some(incognito), Some(win)) = (shown, app.get_window(&win_label(&target))) {
+            let _ = win.set_title(&window_title(&title, incognito));
+        }
         emit_state(app, &target);
     }
 }
