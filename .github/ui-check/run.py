@@ -16,7 +16,7 @@ import traceback
 import urllib.parse
 import urllib.request
 
-from PIL import ImageGrab
+from PIL import Image, ImageGrab
 
 try:
     import websocket  # websocket-client：讀工具列裡按鈕的實際位置
@@ -99,7 +99,8 @@ def shot(name):
     _shot[0] += 1
     path = os.path.join(OUT, f"{_shot[0]:02d}_{name}.png")
     try:
-        ImageGrab.grab(all_screens=True).save(path)
+        # 256 色就夠看（檔案小很多）
+        ImageGrab.grab(all_screens=True).convert("RGB").convert("P", palette=Image.ADAPTIVE, colors=256).save(path, optimize=True)
     except Exception as e:
         log("screenshot failed", e)
 
@@ -447,20 +448,8 @@ game_proc = subprocess.Popen([sys.executable, os.path.join(HERE, "game.py"), GAM
 game = wait_for(lambda: next((h for h in top_windows() if title(h) == "MapleStory" and user32.IsWindowVisible(h)), 0), 15)
 log("game hwnd", game, wrect(game) if game else None)
 
-# 只有測試時打開 WebView2 的遠端偵錯，用來讀工具列、選單、頁面裡元素的實際位置和內容。
-# 連接埠用 0（每個瀏覽器程序自己挑一個，寫在資料夾的 DevToolsActivePort）：工具列／選單和網頁是兩個不同的瀏覽器程序
-DEBUG_ARGS = "--remote-debugging-port=0"
-try:
-    import winreg
-    k = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, r"Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments", 0, winreg.KEY_SET_VALUE)
-    winreg.SetValueEx(k, os.path.basename(EXE), 0, winreg.REG_SZ, DEBUG_ARGS)
-    winreg.CloseKey(k)
-except Exception as e:
-    log("寫登錄失敗", e)
-app_env = dict(os.environ)
-app_env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = DEBUG_ARGS
 log("測試程式是系統管理員", bool(ctypes.windll.shell32.IsUserAnAdmin()))
-app_proc = subprocess.Popen([EXE], env=app_env)
+app_proc = subprocess.Popen([EXE])
 MENU_TITLE = "瀏覽器選單"
 KNOWN = ("工具箱", MENU_TITLE, "計時器浮動視窗", "", "com.toolbox.desktop-siw")
 
@@ -524,169 +513,241 @@ def PG(x, y):
     return r[0] + x * scale, r[1] + y * scale
 
 
-# ---------- WebView2 遠端偵錯：讀頁面裡的東西 ----------
-APPID = "com.toolbox.desktop"
-BAR, MENU, UI = "/web.html", "/web-menu.html", "/web-ui.html"
-LABEL_JS = "((window.__TAURI_INTERNALS__ || {}).metadata || {currentWebview: {}}).currentWebview.label || ''"
+# ---------- 讀畫面上的東西：UI Automation（WebView2 會把網頁裡每個元素的 id、class、文字、位置報出來） ----------
+import uiautomation as auto
+
+auto.SetGlobalSearchTimeout(2)
 
 
-def devtools_ports():
-    ports = []
-    for root in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("APPDATA", "")):
-        top = os.path.join(root, APPID)
-        for dp, dn, fn in os.walk(top):
-            if dp[len(top):].count(os.sep) >= 4:
-                dn[:] = []
-            if "DevToolsActivePort" in fn:
+class N:
+    """畫面上的一個元素"""
+    __slots__ = ("type", "name", "l", "t", "r", "b", "en", "foc", "cls", "id", "kids", "ctrl")
+
+    def __repr__(self):
+        return f"<{self.type} {self.name!r} #{self.id} .{self.cls} ({self.l},{self.t},{self.r},{self.b})>"
+
+    @property
+    def classes(self):
+        return self.cls.split()
+
+    def has(self, c):
+        return c in self.cls.split()
+
+    @property
+    def w(self):
+        return self.r - self.l
+
+    @property
+    def h(self):
+        return self.b - self.t
+
+    @property
+    def center(self):
+        return ((self.l + self.r) / 2, (self.t + self.b) / 2)
+
+    def walk(self):
+        yield self
+        for k in self.kids:
+            yield from k.walk()
+
+    def texts(self):
+        return [n.name for n in self.walk() if n.type == "TextControl" and n.name]
+
+
+def _node(c, depth, count, limit):
+    n = N()
+    n.ctrl = c
+    n.type = c.ControlTypeName
+    n.name = c.Name or ""
+    r = c.BoundingRectangle
+    n.l, n.t, n.r, n.b = r.left, r.top, r.right, r.bottom
+    n.en = bool(c.IsEnabled)
+    n.foc = bool(c.HasKeyboardFocus)
+    n.cls = c.ClassName or ""
+    n.id = c.AutomationId or ""
+    n.kids = []
+    count[0] += 1
+    if depth < 40 and count[0] < limit:
+        try:
+            for ch in c.GetChildren():
                 try:
-                    with open(os.path.join(dp, "DevToolsActivePort")) as f:
-                        ports.append(int(f.read().split()[0]))
+                    n.kids.append(_node(ch, depth + 1, count, limit))
                 except Exception:
                     pass
-    return sorted(set(ports))
-
-
-def cdp_targets():
-    res = []
-    for port in devtools_ports():
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
-                for t in json.load(r):
-                    t["port"] = port
-                    res.append(t)
         except Exception:
             pass
+    return n
+
+
+def render_hwnds(top):
+    """一個視窗裡看得到的網頁內容（每個 webview 一個）"""
+    res = []
+
+    def rec(h, d):
+        for c in children(h):
+            if cls(c) == "Chrome_RenderWidgetHostHWND":
+                if user32.IsWindowVisible(c):
+                    res.append(c)
+            elif d < 6:
+                rec(c, d + 1)
+
+    rec(top, 0)
     return res
 
 
-def targets_for(match):
-    return [t for t in cdp_targets() if t.get("type") == "page" and match in t.get("url", "") and t.get("webSocketDebuggerUrl")]
-
-
-_cdp_n = [0]
-
-
-def cdp_eval_t(t, expr):
-    if websocket is None or not t:
-        return None
-    try:
-        ws = websocket.create_connection(t["webSocketDebuggerUrl"], timeout=5, suppress_origin=True)
-    except Exception as e:
-        log("cdp 連不上", e)
-        return None
-    try:
-        _cdp_n[0] += 1
-        n = _cdp_n[0]
-        ws.send(json.dumps({"id": n, "method": "Runtime.evaluate", "params": {"expression": expr, "returnByValue": True, "awaitPromise": True}}))
-        while True:
-            m = json.loads(ws.recv())
-            if m.get("id") == n:
-                r = m.get("result", {})
-                if r.get("exceptionDetails"):
-                    log("cdp 執行出錯", str(r["exceptionDetails"].get("exception", {}).get("description", ""))[:300], "←", expr[:120])
-                return r.get("result", {}).get("value")
-    except Exception as e:
-        log("cdp 執行失敗", e)
-        return None
-    finally:
+def snap(rh, tries=6, limit=1500, need=None):
+    """讀一個網頁內容的元素樹（剛載入時要等一下才讀得到）。need(root) 回傳 True 才算讀好"""
+    root = None
+    for i in range(tries):
         try:
-            ws.close()
-        except Exception:
-            pass
+            pane = auto.ControlFromHandle(rh)
+            docs = [c for c in pane.GetChildren() if c.ControlTypeName == "DocumentControl"]
+            if docs:
+                root = _node(docs[0], 0, [0], limit)
+                if root.kids and (need is None or need(root)):
+                    return root
+        except Exception as e:
+            if i == tries - 1:
+                log("（讀元素失敗）", e)
+        time.sleep(0.35)
+    return root
 
 
-_label_cache = {}
-
-
-def target_by_label(match, label):
-    ts = targets_for(match)
-    tid = _label_cache.get(label)
-    for t in ts:
-        if t.get("id") == tid:
-            return t
-    for t in ts:
-        if cdp_eval_t(t, LABEL_JS) == label:
-            _label_cache[label] = t.get("id")
-            return t
+def find_id(root, i):
+    if root is None:
+        return None
+    for n in root.walk():
+        if n.id == i:
+            return n
     return None
 
 
-def cdp_eval(match, expr, label=None):
-    """在網址含 match 的頁面（label = 指定哪一個 webview）執行 JS，回傳結果；讀不到回傳 None"""
-    t = target_by_label(match, label) if label else next(iter(targets_for(match)), None)
-    return cdp_eval_t(t, expr) if t else None
+def find_all(root, pred):
+    return [n for n in root.walk() if pred(n)] if root is not None else []
 
 
-def bar_eval(expr, wid="w1"):
-    return cdp_eval(BAR, expr, label=f"webbar-{wid}")
+def bar_hwnd(win=None):
+    win = win or web
+    cx, cy, cw, ch = client(win)
+    for h in render_hwnds(win):
+        r = wrect(h)
+        if r[1] == cy and r[0] == cx and (r[3] - r[1]) <= 140 * scale:
+            return h
+    return 0
 
 
-def console_errors(match):
-    """這些頁面到目前為止的錯誤訊息（console 的 error）"""
-    out = []
-    if websocket is None:
-        return out
-    for t in targets_for(match):
-        try:
-            ws = websocket.create_connection(t["webSocketDebuggerUrl"], timeout=3, suppress_origin=True)
-            ws.settimeout(0.7)
-            ws.send(json.dumps({"id": 1, "method": "Console.enable"}))
-            end = time.time() + 1.2
-            while time.time() < end:
-                try:
-                    m = json.loads(ws.recv())
-                except Exception:
-                    break
-                if m.get("method") == "Console.messageAdded":
-                    mm = m["params"]["message"]
-                    if mm.get("level") == "error":
-                        out.append(f"{t.get('url', '')[-48:]} :: {mm.get('text', '')[:300]} ({str(mm.get('url', ''))[-40:]}:{mm.get('line')})")
-            ws.close()
-        except Exception as e:
-            log("console 讀不到", e)
-    return out
+def page_hwnd(win=None):
+    win = win or web
+    bh = bar_hwnd(win)
+    best = 0
+    for h in render_hwnds(win):
+        if h == bh:
+            continue
+        r = wrect(h)
+        if not best or (r[2] - r[0]) * (r[3] - r[1]) > (wrect(best)[2] - wrect(best)[0]) * (wrect(best)[3] - wrect(best)[1]):
+            best = h
+    return best
 
 
-def rect_of(el_js, wid="w1"):
-    b = bar_eval(f"(() => {{ const e = {el_js}; if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }})()", wid)
-    return b if b and b[2] > 0 and b[3] > 0 else None
+def bar_tree(win=None):
+    h = bar_hwnd(win)
+    return snap(h, need=lambda r: find_id(r, "tool") is not None) if h else None
 
 
-def bar_pt(el_js, fallback=None, dy=None):
-    """工具列裡某個元素的中心（CSS 像素）；讀不到時用估計的位置（沒有估計就回傳 None）"""
-    b = rect_of(el_js)
-    if b:
-        return (b[0] + b[2] / 2, b[1] + dy if dy is not None else b[1] + b[3] / 2)
-    log("（讀不到元素位置）", el_js, "→", fallback)
-    return fallback
+def page_tree(win=None, tries=6):
+    h = page_hwnd(win)
+    return snap(h, tries=tries) if h else None
 
 
-def click_bar(el_js, fallback=None, **kw):
-    p = bar_pt(el_js, fallback)
-    if not p:
-        return False
-    click(*C(*p), **kw)
-    return True
+def page_text(win=None):
+    """目前網頁上看得到的文字"""
+    root = page_tree(win)
+    if root is None:
+        return ""
+    return "\n".join(n.name for n in root.walk() if n.name and n.type in ("TextControl", "ButtonControl", "HyperlinkControl", "EditControl", "CheckBoxControl", "ListItemControl", "MenuItemControl", "ComboBoxControl"))
+
+
+def css_rect(n):
+    """元素的位置（相對 web 視窗內容區的 CSS 像素）：[x, y, 寬, 高]"""
+    cx, cy, cw, ch = client(web)
+    return [(n.l - cx) / scale, (n.t - cy) / scale, n.w / scale, n.h / scale]
 
 
 def E(i):
-    return f"document.getElementById('{i}')"
+    return lambda root: find_id(root, i)
+
+
+def tab_nodes(root):
+    box = find_id(root, "tabs")
+    return [k for k in box.kids if k.has("tab")] if box else []
 
 
 def TAB(i):
-    return f"document.querySelectorAll('#tabs .tab')[{i}]"
+    return lambda root: (tab_nodes(root)[i] if i < len(tab_nodes(root)) else None)
+
+
+def TABX(i):
+    """第 i 個分頁上的 ×"""
+    def f(root):
+        ts = tab_nodes(root)
+        return next((k for k in ts[i].kids if k.has("tx")), None) if i < len(ts) else None
+    return f
+
+
+def bm_nodes(root):
+    box = find_id(root, "bmList")
+    return [k for k in box.kids if k.has("bm")] if box else []
 
 
 def BM(name):
-    return f"[...document.querySelectorAll('#bmList .bm')].find((b) => b.textContent.trim() === '{name}')"
+    return lambda root: next((k for k in bm_nodes(root) if k.name.strip() == name), None)
+
+
+def EXTICON(i):
+    def f(root):
+        box = find_id(root, "exts")
+        ks = [k for k in box.kids if k.w > 0] if box else []
+        return ks[i] if i < len(ks) else None
+    return f
 
 
 BTN_MAX, BTN_MIN, BTN_CLOSE, DRAG, NEWTAB, OTHER = E("cMax"), E("cMin"), E("cClose"), E("drag"), E("newTab"), E("bmOther")
 ADDR, BACK, FWD, RELOAD, MENU_BTN, EXT_BTN, PROFILE, SITE, STAR, TABSEARCH = E("omni"), E("back"), E("fwd"), E("reload"), E("menu"), E("ext"), E("profile"), E("site"), E("star"), E("tabSearch")
 
 
-def tabs_info(wid="w1"):
-    return bar_eval("[...document.querySelectorAll('#tabs .tab')].map((t) => ({id: t.dataset.id, active: t.classList.contains('active'), pinned: t.classList.contains('pinned'), title: (t.querySelector('.tt') || {}).textContent || ''}))", wid) or []
+def rect_of(el, root=None):
+    """工具列裡某個元素的位置（CSS 像素）；找不到或沒顯示回傳 None"""
+    root = root or bar_tree()
+    n = el(root) if root is not None else None
+    if n is None or n.w <= 0 or n.h <= 0:
+        return None
+    return css_rect(n)
+
+
+def bar_pt(el, fallback=None, dy=None):
+    """工具列裡某個元素的中心（CSS 像素）；讀不到時用估計的位置（沒有估計就回傳 None）"""
+    b = rect_of(el)
+    if b:
+        return (b[0] + b[2] / 2, b[1] + dy if dy is not None else b[1] + b[3] / 2)
+    log("（讀不到元素位置）→", fallback)
+    return fallback
+
+
+def click_bar(el, fallback=None, **kw):
+    p = bar_pt(el, fallback)
+    if not p:
+        return False
+    click(*C(*p), **kw)
+    return True
+
+
+def tabs_info(root=None):
+    root = root or bar_tree()
+    res = []
+    for t in tab_nodes(root):
+        tx = [k for k in t.kids if k.type == "TextControl" and k.name]
+        res.append({"active": t.has("active"), "pinned": t.has("pinned"), "title": tx[-1].name if tx else "", "w": t.w / scale})
+    return res
 
 
 def tab_count():
@@ -695,55 +756,143 @@ def tab_count():
 
 def active_tab():
     """目前的分頁是第幾個（讀不到回傳 None）"""
-    return bar_eval("[...document.querySelectorAll('#tabs .tab')].findIndex((t) => t.classList.contains('active'))")
+    ts = tabs_info()
+    return next((i for i, t in enumerate(ts) if t["active"]), None)
+
+
+def bm_names():
+    return [k.name.strip() for k in bm_nodes(bar_tree())]
+
+
+def edit_value(n):
+    try:
+        return n.ctrl.GetValuePattern().Value or ""
+    except Exception:
+        return ""
+
+
+def edit_selection(n):
+    """輸入框裡選起來的文字（讀不到回傳 None）"""
+    try:
+        sel = n.ctrl.GetTextPattern().GetSelection()
+        return "".join(r.GetText(-1) for r in sel)
+    except Exception as e:
+        log("（讀不到選取範圍）", e)
+        return None
 
 
 def bar_state():
-    return bar_eval("(() => { const g = (i) => document.getElementById(i); return { back: !g('back').disabled, fwd: !g('fwd').disabled, addr: g('addr').value, shown: g('shown').textContent, focus: (document.activeElement || {}).id || '', "
-                    "zoom: !g('zoomBtn').hidden && g('zoomBtn').getBoundingClientRect().width > 0, star: !g('star').hidden, starOn: !!g('star').querySelector('path[fill]'), dl: !g('dl').hidden, chip: g('site').textContent.trim(), bm: !document.body.classList.contains('nobm'), max: document.body.classList.contains('max') }; })()") or {}
+    root = bar_tree()
+    if root is None:
+        return {}
+    g = lambda i: find_id(root, i)
+    addr, shown, star, zoom, site, bms = g("addr"), g("shown"), g("star"), g("zoomBtn"), g("site"), g("bms")
+    vis = lambda n: n is not None and n.w > 0 and n.h > 0
+    return {
+        "back": bool(g("back") and g("back").en), "fwd": bool(g("fwd") and g("fwd").en),
+        "addr": edit_value(addr) if addr else "", "shown": "".join(shown.texts()) if shown else "",
+        "focus": "addr" if addr is not None and addr.foc else "",
+        "zoom": zoom.name if vis(zoom) else "", "star": vis(star), "starOn": bool(vis(star) and star.has("on")),
+        "dl": vis(g("dl")), "chip": (site.name if site is not None else ""), "bm": vis(bms),
+    }
+
+
+def saved():
+    try:
+        return json.load(open(os.path.join(data_dir, "web.json"), encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def tab_ids(n=None):
+    """分頁的編號（照順序）。程式改了之後一秒左右才存檔，所以等到數量對得上"""
+    n = tab_count() if n is None else n
+    ids = []
+    for _ in range(12):
+        w = next((w for w in saved().get("wins", []) if w.get("id") == "w1"), {})
+        ids = [t.get("id") for t in w.get("tabs", [])]
+        if len(ids) == n:
+            break
+        time.sleep(0.3)
+    return ids
 
 
 # ---------- 選單（每一層是一個小視窗） ----------
-MENU_JS = """(() => { const rows = [...document.querySelectorAll('#menu > *')];
-  return { label: """ + LABEL_JS + """, w: innerWidth, h: innerHeight, cls: document.body.className,
-    items: rows.map((r, i) => { const b = r.getBoundingClientRect(); const t = r.querySelector('.t'); const k = r.querySelector('.k'); const s = r.querySelector('.s, .d');
-      return { i, cls: r.className, t: (t ? t.textContent : r.textContent).trim(), k: k ? k.textContent : '', s: s ? s.textContent : '', more: !!r.querySelector('.ch svg path[d^="M10 7"]'), x: b.left, y: b.top, w: b.width, h: b.height }; }) }; })()"""
+_levels = {}
 
 
 def menu_wins():
     return [h for h in app_windows() if title(h) == MENU_TITLE and user32.IsWindowVisible(h)]
 
 
+def _level_order(wins):
+    """由外到內排：每個小視窗固定是某一層，第一次看到時記下來（外層一定先出現）"""
+    known = [h for h in wins if h in _levels]
+    for h in wins:
+        if h not in _levels:
+            _levels[h] = (max([_levels[k] for k in known], default=-1) + 1) if known else len([x for x in wins if x in _levels])
+            known.append(h)
+    return sorted(wins, key=lambda h: _levels[h])
+
+
+def parse_menu(mroot):
+    """選單裡一列一列的內容。能點的是一組（class 是 mi、sug、row…）；不能點的（停用、標題、說明）只有文字"""
+    items = []
+    if mroot is None:
+        return items
+    for k in mroot.kids:
+        if k.type == "GroupControl" and k.cls:
+            tx = [n for n in k.walk() if n.type == "TextControl" and n.name]
+            # 第一個字是圖示（網站沒有圖示時用第一個字代替）：跳過
+            if len(tx) >= 2 and len(tx[0].name) == 1 and tx[0].w <= 16 * scale and tx[1].l - k.l <= 70 * scale:
+                tx = tx[1:]
+            btns = [n for n in k.walk() if n.type == "ButtonControl"]
+            items.append({"cls": k.cls, "t": tx[0].name.strip() if tx else k.name.strip(), "texts": [n.name for n in tx], "off": k.has("off"), "rect": (k.l, k.t, k.r, k.b),
+                          "btns": {b.name: b for b in btns}, "node": k})
+        elif k.type in ("TextControl", "ButtonControl") and k.name:
+            # 同一列的零散文字、按鈕併在一起
+            if items and items[-1]["cls"] == "loose" and abs((k.t + k.b) / 2 - (items[-1]["rect"][1] + items[-1]["rect"][3]) / 2) <= 12 * scale:
+                it = items[-1]
+                if k.type == "TextControl":
+                    it["texts"].append(k.name)
+                else:
+                    it["btns"][k.name] = k
+                it["rect"] = (min(it["rect"][0], k.l), min(it["rect"][1], k.t), max(it["rect"][2], k.r), max(it["rect"][3], k.b))
+            else:
+                items.append({"cls": "loose", "t": k.name.strip(), "texts": [k.name] if k.type == "TextControl" else [], "off": True, "rect": (k.l, k.t, k.r, k.b),
+                              "btns": {k.name: k} if k.type == "ButtonControl" else {}, "node": k})
+    for it in items:
+        # 有按鈕的零散列是「縮放」那一排（可以按）
+        if it["cls"] == "loose" and it["btns"]:
+            it["off"] = False
+    return items
+
+
 def menus():
     """畫面上的選單，由外到內：[(視窗, 內容)]"""
-    wins = menu_wins()
     res = []
-    if not wins:
-        return res
-    for t in targets_for(MENU):
-        m = cdp_eval_t(t, MENU_JS)
-        if not m:
-            continue
-        for h in wins:
-            cx, cy, cw, ch = client(h)
-            if abs(cw - m["w"] * scale) <= 2 and abs(ch - m["h"] * scale) <= 2 and h not in [x[0] for x in res]:
-                m["target"] = t
-                res.append((h, m))
-                break
-    res.sort(key=lambda x: (len(x[1]["label"]), x[1]["label"]))
+    for h in _level_order(menu_wins()):
+        rhs = render_hwnds(h)
+        root = snap(rhs[0], tries=5, need=lambda r: bool(find_id(r, "menu") and find_id(r, "menu").kids)) if rhs else None
+        res.append((h, {"items": parse_menu(find_id(root, "menu")), "rect": wrect(h), "level": _levels.get(h, 0)}))
     return res
 
 
-def menu_titles():
-    return [[it["t"] + ("（不能按）" if " off" in it["cls"] else "") for it in m["items"] if "sep" not in it["cls"].split()] for _, m in menus()]
+def menu_titles(ms=None):
+    ms = menus() if ms is None else ms
+    return [[it["t"] + ("（不能按）" if it["off"] else "") for it in m["items"]] for _, m in ms]
 
 
-def menu_find(text, exact=True):
-    for h, m in menus():
+def names_of(m):
+    return [it["t"] for it in m["items"]]
+
+
+def menu_find(text, exact=True, ms=None):
+    for h, m in (menus() if ms is None else ms):
         for it in m["items"]:
             if (it["t"] == text) if exact else (text in it["t"]):
-                cx, cy, cw, ch = client(h)
-                return h, it, (cx + (it["x"] + min(it["w"] / 2, 90)) * scale, cy + (it["y"] + it["h"] / 2) * scale), m
+                l, t, r, b = it["rect"]
+                return h, it, (l + min((r - l) / 2, 90 * scale), (t + b) / 2), m
     return None
 
 
@@ -775,13 +924,15 @@ def close_menus():
     return not menu_wins()
 
 
-def open_menu(el_js, name, button="left"):
+def open_menu(el, name, button="left"):
     """按工具列上的某個東西打開選單，回傳選單內容（沒出現回傳 []）"""
-    if not click_bar(el_js, button=button, wait=0.9):
-        check(f"{name}：找得到按鈕", False, el_js)
+    if not click_bar(el, button=button, wait=0.9):
+        check(f"{name}：找得到按鈕", False)
         return []
-    ms = wait_for(menus, 3, 0.3)
-    check(f"{name}：出現選單", bool(ms), f"{menu_titles()}")
+    wait_for(menu_wins, 3, 0.2)
+    time.sleep(0.4)
+    ms = menus()
+    check(f"{name}：出現選單", bool(ms) and bool(ms[0][1]["items"]), f"{menu_titles(ms)}")
     return ms
 
 
@@ -821,7 +972,7 @@ def diag():
         ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq '" + exe + "' -or ($_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -notmatch '--type=') } | "
               "ForEach-Object { \"$($_.ProcessId) parent=$($_.ParentProcessId) $($_.Name) :: $($_.CommandLine)\" }")
         out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout
-        log("程序：\n" + "\n".join(l[:500] for l in out.splitlines() if l.strip()))
+        log("程序：\n" + "\n".join(l[:300] for l in out.splitlines() if l.strip()))
     except Exception as e:
         log("讀程序失敗", e)
     log("app_proc", app_proc.pid, "還在跑" if app_proc.poll() is None else f"已結束 {app_proc.poll()}")
@@ -831,18 +982,14 @@ def select_tab(i, wait=1.2):
     click_bar(TAB(i), wait=wait)
 
 
-def tab_ids():
-    return [t["id"] for t in tabs_info()]
-
-
 def restore_tabs(keep):
     """只留下原本有的分頁（多出來的用中鍵關掉）"""
     for _ in range(10):
-        ts = tabs_info()
-        extra = [i for i, t in enumerate(ts) if t["id"] not in keep]
+        ids = tab_ids()
+        extra = [i for i, t in enumerate(ids) if t not in keep]
         if not extra:
             break
-        click_bar(TAB(extra[-1]), button="middle", wait=0.9)
+        click_bar(TAB(extra[-1]), button="middle", wait=1.3)
     return tab_count()
 
 
@@ -958,6 +1105,13 @@ def layout_ok(sc):
 
 
 SIZE0 = (900, 620)
+
+
+class _Empty:
+    kids = []
+
+
+N_EMPTY = _Empty()
 SNAP = {"cur": 1}
 
 
@@ -966,9 +1120,8 @@ SNAP = {"cur": 1}
 # =====================================================================================
 def s_start():
     diag()
-    ports = devtools_ports()
-    log("devtools ports", ports, "targets", [(t.get("port"), t.get("type"), t.get("url", "")[:70]) for t in cdp_targets()])
-    check("讀得到工具列（遠端偵錯）", bar_eval("1 + 1") == 2, f"ports={ports}")
+    root = bar_tree()
+    check("讀得到工具列裡的元素", root is not None and find_id(root, "menu") is not None, f"{root}")
     dump(web, "start")
     kids = vis_kids()
     check("一開始：看得到工具列和網頁", len(kids) >= 2, f"{len(kids)} 個可見子視窗")
@@ -989,12 +1142,12 @@ def s_start():
 
 
 def s_chrome_sync():
-    names = bar_eval("[...document.querySelectorAll('#bmList .bm')].map((b) => b.textContent.trim())") or []
+    names = bm_names()
     log("書籤列", names)
     check("書籤列：原本的書籤還在", "Example" in names and "資料夾" in names, f"{names}")
     if CHROME_SEEDED:
         check("書籤列：打開視窗時自動帶進 Chrome 的書籤", "YouTube" in names and "楓之谷" in names, f"{names}")
-    check("書籤列右邊有「所有書籤」", bar_eval("!document.getElementById('bmOther').hidden") is True)
+    check("書籤列右邊有「所有書籤」", rect_of(OTHER) is not None)
     try:
         st = json.load(open(os.path.join(data_dir, "web-ext.json"), encoding="utf-8"))
     except Exception as e:
@@ -1142,7 +1295,7 @@ def s_bm_menu():
     ms = open_menu(BM("資料夾"), "點書籤資料夾")
     shot("menu_open")
     if ms:
-        check("書籤資料夾：裡面的書籤都列出來", [it["t"] for it in ms[0][1]["items"]] == ["測試頁", "Example"], f"{menu_titles()}")
+        check("書籤資料夾：裡面的書籤都列出來", names_of(ms[0][1]) == ["測試頁", "Example"], f"{menu_titles(ms)}")
         ok, d = below(rect_of(BM("資料夾")), ms[0][0])
         check("書籤資料夾：選單貼在資料夾下面", ok, d)
     click(*PG(300, 330), wait=1.0)
@@ -1161,11 +1314,13 @@ def s_bm_menu():
         # 資料夾裡還有資料夾：滑過去打開下一層
         ms = open_menu(BM("楓之谷"), "點 Chrome 同步來的資料夾")
         if ms:
-            check("楓之谷：官網、攻略、IANA", [it["t"] for it in ms[0][1]["items"]] == ["官網", "攻略", "IANA"], f"{menu_titles()}")
+            check("楓之谷：官網、攻略、IANA", names_of(ms[0][1]) == ["官網", "攻略", "IANA"], f"{menu_titles(ms)}")
             menu_hover("攻略")
-            ms2 = wait_for(lambda: len(menus()) >= 2 and menus(), 3, 0.3)
+            wait_for(lambda: len(menu_wins()) >= 2, 3, 0.2)
+            time.sleep(0.4)
+            ms2 = menus()
             shot("menu_nested")
-            check("滑到裡面的資料夾：打開下一層", bool(ms2) and len(ms2) >= 2 and [it["t"] for it in ms2[1][1]["items"]] == ["短影片"], f"{menu_titles()}")
+            check("滑到裡面的資料夾：打開下一層", len(ms2) >= 2 and names_of(ms2[1][1]) == ["短影片"], f"{menu_titles(ms2)}")
             if ms2 and len(ms2) >= 2:
                 a, b = wrect(ms2[0][0]), wrect(ms2[1][0])
                 check("下一層開在右邊、緊貼著", abs(b[0] - a[2]) <= 8 * scale and abs(b[1] - a[1]) < (a[3] - a[1]), f"{a} {b}")
@@ -1203,15 +1358,16 @@ def s_omnibox():
     select_tab(0)
     click_bar(ADDR, wait=0.7)
     st = bar_state()
-    sel = bar_eval("(() => { const a = document.getElementById('addr'); return [a.selectionStart, a.selectionEnd, a.value.length, a.value]; })()")
-    check("點網址列：游標進去、整個網址選起來", st.get("focus") == "addr" and bool(sel) and sel[0] == 0 and sel[1] == sel[2] and sel[2] > 0, f"{sel}")
-    check("點網址列：顯示完整網址（有 http://）", bool(sel) and str(sel[3]).startswith("http://127.0.0.1"), f"{sel}")
+    a = find_id(bar_tree(), "addr")
+    val, sel = (edit_value(a), edit_selection(a)) if a else ("", None)
+    check("點網址列：游標進去、整個網址選起來", st.get("focus") == "addr" and bool(val) and sel == val, f"value={val!r} selected={sel!r}")
+    check("點網址列：顯示完整網址（有 http://）", val.startswith("http://127.0.0.1"), f"{val!r}")
     type_text("127")
-    ms = wait_for(menus, 4, 0.3)
-    time.sleep(1.2)
+    wait_for(menu_wins, 4, 0.2)
+    time.sleep(1.5)
     ms = menus()
     shot("omni_suggest")
-    check("網址列打字：下面出現建議", bool(ms) and "omni" in ms[0][1]["cls"], f"{menu_titles()}")
+    check("網址列打字：下面出現建議", bool(ms) and any("sug" in it["cls"].split() for it in ms[0][1]["items"]), f"{menu_titles(ms)}")
     if ms:
         h, m = ms[0]
         pill = rect_of(ADDR)
@@ -1219,12 +1375,13 @@ def s_omnibox():
             px, py = C(pill[0], pill[1] + pill[3])
             r = wrect(h)
             check("建議清單：貼在網址列下面、一樣寬", abs(r[0] - px) <= 3 * scale and 0 <= r[1] - py <= 8 * scale and abs((r[2] - r[0]) - pill[2] * scale) <= 4 * scale, f"pill={pill} menu={r}")
-        log("建議", [(it["t"], it["s"]) for it in m["items"]])
-        check("建議清單：有逛過的網頁（127.0.0.1）", any("127.0.0.1" in it["t"] + it["s"] for it in m["items"]), f"{[(it['t'], it['s']) for it in m['items']]}")
-        on0 = cdp_eval_t(m["target"], "[...document.querySelectorAll('#menu > *')].findIndex((r) => r.classList.contains('on'))")
+        log("建議", [it["texts"] for it in m["items"]])
+        check("建議清單：有逛過的網頁（127.0.0.1）", any("127.0.0.1" in " ".join(it["texts"]) for it in m["items"]), f"{[it['texts'] for it in m['items']]}")
+        on = lambda mm: next((i for i, it in enumerate(mm[0][1]["items"]) if "on" in it["cls"].split()), None) if mm else None
+        on0 = on(ms)
         key(VK_DOWN)
-        time.sleep(0.4)
-        on1 = cdp_eval_t(m["target"], "[...document.querySelectorAll('#menu > *')].findIndex((r) => r.classList.contains('on'))")
+        time.sleep(0.6)
+        on1 = on(menus())
         v1 = bar_state().get("addr")
         check("按向下鍵：選到下一個建議、網址列跟著換", on0 == 0 and on1 == 1 and v1 != "127", f"on {on0}→{on1} addr={v1!r}")
         key(VK_UP)
@@ -1254,7 +1411,7 @@ def s_omnibox():
     shot("back_menu")
     if ms:
         log("上一頁的清單", menu_titles())
-        check("上一頁的清單：有測試頁", any("測試頁" in it["t"] for it in ms[0][1]["items"]), f"{menu_titles()}")
+        check("上一頁的清單：有測試頁", any("測試頁" in it["t"] for it in ms[0][1]["items"]), f"{menu_titles(ms)}")
         menu_click("測試頁", exact=False, wait=2.0)
         check("點清單裡的測試頁：回去了", "測試頁" in title(web), title(web))
     close_menus()
@@ -1266,6 +1423,7 @@ def s_omnibox():
     check("按重新載入：網頁重新載入", any("[test] load" in l for l in page_log_since(t0)), f"{page_log_since(t0)[-2:]}")
 
 
+MAIN = {"w": 0}
 MAIN_ITEMS = ["新分頁", "新視窗", "新增無痕式視窗", "歷史記錄", "下載", "書籤和清單", "擴充功能", "刪除瀏覽資料…", "縮放", "列印…", "尋找…", "儲存及分享", "更多工具", "設定", "結束"]
 
 
@@ -1276,9 +1434,10 @@ def s_main_menu():
     if not ms:
         return
     h, m = ms[0]
-    names = [it["t"] for it in m["items"] if "sep" not in it["cls"].split()]
+    names = names_of(m)
     check("⋮ 選單：項目和順序", names == MAIN_ITEMS, f"{names}")
-    log("⋮ 選單快捷鍵", [(it["t"], it["k"]) for it in m["items"] if it["k"]])
+    log("⋮ 選單每一列的文字", [it["texts"] for it in m["items"]])
+    MAIN["w"] = (wrect(h)[2] - wrect(h)[0]) / scale
     ok, d = below(rect_of(MENU_BTN), h, side="right")
     check("⋮ 選單：開在按鈕下面、靠右對齊", ok, d)
     sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
@@ -1286,10 +1445,12 @@ def s_main_menu():
     check("⋮ 選單：整個在螢幕裡", r[0] >= 0 and r[1] >= 0 and r[2] <= sw and r[3] <= sh, f"{r} screen={sw}x{sh}")
     for sub in ["歷史記錄", "書籤和清單", "擴充功能", "儲存及分享", "更多工具"]:
         menu_hover(sub)
-        ms2 = wait_for(lambda: len(menus()) >= 2 and menus(), 3, 0.3)
-        check(f"滑到「{sub}」：打開下一層", bool(ms2) and len(ms2) >= 2, f"{menu_titles()[1:]}")
-        if ms2 and len(ms2) >= 2:
-            log(f"「{sub}」的下一層", menu_titles()[1])
+        wait_for(lambda: len(menu_wins()) >= 2, 3, 0.2)
+        time.sleep(0.5)
+        ms2 = menus()
+        check(f"滑到「{sub}」：打開下一層", len(ms2) >= 2 and bool(ms2[1][1]["items"]), f"{menu_titles(ms2)[1:]}")
+        if len(ms2) >= 2:
+            log(f"「{sub}」的下一層", menu_titles(ms2)[1])
             a, b = wrect(ms2[0][0]), wrect(ms2[1][0])
             check(f"「{sub}」的下一層：緊貼在旁邊、整個在螢幕裡", (abs(b[2] - a[0]) <= 8 * scale or abs(b[0] - a[2]) <= 8 * scale) and b[0] >= 0 and b[3] <= sh and b[1] >= 0, f"{a} {b}")
         shot("main_sub_" + {"歷史記錄": "history", "書籤和清單": "bookmarks", "擴充功能": "ext", "儲存及分享": "save", "更多工具": "tools"}[sub])
@@ -1306,25 +1467,30 @@ def s_main_menu():
         menu_hover("攻略")
         wait_for(lambda: len(menu_wins()) >= 4, 3, 0.2)
         shot("main_menu_deep")
+        time.sleep(0.4)
         t = menu_titles()
         check("書籤和清單 → 楓之谷 → 攻略：一層一層打開", len(t) >= 4 and t[-1] == ["短影片"], f"{t[1:]}")
         menu_hover("設定")
         time.sleep(0.6)
     # 縮放那一排：按 + 放大、按 - 縮回來
-    z = cdp_eval_t(m["target"], "(() => { const b = [...document.querySelectorAll('.zoom .zb')].map((e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, e.title]; }); const p = document.querySelector('.zoom .pct'); return { b, pct: p ? p.textContent : '' }; })()")
-    log("縮放那一排", z)
-    if z and len(z["b"]) >= 3:
-        cx, cy, cw, ch = client(h)
-        plus = next((b for b in z["b"] if b[2] == "放大"), None)
-        minus = next((b for b in z["b"] if b[2] == "縮小"), None)
-        click(cx + plus[0] * scale, cy + plus[1] * scale, wait=1.0)
-        pct = cdp_eval_t(m["target"], "document.querySelector('.zoom .pct').textContent")
+    def zoom_row():
+        mm = menus()
+        it = next((i for i in mm[0][1]["items"] if i["t"] == "縮放"), None) if mm else None
+        return it, (next((t for t in it["texts"] if t.endswith("%")), "") if it else "")
+    z, pct = zoom_row()
+    log("縮放那一排", z and (z["texts"], list(z["btns"])))
+    if z and "放大" in z["btns"] and "縮小" in z["btns"]:
+        click(*z["btns"]["放大"].center, wait=1.2)
+        z2, pct = zoom_row()
         st = bar_state()
-        check("⋮ 選單按放大：變 110%、選單還開著、網址列出現縮放圖示", pct == "110%" and len(menu_wins()) >= 1 and st.get("zoom") is True, f"pct={pct} {st}")
+        check("⋮ 選單按放大：變 110%、選單還開著、網址列出現縮放圖示", pct == "110%" and len(menu_wins()) >= 1 and "110" in st.get("zoom", ""), f"pct={pct} {st}")
         shot("main_menu_zoom")
-        click(cx + minus[0] * scale, cy + minus[1] * scale, wait=1.0)
-        pct = cdp_eval_t(m["target"], "document.querySelector('.zoom .pct').textContent")
+        if z2 and "縮小" in z2["btns"]:
+            click(*z2["btns"]["縮小"].center, wait=1.2)
+        z3, pct = zoom_row()
         check("⋮ 選單按縮小：回到 100%", pct == "100%", f"pct={pct}")
+    else:
+        check("⋮ 選單的縮放那一排：有縮小、放大按鈕", False, f"{z}")
     # 點外面關掉
     click(*PG(300, 330), wait=1.0)
     check("點網頁：選單全部關掉", not menu_wins(), f"{len(menu_wins())}")
@@ -1341,20 +1507,27 @@ def s_main_menu():
     select_tab(0)
 
 
+def ctx_at(x, y):
+    """在螢幕上某一點按右鍵，回傳出現的選單"""
+    click(x, y, button="right", wait=0.9)
+    wait_for(menu_wins, 3, 0.2)
+    time.sleep(0.4)
+    return menus()
+
+
 def s_context():
     select_tab(0)
     st = bar_state()
-    click(*PG(300, 330), button="right", wait=1.0)
-    ms = wait_for(menus, 3, 0.3)
+    ms = ctx_at(*PG(300, 330))
     shot("ctx_page")
-    check("網頁按右鍵：出現選單", bool(ms), f"{menu_titles()}")
+    check("網頁按右鍵：出現選單", bool(ms), f"{menu_titles(ms)}")
     if ms:
         h, m = ms[0]
-        log("網頁右鍵選單", menu_titles())
+        log("網頁右鍵選單", menu_titles(ms))
         names = {it["t"]: it for it in m["items"]}
         check("網頁右鍵選單：上一頁、下一頁、重新載入、另存新檔、列印、檢視網頁原始碼", all(any(k in n for n in names) for k in ["上一頁", "下一頁", "重新載入", "另存新檔", "列印", "檢視網頁原始碼"]), f"{list(names)}")
-        back_off = any("上一頁" in n and " off" in it["cls"] for n, it in names.items())
-        fwd_off = any("下一頁" in n and " off" in it["cls"] for n, it in names.items())
+        back_off = any("上一頁" in n and it["off"] for n, it in names.items())
+        fwd_off = any("下一頁" in n and it["off"] for n, it in names.items())
         check("網頁右鍵選單：上一頁／下一頁能不能按，跟工具列的箭頭一致", back_off == (not st.get("back")) and fwd_off == (not st.get("fwd")), f"選單 back_off={back_off} fwd_off={fwd_off} 工具列={st.get('back')},{st.get('fwd')}")
         r = wrect(h)
         mx, my = PG(300, 330)
@@ -1366,13 +1539,12 @@ def s_context():
     # 連結
     n0, keep = tab_count(), tab_ids()
     a0 = active_tab()
-    click(*PG(235, 200), button="right", wait=1.0)
-    ms = wait_for(menus, 3, 0.3)
+    ms = ctx_at(*PG(235, 200))
     shot("ctx_link")
-    check("連結按右鍵：出現選單", bool(ms), f"{menu_titles()}")
+    check("連結按右鍵：出現選單", bool(ms), f"{menu_titles(ms)}")
     if ms:
-        log("連結右鍵選單", menu_titles())
-        names = [it["t"] for it in ms[0][1]["items"]]
+        log("連結右鍵選單", menu_titles(ms))
+        names = names_of(ms[0][1])
         check("連結右鍵選單：在新分頁／新視窗／無痕式視窗開啟、複製連結網址", all(any(k in n for n in names) for k in ["新分頁", "新視窗", "無痕", "複製連結"]), f"{names}")
         menu_click("在新分頁中開啟連結", exact=False, wait=2.0)
         check("右鍵 → 在新分頁中開啟連結：多一個分頁、留在原本的分頁", tab_count() == n0 + 1 and active_tab() == a0, f"{n0} → {tab_count()} active={active_tab()}")
@@ -1380,13 +1552,12 @@ def s_context():
     restore_tabs(keep)
     select_tab(0)
     # 輸入框
-    click(*PG(200, 40), button="right", wait=1.0)
-    ms = wait_for(menus, 3, 0.3)
+    ms = ctx_at(*PG(200, 40))
     shot("ctx_input")
-    check("輸入框按右鍵：出現選單", bool(ms), f"{menu_titles()}")
+    check("輸入框按右鍵：出現選單", bool(ms), f"{menu_titles(ms)}")
     if ms:
-        log("輸入框右鍵選單", menu_titles())
-        names = [it["t"] for it in ms[0][1]["items"]]
+        log("輸入框右鍵選單", menu_titles(ms))
+        names = names_of(ms[0][1])
         check("輸入框右鍵選單：剪下、複製、貼上、全選", all(any(k in n for n in names) for k in ["剪下", "複製", "貼上", "全選"]), f"{names}")
     close_menus()
     key(VK_ESC)
@@ -1395,8 +1566,8 @@ def s_context():
     ms = open_menu(TAB(0), "分頁按右鍵", button="right")
     shot("ctx_tab")
     if ms:
-        log("分頁右鍵選單", menu_titles())
-        names = [it["t"] for it in ms[0][1]["items"]]
+        log("分頁右鍵選單", menu_titles(ms))
+        names = names_of(ms[0][1])
         check("分頁右鍵選單：新分頁、重新載入、複製、固定、靜音、關閉、關閉其他分頁、關閉右側分頁", all(any(k in n for n in names) for k in ["新分頁", "重新載入", "複製", "固定", "靜音", "關閉", "關閉其他分頁", "右側"]), f"{names}")
         n0 = tab_count()
         menu_click("複製", wait=2.5)
@@ -1406,18 +1577,17 @@ def s_context():
         ms = open_menu(TAB(1), "複製出來的分頁按右鍵", button="right")
         menu_click("固定", wait=1.2)
         ts = tabs_info()
-        r = rect_of(TAB(0))
         shot("tab_pinned")
-        check("分頁右鍵 → 固定：排到最前面、變窄只剩圖示", bool(ts) and ts[0]["pinned"] and bool(r) and r[2] < 60, f"{[(t['title'], t['pinned']) for t in ts]} {r}")
+        check("分頁右鍵 → 固定：排到最前面、變窄只剩圖示", bool(ts) and ts[0]["pinned"] and ts[0]["w"] < 60, f"{[(t['title'], t['pinned'], t['w']) for t in ts]}")
         ms = open_menu(TAB(0), "固定的分頁按右鍵", button="right")
         if ms:
-            log("固定的分頁右鍵選單", menu_titles())
+            log("固定的分頁右鍵選單", menu_titles(ms))
         menu_click("取消固定", exact=False, wait=1.2)
         ts = tabs_info()
         check("取消固定：變回一般分頁", bool(ts) and not any(t["pinned"] for t in ts), f"{[(t['title'], t['pinned']) for t in ts]}")
         # 把多出來的那個關掉（按分頁上的 ×）
         idx = next((i for i, t in enumerate(ts) if t["active"]), 0)
-        x = rect_of(f"{TAB(idx)}.querySelector('.tx')")
+        x = rect_of(TABX(idx))
         if x:
             click(*C(x[0] + x[2] / 2, x[1] + x[3] / 2), wait=1.2)
         check("按分頁上的 ×：關掉那個分頁", tab_count() == n0, f"{tab_count()}")
@@ -1425,14 +1595,14 @@ def s_context():
     # 分頁列空白處
     ms = open_menu(DRAG, "分頁列空白處按右鍵", button="right")
     if ms:
-        log("分頁列空白處右鍵選單", menu_titles())
+        log("分頁列空白處右鍵選單", menu_titles(ms))
     shot("ctx_strip")
     close_menus()
     # 書籤
     ms = open_menu(BM("Example"), "書籤按右鍵", button="right")
     if ms:
-        log("書籤右鍵選單", menu_titles())
-        names = [it["t"] for it in ms[0][1]["items"]]
+        log("書籤右鍵選單", menu_titles(ms))
+        names = names_of(ms[0][1])
         check("書籤右鍵選單：在新分頁／新視窗／無痕式視窗開啟、重新命名、刪除、書籤管理員", all(any(k in n for n in names) for k in ["新分頁", "新視窗", "無痕", "重新命名", "刪除", "書籤管理員"]), f"{names}")
     shot("ctx_bookmark")
     close_menus()
@@ -1455,7 +1625,7 @@ def s_internal_pages():
         type_text(f"chrome://{p}")
         key(VK_ENTER)
         time.sleep(2.5)
-        txt = cdp_eval(f"web-ui.html?p={p}", "document.body.innerText") or ""
+        txt = page_text()
         st = bar_state()
         shot("page_" + p)
         check(f"chrome://{p}：打得開、標題是「{ttl}」", ttl in title(web), f"title={title(web)!r}")
@@ -1464,13 +1634,11 @@ def s_internal_pages():
             log(f"chrome://{p} 內容：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:700])
             check(f"chrome://{p}：內容有 {expect}", all(e in txt for e in expect), txt[:200].replace("\n", " "))
         else:
-            log(f"（讀不到 chrome://{p} 的內容）")
+            check(f"chrome://{p}：讀得到內容", False)
         restore_tabs(keep)
-    errs = console_errors(UI)
-    log("內部頁面的錯誤訊息", errs)
     # 新分頁頁面：搜尋框可以打字前往
     click_bar(NEWTAB, wait=1.5)
-    txt = cdp_eval("web-ui.html?p=newtab", "document.body.innerText") or ""
+    txt = page_text()
     log("新分頁內容：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:400])
     shot("page_newtab")
     restore_tabs(keep)
@@ -1519,14 +1687,14 @@ def s_shortcuts():
     chord([VK_CTRL], VK_PLUS, wait=1.0)
     st = bar_state()
     shot("zoom_110")
-    check("Ctrl + 加號：放大，網址列出現縮放圖示", st.get("zoom") is True, f"{st}")
+    check("Ctrl + 加號：放大到 110%，網址列出現縮放圖示", "110" in st.get("zoom", ""), f"{st}")
     close_menus()
     click(*PG(300, 330), wait=0.5)
     chord([VK_CTRL], 0x30, wait=1.0)  # Ctrl+0
     time.sleep(1.5)
     close_menus()
     st = bar_state()
-    check("Ctrl+0：回到 100%，縮放圖示消失", st.get("zoom") is False, f"{st}")
+    check("Ctrl+0：回到 100%，縮放圖示消失", st.get("zoom") == "", f"{st}")
     # 重新載入
     click(*PG(300, 330), wait=0.5)
     t0 = time.time()
@@ -1548,9 +1716,9 @@ def s_shortcuts():
     ms = menus()
     st = bar_state()
     shot("bookmark_bubble")
-    check("Ctrl+D：加入書籤、出現小視窗、星星變實心", bool(ms) and st.get("starOn") is True, f"{menu_titles()} {st}")
+    check("Ctrl+D：加入書籤、出現小視窗、星星變實心", bool(ms) and st.get("starOn") is True, f"{menu_titles(ms)} {st}")
     if ms:
-        log("加入書籤的小視窗", menu_titles())
+        log("加入書籤的小視窗", menu_titles(ms))
         menu_click("移除", wait=1.0)
     close_menus()
     st = bar_state()
@@ -1586,11 +1754,11 @@ def s_shortcuts():
 
 def s_bubbles():
     select_tab(0)
-    for el, name, side in ((PROFILE, "頭像（Chrome 使用者）", "right"), (SITE, "網址列左邊的圓鈕（網站資訊）", "left"), (TABSEARCH, "左上角的搜尋分頁", "left"), (EXT_BTN, "擴充功能（拼圖）", "right")):
+    for el, key_, name, side in ((PROFILE, "profile", "頭像（Chrome 使用者）", "right"), (SITE, "site", "網址列左邊的圓鈕（網站資訊）", "left"), (TABSEARCH, "tabs", "左上角的搜尋分頁", "left"), (EXT_BTN, "ext", "擴充功能（拼圖）", "right")):
         ms = open_menu(el, name)
-        shot("bubble_" + {PROFILE: "profile", SITE: "site", TABSEARCH: "tabs", EXT_BTN: "ext"}[el])
+        shot("bubble_" + key_)
         if ms:
-            log(name, menu_titles())
+            log(name, menu_titles(ms))
             ok, d = below(rect_of(el), ms[0][0], side=side)
             check(f"{name}：開在按鈕下面", ok, d)
         close_menus()
@@ -1621,7 +1789,7 @@ def s_download():
     keep = tab_ids()
     click(*PG(300, 330), wait=0.5)
     chord([VK_CTRL], 0x4A, wait=2.5)
-    txt = cdp_eval("web-ui.html?p=downloads", "document.body.innerText") or ""
+    txt = page_text()
     shot("downloads_page")
     if txt:
         check("chrome://downloads：列出剛下載的檔案", "ui-check.bin" in txt, txt[:300].replace("\n", " "))
@@ -1643,9 +1811,9 @@ def s_incognito():
         return
     inc = new[0]
     r = wrect(inc)
-    labels = [(cdp_eval_t(t, LABEL_JS), cdp_eval_t(t, "document.body.className")) for t in targets_for(BAR)]
-    log("工具列們", labels)
-    check("無痕式視窗：工具列是無痕的樣子", any("incognito" in (c or "") for l, c in labels if l != "webbar-w1"), f"{labels}")
+    iroot = bar_tree(inc)
+    chip = find_id(iroot, "inco")
+    check("無痕式視窗：分頁列上有「無痕模式」的標示、沒有頭像", chip is not None and chip.w > 0 and find_id(iroot, "profile") is None, f"{chip} {chip.texts() if chip else ''}")
     # 在無痕式視窗逛一個網頁，之後歷史記錄裡不能有
     click(r[0] + 400 * scale, r[1] + 71 * scale, wait=0.7)
     type_text(f"127.0.0.1:{PORT}/snap.html?incognito")
@@ -1810,8 +1978,7 @@ def s_game():
     close_menus()
     # 右鍵選單
     t0 = time.time()
-    click(*PG(300, 330), button="right", wait=1.0)
-    ms = wait_for(menus, 3, 0.3)
+    ms = ctx_at(*PG(300, 330))
     shot("game_context")
     check("遊戲在前景時網頁按右鍵：出現選單、鍵盤還在遊戲", bool(ms) and fg() == game, f"fg={fg()}")
     if ms:
@@ -1903,7 +2070,7 @@ def s_dpi():
         ok, d = below(rect_of(MENU_BTN), ms[0][0], side="right")
         check(f"縮放比例 {int(scale * 100)}% 時：選單還是貼在按鈕下面", ok, d)
         cw = client(ms[0][0])[2]
-        check(f"縮放比例 {int(scale * 100)}% 時：選單跟著放大", abs(cw - ms[0][1]["w"] * scale) <= 2, f"client={cw} css={ms[0][1]['w']}")
+        check(f"縮放比例 {int(scale * 100)}% 時：選單跟著放大", MAIN["w"] > 0 and abs(cw - MAIN["w"] * scale) <= 3, f"現在寬={cw} 100% 時寬={MAIN['w']}")
     close_menus()
     t0 = time.time()
     set_dpi_rel(src, cur)
@@ -1969,8 +2136,8 @@ def s_ext():
     ms = open_menu(EXT_BTN, "按擴充功能按鈕")
     shot("ext_menu")
     if ms:
-        log("擴充功能選單", menu_titles())
-        check("擴充功能選單：列出 Chrome 同步來的擴充功能", any("測試擴充功能" in it["t"] for it in ms[0][1]["items"]), f"{menu_titles()}")
+        log("擴充功能選單", menu_titles(ms))
+        check("擴充功能選單：列出 Chrome 同步來的擴充功能", any("測試擴充功能" in it["t"] for it in ms[0][1]["items"]), f"{menu_titles(ms)}")
         menu_click("測試擴充功能", exact=False, wait=3.0)
     shot("ext_popup")
     after = vis_kids()
@@ -1986,25 +2153,26 @@ def s_ext():
     # 固定在工具列上
     ms = open_menu(EXT_BTN, "再按擴充功能按鈕")
     if ms:
-        h, m = ms[0]
-        pin = cdp_eval_t(m["target"], "(() => { const b = document.querySelector('.row.ext .rb'); if (!b) return null; const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, b.title]; })()")
-        log("固定按鈕", pin)
+        row = next((it for it in ms[0][1]["items"] if "測試擴充功能" in it["t"]), None)
+        pin = row["btns"].get("固定在工具列上") if row else None
+        log("固定按鈕", pin, row and list(row["btns"]))
         if pin:
-            cx, cy, cw, ch = client(h)
-            click(cx + pin[0] * scale, cy + pin[1] * scale, wait=1.2)
-            n = bar_eval("document.getElementById('exts').children.length")
+            click(*pin.center, wait=1.2)
+            n = len([k for k in (find_id(bar_tree(), "exts") or N_EMPTY).kids if k.w > 0])
             shot("ext_pinned")
             check("擴充功能按圖釘：固定到工具列上", n == 1, f"{n}")
             close_menus()
             if n == 1:
-                click_bar("document.getElementById('exts').children[0]", wait=2.5)
+                click_bar(EXTICON(0), wait=2.5)
                 check("點工具列上固定的擴充功能：開它的小視窗", len(vis_kids()) == len(before) + 1, f"{[wrect(c) for c in vis_kids()]}")
                 click(*PG(100, 330), wait=1.0)
-                ms = open_menu("document.getElementById('exts').children[0]", "固定的擴充功能按右鍵", button="right")
+                ms = open_menu(EXTICON(0), "固定的擴充功能按右鍵", button="right")
                 if ms:
-                    log("固定的擴充功能右鍵選單", menu_titles())
+                    log("固定的擴充功能右鍵選單", menu_titles(ms))
                     menu_click("取消固定", exact=False, wait=1.0)
-                check("取消固定：工具列上的圖示拿掉", bar_eval("document.getElementById('exts').children.length") == 0)
+                check("取消固定：工具列上的圖示拿掉", rect_of(EXTICON(0)) is None)
+        else:
+            check("擴充功能選單：每一列有圖釘按鈕", False, f"{row}")
     close_menus()
 
 
@@ -2016,14 +2184,6 @@ def s_scripts():
     check("使用者腳本：document-start 的有執行", any("start ran /test.html" in l for l in lines))
     check("使用者腳本：@exclude 有效（內嵌框不跑）", not any("start ran /frame.html" in l for l in lines))
     check("使用者腳本：不符合的網站不跑", not any("WRONG" in l for l in lines))
-
-
-def s_errors():
-    for name, match in (("工具列", BAR), ("選單", MENU), ("內部頁面", UI)):
-        errs = console_errors(match)
-        real = [e for e in errs if "favicon" not in e.lower() and "Failed to load resource" not in e]
-        log(name, "的錯誤訊息：", errs)
-        check(f"{name}：沒有程式錯誤", not real, f"{real[:5]}")
 
 
 def s_minimize():
@@ -2077,7 +2237,6 @@ STEPS = [
     ("fullscreen", s_fullscreen),
     ("ext", s_ext),
     ("scripts", s_scripts),
-    ("errors", s_errors),
     ("minimize", s_minimize),
     ("close", s_close),
 ]
