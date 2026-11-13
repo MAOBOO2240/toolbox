@@ -1,8 +1,8 @@
 name: UI check
 
 # Only runs on the ui-check branch. Starts the test build (the one the dev branch produced) on a real
-# Windows desktop, clicks through the browser window and saves screenshots to a results branch.
-# Nothing is released from here.
+# Windows desktop, drives the browser window with mouse and keyboard, and saves screenshots and a log
+# to a results branch. Nothing is released from here.
 on:
   push:
     branches: [ui-check]
@@ -15,11 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  shots:
+  ui:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test tools
+        run: pip install pillow websocket-client uiautomation
 
       - name: Download test build
         shell: powershell
@@ -31,18 +38,21 @@ jobs:
           Get-ChildItem app | Select-Object Name, Length
           gh release view test -R $env:GITHUB_REPOSITORY --json name,targetCommitish,publishedAt
 
-      - name: Run scenario
-        shell: powershell
+      - name: Run UI check
+        shell: pwsh
+        timeout-minutes: 22
         continue-on-error: true
-        run: ./.github/ui-check/run.ps1
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python .github/ui-check/$((Get-Content .github/ui-check/entry.txt -ErrorAction SilentlyContinue | Select-Object -First 1) ?? 'run.py') app/MAOBOO.exe
 
       # Results (screenshots, log) go to the uitest-results-ui-check branch, replacing the previous run
       - name: Publish results
         if: always()
         shell: bash
         run: |
-          mkdir -p shots
-          cd shots
+          mkdir -p uitest-out
+          cd uitest-out
           git init -q
           git config user.name "ui-check"
           git config user.email "ui-check@users.noreply.github.com"
