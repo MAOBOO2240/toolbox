@@ -6,80 +6,54 @@
   svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
   button { padding: 0; font: inherit; border: 0; background: none; color: inherit; cursor: default; }
   .gl { display: grid; place-items: center; }
-  .tool { height: 46px; display: flex; align-items: center; padding: 0 5px; position: relative; margin-top: 10px; }
   .tb { flex: none; width: 34px; height: 34px; margin: 0 1px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; position: relative; }
   .tb:hover { background: var(--hover); }
-  .omni { flex: 1; min-width: 60px; height: 34px; margin: 0 8px; border-radius: 17px; background: var(--pill); display: flex; align-items: center; position: relative; padding: 0 10px 0 5px; }
-  .omni:hover { background: #2f2f2f; }
-  .chip { flex: none; height: 24px; min-width: 24px; border-radius: 12px; background: var(--tool); color: var(--text2); display: flex; align-items: center; gap: 6px; padding: 0 2px; }
-  .chip:hover { background: #4a4a4a; }
+  .chip { flex: none; height: 24px; min-width: 24px; border-radius: 12px; background: #555; color: var(--text2); display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+  .chip:hover { background: #777; }
   .chip .gl { width: 20px; height: 20px; }
   .chip .gl svg { width: 16px; height: 16px; stroke-width: 2; }
-  .field { flex: 1; min-width: 0; height: 100%; position: relative; margin-left: 8px; }
-  .shown, .addr { position: absolute; inset: 0; display: flex; align-items: center; font-size: 14px; white-space: nowrap; }
-  .shown { overflow: hidden; color: var(--text2); pointer-events: none; }
-  .addr { width: 100%; padding: 0; border: 0; outline: none; background: none; color: var(--text); font: inherit; font-size: 14px; opacity: 0; }
-  .oa { flex: none; width: 28px; height: 28px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; }
-  .oa:hover { background: var(--hover); }
-  .row { display: flex; gap: 56px; padding: 30px 40px; align-items: center; }
-  .row2 { display: flex; gap: 56px; padding: 10px 40px; align-items: center; }
+  .row { display: flex; gap: 56px; padding: 26px 40px; align-items: center; }
   .plain { width: 24px; height: 24px; background: #555; }
+  /* 修法：裡面的圖示不單獨接滑鼠 */
+  .fix > svg, .fix > span { pointer-events: none; }
 </style></head>
 <body>
-<div class="tool">
-  <button class="tb" id="b1" title="按鈕一"></button>
-  <div class="omni">
-    <button class="chip" id="c1" title="查看網站資訊"></button>
-    <div class="field"><div class="shown"><span>127.0.0.1:8765/tip.html</span></div><input class="addr" id="addr"></div>
-    <button class="oa" id="s1" title="將這個分頁加入書籤"></button>
-  </div>
-</div>
+<!-- A：每個的提示文字都不一樣。只看「滑鼠底下的元素會不會換」這件事 -->
 <div class="row">
-  <button class="chip" id="c2" title="查看網站資訊"></button>
-  <button class="chip" id="c3" title="AAA BBB"></button>
-  <button class="chip" id="c4" title="查看網站資訊"></button>
-  <button class="chip" id="c5" title="查看網站資訊"></button>
-  <button class="plain" id="c6" title="查看網站資訊">i</button>
-  <button class="chip" id="c7" title="查看網站資訊"></button>
-  <button class="chip" id="c8" title="查看網站資訊"></button>
-  <button class="oa" id="c9" title="每 250ms 重設 title"></button>
+  <button class="chip" id="a1" title="A1 線條上"></button>
+  <button class="chip fix" id="a2" title="A2 線條上（修過）"></button>
+  <button class="chip" id="a3" title="A3 沒有線條"></button>
+  <button class="plain" id="a4" title="A4 文字">i</button>
+  <button class="tb" id="a5" title="A5 大按鈕線條上"></button>
+  <button class="tb fix" id="a6" title="A6 大按鈕線條上（修過）"></button>
 </div>
-<div class="row2">
-  <button class="chip" id="d1" title="查看網站資訊"></button>
-  <button class="chip" id="d2" title="查看網站資訊"></button>
-  <button class="chip" id="d3" title="查看網站資訊"></button>
-  <button class="tb" id="d4" title="查看網站資訊"></button>
+<!-- B：同一段提示文字。前一個失敗之後，同一段文字還會不會出現 -->
+<div class="row">
+  <button class="chip" id="b1" title="同一段文字"></button>
+  <button class="chip" id="b2" title="同一段文字"></button>
+  <button class="chip" id="b3" title="B3 不一樣的文字"></button>
+  <button class="chip" id="b4" title="同一段文字"></button>
+  <button class="chip fix" id="b5" title="同一段文字"></button>
+</div>
+<!-- C：按「開始」之後每 250ms 把圖示換掉（舊版工具列每次狀態更新都這樣做） -->
+<div class="row">
+  <button class="plain" id="go" style="width:60px">開始</button>
+  <button class="chip fix" id="c1" title="C1 一直換圖示（修過）"></button>
+  <button class="chip" id="c2" title="C2 一直換圖示"></button>
 </div>
 <script>
   const log = (m) => fetch('/log?m=' + encodeURIComponent('[tip] ' + m)).catch(() => {});
   const svg = (inner) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
   const INFO = svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.2M12 7.6v.4"/>');
   const TUNE = svg('<circle cx="8.8" cy="8" r="2.4"/><circle cx="15.2" cy="16" r="2.4"/><path d="M12 8h8M4 8h2.2M4 16h8M17.8 16H20"/>');
-  const STAR = svg('<path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>');
-  const RELOAD = svg('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v5h-5"/>');
   const $ = (i) => document.getElementById(i);
   const gl = (html) => { const s = document.createElement('span'); s.className = 'gl'; s.innerHTML = html; return s; };
-  $('b1').innerHTML = RELOAD;
-  $('s1').innerHTML = STAR;
-  for (const i of ['c1', 'c2', 'c3', 'c8', 'd1']) $(i).append(gl(INFO));   // 跟工具列的圓鈕一樣：按鈕 > span.gl > svg
-  $('c4').innerHTML = INFO;                                               // 沒有中間那層 span
-  $('c5').append(gl(TUNE));                                               // 換一個圖示
-  $('c9').innerHTML = STAR;
-  $('d4').innerHTML = INFO;                                               // 一般按鈕樣式（.tb）配同一個圖示
-  // 每 250ms 把裡面的圖示整個換掉（舊版工具列每次狀態更新都這樣做）
-  setInterval(() => { $('c7').innerHTML = ''; $('c7').append(gl(INFO)); }, 250);
-  $('c7').append(gl(INFO));
-  // 每 250ms 重設 className
-  setInterval(() => { $('c8').className = 'chip '; }, 250);
-  // 每 250ms 重設同樣的 title
-  setInterval(() => { $('c9').title = '每 250ms 重設 title'; }, 250);
-  // d2：圖示每 2 秒換一次（比提示文字出現的時間慢）
-  $('d2').append(gl(INFO));
-  setInterval(() => { $('d2').innerHTML = ''; $('d2').append(gl(INFO)); }, 2000);
-  // d3：disabled 屬性每 250ms 設一次 false
-  $('d3').append(gl(INFO));
-  setInterval(() => { $('d3').disabled = false; }, 250);
-  document.addEventListener('mouseover', (e) => { const b = e.target.closest && e.target.closest('button'); if (b) log('over ' + b.id); });
+  for (const i of ['a1', 'a2', 'b1', 'b5', 'c1', 'c2']) $(i).append(gl(INFO));
+  for (const i of ['a3', 'b2', 'b3', 'b4']) $(i).append(gl(TUNE));
+  $('a5').innerHTML = INFO;
+  $('a6').innerHTML = INFO;
+  $('go').onclick = () => { log('churn start'); setInterval(() => { for (const i of ['c1', 'c2']) { $(i).innerHTML = ''; $(i).append(gl(INFO)); } }, 250); };
+  document.addEventListener('mouseover', (e) => { const b = e.target.closest && e.target.closest('button'); if (b) log('over ' + b.id + ' ' + e.target.tagName); });
   log('load');
 </script>
 </body></html>

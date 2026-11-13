@@ -2006,18 +2006,41 @@ def s_tipdiag():
         p = bar_pt(el)
         return C(*p) if p else None
 
+    def shows(x, y):
+        """滑鼠移過去停住，最後還左右各動 1px（一般人的手就是這樣），看提示文字有沒有出來"""
+        hover(x, y, settle=0.0)
+        for dx in (1, 0, -1, 0, 1, 0):
+            move(x + dx, y)
+            time.sleep(0.03)
+        t0 = time.time()
+        n = 0
+        while time.time() - t0 < 2.0 and not n:
+            time.sleep(0.25)
+            n = len(tips_now())
+        move(*PG(620, 330))
+        time.sleep(0.6)
+        return bool(n)
+
     # 工具列：圓鈕的不同位置
     c = bar_c(SITE)
     if c:
-        for dx, dy in ((0, 0), (-6, -6), (6, 6), (-8, 0), (8, 0), (0, -9), (0, 9), (3, 0)):
-            watch_at(f"site{dx:+d}{dy:+d}", c[0] + dx * scale, c[1] + dy * scale, info=(dx == 0 and dy == 0))
-    # 工具列：旁邊的東西
-    for el, tag in ((E("home"), "home"), (STAR, "star"), (ADDR, "omni_text"), (BM("Example"), "bm_example"), (TAB(1), "tab1"), (NEWTAB, "newtab"), (PROFILE, "profile"), (BTN_MIN, "min")):
+        r1 = {}
+        for dx, dy in ((0, 0), (-6, -6), (6, 6), (-8, 0), (8, 0), (0, -9), (0, 9), (3, 0), (-1, 2), (1, -4)):
+            r1[(dx, dy)] = shows(c[0] + dx * scale, c[1] + dy * scale)
+        check("網址列左邊的圓鈕：不管停在哪裡（正中間的線條上也一樣）都會跳出提示文字", all(r1.values()), str(r1))
+    # 工具列：每個按鈕正中間
+    r2 = {}
+    for el, tag in ((BACK, "上一頁"), (FWD, "下一頁"), (RELOAD, "重新載入"), (E("home"), "首頁"), (STAR, "星星"), (EXT_BTN, "擴充功能"), (PROFILE, "頭像"), (MENU_BTN, "⋮"),
+                    (TABSEARCH, "搜尋分頁"), (NEWTAB, "新分頁"), (BTN_MIN, "最小化"), (BTN_MAX, "最大化"), (BTN_CLOSE, "關閉"), (BM("Example"), "書籤"), (OTHER, "所有書籤"), (TAB(1), "分頁"), (TABX(1), "分頁的 ×")):
         c2 = bar_c(el)
         if c2:
-            watch_at(tag, c2[0], c2[1], info=(tag == "star"))
+            r2[tag] = shows(c2[0], c2[1])
         else:
             log(f"  [{tag}] 找不到")
+    check("工具列每個按鈕、分頁、書籤：停在正中間都會跳出提示文字", bool(r2) and all(r2.values()), str(r2))
+    c2 = bar_c(ADDR)
+    if c2:
+        check("網址列的文字上：沒有提示文字", not shows(c2[0], c2[1]))
     # 換到別種網頁再試圓鈕
     for part in ("Example", "短影片"):
         if select_title(part, 1.5):
@@ -2035,14 +2058,44 @@ def s_tipdiag():
     go(f"http://127.0.0.1:{PORT}/tip.html", wait=3.0)
     shot("tipdiag_page")
     root = page_tree()
-    for i in ("b1", "c1", "s1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "d1", "d2", "d3", "d4"):
+    res = {}
+
+    def at(i):
         n = find_id(root, i)
-        if n is None:
+        return ((n.l + n.r) / 2, (n.t + n.b) / 2) if n is not None else None
+
+    def probe(i, dx=0):
+        c4 = at(i)
+        if not c4:
             log(f"  [page {i}] 找不到")
-            continue
-        watch_at("page " + i, (n.l + n.r) / 2, (n.t + n.b) / 2)
-    hover((find_id(root, "c1").l + find_id(root, "c1").r) / 2, (find_id(root, "c1").t + find_id(root, "c1").b) / 2, settle=1.5) if find_id(root, "c1") else None
-    shot("tipdiag_page_c1")
+            return None
+        hover(c4[0] + dx, c4[1], settle=0.0)
+        seen = []
+        t0 = time.time()
+        while time.time() - t0 < 2.1:
+            seen.append(len(tips_now()))
+            time.sleep(0.3)
+        ok_ = bool(seen[-1])
+        log(f"  [page {i}{'+%d' % dx if dx else ''}] {''.join(str(n) for n in seen)}")
+        move(*PG(620, 330))
+        time.sleep(0.6)
+        return ok_
+
+    for i in ("a1", "a2", "a3", "a4", "a5", "a6"):
+        res[i] = probe(i)
+    for i in ("b1", "b2", "b3", "b4", "b5"):
+        res[i] = probe(i)
+    # 只是記錄 WebView2 本身的行為（不是我們的程式）：滑鼠底下的元素一換，提示文字就不出現
+    log("  WebView2 本身：", res)
+    check("（對照）網頁裡照做的按鈕：圖示不單獨接滑鼠的那兩個，停在線條上提示文字會出現", bool(res.get("a2")) and bool(res.get("a6")), str(res))
+    c5 = at("go")
+    if c5:
+        click(c5[0], c5[1], wait=0.8)
+        move(*PG(620, 330))
+        time.sleep(0.6)
+        res["c1"] = probe("c1")
+        res["c2"] = probe("c2")
+        log("  一直換圖示：", {k: res[k] for k in ("c1", "c2")})
     go(f"http://127.0.0.1:{PORT}/test.html", wait=2.5)
     # 回到測試頁之後圓鈕再試一次
     c = bar_c(SITE)
@@ -2052,25 +2105,6 @@ def s_tipdiag():
 
 def s_bubbles():
     home()
-    # （查問題用）還沒按過之前：每個按鈕停上去會不會跳提示文字
-    for el, tag in ((SITE, "site_fresh"), (TABSEARCH, "tabs_fresh"), (STAR, "star_fresh"), (RELOAD, "reload_fresh"), (BACK, "back_fresh"), (EXT_BTN, "ext_fresh")):
-        tip_watch(el, tag)
-    # 從旁邊的按鈕慢慢滑進圓鈕
-    pr, ps = bar_pt(RELOAD), bar_pt(SITE)
-    if pr and ps:
-        a, b = C(*pr), C(*ps)
-        for i in range(0, 41):
-            move(a[0] + (b[0] - a[0]) * i / 40, a[1] + (b[1] - a[1]) * i / 40)
-            time.sleep(0.02)
-        seen = []
-        t0 = time.time()
-        while time.time() - t0 < 3.0:
-            seen.append((round(time.time() - t0, 1), len(tips_now())))
-            time.sleep(0.3)
-        log("  [site_slide] 從重新載入滑到圓鈕：", seen)
-        shot("diag_site_slide")
-        move(*PG(620, 330))
-        time.sleep(0.7)
     for el, key_, name, side in ((PROFILE, "profile", "頭像（Chrome 使用者）", "right"), (SITE, "site", "網址列左邊的圓鈕（網站資訊）", "left"), (TABSEARCH, "tabs", "左上角的搜尋分頁", "left"), (EXT_BTN, "ext", "擴充功能（拼圖）", "right")):
         ms = open_menu(el, name)
         shot("bubble_" + key_)
@@ -2084,9 +2118,6 @@ def s_bubbles():
         check(f"{name}：點外面關掉", not menu_wins())
         n = el(bar_tree())
         check(f"{name}：選單關了，按鈕恢復原樣", n is not None and not n.has("open"), n.cls if n is not None else "找不到按鈕")
-    # （查問題用）按過之後
-    for el, tag in ((SITE, "site_after"), (TABSEARCH, "tabs_after")):
-        tip_watch(el, tag)
     # 提示文字（滑鼠停在按鈕上跳出來的小字）：打開選單後不能蓋在選單上
     def tips():
         """畫面上看得到的提示文字視窗（瀏覽器核心自己開的小視窗：沒有標題、很矮）"""
@@ -2684,7 +2715,6 @@ STEPS = [
     ("context", s_context),
     ("internal_pages", s_internal_pages),
     ("shortcuts", s_shortcuts),
-    ("tipdiag", s_tipdiag),
     ("bubbles", s_bubbles),
     ("download", s_download),
     ("incognito", s_incognito),
@@ -2695,6 +2725,7 @@ STEPS = [
     ("fullscreen", s_fullscreen),
     ("ext", s_ext),
     ("scripts", s_scripts),
+    ("tips", s_tipdiag),
     ("minimize", s_minimize),
     ("close", s_close),
 ]
