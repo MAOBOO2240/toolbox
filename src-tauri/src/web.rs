@@ -1,43 +1,89 @@
-//! web 浮動視窗：置頂的小瀏覽器，邊玩遊戲邊看影片。
+//! 瀏覽器視窗：外觀與操作比照 Chrome，可以邊玩遊戲邊用。
 //!
-//! 每個視窗 = 一個無框視窗：上面三排（分頁列、網址列、書籤列）是本機頁面 web.html，
-//! 下面是外部網頁（每個分頁一個 webview，只顯示目前的分頁；其他分頁點到時才載入）。
+//! 每個視窗 = 一個無框視窗：上面（分頁列、工具列、書籤列）是本機頁面 web.html，
+//! 下面是網頁（每個分頁一個 webview，只顯示目前的分頁；其他分頁點到時才載入）。
 //! - 視窗設成「不搶焦點」：滑鼠點影片、按暫停、拖進度時，鍵盤一直留在遊戲。
 //! - 點到網頁或網址列的輸入框要打字時，才把鍵盤交給視窗；按 Enter、點別的地方或滑鼠移出視窗就還給原本的視窗（遊戲）。
-//! - 書籤資料夾、右鍵選單用另一個置頂的小視窗顯示（可以超出 web 視窗的範圍）。
-//! - 外部網頁不能呼叫程式的任何指令（沒有設定 remote 權限，Tauri 會直接拒絕）。
+//! - 選單、網址列的建議、提示框用另外的置頂小視窗顯示（可以超出瀏覽器視窗的範圍），見 web/pop.rs。
+//! - 新分頁、歷史記錄、下載、書籤、擴充功能、設定是程式自己的頁面（chrome://…），見 web/pages.rs。
+//! - 外部網頁不能呼叫程式的任何指令（沒有設定 remote 權限，Tauri 會直接拒絕）；
+//!   程式自己的頁面只有 web-ui.html 可以開在分頁裡，而且不能被別的網頁內嵌。
 
 use crate::fg;
+use crate::webcore;
+use crate::webev::{self, DlEv, Ev};
+#[cfg(windows)]
+use crate::webnative;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::window::{Color, WindowBuilder};
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Url, Webview, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder, Window, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Url, Webview, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    WindowEvent,
 };
 
-pub const HOME: &str = "https://www.google.com/";
-/// 上面三排的高度（邏輯像素，要跟 web.html 一致）
-const TABS_H: f64 = 40.0;
-const TOOL_H: f64 = 38.0;
-const BMS_H: f64 = 30.0;
-const BAR_H: f64 = TABS_H + TOOL_H + BMS_H;
+pub mod pages;
+pub mod pop;
+
+/// 新視窗、新分頁開的頁面
+pub const HOME: &str = webcore::NEWTAB;
+/// 上面幾排的高度（邏輯像素，要跟 web.html 一致；量自 Chrome）
+const STRIP_H: f64 = 48.0;
+const STRIP_MAX_H: f64 = 40.0;
+const TOOL_H: f64 = 46.0;
+const BMS_H: f64 = 34.0;
+const LINE_H: f64 = 1.0;
 /// 左、右、下留給拉大小的邊（邏輯像素）
 const EDGE: f64 = 5.0;
 /// 網頁裡有輸入框被選取時，標題最後面會加上兩個看不見的字元
 const MARK: char = '\u{2063}';
-const MENU_LABEL: &str = "webmenu";
-/// 選單的尺寸（邏輯像素，要跟 web-menu.html 一致）
-const MENU_ITEM_H: f64 = 30.0;
-const MENU_SEP_H: f64 = 9.0;
-const MENU_PAD: f64 = 6.0;
-const MENU_MAX_H: f64 = 520.0;
+
+/// 非 Windows（只為了編譯測試）：跟 webnative.rs 一樣的函式，什麼都不做
+#[cfg(not(windows))]
+#[allow(dead_code)]
+mod webnative {
+    use crate::webev::{Opts, Sink};
+    pub struct Wv;
+    pub fn attach(_w: &Wv, _opts: Opts, _sink: Sink) {}
+    pub fn ctx_finish(_seq: u64, _pick: Option<i32>) {}
+    pub fn ctx_default(_seq: u64) {}
+    pub fn go_back(_w: &Wv) {}
+    pub fn go_forward(_w: &Wv) {}
+    pub fn stop(_w: &Wv) {}
+    pub fn can_go(_w: &Wv) -> (bool, bool) {
+        (false, false)
+    }
+    pub fn set_muted(_w: &Wv, _muted: bool) {}
+    pub fn set_zoom(_w: &Wv, _z: f64) {}
+    pub fn set_password_save(_w: &Wv, _on: bool) {}
+    pub fn set_download_dir(_w: &Wv, _dir: &str) {}
+    pub fn task_manager(_w: &Wv) {}
+    pub fn save_as(_w: &Wv) {}
+    pub fn toggle_downloads(_w: &Wv) {}
+    pub fn find(_w: &Wv) -> bool {
+        false
+    }
+    pub fn version(_w: &Wv) -> String {
+        String::new()
+    }
+    pub fn dl_cancel(_key: u64) {}
+    pub fn dl_pause(_key: u64, _pause: bool) {}
+    pub fn clear_data(_w: &Wv, _kinds: i32, _since_ms: Option<u64>, done: Box<dyn FnOnce(bool) + Send + 'static>) {
+        done(false)
+    }
+    pub fn nav_entries(_w: &Wv, done: Box<dyn FnOnce(String) + Send + 'static>) {
+        done(String::new())
+    }
+    pub fn nav_to(_w: &Wv, _entry: i64) {}
+    pub fn clear_site(_w: &Wv, _origins: &[String]) {}
+    pub fn round_corners(_hwnd: isize) {}
+}
 
 /// 注入外部網頁的小腳本：只負責「現在有沒有輸入框被選取」，用標題最後的隱形記號告訴程式。
 /// 不會讀取網頁內容，也不會送出任何資料。
@@ -138,29 +184,28 @@ const EXT_TABS_JS: &str = r#"(() => {
   } catch (_) {}
 })();"#;
 
-/// 網頁載入完成後取得網站圖示的網址（只回傳網址，不做其他事）
-const ICON_JS: &str = r#"(() => {
-  let best = "", score = -1;
-  for (const l of document.querySelectorAll("link[rel]")) {
-    const rel = (l.getAttribute("rel") || "").toLowerCase();
-    if (!rel.split(/\s+/).includes("icon") && !rel.includes("apple-touch-icon")) continue;
-    if (!l.href) continue;
-    const size = parseInt((l.getAttribute("sizes") || "").split(/x/i)[0], 10) || 16;
-    const s = (rel.includes("apple") ? 0 : 1000) + (100 - Math.min(99, Math.abs(32 - size)));
-    if (s > score) { score = s; best = l.href; }
-  }
-  return best || (location.origin + "/favicon.ico");
-})()"#;
-
 /* ---------------- 設定檔 ---------------- */
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Tab {
     pub id: String,
+    /// 網址；程式自己的頁面記成 chrome://…（例如 chrome://newtab/）
     pub url: String,
     pub title: String,
     pub icon: String,
+    /// 固定的分頁（排在最左邊、只顯示圖示）
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
+    /// 靜音
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub muted: bool,
+}
+
+impl Tab {
+    fn new(id: String, url: String) -> Self {
+        Tab { id, url, ..Tab::default() }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +235,9 @@ pub struct WebWin {
     pub tabs: Vec<Tab>,
     pub active: String,
     pub next_tab: u32,
+    /// 無痕式視窗：不留歷史記錄、不跟一般視窗共用登入狀態，關掉就消失（不會存到設定檔）
+    #[serde(skip)]
+    pub incognito: bool,
 }
 
 impl Default for WebWin {
@@ -212,6 +260,7 @@ impl Default for WebWin {
             tabs: Vec::new(),
             active: String::new(),
             next_tab: 0,
+            incognito: false,
         }
     }
 }
@@ -275,6 +324,10 @@ pub struct WebFile {
     pub next_id: u32,
     pub wins: Vec<WebWin>,
     pub bookmarks: Bookmarks,
+    /// 瀏覽器的設定（搜尋引擎、首頁按鈕、書籤列、縮放…）
+    pub settings: webcore::Settings,
+    /// 最近關閉的分頁（Ctrl+Shift+T 重新開啟）
+    pub closed: Vec<webcore::ClosedTab>,
 }
 
 struct Store {
@@ -293,13 +346,19 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// 舊資料補齊：沒有分頁就用原本的網址開一個；目前分頁不存在就選第一個
+/// 舊資料補齊：沒有分頁就用原本的網址開一個；目前分頁不存在就選第一個；固定的分頁排前面
 fn fix_win(w: &mut WebWin) {
     if w.tabs.is_empty() {
         let url = if w.url.trim().is_empty() { HOME.to_string() } else { w.url.clone() };
         w.next_tab += 1;
-        w.tabs.push(Tab { id: format!("t{}", w.next_tab), url, title: w.title.clone(), icon: String::new() });
+        w.tabs.push(Tab { title: w.title.clone(), ..Tab::new(format!("t{}", w.next_tab), url) });
     }
+    for t in &mut w.tabs {
+        if t.url.trim().is_empty() {
+            t.url = HOME.to_string();
+        }
+    }
+    w.tabs.sort_by_key(|t| !t.pinned);
     let biggest = w.tabs.iter().filter_map(|t| t.id.strip_prefix('t')?.parse::<u32>().ok()).max().unwrap_or(0);
     w.next_tab = w.next_tab.max(biggest);
     if !w.tabs.iter().any(|t| t.id == w.active) {
@@ -333,19 +392,38 @@ fn load(path: &Path) -> WebFile {
         fix_win(w);
     }
     fix_bm_ids(&mut f.bookmarks);
+    // 書籤一律自動跟 Chrome 同步（以前可以關掉）
+    f.bookmarks.sync = true;
     f
 }
 
-fn save(path: &Path, file: &WebFile) {
+fn write_json<T: Serialize>(path: &Path, data: &T, pretty: bool) {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    if let Ok(s) = serde_json::to_string_pretty(file) {
+    let text = if pretty { serde_json::to_string_pretty(data) } else { serde_json::to_string(data) };
+    if let Ok(s) = text {
         let tmp = path.with_extension("tmp");
         if std::fs::write(&tmp, s).is_ok() {
             let _ = std::fs::rename(&tmp, path);
         }
     }
+}
+
+fn save(path: &Path, file: &WebFile) {
+    write_json(path, file, true);
+}
+
+fn settings() -> webcore::Settings {
+    st().file.settings.clone()
+}
+
+fn engine() -> &'static webcore::Engine {
+    webcore::engine(&st().file.settings.engine)
+}
+
+fn is_incognito(wid: &str) -> bool {
+    st().file.wins.iter().any(|w| w.id == wid && w.incognito)
 }
 
 fn edit<T>(id: &str, f: impl FnOnce(&mut WebWin) -> T) -> Option<T> {
@@ -591,6 +669,18 @@ struct Rt {
     full: bool,
     /// 視窗目前所在螢幕的縮放比例（跨到不同縮放比例的螢幕時，照比例換算大小）
     sf: f64,
+    /// 各分頁：上一頁／下一頁能不能按
+    nav: HashMap<String, (bool, bool)>,
+    /// 正在播放聲音的分頁
+    audio: HashSet<String>,
+    /// 各分頁目前的縮放
+    zoom: HashMap<String, f64>,
+    /// 程式自己剛設定的縮放（收到縮放通知時，用來分辨是不是使用者用滾輪調的）
+    zoom_set: HashMap<String, f64>,
+    /// F11 全螢幕
+    fs: bool,
+    /// 全螢幕時滑鼠移到最上面：暫時顯示工具列
+    reveal: bool,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -619,13 +709,66 @@ fn id_of(wv: &Webview) -> Option<String> {
     wv.label().strip_prefix("webbar-").map(str::to_string)
 }
 
+/// 從分頁網頁的 webview 名稱取回（視窗編號, 分頁編號）
+fn page_of(wv: &Webview) -> Option<(String, String)> {
+    let rest = wv.label().strip_prefix("webpg-")?;
+    let (wid, tid) = rest.rsplit_once('-')?;
+    Some((wid.to_string(), tid.to_string()))
+}
+
+/// 呼叫指令的是哪個瀏覽器視窗（工具列，或開在分頁裡的內部頁面）
+fn owner_of(wv: &Webview) -> Option<String> {
+    id_of(wv).or_else(|| page_of(wv).map(|(w, _)| w))
+}
+
+#[derive(Serialize, Clone)]
+pub struct TabView {
+    id: String,
+    url: String,
+    title: String,
+    icon: String,
+    pinned: bool,
+    muted: bool,
+    audio: bool,
+    loading: bool,
+}
+
+/// 工具列上「下載」按鈕的狀態
+#[derive(Serialize, Clone, Default)]
+pub struct DlBadge {
+    /// 這次開啟程式後有沒有下載過（有才顯示按鈕）
+    any: bool,
+    active: usize,
+    /// 下載中的進度（0～100；不知道大小是 -1）
+    pct: i32,
+}
+
 #[derive(Serialize, Clone)]
 pub struct BarState {
     id: String,
-    tabs: Vec<Tab>,
+    tabs: Vec<TabView>,
     active: String,
-    loading: Vec<String>,
     max: bool,
+    /// F11 全螢幕
+    full: bool,
+    incognito: bool,
+    back: bool,
+    forward: bool,
+    /// 目前分頁的網址，與網址列沒在打字時顯示的樣子
+    url: String,
+    display: String,
+    /// newtab / internal / source / ext / secure / insecure / other
+    kind: &'static str,
+    /// 縮放（百分比）；zoomed = 跟預設值不一樣（網址列顯示放大鏡）
+    zoom: u32,
+    zoomed: bool,
+    show_bm: bool,
+    home: bool,
+    bookmarked: bool,
+    /// 可以重新開啟的已關閉分頁數
+    closed: usize,
+    engine: &'static str,
+    dl: DlBadge,
 }
 
 #[derive(Serialize, Clone)]
@@ -639,12 +782,78 @@ pub struct BmPayload {
 pub struct BarInit {
     state: BarState,
     bm: BmPayload,
+    exts: Vec<ExtInfo>,
+}
+
+fn url_kind(u: &str) -> &'static str {
+    if webcore::is_newtab(u) {
+        "newtab"
+    } else if webcore::virtual_page(u).is_some() {
+        "internal"
+    } else if u.starts_with("view-source:") {
+        "source"
+    } else if u.starts_with("chrome-extension://") {
+        "ext"
+    } else if u.starts_with("https://") {
+        "secure"
+    } else if u.starts_with("http://") {
+        "insecure"
+    } else {
+        "other"
+    }
 }
 
 fn bar_state(wid: &str) -> Option<BarState> {
-    let w = get(wid)?;
-    let loading = rt(|m| m.get(wid).map(|r| r.loading.iter().cloned().collect()).unwrap_or_default());
-    Some(BarState { id: w.id, tabs: w.tabs, active: w.active, loading, max: w.max })
+    let (w, set, closed, bookmarked) = {
+        let s = st();
+        let w = s.file.wins.iter().find(|w| w.id == wid)?.clone();
+        let url = w.tabs.iter().find(|t| t.id == w.active).map(|t| t.url.clone()).unwrap_or_default();
+        let b = &s.file.bookmarks;
+        let bookmarked = url_kind(&url) != "newtab" && !url.is_empty() && (bm_url_id(&b.bar, &url).is_some() || bm_url_id(&b.other, &url).is_some());
+        (w, s.file.settings.clone(), s.file.closed.len(), bookmarked)
+    };
+    let url = w.tabs.iter().find(|t| t.id == w.active).map(|t| t.url.clone()).unwrap_or_default();
+    let (loading, audio, nav, zoom, full) = rt(|m| {
+        m.get(wid)
+            .map(|r| (r.loading.clone(), r.audio.clone(), r.nav.get(&w.active).copied().unwrap_or((false, false)), r.zoom.get(&w.active).copied(), r.fs))
+            .unwrap_or_default()
+    });
+    let z = zoom.unwrap_or_else(|| set.zoom_for(&url));
+    let tabs = w
+        .tabs
+        .iter()
+        .map(|t| TabView {
+            id: t.id.clone(),
+            url: t.url.clone(),
+            title: t.title.clone(),
+            icon: t.icon.clone(),
+            pinned: t.pinned,
+            muted: t.muted,
+            audio: audio.contains(&t.id),
+            loading: loading.contains(&t.id),
+        })
+        .collect();
+    Some(BarState {
+        id: w.id,
+        tabs,
+        active: w.active,
+        max: w.max,
+        full,
+        incognito: w.incognito,
+        back: nav.0,
+        forward: nav.1,
+        display: webcore::display_url(&url),
+        kind: url_kind(&url),
+        url,
+        zoom: webcore::zoom_pct(z),
+        zoomed: (z - set.zoom_for("")).abs() > 0.005,
+        show_bm: set.show_bm,
+        home: set.home_button,
+        bookmarked,
+        closed,
+        engine: webcore::engine(&set.engine).name,
+        dl: dl_badge(),
+    })
 }
 
 fn bm_payload() -> BmPayload {
@@ -657,76 +866,92 @@ fn emit_state(app: &AppHandle, wid: &str) {
     }
 }
 
+/// 每個開著的視窗都更新工具列（設定、下載狀態這種大家共用的東西變了）
+fn emit_state_all(app: &AppHandle) {
+    for id in open_ids() {
+        emit_state(app, &id);
+    }
+}
+
 fn emit_main(app: &AppHandle) {
     let _ = app.emit_to("main", "web-changed", ());
 }
 
-/// 書籤改了：通知每個 web 視窗與主程式
+/// 書籤改了：通知每個瀏覽器視窗與主程式
 fn emit_bm(app: &AppHandle) {
     let p = bm_payload();
     for id in open_ids() {
         let _ = app.emit_to(bar_label(&id).as_str(), "web-bm", p.clone());
+        emit_state(app, &id);
     }
     emit_main(app);
 }
 
-/* ---------------- 網址 ---------------- */
-
-/// 網址列輸入的文字 → 網址；不像網址的就用 Google 搜尋
-pub fn to_url(input: &str) -> Option<Url> {
-    let s = input.trim();
-    if s.is_empty() {
-        return None;
-    }
-    if let Ok(u) = Url::parse(s) {
-        if matches!(u.scheme(), "http" | "https") {
-            return Some(u);
-        }
-    }
-    let looks_like_host = !s.contains(char::is_whitespace)
-        && (s.contains('.') || s.starts_with("localhost"))
-        && !s.starts_with('.')
-        && !s.ends_with('.');
-    if looks_like_host {
-        if let Ok(u) = Url::parse(&format!("https://{s}")) {
-            return Some(u);
-        }
-    }
-    let mut u = Url::parse("https://www.google.com/search").ok()?;
-    u.query_pairs_mut().append_pair("q", s);
-    Some(u)
+/// 請工具列做一件需要知道按鈕位置的事（打開主選單、書籤提示框、縮放提示框…）
+fn ask_bar(app: &AppHandle, wid: &str, what: &str) {
+    let _ = app.emit_to(bar_label(wid).as_str(), "web-ask", what.to_string());
 }
 
+/* ---------------- 網址 ---------------- */
+
+/// 一般網頁（http、https，而且不是程式自己的頁面）
 fn web_url(u: &Url) -> bool {
-    matches!(u.scheme(), "http" | "https")
+    matches!(u.scheme(), "http" | "https") && !webcore::is_app_url(u)
 }
 
 fn parse_web(s: &str) -> Option<Url> {
     Url::parse(s).ok().filter(web_url)
 }
 
-/// 分頁要開的網址：空白 = 新分頁（空白頁）；擴充功能的頁面也可以
+fn ntp_local() -> Url {
+    webcore::virtual_to_local(webcore::NEWTAB).unwrap_or_else(|| Url::parse("about:blank").unwrap())
+}
+
+/// 分頁記的網址 → 真正要載入的網址（chrome://… 是程式自己的頁面；擴充功能的頁面、檢視原始碼也可以）
 fn page_url(s: &str) -> Url {
-    if s.trim().is_empty() {
-        return Url::parse("about:blank").unwrap();
+    let s = s.trim();
+    if s.is_empty() {
+        return ntp_local();
     }
-    Url::parse(s)
-        .ok()
-        .filter(|u| web_url(u) || u.scheme() == "chrome-extension")
-        .unwrap_or_else(|| Url::parse(HOME).unwrap())
+    if let Some(u) = webcore::virtual_to_local(s) {
+        return u;
+    }
+    Url::parse(s).ok().filter(|u| web_url(u) || matches!(u.scheme(), "chrome-extension" | "view-source")).unwrap_or_else(ntp_local)
+}
+
+/// 網頁目前真正的網址 → 分頁要記的（內部頁面記成 chrome://…；程式自己的其他頁面、about:blank 不記）
+fn tab_url(u: &Url) -> Option<String> {
+    if let Some(v) = webcore::local_to_virtual(u) {
+        return Some(v);
+    }
+    (web_url(u) || matches!(u.scheme(), "chrome-extension" | "view-source")).then(|| u.to_string())
+}
+
+/// 分頁裡可以開的網址（外部網頁不能把分頁導到程式自己的其他頁面，例如主程式的畫面）
+fn nav_allowed(u: &Url) -> bool {
+    !webcore::is_app_url(u) || webcore::local_to_virtual(u).is_some()
 }
 
 /* ---------------- 視窗、分頁 ---------------- */
 
-/// 上面三排的範圍（實體像素）
-fn bar_rect(sf: f64, size: PhysicalSize<u32>) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
-    (PhysicalPosition::new(0, 0), PhysicalSize::new(size.width.max(1), (BAR_H * sf).round() as u32))
+fn show_bm() -> bool {
+    st().file.settings.show_bm
+}
+
+/// 上面幾排（分頁列、工具列、書籤列、底線）的高度（邏輯像素）。max = 放到最大或全螢幕（分頁列矮一點）
+fn bar_h(max: bool) -> f64 {
+    (if max { STRIP_MAX_H } else { STRIP_H }) + TOOL_H + if show_bm() { BMS_H } else { 0.0 } + LINE_H
+}
+
+/// 上面幾排的範圍（實體像素）
+fn bar_rect(sf: f64, size: PhysicalSize<u32>, h: f64) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+    (PhysicalPosition::new(0, 0), PhysicalSize::new(size.width.max(1), (h * sf).round() as u32))
 }
 
 /// 網頁的範圍（實體像素）：左、右、下留一點邊給拉大小；放到最大時不用留
-fn page_rect(sf: f64, size: PhysicalSize<u32>, max: bool) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+fn page_rect(sf: f64, size: PhysicalSize<u32>, max: bool, h: f64) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
     let edge = if max { 0 } else { (EDGE * sf).round() as u32 };
-    let top = (BAR_H * sf).round() as u32;
+    let top = (h * sf).round() as u32;
     (
         PhysicalPosition::new(edge as i32, top as i32),
         PhysicalSize::new(size.width.saturating_sub(2 * edge).max(1), size.height.saturating_sub(top + edge).max(1)),
@@ -737,17 +962,25 @@ fn bounds(pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> tauri::Rect {
     tauri::Rect { position: pos.into(), size: size.into() }
 }
 
+/// 視窗目前的排法：(工具列的範圍, 工具列要不要顯示, 網頁的範圍)
+#[allow(clippy::type_complexity)]
+fn geometry(wid: &str, win: &Window, size: PhysicalSize<u32>) -> ((PhysicalPosition<i32>, PhysicalSize<u32>), bool, (PhysicalPosition<i32>, PhysicalSize<u32>)) {
+    let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
+    let (full, fs, reveal) = rt(|m| m.get(wid).map(|r| (r.full, r.fs, r.reveal)).unwrap_or_default());
+    let max = win.is_maximized().unwrap_or(false) || fs;
+    let h = bar_h(max);
+    let hide_bar = full || (fs && !reveal);
+    let page = if hide_bar { (PhysicalPosition::new(0, 0), size) } else { page_rect(sf, size, max, h) };
+    (bar_rect(sf, size, h), !hide_bar, page)
+}
+
 /// 視窗大小改變：工具列和所有分頁的網頁一次放到正確位置（一個網頁只設定一次，不會中途變成奇怪的大小）
 fn layout(app: &AppHandle, wid: &str, win: &Window, size: PhysicalSize<u32>) {
-    let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
-    let max = win.is_maximized().unwrap_or(false);
-    let full = rt(|m| m.get(wid).is_some_and(|r| r.full));
+    let ((bp, bs), show_bar, (pos, sz)) = geometry(wid, win, size);
     if let Some(b) = app.get_webview(&bar_label(wid)) {
-        let (p, s) = bar_rect(sf, size);
-        let _ = b.set_bounds(bounds(p, s));
-        let _ = if full { b.hide() } else { b.show() };
+        let _ = b.set_bounds(bounds(bp, bs));
+        let _ = if show_bar { b.show() } else { b.hide() };
     }
-    let (pos, sz) = if full { (PhysicalPosition::new(0, 0), size) } else { page_rect(sf, size, max) };
     for t in get(wid).map(|w| w.tabs).unwrap_or_default() {
         if let Some(p) = app.get_webview(&page_label(wid, &t.id)) {
             let _ = p.set_bounds(bounds(pos, sz));
@@ -755,7 +988,18 @@ fn layout(app: &AppHandle, wid: &str, win: &Window, size: PhysicalSize<u32>) {
     }
 }
 
-/// web 視窗的網頁用自己的瀏覽器資料夾（登入狀態、擴充功能都放這裡）
+/// 重新排一次（書籤列開關、全螢幕這些讓工具列高度改變的時候）
+fn relayout(app: &AppHandle, wid: &str) {
+    if let Some(win) = app.get_window(&win_label(wid)) {
+        if let Ok(size) = win.inner_size() {
+            if size.width > 0 && size.height > 0 {
+                layout(app, wid, &win, size);
+            }
+        }
+    }
+}
+
+/// 瀏覽器視窗的網頁用自己的瀏覽器資料夾（登入狀態、擴充功能都放這裡）
 fn profile_dir() -> PathBuf {
     WEB_DIR.get().cloned().unwrap_or_default().join("web-profile")
 }
@@ -770,6 +1014,47 @@ static WEB_DIR: OnceLock<PathBuf> = OnceLock::new();
 static EXT_BROKEN: AtomicBool = AtomicBool::new(false);
 static POPUP_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
+/// 在主執行緒對一個網頁（或工具列）的 WebView2 做事
+#[cfg(windows)]
+fn with_wv(wv: &Webview, f: impl FnOnce(&webnative::Wv) + Send + 'static) {
+    let _ = wv.with_webview(move |pw| {
+        let controller = pw.controller();
+        if let Ok(core) = unsafe { controller.CoreWebView2() } {
+            f(&webnative::Wv { controller, core });
+        }
+    });
+}
+
+#[cfg(not(windows))]
+fn with_wv(_wv: &Webview, _f: impl FnOnce(&webnative::Wv) + Send + 'static) {}
+
+/// WebView2 通知的事情先排隊，由一個背景執行緒照順序處理（不可以在通知裡面直接動視窗）
+static EVQ: OnceLock<Mutex<std::sync::mpsc::Sender<(String, String, Ev)>>> = OnceLock::new();
+
+fn push_ev(wid: &str, tid: &str, ev: Ev) {
+    if let Some(tx) = EVQ.get() {
+        let _ = lock(tx).send((wid.to_string(), tid.to_string(), ev));
+    }
+}
+
+/// 掛上快捷鍵、右鍵選單、下載、縮放…（page = 一般網頁；false = 工具列）
+fn attach_native(wv: &Webview, wid: &str, tid: &str, page: bool) {
+    let (w, t) = (wid.to_string(), tid.to_string());
+    let sink: webev::Sink = Arc::new(move |ev| push_ev(&w, &t, ev));
+    let (set, incognito) = {
+        let s = st();
+        (s.file.settings.clone(), s.file.wins.iter().any(|x| x.id == wid && x.incognito))
+    };
+    let opts = webev::Opts {
+        page,
+        accel: if page { webcore::shortcut } else { webcore::shortcut_bar },
+        no_repeat: webcore::no_repeat,
+        block_prefix: webcore::ui_base().to_string(),
+        save_passwords: set.save_passwords && !incognito,
+        download_dir: set.download_dir,
+    };
+    with_wv(wv, move |w| webnative::attach(w, opts, sink));
+}
 
 /// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉
 fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
@@ -782,6 +1067,8 @@ fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowF
         .window_features(features)
         .title(url.host_str().unwrap_or("登入"))
         .focused(true)
+        // 小視窗不能開程式自己的頁面
+        .on_navigation(|u| !webcore::is_app_url(u))
         .on_document_title_changed(|w, title| {
             let _ = w.set_title(&title);
         })
@@ -796,33 +1083,40 @@ fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowF
     Some(win)
 }
 
-fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<PathBuf>) -> WebviewBuilder<tauri::Wry> {
+fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<PathBuf>, incognito: bool) -> WebviewBuilder<tauri::Wry> {
     let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
     let (w1, w2, w3) = (wid.to_string(), wid.to_string(), wid.to_string());
     let (t1, t2, t3) = (tid.to_string(), tid.to_string(), tid.to_string());
-    // 按「+」開的空白分頁不要搶走焦點（網址列要能直接打字）
-    let blank = url.as_str() == "about:blank";
+    // 新分頁不要搶走焦點（網址列要能直接打字）
+    let blank = webcore::local_to_virtual(&url).is_some_and(|v| webcore::is_newtab(&v));
     let mut b = WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
+        .incognito(incognito)
+        .zoom_hotkeys_enabled(true)
         .focused(!blank);
     if let Some(dir) = ext {
         b = b.extensions_path(dir);
     }
-    // 使用者腳本（document-start 的）：網頁一開始就跑
+    // 使用者腳本（document-start 的）：網頁一開始就跑；程式自己的頁面不跑
     let us = crate::userscripts::start_script();
     if !us.is_empty() {
-        b = b.initialization_script_for_all_frames(&us);
+        let origin = webcore::ui_base().trim_end_matches('/');
+        b = b.initialization_script_for_all_frames(format!("if (location.origin !== {origin:?}) {{ {us} }}"));
     }
     b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
         .disable_drag_drop_handler()
+        .on_navigation(nav_allowed)
         .on_page_load(move |wv, p| {
             on_page(&a1, &w1, &t1, &wv, p.url(), matches!(p.event(), PageLoadEvent::Started));
         })
         .on_document_title_changed(move |_wv, raw| on_title(&a2, &w2, &t2, raw))
         // 登入用的小視窗開成真的視窗；其他開新分頁的連結：在這個視窗開一個新分頁
         .on_new_window(move |u, features| {
+            if webcore::is_app_url(&u) {
+                return NewWindowResponse::Deny;
+            }
             if features.size().is_some() {
                 return match popup_window(&a3, &u, features) {
                     Some(window) => NewWindowResponse::Create { window },
@@ -839,7 +1133,7 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
                             let _ = select_tab(&app, &wid, &t);
                         }
                         None => {
-                            let _ = new_tab(&app, &wid, Some(u), true, Some(&tid));
+                            let _ = add_tab(&app, &wid, u.to_string(), true, Some(&tid));
                         }
                     }
                 });
@@ -848,15 +1142,45 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
         })
 }
 
+/// 網頁載入完成後：取得網站圖示的網址與標題（只回傳這兩樣，不做其他事）
+const INFO_JS: &str = r#"(() => {
+  let best = "", score = -1;
+  for (const l of document.querySelectorAll("link[rel]")) {
+    const rel = (l.getAttribute("rel") || "").toLowerCase();
+    if (!rel.split(/\s+/).includes("icon") && !rel.includes("apple-touch-icon")) continue;
+    if (!l.href) continue;
+    const size = parseInt((l.getAttribute("sizes") || "").split(/x/i)[0], 10) || 16;
+    const s = (rel.includes("apple") ? 0 : 1000) + (100 - Math.min(99, Math.abs(32 - size)));
+    if (s > score) { score = s; best = l.href; }
+  }
+  return { icon: best || (location.origin + "/favicon.ico"), title: document.title || "" };
+})()"#;
+
+/// 把這個網址該用的縮放套到網頁上（縮放是照網站記的）
+fn apply_zoom(wv: &Webview, wid: &str, tid: &str, url: &str) {
+    let z = st().file.settings.zoom_for(url);
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.zoom.insert(tid.to_string(), z);
+            r.zoom_set.insert(tid.to_string(), z);
+        }
+    });
+    with_wv(wv, move |w| webnative::set_zoom(w, z));
+}
+
 fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, started: bool) {
-    if web_url(url) {
-        let s = url.to_string();
+    let shown = tab_url(url);
+    if let Some(s) = &shown {
         edit(wid, |w| {
             if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
+                // 換到別的網站：舊網站的圖示先拿掉
+                if started && webcore::zoom_key(&t.url) != webcore::zoom_key(s) {
+                    t.icon.clear();
+                }
                 t.url = s.clone();
             }
             if w.active == tid {
-                w.url = s;
+                w.url = s.clone();
             }
         });
     }
@@ -869,19 +1193,53 @@ fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, start
             }
         }
     });
-    if !started {
-        // 使用者腳本（載入完成後跑的）
-        if web_url(url) {
-            for code in crate::userscripts::scripts_for(url.as_str()) {
-                let _ = wv.eval(&code);
-            }
+    if started {
+        if let Some(s) = &shown {
+            apply_zoom(wv, wid, tid, s);
         }
-        let (app2, w2, t2) = (app.clone(), wid.to_string(), tid.to_string());
-        let _ = wv.eval_with_callback(ICON_JS, move |res| {
-            if let Ok(icon) = serde_json::from_str::<String>(&res) {
-                set_icon(&app2, &w2, &t2, icon);
+    } else if web_url(url) {
+        // 使用者腳本（載入完成後跑的）
+        for code in crate::userscripts::scripts_for(url.as_str()) {
+            let _ = wv.eval(&code);
+        }
+        let (app2, w2, t2, u2) = (app.clone(), wid.to_string(), tid.to_string(), url.to_string());
+        let _ = wv.eval_with_callback(INFO_JS, move |res| {
+            let v: Value = serde_json::from_str(&res).unwrap_or_default();
+            let title = v["title"].as_str().unwrap_or("").trim_end_matches(MARK).trim().to_string();
+            // 記到歷史記錄（無痕式視窗不記）
+            if !is_incognito(&w2) {
+                hist_edit(|h| h.add(&u2, &title, webcore::now_ms()));
+            }
+            if let Some(icon) = v["icon"].as_str() {
+                set_icon(&app2, &w2, &t2, icon.to_string());
             }
         });
+    }
+    emit_state(app, wid);
+    emit_main(app);
+}
+
+/// 網址變了但沒有重新載入（YouTube 這類不換頁就換網址的網站）
+fn on_source(app: &AppHandle, wid: &str, tid: &str, raw: &str) {
+    let Some(shown) = Url::parse(raw).ok().and_then(|u| tab_url(&u)) else { return };
+    let loading = rt(|m| m.get(wid).is_some_and(|r| r.loading.contains(tid)));
+    let changed = edit(wid, |w| {
+        let mut title = None;
+        if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
+            if t.url != shown {
+                t.url = shown.clone();
+                title = Some(t.title.clone());
+            }
+        }
+        if title.is_some() && w.active == tid {
+            w.url = shown.clone();
+        }
+        title
+    })
+    .flatten();
+    let Some(title) = changed else { return };
+    if !loading && parse_web(&shown).is_some() && !is_incognito(wid) {
+        hist_edit(|h| h.add(&shown, &title, webcore::now_ms()));
     }
     emit_state(app, wid);
     emit_main(app);
@@ -896,6 +1254,10 @@ fn set_icon(app: &AppHandle, wid: &str, tid: &str, icon: String) {
     }
     let (changed, url) = edit(wid, |w| match w.tabs.iter_mut().find(|t| t.id == tid) {
         Some(t) => {
+            // 內部頁面用自己的圖示
+            if webcore::virtual_page(&t.url).is_some() {
+                return (false, String::new());
+            }
             let ch = t.icon != icon;
             t.icon = icon.clone();
             (ch, t.url.clone())
@@ -903,6 +1265,16 @@ fn set_icon(app: &AppHandle, wid: &str, tid: &str, icon: String) {
         None => (false, String::new()),
     })
     .unwrap_or((false, String::new()));
+    if url.is_empty() {
+        return;
+    }
+    // 歷史記錄、建議清單、新分頁的捷徑用：記住這個網站的圖示
+    if !is_incognito(wid) {
+        let host = webcore::host_of(&url);
+        hist_edit(|h| {
+            h.set_icon(&host, &icon);
+        });
+    }
     // 書籤用：記住這個網站的圖示（只記有加入書籤的網站）
     let learned = host_of(&url).is_some_and(|host| {
         let mut s = st();
@@ -940,11 +1312,11 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
         });
     }
     let changed = edit(wid, |w| {
-        let mut ch = false;
+        let mut ch = None;
         if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
             if t.title != title {
                 t.title = title.clone();
-                ch = true;
+                ch = Some(t.url.clone());
             }
         }
         if w.active == tid {
@@ -952,16 +1324,30 @@ fn on_title(app: &AppHandle, wid: &str, tid: &str, raw: String) {
         }
         ch
     })
-    .unwrap_or(false);
-    if changed {
+    .flatten();
+    if let Some(url) = changed {
+        if !title.is_empty() && parse_web(&url).is_some() && !w.incognito {
+            hist_edit(|h| {
+                h.set_title(&url, &title);
+            });
+        }
         emit_state(app, wid);
         emit_main(app);
         // 工作列上顯示目前分頁的標題
         if get(wid).is_some_and(|w| w.active == tid) {
             if let Some(win) = app.get_window(&win_label(wid)) {
-                let _ = win.set_title(if title.is_empty() { "瀏覽器" } else { &title });
+                let _ = win.set_title(&window_title(&title, w.incognito));
             }
         }
+    }
+}
+
+fn window_title(title: &str, incognito: bool) -> String {
+    let t = if title.is_empty() { "新分頁" } else { title };
+    if incognito {
+        format!("{t} - 無痕模式")
+    } else {
+        t.to_string()
     }
 }
 
@@ -995,9 +1381,11 @@ fn ext_mark_loaded() {
 
 /// 加上分頁的網頁；載入擴充功能失敗就不載入再試一次
 fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: PhysicalPosition<i32>, size: PhysicalSize<u32>) -> Result<(), String> {
-    let ext = ext_pending();
+    let incognito = is_incognito(wid);
+    // 無痕式視窗不載入擴充功能
+    let ext = if incognito { None } else { ext_pending() };
     let had = ext.is_some();
-    let made = match win.add_child(page_builder(app, wid, tid, url.clone(), ext), pos, size) {
+    let made = match win.add_child(page_builder(app, wid, tid, url.clone(), ext, incognito), pos, size) {
         Ok(w) => {
             if had {
                 ext_mark_loaded();
@@ -1007,51 +1395,50 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
         Err(e) if had => {
             eprintln!("擴充功能載入失敗：{e}");
             EXT_BROKEN.store(true, Ordering::SeqCst);
-            win.add_child(page_builder(app, wid, tid, url, None), pos, size).map_err(|e| format!("網頁建立失敗：{e}"))
+            win.add_child(page_builder(app, wid, tid, url, None, incognito), pos, size).map_err(|e| format!("網頁建立失敗：{e}"))
         }
         Err(e) => Err(format!("網頁建立失敗：{e}")),
     }?;
-    watch_fullscreen(app, wid, &made);
+    attach_native(&made, wid, tid, true);
+    // 靜音的分頁維持靜音
+    if get(wid).is_some_and(|w| w.tabs.iter().any(|t| t.id == tid && t.muted)) {
+        with_wv(&made, |w| webnative::set_muted(w, true));
+    }
     Ok(())
 }
 
-/// 網頁按影片的全螢幕：整個視窗變全螢幕、網頁蓋滿；離開時還原
-#[cfg(windows)]
-fn watch_fullscreen(app: &AppHandle, wid: &str, wv: &Webview) {
-    use webview2_com::ContainsFullScreenElementChangedEventHandler;
-    let (app2, wid2) = (app.clone(), wid.to_string());
-    let _ = wv.with_webview(move |pw| unsafe {
-        let Ok(core) = pw.controller().CoreWebView2() else { return };
-        let mut token = 0i64;
-        let _ = core.add_ContainsFullScreenElementChanged(
-            &ContainsFullScreenElementChangedEventHandler::create(Box::new(move |core, _| {
-                let Some(core) = core else { return Ok(()) };
-                let mut on = 0i32;
-                if core.ContainsFullScreenElement(&mut on as *mut i32 as *mut _).is_ok() {
-                    let (app3, wid3) = (app2.clone(), wid2.clone());
-                    std::thread::spawn(move || set_fullscreen(&app3, &wid3, on != 0));
-                }
-                Ok(())
-            })),
-            &mut token,
-        );
-    });
-}
-
-#[cfg(not(windows))]
-fn watch_fullscreen(_app: &AppHandle, _wid: &str, _wv: &Webview) {}
-
-fn set_fullscreen(app: &AppHandle, wid: &str, on: bool) {
-    let changed = rt(|m| m.get_mut(wid).map(|r| std::mem::replace(&mut r.full, on) != on)).unwrap_or(false);
-    if !changed {
-        return;
-    }
-    hide_menu_of(app, wid);
+/// 視窗的全螢幕狀態（網頁的影片全螢幕，或 F11）變了：套用並重新排
+fn apply_full(app: &AppHandle, wid: &str) {
+    pop::hide_of(app, wid);
     close_ext_popup(app, wid);
     let Some(win) = app.get_window(&win_label(wid)) else { return };
-    let _ = win.set_fullscreen(on);
-    if let Ok(size) = win.inner_size() {
-        layout(app, wid, &win, size);
+    let on = rt(|m| m.get(wid).is_some_and(|r| r.full || r.fs));
+    if win.is_fullscreen().unwrap_or(false) != on {
+        let _ = win.set_fullscreen(on);
+    }
+    relayout(app, wid);
+    emit_state(app, wid);
+}
+
+/// 網頁按影片的全螢幕：整個視窗變全螢幕、網頁蓋滿；離開時還原
+fn set_fullscreen(app: &AppHandle, wid: &str, on: bool) {
+    let changed = rt(|m| m.get_mut(wid).map(|r| std::mem::replace(&mut r.full, on) != on)).unwrap_or(false);
+    if changed {
+        apply_full(app, wid);
+    }
+}
+
+/// F11：整個視窗全螢幕（滑鼠移到最上面會暫時顯示工具列）
+fn toggle_fs(app: &AppHandle, wid: &str) {
+    let ok = rt(|m| {
+        m.get_mut(wid).map(|r| {
+            r.fs = !r.fs;
+            r.reveal = false;
+        })
+    })
+    .is_some();
+    if ok {
+        apply_full(app, wid);
     }
 }
 
@@ -1059,25 +1446,25 @@ fn set_fullscreen(app: &AppHandle, wid: &str, on: bool) {
 fn create_page(app: &AppHandle, win: &Window, wid: &str, tid: &str) -> Result<(), String> {
     let url = get(wid).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url).unwrap_or_default();
     let url = page_url(&url);
-    let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
     let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
-    let (pos, sz) = page_rect(sf, size, win.is_maximized().unwrap_or(false));
+    let (_, _, (pos, sz)) = geometry(wid, win, size);
     add_page(app, win, wid, tid, url, pos, sz)
 }
 
 fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     close_ext_popup(app, wid);
-    let (prev, title) = edit(wid, |w| {
+    pop::hide_of(app, wid);
+    let (prev, title, incognito) = edit(wid, |w| {
         let t = w.tabs.iter().find(|t| t.id == tid)?.clone();
         w.url = t.url;
         w.title = t.title.clone();
-        Some((std::mem::replace(&mut w.active, tid.to_string()), t.title))
+        Some((std::mem::replace(&mut w.active, tid.to_string()), t.title, w.incognito))
     })
     .flatten()
     .ok_or("找不到這個分頁")?;
     if let Some(win) = app.get_window(&win_label(wid)) {
         // 工作列上的標題跟著換成這個分頁的
-        let _ = win.set_title(if title.is_empty() { "瀏覽器" } else { &title });
+        let _ = win.set_title(&window_title(&title, incognito));
         if app.get_webview(&page_label(wid, tid)).is_none() {
             create_page(app, &win, wid, tid)?;
         }
@@ -1100,15 +1487,17 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 開新分頁：after = 放在哪個分頁後面（沒有就放最後）
-fn new_tab(app: &AppHandle, wid: &str, url: Option<Url>, activate: bool, after: Option<&str>) -> Result<String, String> {
-    // 按「+」開的新分頁是空白頁，網址列等你輸入
-    let url = url.map(|u| u.to_string()).unwrap_or_default();
+/// 開新分頁（url 是分頁要記的網址，例如 https://… 或 chrome://newtab/）。
+/// after = 放在哪個分頁後面（沒有就放最後）；固定的分頁永遠在最前面
+fn add_tab(app: &AppHandle, wid: &str, url: String, activate: bool, after: Option<&str>) -> Result<String, String> {
+    let url = if url.trim().is_empty() { HOME.to_string() } else { url };
     let tid = edit(wid, |w| {
         w.next_tab += 1;
         let tid = format!("t{}", w.next_tab);
-        let pos = after.and_then(|a| w.tabs.iter().position(|t| t.id == a)).map(|i| i + 1).unwrap_or(w.tabs.len());
-        w.tabs.insert(pos, Tab { id: tid.clone(), url, title: String::new(), icon: String::new() });
+        let pinned = w.tabs.iter().filter(|t| t.pinned).count();
+        let pos = after.and_then(|a| w.tabs.iter().position(|t| t.id == a)).map(|i| i + 1).unwrap_or(w.tabs.len()).max(pinned);
+        let title = webcore::virtual_page(&url).map(webcore::ui_title).unwrap_or("").to_string();
+        w.tabs.insert(pos, Tab { title, ..Tab::new(tid.clone(), url) });
         tid
     })
     .ok_or("找不到這個視窗")?;
@@ -1120,6 +1509,39 @@ fn new_tab(app: &AppHandle, wid: &str, url: Option<Url>, activate: bool, after: 
     Ok(tid)
 }
 
+/// 開新分頁：沒給網址就是「新分頁」頁面
+fn new_tab(app: &AppHandle, wid: &str, url: Option<Url>, activate: bool, after: Option<&str>) -> Result<String, String> {
+    add_tab(app, wid, url.map(|u| u.to_string()).unwrap_or_default(), activate, after)
+}
+
+/// 把分頁導到某個網址（分頁要記的網址：https://…、chrome://…、view-source:…）
+fn navigate_tab(app: &AppHandle, wid: &str, tid: &str, target: &str) {
+    let url = page_url(target);
+    match app.get_webview(&page_label(wid, tid)) {
+        Some(p) => {
+            let _ = p.navigate(url);
+        }
+        None => {
+            // 還沒載入過的分頁：改掉它記的網址，點到時就會開這個
+            let shown = tab_url(&url).unwrap_or_else(|| HOME.to_string());
+            edit(wid, |w| {
+                if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
+                    t.url = shown;
+                }
+            });
+            emit_state(app, wid);
+        }
+    }
+}
+
+/// 鍵盤交給網址列：select = 把裡面的字全選
+fn focus_omni(app: &AppHandle, wid: &str, select: bool) {
+    if let Some(bar) = app.get_webview(&bar_label(wid)) {
+        let _ = bar.set_focus();
+    }
+    let _ = app.emit_to(bar_label(wid).as_str(), "web-omni-focus", select);
+}
+
 fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     enum After {
         Last,
@@ -1128,27 +1550,37 @@ fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     }
     let after = edit(wid, |w| {
         let i = w.tabs.iter().position(|t| t.id == tid)?;
-        w.tabs.remove(i);
+        let t = w.tabs.remove(i);
+        let closed = (!w.incognito).then(|| webcore::ClosedTab { url: t.url, title: t.title, icon: t.icon, win: w.id.clone(), index: i, at: webcore::now_ms() });
         if w.tabs.is_empty() {
-            return Some(After::Last);
+            return Some((After::Last, closed));
         }
         if w.active == tid {
-            return Some(After::Select(w.tabs[i.min(w.tabs.len() - 1)].id.clone()));
+            return Some((After::Select(w.tabs[i.min(w.tabs.len() - 1)].id.clone()), closed));
         }
-        Some(After::Stay)
+        Some((After::Stay, closed))
     })
     .flatten();
-    let Some(after) = after else { return Ok(()) };
+    let Some((after, closed)) = after else { return Ok(()) };
+    if let Some(c) = closed {
+        let mut s = st();
+        webcore::push_closed(&mut s.file.closed, c);
+        s.dirty = true;
+    }
     if let Some(p) = app.get_webview(&page_label(wid, tid)) {
         let _ = p.close();
     }
     rt(|m| {
         if let Some(r) = m.get_mut(wid) {
             r.loading.remove(tid);
+            r.nav.remove(tid);
+            r.audio.remove(tid);
+            r.zoom.remove(tid);
+            r.zoom_set.remove(tid);
         }
     });
     match after {
-        // 最後一個分頁關掉：整個視窗關閉（下次打開是首頁）
+        // 最後一個分頁關掉：整個視窗關閉
         After::Last => close_window(app, wid),
         After::Select(n) => select_tab(app, wid, &n)?,
         After::Stay => {
@@ -1159,7 +1591,106 @@ fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 打開視窗。reveal = 縮小的也叫出來（從 web 工具打開時）；程式剛啟動自動打開時維持縮小
+/// 重新開啟最近關閉的分頁（index = 最近關閉清單裡從新到舊的第幾個）
+fn reopen_tab(app: &AppHandle, wid: &str, index: usize) {
+    let c = {
+        let mut s = st();
+        let n = s.file.closed.len();
+        if index >= n {
+            return;
+        }
+        s.dirty = true;
+        s.file.closed.remove(n - 1 - index)
+    };
+    // 原本的視窗還開著就放回原本的位置
+    let (target, after) = match get(&c.win).filter(|w| w.open && !w.incognito) {
+        Some(w) => {
+            let after = c.index.checked_sub(1).and_then(|i| w.tabs.get(i.min(w.tabs.len().saturating_sub(1)))).map(|t| t.id.clone());
+            (c.win.clone(), after)
+        }
+        None => (wid.to_string(), None),
+    };
+    if let Ok(tid) = add_tab(app, &target, c.url, true, after.as_deref()) {
+        edit(&target, |w| {
+            if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
+                t.title = c.title;
+                t.icon = c.icon;
+            }
+        });
+        emit_state(app, &target);
+    }
+}
+
+/// 固定／取消固定分頁：固定的排在最左邊
+fn pin_tab(app: &AppHandle, wid: &str, tid: &str) {
+    edit(wid, |w| {
+        let Some(i) = w.tabs.iter().position(|t| t.id == tid) else { return };
+        let mut t = w.tabs.remove(i);
+        t.pinned = !t.pinned;
+        let pinned = w.tabs.iter().filter(|x| x.pinned).count();
+        w.tabs.insert(pinned, t);
+    });
+    emit_state(app, wid);
+}
+
+fn mute_tab(app: &AppHandle, wid: &str, tid: &str) {
+    let muted = edit(wid, |w| {
+        w.tabs.iter_mut().find(|t| t.id == tid).map(|t| {
+            t.muted = !t.muted;
+            t.muted
+        })
+    })
+    .flatten();
+    if let (Some(m), Some(p)) = (muted, app.get_webview(&page_label(wid, tid))) {
+        with_wv(&p, move |w| webnative::set_muted(w, m));
+    }
+    emit_state(app, wid);
+}
+
+/// 開一個新的瀏覽器視窗（url = 第一個分頁要開的網址；near = 開在哪個視窗旁邊）
+fn new_window(app: &AppHandle, url: Option<String>, incognito: bool, near: Option<&str>) -> Result<String, String> {
+    let base = near.and_then(get);
+    let w = {
+        let mut s = st();
+        s.file.next_id += 1;
+        let n = s.file.next_id;
+        // 新視窗稍微錯開，不要完全疊在一起
+        let k = (s.file.wins.len() % 6) as i32;
+        let (x, y, ww, hh) = match &base {
+            Some(b) => (b.x + 30, b.y + 30, b.w, b.h),
+            None => (200 + k * 40, 150 + k * 40, 0, 0),
+        };
+        let mut w = WebWin { id: format!("w{n}"), x, y, w: ww, h: hh, incognito, url: url.unwrap_or_else(|| HOME.to_string()), ..WebWin::default() };
+        fix_win(&mut w);
+        s.file.wins.push(w.clone());
+        s.dirty = true;
+        w
+    };
+    open_window(app, &w.id, true)?;
+    Ok(w.id)
+}
+
+/// 最近一次從 Chrome 同步擴充功能的時間（開視窗時同步，但不要太頻繁）
+static EXT_SYNCED: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// 開視窗前：從 Chrome 同步書籤與擴充功能（每次開啟都會做；剛做過就不重複）
+fn sync_on_open(app: &AppHandle) {
+    let due = {
+        let mut g = lock(&EXT_SYNCED);
+        if g.is_none_or(|t| t.elapsed() >= Duration::from_secs(20)) {
+            *g = Some(Instant::now());
+            true
+        } else {
+            false
+        }
+    };
+    if due {
+        let _ = sync_extensions();
+        let _ = import_chrome(app, true);
+    }
+}
+
+/// 打開視窗。reveal = 縮小的也叫出來（從瀏覽器工具打開時）；程式剛啟動自動打開時維持縮小
 fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     edit(id, |w| {
         fix_win(w);
@@ -1189,6 +1720,8 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         emit_main(app);
         return Ok(());
     }
+    // 每次開啟都先跟 Chrome 同步（新的擴充功能要在網頁建立前準備好）
+    sync_on_open(app);
 
     // 位置與大小（實體像素）：新視窗預設 1280×720（依 Windows 的縮放比例），螢幕放不下就縮小一點
     let mut cfg = cfg;
@@ -1217,7 +1750,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
 
     // 建立時就顯示（不搶焦點）：視窗的顯示狀態一律交給 Tauri 管，放到最大、縮小、跨螢幕才不會出錯
     let mut builder = WindowBuilder::new(app, &label)
-        .title(if cfg.title.is_empty() { "瀏覽器".to_string() } else { cfg.title.clone() })
+        .title(window_title(&cfg.title, cfg.incognito))
         .decorations(false)
         // 跟一般視窗一樣：工作列有圖示、可以縮小到工作列、可以被其他視窗蓋住
         .skip_taskbar(false)
@@ -1229,7 +1762,8 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         .position(x as f64 / sf0, y as f64 / sf0)
         .inner_size(w as f64 / sf0, h as f64 / sf0)
         .min_inner_size(380.0, 240.0)
-        .background_color(Color(30, 34, 43, 255));
+        // 跟 Chrome 的視窗框一樣的顏色（網頁旁邊留給拉大小的細邊會看到）
+        .background_color(Color(31, 32, 32, 255));
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone()).map_err(|e| e.to_string())?;
     }
@@ -1249,15 +1783,14 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     rt(|m| m.insert(id.to_string(), Rt { hwnd, sf: sf0, ..Rt::default() }));
     install_subclass(app, hwnd, (x, y, w, h));
 
-    let sf = win.scale_factor().unwrap_or(sf0).max(0.5);
     let size = win.inner_size().unwrap_or(PhysicalSize::new(w, h));
-    // 上面：分頁列、網址列、書籤列（本機頁面）
+    let ((bp, bs), _, (ppos, psz)) = geometry(id, &win, size);
+    // 上面：分頁列、工具列、書籤列（本機頁面）
     let bar = WebviewBuilder::new(bar_label(id), WebviewUrl::App("web.html".into())).disable_drag_drop_handler();
-    let (bp, bs) = bar_rect(sf, size);
-    win.add_child(bar, bp, bs).map_err(|e| format!("工具列建立失敗：{e}"))?;
+    let bar = win.add_child(bar, bp, bs).map_err(|e| format!("工具列建立失敗：{e}"))?;
+    attach_native(&bar, id, "", false);
     // 下面：目前分頁的網頁（其他分頁點到時才載入）
     let url = page_url(&cfg.url);
-    let (ppos, psz) = page_rect(sf, size, false);
     add_page(app, &win, id, &cfg.active, url, ppos, psz)?;
 
     let (app2, id2, win2) = (app.clone(), id.to_string(), win.clone());
@@ -1265,18 +1798,19 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         // 放到最大（按鈕、按兩下、拖到螢幕頂端）時不記大小，還原後回到原本的大小
         WindowEvent::Resized(s) if s.width > 0 && s.height > 0 => {
             close_ext_popup(&app2, &id2);
+            pop::hide_of(&app2, &id2);
             layout(&app2, &id2, &win2, *s);
             let max = win2.is_maximized().unwrap_or(false);
             let (w, h) = (s.width, s.height);
-            let hwnd = rt(|m| m.get(&id2).map(|r| r.hwnd).unwrap_or(0));
+            let (hwnd, full) = rt(|m| m.get(&id2).map(|r| (r.hwnd, r.full || r.fs)).unwrap_or((0, false)));
             // 螢幕關掉、拔掉時 Windows 會把視窗縮小塞進剩下的螢幕：那不是使用者調的，不記錄（螢幕回來後會放回原本的大小）
-            let record = crate::scale::user_change(hwnd);
+            let record = crate::scale::user_change(hwnd) && !full;
             let changed = edit(&id2, |c| {
                 if !max && record {
                     (c.w, c.h) = (w, h);
                 }
                 c.min = false;
-                std::mem::replace(&mut c.max, max) != max
+                !full && std::mem::replace(&mut c.max, max) != max
             });
             if changed == Some(true) {
                 emit_state(&app2, &id2);
@@ -1284,6 +1818,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         }
         // 縮小到工作列（大小變成 0）
         WindowEvent::Resized(_) => {
+            pop::hide_of(&app2, &id2);
             let min = win2.is_minimized().unwrap_or(false);
             if edit(&id2, |c| std::mem::replace(&mut c.min, min) != min) == Some(true) {
                 emit_main(&app2);
@@ -1299,7 +1834,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
                     let (w3, id3, app3) = (win2.clone(), id2.clone(), app2.clone());
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_millis(150));
-                        let full = rt(|m| m.get(&id3).is_some_and(|r| r.full));
+                        let full = rt(|m| m.get(&id3).is_some_and(|r| r.full || r.fs));
                         if full || w3.is_maximized().unwrap_or(false) {
                             return;
                         }
@@ -1315,10 +1850,11 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         }
         WindowEvent::Moved(p) if p.x > -10000 && p.y > -10000 => {
             close_ext_popup(&app2, &id2);
+            pop::hide_of(&app2, &id2);
             let (x, y) = (p.x, p.y);
             let max = win2.is_maximized().unwrap_or(false);
-            let hwnd = rt(|m| m.get(&id2).map(|r| r.hwnd).unwrap_or(0));
-            let record = crate::scale::user_change(hwnd);
+            let (hwnd, full) = rt(|m| m.get(&id2).map(|r| (r.hwnd, r.full || r.fs)).unwrap_or((0, false)));
+            let record = crate::scale::user_change(hwnd) && !full;
             edit(&id2, |c| {
                 if !max && !c.max && record {
                     (c.x, c.y) = (x, y);
@@ -1342,6 +1878,12 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         let _ = win.minimize();
     }
     emit_main(app);
+    // 選單用的小視窗先準備好，第一次按選單才不用等
+    let app3 = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1200));
+        pop::warm_up(&app3);
+    });
     Ok(())
 }
 
@@ -1378,19 +1920,31 @@ fn app_work_area(app: &AppHandle, x: i32, y: i32) -> Option<(PhysicalPosition<i3
 }
 
 fn close_window(app: &AppHandle, id: &str) {
-    hide_menu_of(app, id);
+    pop::hide_of(app, id);
     // 關之前再抓最後一張
     #[cfg(windows)]
     if let Some(h) = app.get_window(&win_label(id)).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize) {
         shot_take(id, h);
     }
     shot_keep(id);
-    edit(id, |w| {
+    let incognito = edit(id, |w| {
         w.open = false;
         w.min = false;
-    });
+        w.incognito
+    })
+    .unwrap_or(false);
     if let Some(win) = app.get_window(&win_label(id)) {
         let _ = win.destroy();
+    }
+    if incognito {
+        // 無痕式視窗關掉就消失
+        shot_forget(id);
+        let mut s = st();
+        s.file.wins.retain(|w| w.id != id);
+    }
+    // 最後一個視窗關了：歷史記錄馬上存檔
+    if open_ids().is_empty() {
+        flush_side(true);
     }
     emit_main(app);
 }
@@ -1399,7 +1953,6 @@ fn close_window(app: &AppHandle, id: &str) {
 fn toggle_max(app: &AppHandle, wid: &str) {
     let Some(win) = app.get_window(&win_label(wid)) else { return };
     let _ = if win.is_maximized().unwrap_or(false) { win.unmaximize() } else { win.maximize() };
-    let _ = app;
 }
 
 fn active_page(app: &AppHandle, wid: &str) -> Option<Webview> {
@@ -1411,8 +1964,8 @@ fn open_bm(app: &AppHandle, wid: &str, id: &str, new: bool) {
     let Some(url) = bm_read(|b| bm_find_any(b, id).map(|x| x.url.clone())).and_then(|u| parse_web(&u)) else { return };
     if new {
         let _ = new_tab(app, wid, Some(url), false, None);
-    } else if let Some(p) = active_page(app, wid) {
-        let _ = p.navigate(url);
+    } else if let Some(w) = get(wid) {
+        navigate_tab(app, wid, &w.active, url.as_str());
     }
 }
 
@@ -1487,191 +2040,7 @@ pub fn web_shot(id: String) -> String {
     }
 }
 
-/* ---------------- 選單（另一個置頂小視窗） ---------------- */
-
-#[derive(Serialize, Clone, Default)]
-pub struct MenuItem {
-    /// link / folder / back / act / sep / empty
-    kind: &'static str,
-    title: String,
-    /// link：網站圖示網址；act：圖示名稱
-    icon: String,
-    /// link：網址；folder：裡面有幾個書籤
-    sub: String,
-    danger: bool,
-}
-
-#[derive(Serialize, Clone)]
-pub struct MenuPayload {
-    items: Vec<MenuItem>,
-}
-
-#[derive(Clone)]
-enum Act {
-    Link(String),
-    Folder(String),
-    Back,
-    NewTab(String),
-    Rename(String),
-    Delete(String),
-    TabReload(String),
-    /// 用電腦上的 Chrome 開這個分頁的網址
-    TabChrome(String),
-    /// 清掉這個分頁網站的 Cookie 與儲存資料（登入狀態），然後重新整理
-    TabClearSite(String),
-    TabClose(String),
-    TabOthers(String),
-    TabRight(String),
-    /// 擴充功能：點了開它的選單頁面（沒有就開選項）
-    Ext(String),
-    ExtPage(String),
-    ExtToggle(String, bool),
-    ExtSync,
-    Nothing,
-}
-
-struct MenuSt {
-    owner: String,
-    key: String,
-    items: Vec<MenuItem>,
-    acts: Vec<Act>,
-    stack: Vec<(Vec<MenuItem>, Vec<Act>)>,
-    /// 選單要貼著的範圍（螢幕實體像素：左、上、右、下）
-    anchor: (i32, i32, i32, i32),
-    width: f64,
-    sf: f64,
-    /// 選單實際的範圍
-    rect: (i32, i32, i32, i32),
-    visible: bool,
-    shown_at: Instant,
-}
-
-static MENU: Mutex<Option<MenuSt>> = Mutex::new(None);
-/// 最近一次因為點到外面而關掉的選單（同一個按鈕再點一下＝關掉，不要又打開）
-static MENU_CLOSED: Mutex<Option<(String, Instant)>> = Mutex::new(None);
-static MENU_HWND: AtomicIsize = AtomicIsize::new(0);
-
-fn item(kind: &'static str, title: impl Into<String>, icon: &str) -> MenuItem {
-    MenuItem { kind, title: title.into(), icon: icon.to_string(), ..MenuItem::default() }
-}
-
-fn bm_items(list: &[Bm], icons: &HashMap<String, String>) -> (Vec<MenuItem>, Vec<Act>) {
-    if list.is_empty() {
-        return (vec![item("empty", "（沒有書籤）", "")], vec![Act::Nothing]);
-    }
-    let mut items = Vec::new();
-    let mut acts = Vec::new();
-    for b in list {
-        if b.url.is_empty() {
-            let mut it = item("folder", b.title.clone(), "");
-            it.sub = count_links(&b.children).to_string();
-            items.push(it);
-            acts.push(Act::Folder(b.id.clone()));
-        } else {
-            let icon = host_of(&b.url).and_then(|h| icons.get(&h).cloned()).unwrap_or_default();
-            let title = if b.title.trim().is_empty() { b.url.clone() } else { b.title.clone() };
-            let mut it = item("link", title, &icon);
-            it.sub = b.url.clone();
-            items.push(it);
-            acts.push(Act::Link(b.id.clone()));
-        }
-    }
-    (items, acts)
-}
-
-fn bm_ctx(b: &Bm) -> (Vec<MenuItem>, Vec<Act>) {
-    let id = b.id.clone();
-    if b.url.is_empty() {
-        let mut del = item("act", format!("刪除資料夾（含 {} 個書籤）", count_links(&b.children)), "delete");
-        del.danger = true;
-        (vec![item("act", "改名", "rename"), item("sep", "", ""), del], vec![Act::Rename(id.clone()), Act::Nothing, Act::Delete(id)])
-    } else {
-        let mut del = item("act", "刪除", "delete");
-        del.danger = true;
-        (
-            vec![item("act", "在新分頁開啟", "newtab"), item("sep", "", ""), item("act", "改名", "rename"), del],
-            vec![Act::NewTab(id.clone()), Act::Nothing, Act::Rename(id.clone()), Act::Delete(id)],
-        )
-    }
-}
-
-fn ext_items() -> (Vec<MenuItem>, Vec<Act>) {
-    let list = ext_list();
-    let mut items = vec![item("head", "擴充功能", "")];
-    let mut acts = vec![Act::Nothing];
-    if list.is_empty() {
-        items.push(item("empty", "（沒有擴充功能）", ""));
-        acts.push(Act::Nothing);
-    }
-    for e in &list {
-        let mut it = item("ext", e.name.clone(), &e.icon);
-        it.sub = if e.off { "已停用".into() } else if e.popup.is_empty() && e.options.is_empty() { "自動執行".into() } else { String::new() };
-        items.push(it);
-        acts.push(Act::Ext(e.id.clone()));
-    }
-    items.push(item("sep", "", ""));
-    acts.push(Act::Nothing);
-    items.push(item("act", "從 Chrome 重新同步", "reload"));
-    acts.push(Act::ExtSync);
-    (items, acts)
-}
-
-/// 擴充功能的右鍵選單：開啟選單頁面、選項、停用／啟用
-fn ext_ctx(id: &str) -> Option<(Vec<MenuItem>, Vec<Act>)> {
-    let e = ext_list().into_iter().find(|e| e.id == id)?;
-    let mut items = Vec::new();
-    let mut acts = Vec::new();
-    if !e.popup.is_empty() {
-        items.push(item("act", "開啟擴充功能選單", "newtab"));
-        acts.push(Act::ExtPage(e.popup.clone()));
-    }
-    if !e.options.is_empty() {
-        items.push(item("act", "選項", "rename"));
-        acts.push(Act::ExtPage(e.options.clone()));
-    }
-    if !items.is_empty() {
-        items.push(item("sep", "", ""));
-        acts.push(Act::Nothing);
-    }
-    if e.off {
-        items.push(item("act", "啟用（重新開啟視窗後生效）", "reload"));
-        acts.push(Act::ExtToggle(e.id, false));
-    } else {
-        let mut it = item("act", "停用（重新開啟視窗後生效）", "close");
-        it.danger = true;
-        items.push(it);
-        acts.push(Act::ExtToggle(e.id, true));
-    }
-    Some((items, acts))
-}
-
-fn tab_ctx(tid: &str) -> (Vec<MenuItem>, Vec<Act>) {
-    let t = tid.to_string();
-    let mut clear = item("act", "清除這個網站的資料（Cookie、登入狀態）", "delete");
-    clear.danger = true;
-    (
-        vec![
-            item("act", "重新整理", "reload"),
-            item("act", "用 Chrome 開啟", "chrome"),
-            item("sep", "", ""),
-            item("act", "關閉分頁", "close"),
-            item("act", "關閉其他分頁", "close"),
-            item("act", "關閉右側分頁", "close"),
-            item("sep", "", ""),
-            clear,
-        ],
-        vec![
-            Act::TabReload(t.clone()),
-            Act::TabChrome(t.clone()),
-            Act::Nothing,
-            Act::TabClose(t.clone()),
-            Act::TabOthers(t.clone()),
-            Act::TabRight(t.clone()),
-            Act::Nothing,
-            Act::TabClearSite(t),
-        ],
-    )
-}
+/* ---------------- 網站資料、用 Chrome 開啟 ---------------- */
 
 /// 這個網址要清的來源：本身、去掉子網域的主網域、www.主網域，各有 http / https
 fn site_origins(url: &str) -> Vec<String> {
@@ -1706,7 +2075,7 @@ fn open_tab_in_chrome(wid: &str, tid: Option<&str>) {
     let Some(w) = get(wid) else { return };
     let tid = tid.map(str::to_string).unwrap_or_else(|| w.active.clone());
     let url = w.tabs.iter().find(|t| t.id == tid).map(|t| t.url.clone()).unwrap_or(w.url);
-    if url.trim().is_empty() || url.starts_with("about:") {
+    if parse_web(&url).is_none() {
         return;
     }
     if let Err(e) = crate::winsys::open_in_chrome(&url) {
@@ -1714,63 +2083,21 @@ fn open_tab_in_chrome(wid: &str, tid: Option<&str>) {
     }
 }
 
-/// 工具列的「用 Chrome 開啟」：目前分頁的網址交給 Chrome
-#[tauri::command]
-pub async fn web_open_chrome(webview: Webview) {
-    if let Some(id) = id_of(&webview) {
-        open_tab_in_chrome(&id, None);
-    }
-}
-
-/// 清掉分頁網站的 Cookie 與儲存資料，然後重新整理。
-/// Cookie 用 WebView2 的 Cookie 管理：把「開這個網址時會送出的 cookie」（含 .x.com 這種整個網域的）全部刪掉；
-/// 其他資料（localStorage、IndexedDB、快取、Service Worker）用 DevTools 的 Storage.clearDataForOrigin
-#[cfg(windows)]
+/// 清掉分頁網站的 Cookie 與儲存資料，然後重新整理
 fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
-    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_2;
-    use webview2_com::{CallDevToolsProtocolMethodCompletedHandler, GetCookiesCompletedHandler};
-    use windows_core::{Interface, HSTRING};
     let Some(url) = get(owner).and_then(|w| w.tabs.into_iter().find(|t| t.id == tid)).map(|t| t.url) else { return };
+    if parse_web(&url).is_none() {
+        return;
+    }
     let origins = site_origins(&url);
     if origins.is_empty() {
         return;
     }
     let label = page_label(owner, tid);
     let Some(wv) = app.get_webview(&label) else { return };
-    let _ = wv.with_webview(move |pw| unsafe {
-        let Ok(core) = pw.controller().CoreWebView2() else { return };
-        if let Ok(cm) = core.cast::<ICoreWebView2_2>().and_then(|c| c.CookieManager()) {
-            for o in &origins {
-                let cm2 = cm.clone();
-                let handler = GetCookiesCompletedHandler::create(Box::new(move |_, list| {
-                    if let Some(list) = list {
-                        let mut n = 0u32;
-                        let _ = list.Count(&mut n);
-                        for i in 0..n {
-                            if let Ok(c) = list.GetValueAtIndex(i) {
-                                let _ = cm2.DeleteCookie(&c);
-                            }
-                        }
-                    }
-                    Ok(())
-                }));
-                if let Err(e) = cm.GetCookies(&HSTRING::from(format!("{o}/")), &handler) {
-                    eprintln!("讀取 cookie 失敗：{e}");
-                }
-            }
-        } else {
-            eprintln!("這個 WebView2 版本沒有 Cookie 管理");
-        }
-        for o in &origins {
-            let params = serde_json::json!({ "origin": o, "storageTypes": "all" }).to_string();
-            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|_, _| Ok(())));
-            if let Err(e) = core.CallDevToolsProtocolMethod(&HSTRING::from("Storage.clearDataForOrigin"), &HSTRING::from(params), &handler) {
-                eprintln!("清除網站資料失敗：{e}");
-            }
-        }
-    });
+    with_wv(&wv, move |w| webnative::clear_site(w, &origins));
     // 清完（最多等一秒多）再重新整理，不靠上面的回呼
-    let (app, label) = (app.clone(), label);
+    let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(1200));
         if let Some(p) = app.get_webview(&label) {
@@ -1779,152 +2106,505 @@ fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
     });
 }
 
-#[cfg(not(windows))]
-fn clear_site(app: &AppHandle, owner: &str, tid: &str) {
-    if let Some(p) = app.get_webview(&page_label(owner, tid)) {
-        let _ = p.reload();
-    }
+/* ---------------- 歷史記錄、下載記錄（另外存檔） ---------------- */
+
+struct Side {
+    dir: PathBuf,
+    hist: webcore::History,
+    hist_dirty: bool,
+    hist_saved: Instant,
+    dl: webcore::Downloads,
+    dl_dirty: bool,
+    /// WebView2 的下載編號 → 下載記錄的編號
+    dl_keys: HashMap<u64, u64>,
+    /// 這次開啟程式後有沒有下載過
+    dl_any: bool,
 }
 
-fn menu_height(items: &[MenuItem]) -> f64 {
-    let h: f64 = items.iter().map(|i| if i.kind == "sep" { MENU_SEP_H } else { MENU_ITEM_H }).sum();
-    (h + MENU_PAD * 2.0).min(MENU_MAX_H)
+static SIDE: OnceLock<Mutex<Side>> = OnceLock::new();
+
+fn side_edit<T>(f: impl FnOnce(&mut Side) -> T) -> Option<T> {
+    Some(f(&mut *lock(SIDE.get()?)))
 }
 
-fn menu_window(app: &AppHandle) -> Result<WebviewWindow, String> {
-    if let Some(w) = app.get_webview_window(MENU_LABEL) {
-        return Ok(w);
-    }
-    let w = WebviewWindowBuilder::new(app, MENU_LABEL, WebviewUrl::App("web-menu.html".into()))
-        .title("web 選單")
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        .focused(false)
-        .focusable(false)
-        .visible(false)
-        .shadow(true)
-        .background_color(Color(38, 43, 54, 255))
-        .inner_size(280.0, 120.0)
-        .build()
-        .map_err(|e| format!("選單建立失敗：{e}"))?;
-    #[cfg(windows)]
-    if let Ok(h) = w.hwnd() {
-        let h = h.0 as isize;
-        MENU_HWND.store(h, Ordering::SeqCst);
-        let _ = app.run_on_main_thread(move || win32::subclass_menu(h));
-    }
-    Ok(w)
+fn hist_edit<T>(f: impl FnOnce(&mut webcore::History) -> T) -> Option<T> {
+    side_edit(|s| {
+        s.hist_dirty = true;
+        f(&mut s.hist)
+    })
 }
 
-/// 顯示選單（位置貼著 anchor，超出螢幕就往上或往左擺）
-fn show_menu(app: &AppHandle, mut s: MenuSt) -> Result<(), String> {
-    let win = menu_window(app)?;
-    let pw = (s.width * s.sf).round() as i32;
-    let mut ph = (menu_height(&s.items) * s.sf).round() as i32;
-    let (l, t, r, b) = s.anchor;
-    let (mut x, mut y) = (l, b);
-    let wa = app
-        .get_window(&win_label(&s.owner))
-        .and_then(|o| o.monitor_from_point(l as f64 + 1.0, t as f64 + 1.0).ok().flatten())
-        .map(|m| *m.work_area());
-    if let Some(wa) = wa {
-        let (wl, wt) = (wa.position.x, wa.position.y);
-        let (wr, wb) = (wl + wa.size.width as i32, wt + wa.size.height as i32);
-        ph = ph.min((wb - wt - 8).max(60));
-        if x + pw > wr {
-            x = if r > l { r - pw } else { wr - pw };
-        }
-        x = x.max(wl);
-        if y + ph > wb {
-            y = if t - ph >= wt { t - ph } else { (wb - ph).max(wt) };
-        }
-    }
-    s.rect = (x, y, x + pw, y + ph);
-    s.visible = true;
-    s.shown_at = Instant::now();
-    let payload = MenuPayload { items: s.items.clone() };
-    *lock(&MENU) = Some(s);
-    let _ = app.emit_to(MENU_LABEL, "web-menu-items", payload);
-    // 等選單內容換好再顯示，避免先閃一下舊的內容
-    std::thread::sleep(Duration::from_millis(40));
-    #[cfg(windows)]
-    {
-        let h = MENU_HWND.load(Ordering::SeqCst);
-        if h != 0 {
-            win32::show_at(h, x, y, pw, ph);
-            // 選單換到縮放比例不同的螢幕時，Windows 會自動放大縮小一次：再設回正確的大小
-            std::thread::sleep(Duration::from_millis(60));
-            if lock(&MENU).as_ref().is_some_and(|s| s.visible && s.rect == (x, y, x + pw, y + ph)) {
-                win32::show_at(h, x, y, pw, ph);
+fn hist_read<T>(f: impl FnOnce(&webcore::History) -> T) -> Option<T> {
+    side_edit(|s| f(&s.hist))
+}
+
+fn dl_edit<T>(f: impl FnOnce(&mut webcore::Downloads) -> T) -> Option<T> {
+    side_edit(|s| {
+        s.dl_dirty = true;
+        f(&mut s.dl)
+    })
+}
+
+fn load_side(dir: &Path) {
+    let read = |name: &str| std::fs::read_to_string(dir.join(name)).ok();
+    let hist: webcore::HistFile = read("web-history.json").and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let mut dl: webcore::Downloads = read("web-downloads.json").and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    dl.fix_loaded();
+    let _ = SIDE.set(Mutex::new(Side {
+        dir: dir.to_path_buf(),
+        hist: webcore::History::from_file(hist),
+        hist_dirty: false,
+        hist_saved: Instant::now(),
+        dl,
+        dl_dirty: false,
+        dl_keys: HashMap::new(),
+        dl_any: false,
+    }));
+}
+
+/// 有變動就存檔：歷史記錄比較大，最多 15 秒存一次（force = 馬上存）
+fn flush_side(force: bool) {
+    let jobs = side_edit(|s| {
+        let mut jobs: Vec<(PathBuf, String)> = Vec::new();
+        if s.hist_dirty && (force || s.hist_saved.elapsed() >= Duration::from_secs(15)) {
+            s.hist_dirty = false;
+            s.hist_saved = Instant::now();
+            if let Ok(t) = serde_json::to_string(&s.hist.to_file()) {
+                jobs.push((s.dir.join("web-history.json"), t));
             }
-            return Ok(());
         }
-    }
-    let _ = win.set_position(PhysicalPosition::new(x, y));
-    let _ = win.set_size(PhysicalSize::new(pw as u32, ph as u32));
-    let _ = win.show();
-    Ok(())
-}
-
-fn hide_menu(app: &AppHandle, outside: bool) {
-    let closed = {
-        let mut m = lock(&MENU);
-        match m.as_mut() {
-            Some(s) if s.visible => {
-                s.visible = false;
-                Some((s.owner.clone(), s.key.clone()))
+        if s.dl_dirty {
+            s.dl_dirty = false;
+            if let Ok(t) = serde_json::to_string(&s.dl) {
+                jobs.push((s.dir.join("web-downloads.json"), t));
             }
-            _ => None,
         }
-    };
-    let Some((owner, key)) = closed else { return };
-    if outside {
-        *lock(&MENU_CLOSED) = Some((key, Instant::now()));
+        jobs
+    })
+    .unwrap_or_default();
+    for (path, text) in jobs {
+        let tmp = path.with_extension("tmp");
+        if std::fs::write(&tmp, text).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
     }
-    #[cfg(windows)]
+}
+
+fn dl_badge() -> DlBadge {
+    side_edit(|s| {
+        let active: Vec<&webcore::Dl> = s.dl.list.iter().filter(|d| d.state == "progress").collect();
+        let (got, total) = active.iter().fold((0i64, 0i64), |a, d| (a.0 + d.received.max(0), a.1 + d.total.max(0)));
+        let known = !active.is_empty() && active.iter().all(|d| d.total > 0);
+        DlBadge { any: s.dl_any, active: active.len(), pct: if known && total > 0 { ((got * 100) / total).clamp(0, 100) as i32 } else { -1 } }
+    })
+    .unwrap_or_default()
+}
+
+fn on_download(app: &AppHandle, d: DlEv) {
+    let now = webcore::now_ms();
+    side_edit(|s| {
+        s.dl_dirty = true;
+        match d {
+            DlEv::Start { key, url, path, total } => {
+                let id = s.dl.start(&url, &path, total, now);
+                s.dl_keys.insert(key, id);
+                s.dl_any = true;
+            }
+            DlEv::Progress { key, received, total } => {
+                if let Some(x) = s.dl_keys.get(&key).copied().and_then(|id| s.dl.get_mut(id)) {
+                    x.received = received;
+                    if total > 0 {
+                        x.total = total;
+                    }
+                }
+            }
+            DlEv::Done { key, state, path, received } => {
+                if let Some(x) = s.dl_keys.remove(&key).and_then(|id| s.dl.get_mut(id)) {
+                    x.state = state.to_string();
+                    x.end = now;
+                    if received > 0 {
+                        x.received = received;
+                    }
+                    if !path.is_empty() {
+                        x.path = path;
+                    }
+                }
+            }
+        }
+    });
+    emit_state_all(app);
+}
+
+/* ---------------- WebView2 通知的事情、指令 ---------------- */
+
+fn handle_ev(app: &AppHandle, wid: &str, tid: &str, ev: Ev) {
+    match ev {
+        Ev::Key(cmd) => run_cmd(app, wid, (!tid.is_empty()).then_some(tid), cmd),
+        Ev::Nav { back, forward } => {
+            let changed = rt(|m| m.get_mut(wid).map(|r| r.nav.insert(tid.to_string(), (back, forward)) != Some((back, forward)))).unwrap_or(false);
+            if changed {
+                emit_state(app, wid);
+            }
+        }
+        Ev::Source(u) => on_source(app, wid, tid, &u),
+        Ev::Favicon(u) => set_icon(app, wid, tid, u),
+        Ev::Audio { playing, muted } => {
+            rt(|m| {
+                if let Some(r) = m.get_mut(wid) {
+                    if playing {
+                        r.audio.insert(tid.to_string());
+                    } else {
+                        r.audio.remove(tid);
+                    }
+                }
+            });
+            edit(wid, |w| {
+                if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
+                    t.muted = muted;
+                }
+            });
+            emit_state(app, wid);
+        }
+        Ev::Zoom(z) => on_zoom(app, wid, tid, z),
+        Ev::Fullscreen(on) => set_fullscreen(app, wid, on),
+        Ev::Context { seq, target, items } => pop::open_context(app, wid, tid, seq, target, items),
+        Ev::Download(d) => on_download(app, d),
+        Ev::CloseRequested => {
+            let _ = close_tab(app, wid, tid);
+        }
+    }
+}
+
+fn tab_of(wid: &str, tid: &str) -> Option<Tab> {
+    get(wid)?.tabs.into_iter().find(|t| t.id == tid)
+}
+
+/// WebView2 通知縮放變了
+fn on_zoom(app: &AppHandle, wid: &str, tid: &str, z: f64) {
+    let mine = rt(|m| {
+        m.get_mut(wid).and_then(|r| {
+            r.zoom.insert(tid.to_string(), z);
+            r.zoom_set.get(tid).copied()
+        })
+    });
+    if mine.is_some_and(|p| (p - z).abs() < 0.002) {
+        emit_state(app, wid);
+        return;
+    }
+    // 使用者用 Ctrl + 滾輪調的：記住這個網站的縮放
+    let Some(tab) = tab_of(wid, tid) else { return };
     {
-        let h = MENU_HWND.load(Ordering::SeqCst);
-        if h != 0 {
-            win32::show(h, false);
+        let mut s = st();
+        if s.file.settings.set_zoom(&tab.url, z) {
+            s.dirty = true;
         }
     }
-    #[cfg(not(windows))]
-    if let Some(w) = app.get_webview_window(MENU_LABEL) {
-        let _ = w.hide();
-    }
-    let _ = app.emit_to(bar_label(&owner).as_str(), "web-menu-closed", owner.clone());
-}
-
-fn hide_menu_of(app: &AppHandle, wid: &str) {
-    let mine = lock(&MENU).as_ref().is_some_and(|s| s.visible && s.owner == wid);
-    if mine {
-        hide_menu(app, false);
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.zoom_set.insert(tid.to_string(), z);
+        }
+    });
+    emit_state(app, wid);
+    if get(wid).is_some_and(|w| w.active == tid) {
+        ask_bar(app, wid, "zoom");
     }
 }
 
-/// 選單換成另一層（資料夾、右鍵選單），可以按「返回上一層」回來
-fn push_menu(app: &AppHandle, items: Vec<MenuItem>, acts: Vec<Act>) {
-    let Some(mut s) = lock(&MENU).take() else { return };
-    let old_items = std::mem::take(&mut s.items);
-    let old_acts = std::mem::take(&mut s.acts);
-    s.stack.push((old_items, old_acts));
-    s.items = std::iter::once(item("back", "返回上一層", "")).chain(items).collect();
-    s.acts = std::iter::once(Act::Back).chain(acts).collect();
-    s.width = s.width.max(220.0);
-    let _ = show_menu(app, s);
+/// 設定分頁的縮放（快捷鍵、選單）：記住這個網站的縮放並套用
+fn set_tab_zoom(app: &AppHandle, wid: &str, tid: &str, z: f64) {
+    let Some(tab) = tab_of(wid, tid) else { return };
+    let z = z.clamp(0.25, 5.0);
+    {
+        let mut s = st();
+        if s.file.settings.set_zoom(&tab.url, z) {
+            s.dirty = true;
+        }
+    }
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.zoom.insert(tid.to_string(), z);
+            r.zoom_set.insert(tid.to_string(), z);
+        }
+    });
+    if let Some(p) = app.get_webview(&page_label(wid, tid)) {
+        with_wv(&p, move |w| webnative::set_zoom(w, z));
+    }
+    emit_state(app, wid);
 }
 
-fn pop_menu(app: &AppHandle) {
-    let Some(mut s) = lock(&MENU).take() else { return };
-    if let Some((items, acts)) = s.stack.pop() {
-        s.items = items;
-        s.acts = acts;
+fn tab_zoom(wid: &str, tid: &str) -> f64 {
+    let cur = rt(|m| m.get(wid).and_then(|r| r.zoom.get(tid).copied()));
+    cur.unwrap_or_else(|| {
+        let url = tab_of(wid, tid).map(|t| t.url).unwrap_or_default();
+        st().file.settings.zoom_for(&url)
+    })
+}
+
+/// 開程式自己的頁面（歷史記錄、設定…）：目前是新分頁就直接換過去；已經開著就切過去；不然開新分頁
+fn open_internal(app: &AppHandle, wid: &str, v: &str) {
+    let Some(w) = get(wid) else { return };
+    let page = webcore::virtual_page(v);
+    if w.tabs.iter().any(|t| t.id == w.active && webcore::is_newtab(&t.url)) {
+        navigate_tab(app, wid, &w.active, v);
+        return;
     }
-    let _ = show_menu(app, s);
+    if let Some(t) = w.tabs.iter().find(|t| page.is_some() && webcore::virtual_page(&t.url) == page) {
+        let (tid, same) = (t.id.clone(), t.url == v);
+        let _ = select_tab(app, wid, &tid);
+        if !same {
+            navigate_tab(app, wid, &tid, v);
+        }
+        return;
+    }
+    let _ = add_tab(app, wid, v.to_string(), true, None);
+}
+
+fn copy_text(text: &str) {
+    let _ = arboard::Clipboard::new().and_then(|mut c| c.set_text(text.to_string()));
+}
+
+/// 目前的網頁加入書籤列（已經加過就不動）。回傳書籤的編號
+fn bookmark_add(app: &AppHandle, wid: &str) -> Option<String> {
+    let w = get(wid)?;
+    let tab = w.tabs.into_iter().find(|t| t.id == w.active)?;
+    parse_web(&tab.url)?;
+    let (id, added) = bm(|b| {
+        if let Some(id) = bm_url_id(&b.bar, &tab.url).or_else(|| bm_url_id(&b.other, &tab.url)) {
+            return (id, false);
+        }
+        b.ignored.retain(|i| !same_url(i, &tab.url));
+        b.next_id += 1;
+        let host = host_of(&tab.url).unwrap_or_default();
+        let title = if tab.title.trim().is_empty() { host.clone() } else { tab.title.clone() };
+        let id = format!("b{}", b.next_id);
+        b.bar.push(Bm { id: id.clone(), title, url: tab.url.clone(), ..Bm::default() });
+        if !tab.icon.is_empty() && !host.is_empty() {
+            b.icons.insert(host, tab.icon.clone());
+        }
+        (id, true)
+    });
+    if added {
+        emit_bm(app);
+    }
+    Some(id)
+}
+
+/// 目前網頁的書籤（有的話）移除
+fn bookmark_remove(app: &AppHandle, wid: &str) {
+    let Some(url) = get(wid).and_then(|w| w.tabs.into_iter().find(|t| t.id == w.active)).map(|t| t.url) else { return };
+    let removed = bm(|b| {
+        let Some(id) = bm_url_id(&b.bar, &url).or_else(|| bm_url_id(&b.other, &url)) else { return false };
+        if let Some(x) = bm_remove(&mut b.bar, &id).or_else(|| bm_remove(&mut b.other, &id)) {
+            remember_deleted(b, &x);
+        }
+        true
+    });
+    if removed {
+        emit_bm(app);
+    }
+}
+
+/// 執行一個瀏覽器指令（快捷鍵、選單、工具列按鈕共用）。tid = 指令針對的分頁（沒給就是目前的分頁）
+pub(crate) fn run_cmd(app: &AppHandle, wid: &str, tid: Option<&str>, cmd: &str) {
+    let Some(w) = get(wid) else { return };
+    let tid = tid.filter(|t| w.tabs.iter().any(|x| x.id == *t)).map(str::to_string).unwrap_or_else(|| w.active.clone());
+    let tab = w.tabs.iter().find(|t| t.id == tid).cloned().unwrap_or_default();
+    let page = || app.get_webview(&page_label(wid, &tid));
+    let index = w.tabs.iter().position(|t| t.id == w.active).unwrap_or(0);
+    if cmd != "esc" && cmd != "noop" {
+        pop::hide_of(app, wid);
+    }
+    match cmd {
+        "noop" => {}
+        "esc" => pop::hide_of(app, wid),
+        "tab.new" => {
+            if add_tab(app, wid, HOME.to_string(), true, None).is_ok() {
+                focus_omni(app, wid, false);
+            }
+        }
+        "tab.new_right" => {
+            if add_tab(app, wid, HOME.to_string(), true, Some(&tid)).is_ok() {
+                focus_omni(app, wid, false);
+            }
+        }
+        "tab.close" => {
+            let _ = close_tab(app, wid, &tid);
+        }
+        "tab.reopen" => reopen_tab(app, wid, 0),
+        "tab.next" | "tab.prev" => {
+            let n = w.tabs.len();
+            if n > 1 {
+                let i = if cmd == "tab.next" { (index + 1) % n } else { (index + n - 1) % n };
+                let _ = select_tab(app, wid, &w.tabs[i].id);
+            }
+        }
+        "tab.last" => {
+            if let Some(t) = w.tabs.last() {
+                let _ = select_tab(app, wid, &t.id);
+            }
+        }
+        "tab.dup" => {
+            let _ = add_tab(app, wid, tab.url.clone(), true, Some(&tid));
+        }
+        "tab.pin" => pin_tab(app, wid, &tid),
+        "tab.mute" => mute_tab(app, wid, &tid),
+        "tab.reload" | "nav.reload" => {
+            if let Some(p) = page() {
+                let _ = p.reload();
+            }
+        }
+        "tab.to_window" => {
+            if w.tabs.len() > 1 && new_window(app, Some(tab.url.clone()), w.incognito, Some(wid)).is_ok() {
+                let _ = close_tab(app, wid, &tid);
+            }
+        }
+        "tab.close_others" | "tab.close_right" => {
+            let Some(i) = w.tabs.iter().position(|x| x.id == tid) else { return };
+            let only_right = cmd == "tab.close_right";
+            let close: Vec<String> =
+                w.tabs.iter().enumerate().filter(|(j, x)| x.id != tid && !x.pinned && (!only_right || *j > i)).map(|(_, x)| x.id.clone()).collect();
+            let _ = select_tab(app, wid, &tid);
+            for c in close {
+                let _ = close_tab(app, wid, &c);
+            }
+        }
+        "tab.chrome" => open_tab_in_chrome(wid, Some(&tid)),
+        "site.clear" => clear_site(app, wid, &tid),
+        "win.new" | "win.incognito" => {
+            if let Ok(id) = new_window(app, None, cmd == "win.incognito", Some(wid)) {
+                focus_omni(app, &id, false);
+            }
+        }
+        "win.close" => close_window(app, wid),
+        "win.min" => {
+            if let Some(win) = app.get_window(&win_label(wid)) {
+                let _ = win.minimize();
+            }
+        }
+        "win.max" => toggle_max(app, wid),
+        "win.fullscreen" => toggle_fs(app, wid),
+        "exit" => {
+            for id in open_ids() {
+                close_window(app, &id);
+            }
+        }
+        "nav.back" => {
+            if let Some(p) = page() {
+                with_wv(&p, webnative::go_back);
+            }
+        }
+        "nav.forward" => {
+            if let Some(p) = page() {
+                with_wv(&p, webnative::go_forward);
+            }
+        }
+        "nav.stop" => {
+            if let Some(p) = page() {
+                with_wv(&p, webnative::stop);
+            }
+        }
+        "nav.home" => {
+            let home = st().file.settings.home_url.clone();
+            let target = webcore::resolve_input(&home, engine()).map(|(u, _)| u).unwrap_or_else(|| HOME.to_string());
+            navigate_tab(app, wid, &tid, &target);
+        }
+        "omni.focus" | "omni.search" => focus_omni(app, wid, true),
+        "menu.main" => ask_bar(app, wid, "main"),
+        "bm.add" => {
+            if bookmark_add(app, wid).is_some() {
+                ask_bar(app, wid, "bookmark");
+            }
+        }
+        "bm.remove" => bookmark_remove(app, wid),
+        "bm.bar" => {
+            {
+                let mut s = st();
+                s.file.settings.show_bm = !s.file.settings.show_bm;
+                s.dirty = true;
+            }
+            for id in open_ids() {
+                relayout(app, &id);
+                emit_state(app, &id);
+            }
+        }
+        "bm.manager" => open_internal(app, wid, "chrome://bookmarks/"),
+        "bm.all_tabs" => {
+            let links: Vec<(String, String)> = w.tabs.iter().filter(|t| parse_web(&t.url).is_some()).map(|t| (t.title.clone(), t.url.clone())).collect();
+            if !links.is_empty() {
+                bm(|b| {
+                    let mut next = b.next_id;
+                    let children = links
+                        .into_iter()
+                        .map(|(title, url)| {
+                            next += 1;
+                            Bm { id: format!("b{next}"), title, url, ..Bm::default() }
+                        })
+                        .collect();
+                    next += 1;
+                    b.bar.push(Bm { id: format!("b{next}"), title: "已儲存的分頁".into(), children, ..Bm::default() });
+                    b.next_id = next;
+                });
+                emit_bm(app);
+            }
+        }
+        "page.history" => open_internal(app, wid, "chrome://history/"),
+        "page.downloads" => open_internal(app, wid, "chrome://downloads/"),
+        "page.settings" => open_internal(app, wid, "chrome://settings/"),
+        "page.extensions" => open_internal(app, wid, "chrome://extensions/"),
+        "page.cleardata" => open_internal(app, wid, "chrome://settings/clearBrowserData"),
+        "zoom.in" | "zoom.out" | "zoom.reset" => {
+            let cur = tab_zoom(wid, &tid);
+            let z = match cmd {
+                "zoom.in" => webcore::zoom_step(cur, true),
+                "zoom.out" => webcore::zoom_step(cur, false),
+                _ => st().file.settings.zoom_for(""),
+            };
+            set_tab_zoom(app, wid, &tid, z);
+            if w.active == tid {
+                ask_bar(app, wid, "zoom");
+            }
+        }
+        "print" => {
+            if let Some(p) = page() {
+                let _ = p.print();
+            }
+        }
+        "find" => {
+            if let Some(p) = page() {
+                with_wv(&p, |w| {
+                    webnative::find(w);
+                });
+            }
+        }
+        "save" => {
+            if let Some(p) = page() {
+                with_wv(&p, webnative::save_as);
+            }
+        }
+        "source" => {
+            if parse_web(&tab.url).is_some() {
+                let _ = add_tab(app, wid, format!("view-source:{}", tab.url), true, Some(&tid));
+            }
+        }
+        "taskmgr" => {
+            if let Some(p) = page() {
+                with_wv(&p, webnative::task_manager);
+            }
+        }
+        "dl.toggle" => {
+            if let Some(p) = active_page(app, wid) {
+                with_wv(&p, webnative::toggle_downloads);
+            }
+        }
+        "copy.url" => copy_text(&tab.url),
+        _ => {
+            if let Some(n) = cmd.strip_prefix("tab.select:").and_then(|n| n.parse::<usize>().ok()) {
+                if let Some(t) = n.checked_sub(1).and_then(|i| w.tabs.get(i)) {
+                    let _ = select_tab(app, wid, &t.id);
+                }
+            }
+        }
+    }
 }
 
 /* ---------------- Windows：攔截訊息、焦點、樣式 ---------------- */
@@ -2210,6 +2890,17 @@ mod win32 {
         }
     }
 
+    /// 視窗的範圍（螢幕實體像素：左、上、右、下）
+    pub fn rect(h: isize) -> Option<(i32, i32, i32, i32)> {
+        unsafe {
+            let mut r: RECT = std::mem::zeroed();
+            if GetWindowRect(h as HWND, &mut r) == 0 {
+                return None;
+            }
+            Some((r.left, r.top, r.right, r.bottom))
+        }
+    }
+
     pub fn cursor_outside(h: isize) -> bool {
         unsafe {
             let mut p: POINT = std::mem::zeroed();
@@ -2383,7 +3074,7 @@ fn restore_later() {
         }
         for cfg in st().file.wins.iter().filter(|w| w.open).cloned().collect::<Vec<_>>() {
             let Some(win) = app.get_window(&win_label(&cfg.id)) else { continue };
-            if win.is_minimized().unwrap_or(false) || win.is_maximized().unwrap_or(false) || rt(|m| m.get(&cfg.id).is_some_and(|r| r.full)) {
+            if win.is_minimized().unwrap_or(false) || win.is_maximized().unwrap_or(false) || rt(|m| m.get(&cfg.id).is_some_and(|r| r.full || r.fs)) {
                 continue;
             }
             let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
@@ -2433,7 +3124,8 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
     let origin = win.inner_position().map_err(|e| e.to_string())?;
     let (w, h) = ((400.0 * sf).round() as i32, (560.0 * sf).round() as i32);
     let w = w.min(size.width as i32 - 8).max(100);
-    let h = h.min(size.height as i32 - (BAR_H * sf) as i32 - 8).max(100);
+    let bar_px = (bar_h(win.is_maximized().unwrap_or(false)) * sf) as i32;
+    let h = h.min(size.height as i32 - bar_px - 8).max(100);
     let x = (anchor.2 - origin.x - w).max(4).min(size.width as i32 - w - 4);
     let y = (anchor.3 - origin.y + 4).max(0).min(size.height as i32 - h);
     // 擴充功能問「目前的分頁」時，回答目前顯示的網頁（WebView2 把每個網頁當成各自的視窗，不這樣做擴充功能只會看到自己）
@@ -2528,16 +3220,27 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     if let Some(dir) = path.parent() {
         let _ = WEB_DIR.set(dir.to_path_buf());
         crate::userscripts::init(dir.to_path_buf());
+        load_side(dir);
     }
     #[cfg(windows)]
     let _ = app.run_on_main_thread(win32::hook_foreground);
     let file = load(&path);
     let reopen: Vec<String> = file.wins.iter().filter(|w| w.open).map(|w| w.id.clone()).collect();
     let _ = STORE.set(Mutex::new(Store { file, path, dirty: false }));
+
+    // WebView2 通知的事情（快捷鍵、右鍵選單、下載…）：一個背景執行緒照順序處理
+    let (tx, rx) = std::sync::mpsc::channel::<(String, String, Ev)>();
+    let _ = EVQ.set(Mutex::new(tx));
+    let app0 = app.clone();
+    std::thread::spawn(move || {
+        for (wid, tid, ev) in rx {
+            handle_ev(&app0, &wid, &tid, ev);
+        }
+    });
+
     let app1 = app.clone();
     std::thread::spawn(move || {
-        // 上次關閉程式時開著的視窗：重新打開（先從 Chrome 同步擴充功能）
-        let _ = sync_extensions();
+        // 上次關閉程式時開著的視窗：重新打開（打開時會先從 Chrome 同步書籤與擴充功能）
         std::thread::sleep(Duration::from_millis(1500));
         for id in reopen {
             if let Err(e) = open_window(&app1, &id, false) {
@@ -2553,19 +3256,20 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             if any_open {
                 tick(&app1);
             }
-            // 自動從 Chrome 匯入：有視窗開著時每 5 秒看一次 Chrome 的書籤檔有沒有變動
+            // 書籤自動跟 Chrome 同步：有視窗開著時每 5 秒看一次 Chrome 的書籤檔有沒有變動
             if any_open && last_sync.is_none_or(|t| t.elapsed() >= Duration::from_secs(5)) {
                 last_sync = Some(Instant::now());
-                if bm_read(|b| b.sync) {
-                    let _ = import_chrome(&app1, false);
-                }
+                let _ = import_chrome(&app1, false);
             }
             let to_save = {
                 let mut s = st();
                 if s.dirty && last_save.elapsed() >= Duration::from_secs(1) {
                     s.dirty = false;
                     last_save = Instant::now();
-                    Some((s.path.clone(), s.file.clone()))
+                    let mut f = s.file.clone();
+                    // 無痕式視窗不存檔
+                    f.wins.retain(|w| !w.incognito);
+                    Some((s.path.clone(), f))
                 } else {
                     None
                 }
@@ -2573,50 +3277,12 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             if let Some((p, f)) = to_save {
                 save(&p, &f);
             }
+            flush_side(false);
         }
     });
 
     // 選單開著時：點到選單外面就關掉
-    #[cfg(windows)]
-    {
-        let app2 = app.clone();
-        std::thread::spawn(move || {
-            let mut prev_down = true;
-            let mut seen: Option<Instant> = None;
-            loop {
-                let cur = lock(&MENU).as_ref().filter(|s| s.visible).map(|s| (s.rect, s.shown_at));
-                let pop = lock(&EXT_POPUP).clone();
-                if cur.is_none() && pop.is_none() {
-                    seen = None;
-                    std::thread::sleep(Duration::from_millis(300));
-                    continue;
-                }
-                let down = win32::mouse_down();
-                if let Some((rect, shown)) = cur {
-                    if seen != Some(shown) {
-                        // 剛打開：打開它的那一下不算
-                        seen = Some(shown);
-                    } else if down && !prev_down {
-                        let (x, y) = win32::cursor();
-                        if x < rect.0 || x >= rect.2 || y < rect.1 || y >= rect.3 {
-                            hide_menu(&app2, true);
-                        }
-                    }
-                }
-                // 擴充功能的小視窗：點外面就關
-                if let Some((wid, rect)) = pop {
-                    if down && !prev_down {
-                        let (x, y) = win32::cursor();
-                        if x < rect.0 || x >= rect.2 || y < rect.1 || y >= rect.3 {
-                            close_ext_popup(&app2, &wid);
-                        }
-                    }
-                }
-                prev_down = down;
-                std::thread::sleep(Duration::from_millis(20));
-            }
-        });
-    }
+    pop::watch(app);
 }
 
 enum Action {
@@ -2770,7 +3436,25 @@ fn tick(app: &AppHandle) {
                 if win32::visible(hwnd) != visible {
                     win32::show(hwnd, visible);
                     if !visible {
-                        hide_menu_of(app, &id);
+                        pop::hide_of(app, &id);
+                    }
+                }
+            }
+            // F11 全螢幕：滑鼠移到最上面暫時顯示工具列，移開就收起來
+            let (fs, reveal, sf) = rt(|m| m.get(&id).map(|r| (r.fs && !r.full, r.reveal, r.sf)).unwrap_or((false, false, 1.0)));
+            if fs {
+                if let Some((l, t, r, _)) = win32::rect(hwnd) {
+                    let (cx, cy) = win32::cursor();
+                    let inside = cx >= l && cx < r;
+                    let bar_px = (bar_h(true) * sf.max(0.5)).round() as i32;
+                    let want = if reveal { (inside && cy < t + bar_px + 12) || pop::open_for(&id) } else { inside && cy <= t + 1 };
+                    if want != reveal {
+                        rt(|m| {
+                            if let Some(r) = m.get_mut(&id) {
+                                r.reveal = want;
+                            }
+                        });
+                        relayout(app, &id);
                     }
                 }
             }
@@ -2784,25 +3468,17 @@ fn tick(app: &AppHandle) {
 
 #[tauri::command]
 pub fn web_list() -> WebFile {
-    st().file.clone()
+    let mut f = st().file.clone();
+    // 無痕式視窗不列在主程式裡（關掉就消失）
+    f.wins.retain(|w| !w.incognito);
+    f
 }
 
 #[tauri::command]
 pub async fn web_add(app: AppHandle) -> Result<WebWin, String> {
-    let w = {
-        let mut s = st();
-        s.file.next_id += 1;
-        let n = s.file.next_id;
-        // 新視窗稍微錯開，不要完全疊在一起
-        let k = (s.file.wins.len() % 6) as i32;
-        let mut w = WebWin { id: format!("w{n}"), x: 200 + k * 40, y: 150 + k * 40, ..WebWin::default() };
-        fix_win(&mut w);
-        s.file.wins.push(w.clone());
-        s.dirty = true;
-        w
-    };
-    open_window(&app, &w.id, true)?;
-    Ok(get(&w.id).unwrap_or(w))
+    let id = new_window(&app, None, false, None)?;
+    focus_omni(&app, &id, false);
+    get(&id).ok_or_else(|| "找不到這個視窗".to_string())
 }
 
 /// 打開視窗（已經開著但縮小了就叫出來）
@@ -2998,7 +3674,7 @@ pub struct ChromeStatus {
 /// 主程式：自動匯入的狀態、目前用哪個 Chrome 使用者、有哪些使用者
 #[tauri::command]
 pub fn web_chrome_status() -> ChromeStatus {
-    let (sync, chosen) = bm_read(|b| (b.sync, b.profile.clone()));
+    let (sync, chosen) = bm_read(|b| (true, b.profile.clone()));
     match find_profiles() {
         Ok((_, profiles)) => ChromeStatus { sync, current: pick_profile(&profiles, &chosen), profiles, error: String::new() },
         Err(e) => ChromeStatus { sync, current: None, profiles: Vec::new(), error: e },
@@ -3019,16 +3695,6 @@ pub async fn web_chrome_import(app: AppHandle, dir: Option<String>) -> Result<us
     Ok(added)
 }
 
-/// 開關自動匯入
-#[tauri::command]
-pub async fn web_chrome_sync(app: AppHandle, on: bool) {
-    bm(|b| b.sync = on);
-    if on {
-        let _ = import_chrome(&app, true);
-    }
-    emit_main(&app);
-}
-
 /* ---------------- 擴充功能（從 Chrome 複製） ---------------- */
 
 #[derive(Serialize, Clone)]
@@ -3043,6 +3709,8 @@ pub struct ExtInfo {
     /// 擴充功能按鈕的選單頁面、選項頁面（要能用固定的編號開啟才有）
     popup: String,
     options: String,
+    /// 圖示固定在工具列上
+    pinned: bool,
 }
 
 #[derive(Serialize)]
@@ -3069,6 +3737,16 @@ struct ExtState {
     exts: std::collections::BTreeMap<String, ExtMark>,
     /// 待安裝的資料夾（新的、更新過的擴充功能放這裡，下次開網頁時安裝）
     pending: String,
+    /// Chrome 裡固定在工具列上的擴充功能（同步時讀到的）
+    chrome_pins: Vec<String>,
+    /// 在這裡自己調整過的固定清單（有調整過就用這個，不再跟 Chrome）
+    pins: Option<Vec<String>>,
+}
+
+impl ExtState {
+    fn pinned(&self, id: &str) -> bool {
+        self.pins.as_ref().unwrap_or(&self.chrome_pins).iter().any(|p| p == id)
+    }
 }
 
 static EXT_LOCK: Mutex<()> = Mutex::new(());
@@ -3086,7 +3764,7 @@ fn ext_state() -> ExtState {
     let old: HashMap<String, String> = serde_json::from_value(v).unwrap_or_default();
     ExtState {
         exts: old.into_iter().map(|(id, ver)| (id.clone(), ExtMark { ver, dir: id, loaded: true, ..ExtMark::default() })).collect(),
-        pending: String::new(),
+        ..ExtState::default()
     }
 }
 
@@ -3149,6 +3827,7 @@ fn ext_list() -> Vec<ExtInfo> {
                 icon,
                 popup,
                 options,
+                pinned: st.pinned(id),
             }
         })
         .collect();
@@ -3247,10 +3926,17 @@ fn sync_extensions() -> Result<Vec<ExtInfo>, String> {
             want.insert(id, (best.path(), best.file_name().to_string_lossy().to_string(), name));
         }
     }
+    // Chrome 裡固定在工具列上的擴充功能
+    let chrome_pins: Vec<String> = ["Preferences", "Secure Preferences"]
+        .iter()
+        .filter_map(|f| read_json(&profile.join(f)))
+        .find_map(|v| v["extensions"]["pinned_extensions"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()))
+        .unwrap_or_default();
     let _g = lock(&EXT_LOCK);
     let base = ext_dir();
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     let mut st = ext_state();
+    st.chrome_pins = chrome_pins;
     // Chrome 已經沒有的：移除
     let gone: Vec<String> = st.exts.keys().filter(|id| !want.contains_key(*id)).cloned().collect();
     for id in gone {
@@ -3312,10 +3998,50 @@ fn ext_set_off(id: &str, off: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// 工具列上要顯示圖示的擴充功能
+fn ext_pins() -> Vec<ExtInfo> {
+    ext_list().into_iter().filter(|e| e.pinned && !e.off).collect()
+}
+
+/// 擴充功能清單變了：每個視窗的工具列更新圖示
+fn emit_exts(app: &AppHandle) {
+    let pins = ext_pins();
+    for id in open_ids() {
+        let _ = app.emit_to(bar_label(&id).as_str(), "web-exts", pins.clone());
+    }
+    emit_main(app);
+}
+
+/// 固定／取消固定擴充功能的圖示
+fn ext_toggle_pin(app: &AppHandle, id: &str) {
+    {
+        let _g = lock(&EXT_LOCK);
+        let mut st = ext_state();
+        let mut pins = st.pins.clone().unwrap_or_else(|| st.chrome_pins.clone());
+        match pins.iter().position(|p| p == id) {
+            Some(i) => {
+                pins.remove(i);
+            }
+            None => pins.push(id.to_string()),
+        }
+        st.pins = Some(pins);
+        save_ext_state(&st);
+    }
+    emit_exts(app);
+}
+
 #[tauri::command]
-pub async fn web_ext_toggle(id: String, on: bool) -> Result<ExtStatus, String> {
+pub async fn web_ext_toggle(app: AppHandle, id: String, on: bool) -> Result<ExtStatus, String> {
     ext_set_off(&id, !on)?;
+    emit_exts(&app);
     Ok(ExtStatus { list: ext_list(), broken: EXT_BROKEN.load(Ordering::SeqCst) })
+}
+
+/// 固定／取消固定擴充功能的圖示（擴充功能頁面）
+#[tauri::command]
+pub async fn web_ext_pin(app: AppHandle, id: String) -> ExtStatus {
+    ext_toggle_pin(&app, &id);
+    ExtStatus { list: ext_list(), broken: EXT_BROKEN.load(Ordering::SeqCst) }
 }
 
 #[tauri::command]
@@ -3325,37 +4051,47 @@ pub fn web_ext_list() -> ExtStatus {
 
 /// 重新從 Chrome 同步擴充功能（新開的分頁、視窗才會套用）
 #[tauri::command]
-pub async fn web_ext_sync() -> Result<ExtStatus, String> {
+pub async fn web_ext_sync(app: AppHandle) -> Result<ExtStatus, String> {
     let list = sync_extensions()?;
     EXT_BROKEN.store(false, Ordering::SeqCst);
+    emit_exts(&app);
     Ok(ExtStatus { list, broken: false })
 }
 
-/* ---------------- 指令：web 視窗上面的三排 ---------------- */
+/* ---------------- 指令：瀏覽器視窗上面的工具列 ---------------- */
 
 #[tauri::command]
 pub fn web_bar_init(webview: Webview) -> Option<BarInit> {
     let id = id_of(&webview)?;
-    Some(BarInit { state: bar_state(&id)?, bm: bm_payload() })
+    Some(BarInit { state: bar_state(&id)?, bm: bm_payload(), exts: ext_pins() })
 }
 
+/// 執行瀏覽器指令（工具列的按鈕、內部頁面）。tab = 針對哪個分頁（沒給就是目前的）
 #[tauri::command]
-pub async fn web_nav(app: AppHandle, webview: Webview, action: String, input: Option<String>) -> Result<(), String> {
-    let id = id_of(&webview).ok_or("不是 web 視窗")?;
-    let page = active_page(&app, &id).ok_or("網頁不存在")?;
-    let r = match action.as_str() {
-        "back" => page.eval("history.back()"),
-        "forward" => page.eval("history.forward()"),
-        "reload" => page.reload(),
-        "stop" => page.eval("window.stop()"),
-        "home" => page.navigate(Url::parse(HOME).unwrap()),
-        "go" => match input.as_deref().and_then(to_url) {
-            Some(u) => page.navigate(u),
-            None => return Ok(()),
-        },
-        _ => return Ok(()),
-    };
-    r.map_err(|e| e.to_string())
+pub async fn web_cmd(app: AppHandle, webview: Webview, cmd: String, tab: Option<String>) {
+    let Some(id) = owner_of(&webview) else { return };
+    let tab = tab.or_else(|| page_of(&webview).map(|(_, t)| t));
+    run_cmd(&app, &id, tab.as_deref(), &cmd);
+}
+
+/// 網址列按 Enter、新分頁的搜尋框：去輸入的網址（不是網址就搜尋）。new_tab = 開在新分頁（Alt+Enter）
+#[tauri::command]
+pub async fn web_go(app: AppHandle, webview: Webview, input: String, new_tab: Option<bool>) -> Result<(), String> {
+    let id = owner_of(&webview).ok_or("不是瀏覽器視窗")?;
+    let Some((target, _)) = webcore::resolve_input(&input, engine()) else { return Ok(()) };
+    pop::hide_of(&app, &id);
+    let w = get(&id).ok_or("找不到這個視窗")?;
+    let tid = page_of(&webview).map(|(_, t)| t).unwrap_or_else(|| w.active.clone());
+    if new_tab == Some(true) {
+        add_tab(&app, &id, target, true, Some(&tid))?;
+        return Ok(());
+    }
+    navigate_tab(&app, &id, &tid, &target);
+    // 鍵盤從網址列交給網頁
+    if let Some(p) = app.get_webview(&page_label(&id, &tid)) {
+        let _ = p.set_focus();
+    }
+    Ok(())
 }
 
 /// 網址列（或改名框）被選取／取消選取
@@ -3374,25 +4110,20 @@ pub fn web_typing(webview: Webview, on: bool) {
 }
 
 #[tauri::command]
-pub async fn web_tab_new(app: AppHandle, webview: Webview) -> Result<(), String> {
-    let id = id_of(&webview).ok_or("不是 web 視窗")?;
-    new_tab(&app, &id, None, true, None).map(|_| ())
-}
-
-#[tauri::command]
 pub async fn web_tab_select(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
-    let id = id_of(&webview).ok_or("不是 web 視窗")?;
+    let id = id_of(&webview).ok_or("不是瀏覽器視窗")?;
     select_tab(&app, &id, &tab)
 }
 
-/// 拖曳分頁排順序
+/// 拖曳分頁排順序（固定的分頁只能在固定的那一區裡移動）
 #[tauri::command]
 pub fn web_tab_move(app: AppHandle, webview: Webview, tab: String, index: usize) {
     let Some(id) = id_of(&webview) else { return };
     edit(&id, |w| {
         if let Some(i) = w.tabs.iter().position(|t| t.id == tab) {
             let t = w.tabs.remove(i);
-            let j = index.min(w.tabs.len());
+            let pinned = w.tabs.iter().filter(|x| x.pinned).count();
+            let j = if t.pinned { index.min(pinned) } else { index.clamp(pinned, w.tabs.len()) };
             w.tabs.insert(j, t);
         }
     });
@@ -3401,60 +4132,32 @@ pub fn web_tab_move(app: AppHandle, webview: Webview, tab: String, index: usize)
 
 #[tauri::command]
 pub async fn web_tab_close(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
-    let id = id_of(&webview).ok_or("不是 web 視窗")?;
+    let id = id_of(&webview).ok_or("不是瀏覽器視窗")?;
     close_tab(&app, &id, &tab)
 }
 
-/// 右上角：縮小（藏起來）、放到最大／還原、關閉
+/// 右上角：縮小、放到最大／還原、關閉
 #[tauri::command]
 pub async fn web_win(app: AppHandle, webview: Webview, action: String) {
     let Some(id) = id_of(&webview) else { return };
     match action.as_str() {
-        "min" => {
-            hide_menu_of(&app, &id);
-            if let Some(win) = app.get_window(&win_label(&id)) {
-                let _ = win.minimize();
+        "min" => run_cmd(&app, &id, None, "win.min"),
+        "max" => {
+            // 全螢幕時按「還原」是離開全螢幕
+            if rt(|m| m.get(&id).is_some_and(|r| r.fs)) {
+                toggle_fs(&app, &id);
+            } else {
+                toggle_max(&app, &id);
             }
         }
-        "max" => toggle_max(&app, &id),
         "close" => close_window(&app, &id),
         _ => {}
     }
 }
 
-/// 星號：目前的網頁加入書籤列，已經加過就移除。回傳現在是不是書籤
-#[tauri::command]
-pub async fn web_bm_toggle(app: AppHandle, webview: Webview) -> Result<bool, String> {
-    let id = id_of(&webview).ok_or("不是 web 視窗")?;
-    let w = get(&id).ok_or("找不到這個視窗")?;
-    let tab = w.tabs.into_iter().find(|t| t.id == w.active).ok_or("找不到這個分頁")?;
-    if parse_web(&tab.url).is_none() {
-        return Ok(false);
-    }
-    let on = bm(|b| {
-        if let Some(bid) = bm_url_id(&b.bar, &tab.url).or_else(|| bm_url_id(&b.other, &tab.url)) {
-            if let Some(x) = bm_remove(&mut b.bar, &bid).or_else(|| bm_remove(&mut b.other, &bid)) {
-                remember_deleted(b, &x);
-            }
-            return false;
-        }
-        b.ignored.retain(|i| !same_url(i, &tab.url));
-        b.next_id += 1;
-        let host = host_of(&tab.url).unwrap_or_default();
-        let title = if tab.title.trim().is_empty() { host.clone() } else { tab.title.clone() };
-        b.bar.push(Bm { id: format!("b{}", b.next_id), title, url: tab.url.clone(), ..Bm::default() });
-        if !tab.icon.is_empty() && !host.is_empty() {
-            b.icons.insert(host, tab.icon.clone());
-        }
-        true
-    });
-    emit_bm(&app);
-    Ok(on)
-}
-
 #[tauri::command]
 pub async fn web_bm_open(app: AppHandle, webview: Webview, id: String, new_tab: bool) {
-    if let Some(wid) = id_of(&webview) {
+    if let Some(wid) = owner_of(&webview) {
         open_bm(&app, &wid, &id, new_tab);
     }
 }
@@ -3515,204 +4218,6 @@ pub fn web_bm_delete(app: AppHandle, id: String) {
     bm_delete(&app, &id);
 }
 
-/// 打開選單：folder（書籤資料夾）、other（所有書籤）、overflow（放不下的書籤）、bm（書籤右鍵）、tab（分頁右鍵）。
-/// rect = 按鈕在工具列裡的位置（左、上、右、下）；右鍵選單出現在滑鼠的位置
-#[tauri::command]
-pub async fn web_menu_open(
-    app: AppHandle,
-    webview: Webview,
-    kind: String,
-    key: String,
-    target: Option<String>,
-    ids: Option<Vec<String>>,
-    rect: Option<[f64; 4]>,
-) -> Result<(), String> {
-    let wid = id_of(&webview).ok_or("不是 web 視窗")?;
-    // 同一個按鈕再點一下：關掉
-    let same_open = lock(&MENU).as_ref().is_some_and(|s| s.visible && s.key == key);
-    if same_open {
-        hide_menu(&app, false);
-        return Ok(());
-    }
-    let just_closed = lock(&MENU_CLOSED).as_ref().is_some_and(|(k, t)| *k == key && t.elapsed() < Duration::from_millis(400));
-    if just_closed {
-        return Ok(());
-    }
-    let target = target.unwrap_or_default();
-    let built = match kind.as_str() {
-        "folder" => bm_read(|b| bm_find_any(b, &target).map(|f| bm_items(&f.children, &b.icons))).map(|x| (x, 300.0)),
-        "other" => Some((bm_read(|b| bm_items(&b.other, &b.icons)), 300.0)),
-        "overflow" => {
-            let ids = ids.unwrap_or_default();
-            Some((
-                bm_read(|b| {
-                    let list: Vec<Bm> = b.bar.iter().filter(|x| ids.contains(&x.id)).cloned().collect();
-                    bm_items(&list, &b.icons)
-                }),
-                300.0,
-            ))
-        }
-        "bm" => bm_read(|b| bm_find_any(b, &target).map(bm_ctx)).map(|x| (x, 220.0)),
-        "tab" => Some((tab_ctx(&target), 300.0)),
-        "ext" => Some((ext_items(), 300.0)),
-        _ => None,
-    };
-    let Some(((items, acts), width)) = built else { return Ok(()) };
-    let win = app.get_window(&win_label(&wid)).ok_or("找不到這個視窗")?;
-    let sf = win.scale_factor().unwrap_or(1.0).max(0.5);
-    let anchor = match (kind.as_str(), rect) {
-        ("folder" | "other" | "overflow" | "ext", Some([l, t, r, b])) => {
-            let p = win.inner_position().map_err(|e| e.to_string())?;
-            let f = |v: f64| (v * sf).round() as i32;
-            (p.x + f(l), p.y + f(t), p.x + f(r), p.y + f(b))
-        }
-        _ => {
-            let c = win.cursor_position().map_err(|e| e.to_string())?;
-            let (x, y) = (c.x.round() as i32, c.y.round() as i32);
-            (x, y, x, y)
-        }
-    };
-    show_menu(
-        &app,
-        MenuSt {
-            owner: wid,
-            key,
-            items,
-            acts,
-            stack: Vec::new(),
-            anchor,
-            width,
-            sf,
-            rect: (0, 0, 0, 0),
-            visible: false,
-            shown_at: Instant::now(),
-        },
-    )
-}
-
-#[tauri::command]
-pub fn web_menu_init() -> MenuPayload {
-    MenuPayload { items: lock(&MENU).as_ref().map(|s| s.items.clone()).unwrap_or_default() }
-}
-
-/// 選單裡點了第幾項：button 0 左鍵、1 中鍵（書籤開在新分頁）、2 右鍵（書籤的右鍵選單）
-#[tauri::command]
-pub async fn web_menu_pick(app: AppHandle, index: usize, button: u8) {
-    let picked = lock(&MENU).as_ref().filter(|s| s.visible).map(|s| (s.owner.clone(), s.acts.get(index).cloned(), s.anchor));
-    let Some((owner, Some(act), anchor)) = picked else { return };
-    let only_right = matches!(act, Act::TabRight(_));
-    if button == 2 {
-        if let Act::Link(id) | Act::Folder(id) = &act {
-            if let Some((items, acts)) = bm_read(|b| bm_find_any(b, id).map(bm_ctx)) {
-                push_menu(&app, items, acts);
-            }
-        }
-        if let Act::Ext(id) = &act {
-            if let Some((items, acts)) = ext_ctx(id) {
-                push_menu(&app, items, acts);
-            }
-        }
-        return;
-    }
-    match act {
-        Act::Link(id) => {
-            hide_menu(&app, false);
-            open_bm(&app, &owner, &id, button == 1);
-        }
-        Act::Folder(id) => {
-            if let Some((items, acts)) = bm_read(|b| bm_find_any(b, &id).map(|f| bm_items(&f.children, &b.icons))) {
-                push_menu(&app, items, acts);
-            }
-        }
-        Act::Back => pop_menu(&app),
-        Act::NewTab(id) => {
-            hide_menu(&app, false);
-            if let Some(url) = bm_read(|b| bm_find_any(b, &id).map(|x| x.url.clone())).and_then(|u| parse_web(&u)) {
-                let _ = new_tab(&app, &owner, Some(url), true, None);
-            }
-        }
-        Act::Rename(id) => {
-            hide_menu(&app, false);
-            let _ = app.emit_to(bar_label(&owner).as_str(), "web-rename", serde_json::json!({ "id": owner, "bm": id }));
-        }
-        Act::Delete(id) => {
-            hide_menu(&app, false);
-            bm_delete(&app, &id);
-        }
-        Act::TabReload(t) => {
-            hide_menu(&app, false);
-            if let Some(p) = app.get_webview(&page_label(&owner, &t)) {
-                let _ = p.reload();
-            }
-        }
-        Act::TabChrome(t) => {
-            hide_menu(&app, false);
-            open_tab_in_chrome(&owner, Some(&t));
-        }
-        Act::TabClearSite(t) => {
-            hide_menu(&app, false);
-            clear_site(&app, &owner, &t);
-        }
-        Act::TabClose(t) => {
-            hide_menu(&app, false);
-            let _ = close_tab(&app, &owner, &t);
-        }
-        Act::TabOthers(t) | Act::TabRight(t) => {
-            hide_menu(&app, false);
-            let tabs = get(&owner).map(|w| w.tabs).unwrap_or_default();
-            let Some(i) = tabs.iter().position(|x| x.id == t) else { return };
-            let close: Vec<String> = tabs
-                .iter()
-                .enumerate()
-                .filter(|(j, x)| x.id != t && (!only_right || *j > i))
-                .map(|(_, x)| x.id.clone())
-                .collect();
-            let _ = select_tab(&app, &owner, &t);
-            for c in close {
-                let _ = close_tab(&app, &owner, &c);
-            }
-        }
-        Act::Ext(id) => {
-            // 有選單頁面就開；沒有就開選項；都沒有（自動執行的）就顯示右鍵選單
-            let e = ext_list().into_iter().find(|e| e.id == id);
-            let e = e.filter(|e| !e.off);
-            let popup = e.as_ref().and_then(|e| Url::parse(&e.popup).ok());
-            let options = e.as_ref().and_then(|e| Url::parse(&e.options).ok());
-            if let Some(u) = popup {
-                // 像 Chrome 一樣開成小視窗蓋在網頁上，分頁不變，擴充功能才知道目前是哪個網站
-                hide_menu(&app, false);
-                let _ = open_ext_popup(&app, &owner, u, anchor);
-            } else if let Some(u) = options {
-                hide_menu(&app, false);
-                let _ = new_tab(&app, &owner, Some(u), true, None);
-            } else if let Some((items, acts)) = ext_ctx(&id) {
-                push_menu(&app, items, acts);
-            }
-        }
-        Act::ExtPage(page) => {
-            hide_menu(&app, false);
-            if let Ok(u) = Url::parse(&page) {
-                if ext_list().iter().any(|e| e.popup == page) {
-                    let _ = open_ext_popup(&app, &owner, u, anchor);
-                } else {
-                    let _ = new_tab(&app, &owner, Some(u), true, None);
-                }
-            }
-        }
-        Act::ExtToggle(id, off) => {
-            hide_menu(&app, false);
-            let _ = ext_set_off(&id, off);
-            emit_main(&app);
-        }
-        Act::ExtSync => {
-            hide_menu(&app, false);
-            let _ = sync_extensions();
-            emit_main(&app);
-        }
-        Act::Nothing => {}
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3730,19 +4235,6 @@ mod tests {
         assert!(!o.contains(&"https://co.uk".to_string()));
         assert_eq!(site_origins("http://127.0.0.1:8080/"), ["https://127.0.0.1", "http://127.0.0.1"]);
         assert!(site_origins("about:blank").is_empty());
-    }
-
-    #[test]
-    fn address_bar() {
-        assert_eq!(to_url("youtube.com").unwrap().as_str(), "https://youtube.com/");
-        assert_eq!(to_url("https://www.twitch.tv/x").unwrap().as_str(), "https://www.twitch.tv/x");
-        let s = to_url("楓之谷 攻略").unwrap();
-        assert_eq!(s.host_str(), Some("www.google.com"));
-        assert!(s.query().unwrap().starts_with("q="));
-        assert!(to_url("   ").is_none());
-        // 不是網頁的網址當作搜尋
-        assert_eq!(to_url("file:///c:/x").unwrap().host_str(), Some("www.google.com"));
-        assert_eq!(to_url("javascript:alert(1)").unwrap().host_str(), Some("www.google.com"));
     }
 
     #[test]

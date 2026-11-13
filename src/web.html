@@ -3,188 +3,260 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>web</title>
+  <title>瀏覽器</title>
   <style>
+    /* 尺寸與顏色量自 Chrome（深色）：分頁列 40（一般大小 48）、工具列 46、書籤列 34、底線 1。要跟 web.rs 的高度一致 */
     * { box-sizing: border-box; margin: 0; }
     :root {
-      --strip: #15181f;
-      --tool: #262b36;
-      --hover: #343b49;
-      --text: #f2f4f8;
-      --muted: #9aa3b2;
+      --frame: #1f2020;
+      --tool: #3c3c3c;
+      --pill: #282828;
+      --text: #e3e3e3;
+      --text2: #c7c7c7;
+      --dis: #7b7b7b;
+      --sep: #5e5e5e;
+      --line: #444746;
+      --accent: #a8c7fa;
+      --hover: rgba(227, 227, 227, 0.1);
+      --press: rgba(227, 227, 227, 0.16);
     }
-    html, body { height: 100%; overflow: hidden; background: var(--tool); color: var(--text);
-      font: 12.5px/1.2 -apple-system, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif; user-select: none; }
-    svg { fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; display: block; }
-    button { padding: 0; font: inherit; }
+    html, body { height: 100%; overflow: hidden; background: var(--tool); color: var(--text); user-select: none;
+      font: 12px/1.3 "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", system-ui, sans-serif; }
+    body.incognito { --frame: #101112; --tool: #303134; --pill: #1b1c1e; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    button { padding: 0; font: inherit; border: 0; background: none; color: inherit; cursor: default; }
+    [hidden] { display: none !important; }
 
-    /* ---------- 第一排：分頁 ---------- */
-    .tabs { height: 40px; display: flex; align-items: flex-end; background: var(--strip); padding-left: 8px; }
-    .tablist { display: flex; align-items: flex-end; min-width: 0; flex: 0 1 auto; overflow: hidden; height: 100%; }
-    .tab { position: relative; flex: 0 1 240px; min-width: 40px; height: 34px; display: flex; align-items: center; gap: 8px;
-      padding: 0 8px 0 12px; border-radius: 10px 10px 0 0; color: var(--muted); cursor: default; font-size: 13px;
-      transition: transform 0.16s ease; }
-    .tab + .tab::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: #323846; }
-    .tab:hover { background: #1f232c; color: var(--text); }
-    .tab.active { background: var(--tool); color: var(--text); }
-    .tab.active::before, .tab.active + .tab::before, .tab:hover::before, .tab:hover + .tab::before { display: none; }
+    /* ---------- 分頁列 ---------- */
+    .strip { height: 48px; background: var(--frame); display: flex; align-items: flex-end; position: relative; padding-left: 6px; }
+    body.max .strip { height: 40px; }
+    .tsb { flex: none; width: 28px; height: 27px; margin: 0 6px 7px 0; border-radius: 9px; background: var(--tool); color: #d3e3fd; display: grid; place-items: center; position: relative; z-index: 2; }
+    .tsb:hover, .tsb.open { background: #4a4a4a; }
+    .tsb svg { width: 16px; height: 16px; stroke-width: 3; }
+    .tablist { display: flex; align-items: flex-end; min-width: 0; flex: 0 1 auto; height: 40px; padding: 0 8px 0 0; overflow: hidden; margin-left: -8px; padding-left: 8px; }
+    .tab { position: relative; flex: 0 1 auto; width: 232px; min-width: 36px; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px;
+      border-radius: 10px 10px 0 0; color: var(--text2); transition: transform 0.16s ease; }
+    /* 沒選到的分頁：滑鼠移上去是比較亮的圓角底色；相鄰兩個之間有一條細線 */
+    .tab:not(.active)::before { content: ""; position: absolute; inset: 0 2px 4px; border-radius: 9px; background: transparent; }
+    .tab:not(.active):hover::before { background: #2c2d2d; }
+    .tab:not(.active) + .tab:not(.active)::after { content: ""; position: absolute; left: -0.5px; top: 9px; width: 1px; height: 16px; background: var(--line); }
+    .tab:not(.active):hover::after, .tab:not(.active):hover + .tab::after { display: none; }
+    .tab > * { position: relative; }
+    .tab.active { background: var(--tool); color: var(--text); z-index: 1; }
+    /* 目前的分頁下面兩邊往外彎的小圓角（跟工具列接起來） */
+    .tab .foot { position: absolute; bottom: 0; width: 8px; height: 8px; overflow: hidden; pointer-events: none; }
+    .tab .foot::before { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 8px var(--tool); }
+    .tab .foot.l { left: -8px; }
+    .tab .foot.l::before { right: 0; bottom: 0; }
+    .tab .foot.r { right: -8px; }
+    .tab .foot.r::before { left: 0; bottom: 0; }
     .tab .ti { flex: none; width: 16px; height: 16px; display: grid; place-items: center; }
-    .tab .tt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tab .tx { flex: none; width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: inherit; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .tab .tx:hover { background: rgba(255, 255, 255, 0.14); }
-    .tab .tx svg { width: 10px; height: 10px; stroke-width: 2.4; }
+    .tab .ti .gl svg { width: 16px; height: 16px; stroke-width: 1.9; }
+    .tab .tt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent); }
+    .tab .au { flex: none; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; color: var(--text2); }
+    .tab .au:hover { background: var(--press); }
+    .tab .au svg { width: 13px; height: 13px; stroke-width: 2; }
+    .tab .tx { flex: none; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; }
+    .tab .tx:hover { background: var(--press); }
+    .tab .tx svg { width: 13px; height: 13px; stroke-width: 2.8; }
     .tab.narrow { padding: 0; justify-content: center; }
-    .tab.narrow .tt, .tab.narrow:not(.active) .tx { display: none; }
+    .tab.narrow .tt, .tab.narrow .au, .tab.narrow:not(.active) .tx { display: none; }
     .tab.narrow.active .ti { display: none; }
-    .newtab { flex: none; width: 30px; height: 30px; margin: 0 4px 3px; border: 0; border-radius: 50%; background: none; color: #7dd3fc; display: grid; place-items: center; cursor: pointer; }
-    .newtab:hover { background: rgba(125, 211, 252, 0.16); }
-    .newtab svg { width: 15px; height: 15px; stroke-width: 2.4; }
-    .drag { flex: 1 1 40px; min-width: 40px; height: 100%; }
+    .tab.pinned { flex: none; width: 40px; min-width: 40px; padding: 0; justify-content: center; }
+    .tab.pinned .tt, .tab.pinned .tx, .tab.pinned .au { display: none; }
+    .tab.dragging { transition: none; z-index: 3; background: var(--tool); color: var(--text); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); }
+    .tab.dragging::before, .tab.dragging::after { display: none; }
     /* 放到最大時：滑鼠移到螢幕最上緣也點得到分頁 */
-    body.max .tab::after { content: ""; position: absolute; left: 0; right: 0; top: -6px; height: 6px; }
-    .tabs { position: relative; }
-    /* 拖曳中的分頁跟著滑鼠走，其他分頁讓位 */
-    .tab.dragging { transition: none; z-index: 2; background: var(--tool); color: var(--text); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
-    .tab.dragging::before, .tab.dragging + .tab::before { display: none; }
+    .tab .top { position: absolute; display: none; left: 0; right: 0; top: -6px; height: 6px; }
+    body.max .tab .top { display: block; }
+    .newtab { flex: none; width: 28px; height: 28px; margin: 0 0 3px -2px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; }
+    .newtab:hover { background: var(--hover); }
+    .newtab svg { width: 18px; height: 18px; stroke-width: 2.2; }
+    .drag { flex: 1 1 40px; min-width: 40px; height: 100%; }
     .caps { flex: none; display: flex; height: 100%; align-self: flex-start; }
-    .cap { width: 46px; height: 40px; border: 0; background: none; color: #d5dae3; display: grid; place-items: center; cursor: default; }
+    .cap { width: 46px; height: 100%; max-height: 40px; color: #fff; display: grid; place-items: center; }
+    body:not(.max) .cap { max-height: 34px; }
     .cap:hover { background: rgba(255, 255, 255, 0.1); }
     .cap.close:hover { background: #e81123; color: #fff; }
-    .cap svg { width: 11px; height: 11px; stroke-width: 1.3; stroke-linecap: square; stroke-linejoin: miter; }
+    .cap svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.15; overflow: visible; stroke-linecap: square; stroke-linejoin: miter; display: block; }
+    .inco { flex: none; align-self: center; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; margin-right: 8px; border-radius: 13px; background: #2a2b2e; color: var(--text); }
+    .inco svg { width: 16px; height: 16px; }
+    /* 一般大小時：最上面與兩個角可以拉大小 */
+    .rs { position: absolute; top: 0; z-index: 5; }
+    body.max .rs { display: none; }
+    #rsN { left: 8px; right: 8px; height: 4px; cursor: ns-resize; }
+    #rsNW { left: 0; width: 8px; height: 8px; cursor: nwse-resize; }
+    #rsNE { right: 0; width: 8px; height: 8px; cursor: nesw-resize; }
 
     /* 網站圖示：抓不到就用第一個字 */
     .fav { width: 16px; height: 16px; border-radius: 3px; object-fit: contain; display: block; }
     .letter { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
-    .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(125, 211, 252, 0.25); border-top-color: #7dd3fc; animation: spin 0.8s linear infinite; }
+    .gl { display: grid; place-items: center; }
+    .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(168, 199, 250, 0.25); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ---------- 第二排：網址列 ---------- */
-    .tool { height: 38px; display: flex; align-items: center; gap: 4px; padding: 0 8px; }
-    .nb { flex: none; width: 28px; height: 28px; border: 0; border-radius: 8px; cursor: pointer; display: grid; place-items: center;
-      background: color-mix(in srgb, var(--c) 18%, transparent); color: color-mix(in srgb, var(--c) 55%, #fff); transition: background 0.12s, transform 0.08s; }
-    .nb:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
-    .nb:active { transform: scale(0.92); }
-    .nb svg { width: 16px; height: 16px; }
-    .b-back { --c: #3b82f6; }
-    .b-fwd { --c: #8b5cf6; }
-    .b-reload { --c: #22b45e; }
-    .b-home { --c: #f5a30b; }
-    .b-chrome { --c: #ef4444; margin-left: 2px; }
-    .b-ext { --c: #14b8a6; margin-left: 2px; }
-    .addr-wrap { flex: 1; min-width: 0; height: 28px; position: relative; display: flex; align-items: center; margin-left: 2px; }
-    .addr { width: 100%; height: 100%; padding: 0 34px 0 12px; border-radius: 14px; border: 1px solid transparent; outline: none;
-      background: #1b1f27; color: var(--text); font: inherit; font-size: 13px; user-select: text; text-overflow: ellipsis; }
-    .addr:hover { border-color: #3a4252; }
-    .addr:focus { border-color: #4c8dff; background: #171b22; }
-    .star { position: absolute; right: 4px; width: 24px; height: 24px; border: 0; border-radius: 50%; background: none; color: #9aa3b2; display: grid; place-items: center; cursor: pointer; }
-    .star:hover { background: rgba(245, 197, 66, 0.16); color: #f5c542; }
-    .star svg { width: 15px; height: 15px; }
-    .star.on { color: #f5c542; }
-    .star.on svg { fill: #f5c542; }
+    /* ---------- 工具列 ---------- */
+    .tool { height: 46px; display: flex; align-items: center; padding: 0 5px; }
+    .tb { flex: none; width: 34px; height: 34px; margin: 0 1px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; position: relative; }
+    .tb:hover, .tb.open { background: var(--hover); }
+    .tb:active { background: var(--press); }
+    .tb:disabled { color: var(--dis); background: none; }
+    .omni { flex: 1; min-width: 60px; height: 34px; margin: 0 8px; border-radius: 17px; background: var(--pill); display: flex; align-items: center; position: relative; padding: 0 10px 0 5px; }
+    .omni:hover { background: #2f2f2f; }
+    .omni.focus { background: var(--pill); box-shadow: inset 0 0 0 2px var(--accent); }
+    body.incognito .omni:hover { background: #222325; }
+    .chip { flex: none; height: 24px; min-width: 24px; border-radius: 12px; background: var(--tool); color: var(--text2); display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+    .chip:hover, .chip.open { background: #4a4a4a; }
+    .chip .gl { width: 20px; height: 20px; }
+    .chip .gl svg { width: 16px; height: 16px; stroke-width: 2; }
+    .chip .cl { padding-right: 8px; white-space: nowrap; font-size: 12px; color: var(--text); }
+    .chip.plain { background: none; }
+    .chip.warn .cl { color: #f2b8b5; }
+    .chip.warn .gl { color: #f2b8b5; }
+    .field { flex: 1; min-width: 0; height: 100%; position: relative; margin-left: 8px; }
+    .shown, .addr { position: absolute; inset: 0; display: flex; align-items: center; font-size: 14px; white-space: nowrap; }
+    .shown { overflow: hidden; color: var(--text2); pointer-events: none; }
+    .shown .d { color: var(--text); }
+    .shown .ph { color: var(--text2); }
+    .addr { width: 100%; padding: 0; border: 0; outline: none; background: none; color: var(--text); font: inherit; font-size: 14px; user-select: text; opacity: 0; }
+    .addr::placeholder { color: var(--text2); }
+    .omni.focus .addr { opacity: 1; }
+    .omni.focus .shown { display: none; }
+    .addr::selection { background: #1f3760; color: #fff; }
+    .oa { flex: none; width: 28px; height: 28px; margin-left: 4px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; }
+    .oa:hover, .oa.open { background: var(--hover); }
+    .oa svg { width: 18px; height: 18px; }
+    .oa.on { color: var(--accent); }
+    .exts { flex: none; display: flex; align-items: center; }
+    .tb.ext img { width: 18px; height: 18px; object-fit: contain; border-radius: 3px; }
+    .tb.ext .letter { width: 18px; height: 18px; }
+    .avatar { width: 26px; height: 26px; border-radius: 50%; background: #5c6067; color: #e8eaed; display: grid; place-items: center; }
+    .avatar svg { width: 18px; height: 18px; stroke-width: 2; }
+    /* 視窗很窄時：先收起擴充功能的圖示，再收首頁、人像，最後收擴充功能與下載按鈕（都還在 ⋮ 選單裡） */
+    .tool.c1 .exts, .tool.c2 #home, .tool.c2 #profile, .tool.c3 #ext, .tool.c3 #dl { display: none; }
+    /* 下載中的進度圈 */
+    .tb .ring { position: absolute; inset: 3px; border-radius: 50%; pointer-events: none;
+      background: conic-gradient(var(--accent) calc(var(--pct, 0) * 1%), rgba(168, 199, 250, 0.25) 0); -webkit-mask: radial-gradient(circle, transparent 11.5px, #000 12px); mask: radial-gradient(circle, transparent 11.5px, #000 12px); }
+    .tb .ring.busy { animation: spin 1.2s linear infinite; --pct: 30; }
+    .tb.active-dl { color: var(--accent); }
 
-    /* ---------- 第三排：書籤 ---------- */
-    .bms { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px 2px; border-bottom: 1px solid #323846; position: relative; }
-    .bm-list { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 2px; overflow: hidden; }
-    .bm { flex: none; max-width: 170px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; border-radius: 6px;
-      background: none; color: var(--text); font: inherit; cursor: pointer; }
+    /* ---------- 書籤列 ---------- */
+    .bms { height: 35px; display: flex; align-items: flex-start; padding: 1px 6px 0; border-bottom: 1px solid var(--line); position: relative; }
+    .bm-list { flex: 1; min-width: 0; height: 27px; display: flex; align-items: center; gap: 4px; overflow: hidden; }
+    .bm { flex: none; max-width: 180px; height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 6px; border-radius: 13px; color: var(--text2); }
     .bm:hover, .bm.open { background: var(--hover); }
     .bm .bt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bm .fold { width: 16px; height: 16px; flex: none; color: #f5c542; }
-    .bm .fold svg { width: 16px; height: 16px; stroke-width: 1.8; }
+    .bm .gl { width: 20px; margin: 0 -2px; }
+    .bm .gl svg { width: 18px; height: 18px; stroke-width: 1.7; }
     .bm.dragging { opacity: 0.4; }
-    .bm.more { padding: 0 6px; color: var(--muted); font-size: 14px; }
-    .bm-sep { flex: none; width: 1px; height: 16px; background: #3a4252; margin: 0 4px; }
-    .bm-hint { color: var(--muted); padding-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .drop { position: absolute; top: 4px; bottom: 6px; width: 2px; border-radius: 1px; background: #4c8dff; pointer-events: none; }
-    .rename { position: absolute; inset: 0 0 1px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--tool); }
-    .rename b { color: #7dd3fc; font-weight: 600; flex: none; }
-    .rename input { flex: 0 1 280px; min-width: 80px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid #4c8dff; outline: none;
-      background: #171b22; color: var(--text); font: inherit; user-select: text; }
-    .rename span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    [hidden] { display: none !important; }
+    .bm.more { margin-left: 2px; padding: 0 5px; }
+    .bm.more svg { width: 16px; height: 16px; }
+    .bm.side { margin-top: 0; }
+    .bm-sep { flex: none; width: 1.5px; height: 16px; border-radius: 1px; background: var(--sep); margin: 6px 10px 0 6px; }
+    .bm-hint { color: var(--text2); padding-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .drop { position: absolute; top: 5px; height: 20px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
+    .rename { position: absolute; inset: 0; display: flex; align-items: center; gap: 8px; padding: 0 10px 3px; background: var(--tool); }
+    .rename b { color: var(--accent); font-weight: 600; flex: none; }
+    .rename input { flex: 0 1 300px; min-width: 80px; height: 24px; padding: 0 10px; border-radius: 12px; border: 0; outline: 2px solid var(--accent); background: var(--pill); color: var(--text); font: inherit; user-select: text; }
+    .rename span { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body.nobm .bms { display: none; }
+    body.nobm .tool { border-bottom: 1px solid var(--line); height: 47px; padding-bottom: 1px; }
   </style>
 </head>
-<body>
-  <div class="tabs" id="tabsRow">
+<body class="nobm">
+  <div class="strip" id="strip">
+    <button class="tsb" id="tabSearch" title="搜尋分頁"></button>
     <div class="tablist" id="tabs"></div>
-    <button class="newtab" id="newTab" title="新分頁"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <div class="drag" id="drag" title="按住拖曳移動視窗；按兩下放到最大／還原"></div>
+    <button class="newtab" id="newTab" title="新分頁"></button>
+    <div class="drag" id="drag"></div>
+    <div class="inco" id="inco" hidden></div>
     <div class="caps">
-      <button class="cap" id="cMin" title="縮小到工作列"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
-      <button class="cap" id="cMax" title="放到最大"><svg viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg></button>
-      <button class="cap close" id="cClose" title="關閉（在「瀏覽器」工具裡可以再打開）"><svg viewBox="0 0 12 12"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9"/></svg></button>
+      <button class="cap" id="cMin" title="最小化"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button>
+      <button class="cap" id="cMax" title="最大化"></button>
+      <button class="cap close" id="cClose" title="關閉"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
     </div>
+    <div class="rs" id="rsN"></div>
+    <div class="rs" id="rsNW"></div>
+    <div class="rs" id="rsNE"></div>
   </div>
-  <div class="tool">
-    <button class="nb b-back" id="back" title="上一頁"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-    <button class="nb b-fwd" id="fwd" title="下一頁"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
-    <button class="nb b-reload" id="reload" title="重新整理"></button>
-    <button class="nb b-home" id="home" title="首頁"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></svg></button>
-    <div class="addr-wrap">
-      <input class="addr" id="addr" spellcheck="false" autocomplete="off" placeholder="輸入網址或搜尋" />
-      <button class="star" id="star" title="加入書籤"><svg viewBox="0 0 24 24"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
+  <div class="tool" id="tool">
+    <button class="tb" id="back" title="按一下返回上一頁，按右鍵查看記錄"></button>
+    <button class="tb" id="fwd" title="按一下前往下一頁，按右鍵查看記錄"></button>
+    <button class="tb" id="reload" title="重新載入這個網頁"></button>
+    <button class="tb" id="home" title="開啟首頁"></button>
+    <div class="omni" id="omni">
+      <button class="chip" id="site" title="查看網站資訊"></button>
+      <div class="field">
+        <div class="shown" id="shown"></div>
+        <input class="addr" id="addr" spellcheck="false" autocomplete="off" autocapitalize="off" />
+      </div>
+      <button class="oa" id="zoomBtn" title="縮放" hidden></button>
+      <button class="oa" id="star" title="將這個分頁加入書籤"></button>
     </div>
-    <button class="nb b-chrome" id="chrome" title="用 Chrome 開啟這個網頁（用你電腦上的 Chrome，帳號、書籤、擴充功能都是 Chrome 的）"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.3"/><path d="M12 8.7h8.1M9.2 13.7L5.1 6.7M14.8 13.7l-4 7"/></svg></button>
-    <button class="nb b-ext" id="ext" title="擴充功能"><svg viewBox="0 0 24 24"><path d="M9 4.5a2 2 0 0 1 4 0V6h3.5A1.5 1.5 0 0 1 18 7.5V11h1.5a2 2 0 0 1 0 4H18v3.5a1.5 1.5 0 0 1-1.5 1.5H13v-1.5a2 2 0 0 0-4 0V20H5.5A1.5 1.5 0 0 1 4 18.5V15h1.5a2 2 0 0 0 0-4H4V7.5A1.5 1.5 0 0 1 5.5 6H9z"/></svg></button>
+    <div class="exts" id="exts"></div>
+    <button class="tb" id="ext" title="擴充功能"></button>
+    <button class="tb" id="dl" title="下載" hidden></button>
+    <button class="tb" id="profile" title="書籤與擴充功能的同步來源"><span class="avatar" id="avatar"></span></button>
+    <button class="tb" id="menu" title="自訂及管理"></button>
   </div>
   <div class="bms" id="bms">
     <div class="bm-list" id="bmList"></div>
-    <button class="bm more" id="bmMore" title="其他書籤" hidden>»</button>
+    <button class="bm more" id="bmMore" title="更多書籤" hidden></button>
     <div class="bm-sep" id="otherSep" hidden></div>
-    <button class="bm" id="bmOther" title="所有書籤" hidden><span class="fold"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span><span class="bt">所有書籤</span></button>
+    <button class="bm side" id="bmOther" title="所有書籤" hidden></button>
     <div class="drop" id="drop" hidden></div>
-    <div class="rename" id="rename" hidden><b>改名</b><input id="renameIn" spellcheck="false" autocomplete="off" /><span>Enter 儲存・Esc 取消</span></div>
+    <div class="rename" id="rename" hidden><b>重新命名</b><input id="renameIn" spellcheck="false" autocomplete="off" /><span>Enter 儲存・Esc 取消</span></div>
   </div>
+  <script src="web-icons.js"></script>
   <script>
     "use strict";
     (() => {
       const T = window.__TAURI__;
       if (!T) return;
+      const { ICONS, icon } = window.MB;
       const invoke = (cmd, args) => T.core.invoke(cmd, args).catch(() => {});
+      const cmd = (name, tab) => invoke("web_cmd", { cmd: name, tab: tab ?? null });
       const $ = (id) => document.getElementById(id);
-      const FOLDER = '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
-      const RELOAD = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></svg>';
-      const STOP = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-      const MAX = '<svg viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z"/></svg>';
-      const RESTORE = '<svg viewBox="0 0 12 12"><path d="M1.5 3.5h7v7h-7zM3.5 3.5v-2h7v7h-2"/></svg>';
-      const CLOSE = '<svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>';
+      const MAX = '<svg viewBox="0 0 10 10"><path d="M0.5 0.5h9v9h-9z"/></svg>';
+      const RESTORE = '<svg viewBox="0 0 10 10"><path d="M0.5 2.5h7v7h-7zM2.5 2.5v-2h7v7h-2"/></svg>';
+      // 內部頁面的分頁圖示
+      const PAGE_ICON = { newtab: "globe", history: "history", downloads: "download", bookmarks: "star", extensions: "puzzle", settings: "gear" };
 
       let me = null;
-      let st = { tabs: [], active: "", loading: [], max: false };
+      let st = { tabs: [], active: "", max: false, full: false, incognito: false, back: false, forward: false, url: "", display: "", kind: "newtab",
+        zoom: 100, zoomed: false, show_bm: true, home: true, bookmarked: false, closed: 0, engine: "Google", dl: { any: false, active: 0, pct: -1 } };
       let bm = { bar: [], other: [], icons: {} };
+      let exts = [];
 
       const host = (u) => { try { return new URL(u).host; } catch { return ""; } };
       const tab = () => st.tabs.find((t) => t.id === st.active) || { url: "", title: "" };
-      const short = (u) => { try { const x = new URL(u); return x.host + (x.pathname === "/" ? "" : x.pathname); } catch { return u; } };
+      const pageOf = (u) => { const m = /^chrome:\/\/([a-z-]+)/.exec(u || ""); return m ? m[1] : ""; };
 
-      /* ---------- 網站圖示 ---------- */
-      function letter(text) {
-        const ch = (text || "?").trim().charAt(0).toUpperCase() || "?";
-        let h = 0;
-        for (const c of text || "?") h = (h * 31 + c.charCodeAt(0)) % 360;
-        const el = document.createElement("span");
-        el.className = "letter";
-        el.style.background = `hsl(${h} 55% 45%)`;
-        el.textContent = ch;
-        return el;
-      }
-      function favicon(src, fallbackText) {
-        if (!src) return letter(fallbackText);
-        const img = document.createElement("img");
-        img.className = "fav";
-        img.alt = "";
-        img.draggable = false;
-        img.referrerPolicy = "no-referrer";
-        img.onerror = () => img.replaceWith(letter(fallbackText));
-        img.src = src;
-        return img;
-      }
+      // 固定不變的圖示
+      $("tabSearch").innerHTML = ICONS["chev-down"];
+      $("newTab").innerHTML = ICONS.plus;
+      $("back").innerHTML = ICONS.back;
+      $("fwd").innerHTML = ICONS.forward;
+      $("home").innerHTML = ICONS.home;
+      $("zoomBtn").innerHTML = ICONS.zoom;
+      $("ext").innerHTML = ICONS.puzzle;
+      $("menu").innerHTML = ICONS.more;
+      $("avatar").innerHTML = ICONS.user;
+      $("bmMore").innerHTML = ICONS["chev-right"];
+      $("inco").innerHTML = `${ICONS.incognito}<span>無痕模式</span>`;
+
       const bmIcon = (b) => {
         const h = host(b.url);
-        return bm.icons[h] || (h ? `https://${h}/favicon.ico` : "");
+        return bm.icons[h] || "globe";
       };
 
-      /* ---------- 第一排：分頁 ---------- */
+      /* ---------- 分頁列 ---------- */
+      function tabIcon(t) {
+        const pg = pageOf(t.url);
+        if (pg) return icon(PAGE_ICON[pg] || "globe", "");
+        return icon(t.icon || "globe", t.title || host(t.url));
+      }
+      const tabTitle = (t) => t.title || (pageOf(t.url) === "newtab" ? "新分頁" : host(t.url)) || t.url || "新分頁";
       function renderTabs() {
         // 按著分頁（可能要拖曳）時先不重畫，放開後再畫：按下非目前分頁時會切換分頁並重畫，
         // 重畫後原本按著的元素就不在畫面上了，拖曳會沒反應
@@ -193,44 +265,64 @@
         box.innerHTML = "";
         for (const t of st.tabs) {
           const el = document.createElement("div");
-          el.className = "tab" + (t.id === st.active ? " active" : "");
-          el.title = t.title || t.url;
+          el.className = "tab" + (t.id === st.active ? " active" : "") + (t.pinned ? " pinned" : "");
+          el.title = tabTitle(t);
           const ti = document.createElement("span");
           ti.className = "ti";
-          if (st.loading.includes(t.id)) {
+          if (t.loading) {
             const s = document.createElement("span");
             s.className = "spin";
             ti.append(s);
           } else {
-            ti.append(favicon(t.icon, t.title || host(t.url)));
+            ti.append(tabIcon(t));
           }
           const tt = document.createElement("span");
           tt.className = "tt";
-          tt.textContent = t.title || host(t.url) || "新分頁";
+          tt.textContent = tabTitle(t);
+          el.append(ti, tt);
+          if (t.audio || t.muted) {
+            const au = document.createElement("button");
+            au.className = "au";
+            au.title = t.muted ? "將分頁取消靜音" : "將分頁設為靜音";
+            au.innerHTML = t.muted ? ICONS.muted : ICONS.audio;
+            au.addEventListener("pointerdown", (e) => e.stopPropagation());
+            au.addEventListener("click", (e) => { e.stopPropagation(); cmd("tab.mute", t.id); });
+            el.append(au);
+          }
           const tx = document.createElement("button");
           tx.className = "tx";
-          tx.title = "關閉分頁";
-          tx.innerHTML = CLOSE;
+          tx.title = "關閉";
+          tx.innerHTML = ICONS.close;
           tx.addEventListener("pointerdown", (e) => e.stopPropagation());
           tx.addEventListener("click", (e) => { e.stopPropagation(); invoke("web_tab_close", { tab: t.id }); });
-          el.append(ti, tt, tx);
+          el.append(tx);
+          if (t.id === st.active) {
+            const l = document.createElement("i"), r = document.createElement("i");
+            l.className = "foot l";
+            r.className = "foot r";
+            el.append(l, r);
+          }
+          const top = document.createElement("i");
+          top.className = "top";
+          el.append(top);
           el.dataset.id = t.id;
           el.addEventListener("pointerdown", (e) => {
             if (e.button === 1) e.preventDefault();
             if (e.button !== 0) return;
             // 放開時才切換分頁：按下就切換的話，新顯示的網頁會搶走焦點，拖曳就中斷了。按住左右拖曳可以排順序
-            tdrag = { id: t.id, el, x0: e.clientX, active: false, index: -1, select: t.id !== st.active };
+            tdrag = { id: t.id, el, x0: e.clientX, active: false, index: -1, select: t.id !== st.active, pinned: !!t.pinned };
           });
           el.addEventListener("auxclick", (e) => { if (e.button === 1) invoke("web_tab_close", { tab: t.id }); });
           el.addEventListener("contextmenu", (e) => {
             e.preventDefault();
+            e.stopPropagation();
             invoke("web_menu_open", { kind: "tab", key: `tab:${t.id}`, target: t.id, ids: null, rect: null });
           });
           box.append(el);
         }
         fitTabs();
       }
-      // 拖曳分頁排順序：拖著的分頁跟著滑鼠走，其他分頁滑開讓位
+      // 拖曳分頁排順序：拖著的分頁跟著滑鼠走，其他分頁滑開讓位（固定的分頁只在固定的那一區裡移動）
       let tdrag = null;
       let renderLater = false;
       window.addEventListener("pointermove", (e) => {
@@ -239,16 +331,18 @@
         if (!d.active) {
           if (Math.abs(e.clientX - d.x0) < 5) return;
           d.active = true;
-          d.tabs = [...$("tabs").children];
+          const all = [...$("tabs").children];
+          d.base = all.findIndex((x) => x.classList.contains("pinned") === d.pinned);
+          d.tabs = all.filter((x) => x.classList.contains("pinned") === d.pinned);
           d.from = d.tabs.indexOf(d.el);
           d.rects = d.tabs.map((x) => x.getBoundingClientRect());
           d.w = d.rects[d.from].width;
           d.el.classList.add("dragging");
         }
-        const first = d.rects[0], last = d.rects[d.rects.length - 1], me = d.rects[d.from];
-        const dx = Math.max(first.left - me.left, Math.min(last.right - me.right, e.clientX - d.x0));
+        const first = d.rects[0], last = d.rects[d.rects.length - 1], mine = d.rects[d.from];
+        const dx = Math.max(first.left - mine.left, Math.min(last.right - mine.right, e.clientX - d.x0));
         d.el.style.transform = `translateX(${dx}px)`;
-        const center = me.left + dx + d.w / 2;
+        const center = mine.left + dx + d.w / 2;
         let to = 0;
         // 往右拖：拖著的分頁中心過了別人的中心就換位（拖到底時剛好相等也算）；往左拖：要真的過去才算（拖到底時相等不算）
         d.rects.forEach((r, i) => {
@@ -272,7 +366,7 @@
         if (!d.active && commit && d.select) invoke("web_tab_select", { tab: d.id });
         if (d.active) {
           if (commit && d.to !== undefined && d.to !== d.from) {
-            invoke("web_tab_move", { tab: d.id, index: d.to });
+            invoke("web_tab_move", { tab: d.id, index: d.base + d.to });
           } else {
             d.el.classList.remove("dragging");
             d.tabs.forEach((x) => (x.style.transform = ""));
@@ -285,31 +379,111 @@
       window.addEventListener("blur", () => endTabDrag(false));
 
       function fitTabs() {
-        for (const el of $("tabs").children) el.classList.toggle("narrow", el.offsetWidth < 76);
+        for (const el of $("tabs").children) {
+          // 有喇叭圖示的分頁要更寬才放得下標題
+          if (!el.classList.contains("pinned")) el.classList.toggle("narrow", el.offsetWidth < (el.querySelector(".au") ? 104 : 72));
+        }
       }
 
-      /* ---------- 第二排：網址列 ---------- */
-      function inBm(list, url) {
-        const n = (u) => (u || "").replace(/\/+$/, "");
-        return list.some((b) => (b.url ? n(b.url) === n(url) : inBm(b.children || [], url)));
-      }
+      /* ---------- 工具列 ---------- */
+      const CHIP = {
+        newtab: ["search", "", "plain"],
+        internal: ["globe", "MAOBOO", ""],
+        ext: ["puzzle", "擴充功能", ""],
+        source: ["code", "", ""],
+        secure: ["tune", "", ""],
+        insecure: ["warn", "不安全", "warn"],
+        other: ["tune", "", ""],
+      };
       function renderTool() {
-        const t = tab();
+        document.body.classList.toggle("max", !!st.max || !!st.full);
+        document.body.classList.toggle("nobm", !st.show_bm);
+        document.body.classList.toggle("incognito", !!st.incognito);
+        $("inco").hidden = !st.incognito;
+        $("profile").hidden = !!st.incognito;
+        $("cMax").innerHTML = st.max || st.full ? RESTORE : MAX;
+        $("cMax").title = st.max || st.full ? "還原" : "最大化";
+        $("back").disabled = !st.back;
+        $("fwd").disabled = !st.forward;
+        const loading = st.tabs.some((t) => t.id === st.active && t.loading);
+        $("reload").innerHTML = loading ? ICONS.stop : ICONS.reload;
+        $("reload").title = loading ? "停止載入這個網頁" : "重新載入這個網頁";
+        $("reload").dataset.loading = loading ? "1" : "";
+        $("home").hidden = !st.home;
+        // 網址列左邊的圓鈕
+        const [ic, label, cls] = CHIP[st.kind] || CHIP.other;
+        const site = $("site");
+        site.className = `chip ${cls}`;
+        site.innerHTML = "";
+        site.append(icon(ic, ""));
+        if (label) {
+          const l = document.createElement("span");
+          l.className = "cl";
+          l.textContent = label;
+          site.append(l);
+        }
+        site.disabled = st.kind === "newtab";
+        // 沒在打字時顯示的網址：網域亮、後面的路徑暗一點
+        const shown = $("shown");
+        shown.innerHTML = "";
         const addr = $("addr");
-        if (document.activeElement !== addr) addr.value = t.title || short(t.url);
-        addr.title = t.url;
-        const loading = st.loading.includes(st.active);
-        $("reload").innerHTML = loading ? STOP : RELOAD;
-        $("reload").title = loading ? "停止載入" : "重新整理";
-        const on = !!t.url && (inBm(bm.bar, t.url) || inBm(bm.other, t.url));
-        $("star").classList.toggle("on", on);
-        $("star").title = on ? "從書籤移除" : "加入書籤";
-        $("cMax").innerHTML = st.max ? RESTORE : MAX;
-        document.body.classList.toggle("max", !!st.max);
-        $("cMax").title = st.max ? "還原" : "放到最大";
+        addr.placeholder = `在 ${st.engine} 搜尋或輸入網址`;
+        if (!st.display) {
+          const ph = document.createElement("span");
+          ph.className = "ph";
+          ph.textContent = addr.placeholder;
+          shown.append(ph);
+        } else {
+          const cut = /^[a-z-]+:/.test(st.display) ? st.display.length : (st.display.indexOf("/") < 0 ? st.display.length : st.display.indexOf("/"));
+          const d = document.createElement("span");
+          d.className = "d";
+          d.textContent = st.display.slice(0, cut);
+          const p = document.createElement("span");
+          p.textContent = st.display.slice(cut);
+          shown.append(d, p);
+        }
+        if (document.activeElement !== addr) addr.value = "";
+        const star = $("star");
+        star.hidden = st.kind === "newtab" || st.kind === "internal" || st.kind === "source" || st.kind === "ext";
+        star.classList.toggle("on", !!st.bookmarked);
+        star.innerHTML = st.bookmarked ? ICONS["star-on"] : ICONS.star;
+        star.title = st.bookmarked ? "編輯這個分頁的書籤" : "將這個分頁加入書籤";
+        $("zoomBtn").hidden = !st.zoomed;
+        $("zoomBtn").title = `縮放：${st.zoom}%`;
+        // 下載
+        const dl = $("dl");
+        dl.hidden = !st.dl.any;
+        dl.classList.toggle("active-dl", st.dl.active > 0);
+        dl.innerHTML = ICONS.download;
+        if (st.dl.active > 0) {
+          const ring = document.createElement("span");
+          ring.className = "ring" + (st.dl.pct < 0 ? " busy" : "");
+          if (st.dl.pct >= 0) ring.style.setProperty("--pct", st.dl.pct);
+          dl.append(ring);
+        }
+      }
+      function renderExts() {
+        const box = $("exts");
+        box.innerHTML = "";
+        for (const e of exts) {
+          const b = document.createElement("button");
+          b.className = "tb ext";
+          b.title = e.name;
+          b.append(icon(e.icon || "puzzle", e.name));
+          b.addEventListener("click", () => {
+            const r = b.getBoundingClientRect();
+            invoke("web_ext_open", { id: e.id, rect: [r.left, r.top, r.right, r.bottom] });
+          });
+          b.addEventListener("contextmenu", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            invoke("web_menu_open", { kind: "extpin", key: `extpin:${e.id}`, target: e.id, ids: null, rect: null });
+          });
+          box.append(b);
+        }
       }
 
-      /* ---------- 第三排：書籤 ---------- */
+      /* ---------- 書籤列 ---------- */
       let overflowIds = [];
       function bmButton(b) {
         const el = document.createElement("button");
@@ -317,27 +491,26 @@
         el.dataset.id = b.id;
         if (b.url) {
           el.title = `${b.title}\n${b.url}`;
-          el.append(favicon(bmIcon(b), b.title || host(b.url)));
+          el.append(icon(bmIcon(b), b.title || host(b.url)));
         } else {
           el.title = b.title;
-          const f = document.createElement("span");
-          f.className = "fold";
-          f.innerHTML = FOLDER;
-          el.append(f);
+          el.append(icon("folder", ""));
         }
-        const t = document.createElement("span");
-        t.className = "bt";
-        t.textContent = b.title || host(b.url);
-        el.append(t);
+        if (b.title || !b.url) {
+          const t = document.createElement("span");
+          t.className = "bt";
+          t.textContent = b.title || "";
+          el.append(t);
+        }
         return el;
       }
       function renderBms() {
         const list = $("bmList");
         list.innerHTML = "";
-        if (!bm.bar.length && !bm.other.length) {
+        if (!bm.bar.length) {
           const h = document.createElement("span");
           h.className = "bm-hint";
-          h.textContent = "還沒有書籤：按網址列右邊的星號加入；Chrome 裡的書籤會自動匯入（在主程式的「瀏覽器」工具可以設定）";
+          h.textContent = "將書籤加入這個書籤列，即可快速前往喜愛的網頁。這台電腦 Chrome 裡的書籤會自動同步過來。";
           list.append(h);
         }
         for (const b of bm.bar) {
@@ -345,11 +518,18 @@
           wireBm(el, b);
           list.append(el);
         }
-        $("bmOther").hidden = !bm.other.length;
-        $("otherSep").hidden = !bm.other.length || !bm.bar.length;
+        const other = $("bmOther");
+        other.hidden = !bm.other.length;
+        other.innerHTML = "";
+        other.append(icon("folder", ""));
+        const t = document.createElement("span");
+        t.className = "bt";
+        t.textContent = "所有書籤";
+        other.append(t);
+        $("otherSep").hidden = !bm.other.length;
         fitBms();
       }
-      // 放不下的書籤收到「»」裡
+      // 放不下的書籤收到「›」裡
       function fitBms() {
         const list = $("bmList");
         overflowIds = [];
@@ -359,7 +539,7 @@
         const limit = () => list.clientWidth;
         let cut = false;
         for (const el of items) {
-          if (cut || el.offsetLeft + el.offsetWidth > limit()) {
+          if (cut || el.offsetLeft - list.offsetLeft + el.offsetWidth > limit()) {
             cut = true;
             el.style.display = "none";
             overflowIds.push(el.dataset.id);
@@ -377,14 +557,15 @@
           if (e.button !== 0) return;
           drag = { id: b.id, el, x0: e.clientX, active: false, index: -1 };
         });
-        el.addEventListener("click", () => {
+        el.addEventListener("click", (e) => {
           if (justDragged) return;
-          if (b.url) invoke("web_bm_open", { id: b.id, newTab: false });
+          if (b.url) invoke("web_bm_open", { id: b.id, newTab: e.ctrlKey });
           else openMenu(el, "folder", `f:${b.id}`, b.id);
         });
         el.addEventListener("auxclick", (e) => { if (e.button === 1 && b.url) invoke("web_bm_open", { id: b.id, newTab: true }); });
         el.addEventListener("contextmenu", (e) => {
           e.preventDefault();
+          e.stopPropagation();
           invoke("web_menu_open", { kind: "bm", key: `bm:${b.id}`, target: b.id, ids: null, rect: null });
         });
       }
@@ -405,7 +586,7 @@
         const box = $("bms").getBoundingClientRect();
         let left;
         if (!others.length) left = $("bmList").getBoundingClientRect().left;
-        else if (index < others.length) left = others[index].getBoundingClientRect().left - 2;
+        else if (index < others.length) left = others[index].getBoundingClientRect().left - 3;
         else left = others[others.length - 1].getBoundingClientRect().right + 1;
         const d = $("drop");
         d.hidden = false;
@@ -421,7 +602,7 @@
         justDragged = true;
         setTimeout(() => (justDragged = false), 0);
         if (commit && d.index >= 0) {
-          // 換算成整個書籤列裡的位置（被收進「»」的也算）
+          // 換算成整個書籤列裡的位置（被收進「›」的也算）
           const visible = bm.bar.filter((x) => x.id !== d.id && !overflowIds.includes(x.id));
           const before = visible[d.index];
           const rest = bm.bar.filter((x) => x.id !== d.id);
@@ -435,13 +616,19 @@
 
       function openMenu(el, kind, key, target, ids) {
         const r = el.getBoundingClientRect();
+        document.querySelectorAll(".open").forEach((x) => x.classList.remove("open"));
         el.classList.add("open");
         invoke("web_menu_open", { kind, key, target: target ?? null, ids: ids ?? null, rect: [r.left, r.top, r.right, r.bottom] });
       }
       $("bmMore").addEventListener("click", () => openMenu($("bmMore"), "overflow", "overflow", null, overflowIds));
       $("bmOther").addEventListener("click", () => openMenu($("bmOther"), "other", "other"));
+      $("bms").addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (e.target.tagName === "INPUT") return;
+        invoke("web_menu_open", { kind: "bmbar", key: "bmbar", target: null, ids: null, rect: null });
+      });
 
-      /* ---------- 改名 ---------- */
+      /* ---------- 書籤改名 ---------- */
       let renaming = null;
       function find(list, id) {
         for (const b of list) {
@@ -454,6 +641,8 @@
       function startRename(id) {
         const b = find(bm.bar, id) || find(bm.other, id);
         if (!b) return;
+        // 書籤列沒顯示時改名框沒地方放：先顯示書籤列
+        if (!st.show_bm) { cmd("bm.bar"); setTimeout(() => startRename(id), 250); return; }
         renaming = id;
         const input = $("renameIn");
         $("rename").hidden = false;
@@ -478,68 +667,194 @@
       });
       $("renameIn").addEventListener("blur", () => endRename(true));
 
-      /* ---------- 事件 ---------- */
-      const nav = (action, input) => invoke("web_nav", { action, input: input ?? null });
-      $("back").onclick = () => nav("back");
-      $("fwd").onclick = () => nav("forward");
-      $("reload").onclick = () => nav(st.loading.includes(st.active) ? "stop" : "reload");
-      $("home").onclick = () => nav("home");
-      $("star").onclick = () => invoke("web_bm_toggle");
-      // 新分頁：空白頁，網址列直接可以打字
-      let newTabFocus = false;
-      $("newTab").onclick = async () => {
-        await invoke("web_tab_new");
-        newTabFocus = true;
+      /* ---------- 網址列 ---------- */
+      const addr = $("addr");
+      const omni = $("omni");
+      // list = 目前的建議；sel = 選到第幾個；typed = 使用者自己打的字（不含自動補完的部分）
+      let sug = { list: [], sel: 0, typed: "", forText: null, gen: 0, open: false };
+      const pillRect = () => { const r = omni.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
+      function closeSug() {
+        if (sug.open) invoke("web_pop_close", { key: "omni" });
+        sug = { list: [], sel: 0, typed: "", forText: null, gen: 0, open: false };
+      }
+      async function ask(text, inline) {
+        sug.typed = text;
+        if (!text.trim()) { closeSug(); return; }
+        const out = await T.core.invoke("web_omni_input", { text, inline, rect: pillRect() }).catch(() => null);
+        // 回來的時候使用者可能已經繼續打字了
+        if (!out || addr.value.slice(0, addr.selectionStart ?? addr.value.length) !== text && addr.value !== text) return;
+        if (document.activeElement !== addr) return;
+        sug.list = out.list || [];
+        sug.forText = text;
+        sug.gen = out.gen;
+        sug.sel = 0;
+        sug.open = sug.list.length > 0;
+        // 自動補完：把最符合的網址接在打的字後面並選取起來（繼續打字就會蓋掉）
+        const first = sug.list[0];
+        if (inline && first && first.inline && addr.value === text && addr.selectionStart === text.length) {
+          addr.value = text + first.inline;
+          addr.setSelectionRange(text.length, addr.value.length);
+        }
+      }
+      let composing = false;
+      addr.addEventListener("compositionstart", () => { composing = true; });
+      addr.addEventListener("compositionend", () => { composing = false; ask(addr.value, false); });
+      addr.addEventListener("input", (e) => {
+        if (composing || e.isComposing) return;
+        const deleting = typeof e.inputType === "string" && e.inputType.startsWith("delete");
+        ask(addr.value, !deleting && addr.selectionStart === addr.value.length);
+      });
+      function go(input, newTab) {
+        closeSug();
+        if (input && input.trim()) invoke("web_go", { input, newTab: !!newTab });
+        addr.blur();
+      }
+      addr.addEventListener("keydown", (e) => {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (e.ctrlKey && sug.typed && !/[\s.\/:]/.test(sug.typed.trim())) { go(`www.${sug.typed.trim()}.com`, false); return; }
+          // 建議清單要是照現在打的字算出來的才算數（打太快、清單還沒回來時用輸入的字）
+          const s = sug.open && sug.forText === sug.typed ? sug.list[sug.sel] : null;
+          const stillTyped = s && (sug.sel > 0 || addr.value === sug.typed || addr.value === sug.typed + (s.inline || ""));
+          go(stillTyped ? s.url : addr.value, e.altKey);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          if (sug.open) {
+            addr.value = sug.typed;
+            closeSug();
+          } else {
+            addr.blur();
+          }
+        } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && sug.open && sug.list.length && sug.forText === sug.typed) {
+          e.preventDefault();
+          const n = sug.list.length;
+          sug.sel = (sug.sel + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+          const s = sug.list[sug.sel];
+          addr.value = sug.sel === 0 && !s.inline ? sug.typed : s.fill;
+          invoke("web_omni_select", { index: sug.sel });
+        }
+      });
+      // 點下去時鍵盤交給視窗，離開就還給遊戲
+      let focusSelect = true;
+      addr.addEventListener("pointerdown", () => invoke("web_typing", { on: true }));
+      addr.addEventListener("focus", () => {
         invoke("web_typing", { on: true });
-        $("addr").focus();
-      };
-      $("chrome").onclick = () => invoke("web_open_chrome");
+        omni.classList.add("focus");
+        addr.value = st.kind === "newtab" ? "" : st.url;
+        // 馬上全選（不能等一下再選：等的那一瞬間打的字會被蓋掉）
+        if (focusSelect) addr.select();
+        focusSelect = true;
+      });
+      addr.addEventListener("blur", () => {
+        invoke("web_typing", { on: false });
+        omni.classList.remove("focus");
+        closeSug();
+        addr.value = "";
+      });
+      // 點網址列的任何地方（包含顯示網址的那一層）都是選到輸入框
+      omni.addEventListener("mousedown", (e) => {
+        if (e.button !== 0 || e.target.closest("button") || document.activeElement === addr) return;
+        // 自己選取輸入框並全選（不讓滑鼠把游標放到點的位置，跟 Chrome 一樣第一下是全選）
+        e.preventDefault();
+        invoke("web_typing", { on: true });
+        addr.focus();
+      });
+      function focusOmni(select) {
+        invoke("web_typing", { on: true });
+        focusSelect = select;
+        if (document.activeElement === addr) { if (select) addr.select(); return; }
+        addr.focus();
+      }
+
+      /* ---------- 按鈕 ---------- */
+      $("back").onclick = () => cmd("nav.back");
+      $("fwd").onclick = () => cmd("nav.forward");
+      for (const [id, kind] of [["back", "back"], ["fwd", "forward"]]) {
+        $(id).addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if ($(id).disabled) return;
+          openMenu($(id), kind, kind);
+        });
+      }
+      $("reload").onclick = () => cmd($("reload").dataset.loading ? "nav.stop" : "nav.reload");
+      $("home").onclick = () => cmd("nav.home");
+      $("star").onclick = () => cmd("bm.add");
+      $("zoomBtn").onclick = () => openMenu($("zoomBtn"), "zoom", "zoom");
+      $("site").onclick = () => openMenu($("site"), "site", "site");
       $("ext").onclick = () => openMenu($("ext"), "ext", "ext");
+      $("dl").onclick = () => cmd("dl.toggle");
+      $("profile").onclick = () => openMenu($("profile"), "profile", "profile");
+      $("menu").onclick = () => openMenu($("menu"), "main", "main");
+      $("tabSearch").onclick = () => openMenu($("tabSearch"), "tabs", "tabs");
+      $("newTab").onclick = () => cmd("tab.new");
       $("cMin").onclick = () => invoke("web_win", { action: "min" });
       $("cMax").onclick = () => invoke("web_win", { action: "max" });
       $("cClose").onclick = () => invoke("web_win", { action: "close" });
 
-      // 拖曳分頁列的空白處移動視窗；按兩下放到最大／還原
-      const dragArea = (e) => e.target === $("drag") || e.target === $("tabsRow") || e.target === $("tabs");
+      // 拖曳分頁列的空白處移動視窗；按兩下放到最大／還原；按右鍵有選單
+      const strip = $("strip");
+      const dragArea = (e) => e.target === $("drag") || e.target === strip || e.target === $("tabs") || e.target === $("inco") || e.target.parentElement === $("inco");
       // 按住開始拖曳，第二下（按兩下）放到最大／還原。
       // 開始拖曳後滑鼠交給 Windows，網頁收不到 dblclick，所以用 mousedown 的點擊次數判斷（和 Tauri 的拖曳區一樣）
-      $("tabsRow").addEventListener("mousedown", (e) => {
+      strip.addEventListener("mousedown", (e) => {
         if (e.button !== 0 || !dragArea(e)) return;
         if (e.detail === 2) invoke("web_win", { action: "max" });
         // 放到最大時也可以拖：Windows 會把視窗還原成原本的大小再跟著滑鼠走
         else if (e.detail === 1) T.window.getCurrentWindow().startDragging().catch(() => {});
       });
-
-      // 網址列：點下去時鍵盤交給視窗，離開就還給遊戲
-      const addr = $("addr");
-      addr.addEventListener("pointerdown", () => invoke("web_typing", { on: true }));
-      addr.addEventListener("focus", () => {
-        invoke("web_typing", { on: true });
-        addr.value = newTabFocus ? "" : tab().url;
-        newTabFocus = false;
-        setTimeout(() => addr.select(), 0);
+      strip.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (dragArea(e)) invoke("web_menu_open", { kind: "strip", key: "strip", target: null, ids: null, rect: null });
       });
-      addr.addEventListener("blur", () => { invoke("web_typing", { on: false }); renderTool(); });
-      addr.addEventListener("keydown", (e) => {
-        if (e.isComposing || e.keyCode === 229) return;
-        if (e.key === "Enter") { nav("go", addr.value); addr.blur(); }
-        else if (e.key === "Escape") addr.blur();
-      });
+      // 中鍵點分頁列空白處：開新分頁
+      strip.addEventListener("auxclick", (e) => { if (e.button === 1 && dragArea(e)) cmd("tab.new"); });
+      // 最上面的邊與兩個角：拉大小
+      for (const [id, dir] of [["rsN", "North"], ["rsNW", "NorthWest"], ["rsNE", "NorthEast"]]) {
+        $(id).addEventListener("mousedown", (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          T.window.getCurrentWindow().startResizeDragging(dir).catch(() => {});
+        });
+      }
 
-      // 不要出現瀏覽器的右鍵選單（輸入框除外）
+      // 不要出現瀏覽器內建的右鍵選單（輸入框除外）
       document.addEventListener("contextmenu", (e) => { if (e.target.tagName !== "INPUT") e.preventDefault(); });
       // 中鍵不要出現捲動圖示
       document.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
+      // 不要讓文字、圖片被拖走
+      document.addEventListener("dragstart", (e) => e.preventDefault());
 
-      new ResizeObserver(() => { fitTabs(); fitBms(); }).observe(document.body);
+      // 工具列放不下時一步一步收起按鈕，讓網址列至少留一點寬度
+      function fitTool() {
+        const tool = $("tool");
+        tool.classList.remove("c1", "c2", "c3");
+        for (const c of ["c1", "c2", "c3"]) {
+          if (tool.scrollWidth <= tool.clientWidth + 1 && omni.offsetWidth >= 130) break;
+          tool.classList.add(c);
+        }
+      }
+      new ResizeObserver(() => { fitTabs(); fitTool(); fitBms(); }).observe(document.body);
 
-      T.event.listen("web-state", (e) => {
-        if (!e.payload || e.payload.id !== me) return;
-        st = e.payload;
+      function apply(s) {
+        const urlChanged = s.url !== st.url || s.active !== st.active;
+        st = s;
         renderTabs();
         renderTool();
-      });
-      T.event.listen("web-bm", (e) => { if (e.payload) { bm = e.payload; renderBms(); renderTool(); } });
+        fitTool();
+        // 換頁了：網址列如果還停在舊網址（沒在打字），換成新的
+        if (urlChanged && document.activeElement === addr && !sug.open && !sug.typed) {
+          addr.value = st.kind === "newtab" ? "" : st.url;
+          addr.select();
+        }
+        fitBms();
+      }
+
+      T.event.listen("web-state", (e) => { if (e.payload && e.payload.id === me) apply(e.payload); });
+      T.event.listen("web-bm", (e) => { if (e.payload) { bm = e.payload; renderBms(); } });
+      T.event.listen("web-exts", (e) => { exts = e.payload || []; renderExts(); fitTool(); });
       T.event.listen("web-blur", (e) => {
         if (e.payload !== me) return;
         const a = document.activeElement;
@@ -547,16 +862,38 @@
       });
       T.event.listen("web-rename", (e) => { if (e.payload && e.payload.id === me) startRename(e.payload.bm); });
       T.event.listen("web-menu-closed", (e) => {
-        if (e.payload === me) document.querySelectorAll(".bm.open").forEach((x) => x.classList.remove("open"));
+        if (e.payload !== me) return;
+        document.querySelectorAll(".open").forEach((x) => x.classList.remove("open"));
+        if (sug.open) { sug.open = false; sug.list = []; }
+      });
+      T.event.listen("web-omni-focus", (e) => focusOmni(!!e.payload));
+      T.event.listen("web-omni-list", (e) => {
+        const p = e.payload;
+        if (!p || p.gen !== sug.gen || !sug.open) return;
+        // 搜尋引擎的建議回來了：接在後面（目前選到的不變）
+        sug.list = p.list || [];
+        if (sug.sel >= sug.list.length) sug.sel = 0;
+        if (sug.sel > 0) invoke("web_omni_select", { index: sug.sel });
+      });
+      // 程式請工具列打開某個要貼著按鈕的小視窗
+      T.event.listen("web-ask", (e) => {
+        const what = e.payload;
+        if (what === "main") openMenu($("menu"), "main", "main");
+        else if (what === "bookmark") openMenu($("star").hidden ? $("site") : $("star"), "bookmark", "bookmark");
+        else if (what === "zoom") {
+          const el = $("zoomBtn").hidden ? ($("star").hidden ? $("site") : $("star")) : $("zoomBtn");
+          const r = el.getBoundingClientRect();
+          invoke("web_menu_open", { kind: "zoom", key: "zoom", target: null, ids: null, rect: [r.left, r.top, r.right, r.bottom] });
+        }
       });
 
       T.core.invoke("web_bar_init").then((init) => {
         if (!init) return;
         me = init.state.id;
-        st = init.state;
         bm = init.bm;
-        renderTabs();
-        renderTool();
+        exts = init.exts || [];
+        renderExts();
+        apply(init.state);
         renderBms();
       }).catch(() => {});
     })();

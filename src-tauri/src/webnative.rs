@@ -1,0 +1,642 @@
+//! 瀏覽器視窗跟 WebView2 直接溝通的部分（只在 Windows 編譯，不碰 Tauri）：
+//! 鍵盤快捷鍵、上一頁／下一頁能不能按、網址變動、聲音、縮放、網頁右鍵選單、下載、清除瀏覽資料…
+//!
+//! 這裡的函式都要在主執行緒（視窗所在的執行緒）呼叫；事件也是在主執行緒通知，
+//! 收到事件的一方不可以在裡面等主執行緒做事（要另外丟給背景執行緒處理）。
+
+use crate::webev::{CtxTarget, DlEv, Ev, NativeItem, Opts, Sink};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+use webview2_com::Microsoft::Web::WebView2::Win32::*;
+use webview2_com::{
+    take_pwstr, AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, CallDevToolsProtocolMethodCompletedHandler,
+    ClearBrowsingDataCompletedHandler, ContainsFullScreenElementChangedEventHandler, ContextMenuRequestedEventHandler,
+    DownloadStartingEventHandler, FaviconChangedEventHandler, FindStartCompletedHandler, GetCookiesCompletedHandler,
+    HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, IsMutedChangedEventHandler, NavigationStartingEventHandler,
+    ShowSaveAsUICompletedHandler, SourceChangedEventHandler, StateChangedEventHandler, WindowCloseRequestedEventHandler,
+    ZoomFactorChangedEventHandler,
+};
+use windows_core::{Interface, BOOL, HSTRING, PWSTR};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_ESCAPE, VK_MENU, VK_SHIFT};
+
+/// 一個網頁（或工具列）的 WebView2
+pub struct Wv {
+    pub controller: ICoreWebView2Controller,
+    pub core: ICoreWebView2,
+}
+
+unsafe fn text(f: impl FnOnce(*mut PWSTR) -> windows_core::Result<()>) -> String {
+    let mut p = PWSTR::null();
+    if f(&mut p).is_ok() && !p.is_null() {
+        take_pwstr(p)
+    } else {
+        String::new()
+    }
+}
+
+unsafe fn flag(f: impl FnOnce(*mut BOOL) -> windows_core::Result<()>) -> bool {
+    let mut b = BOOL(0);
+    f(&mut b).is_ok() && b.as_bool()
+}
+
+fn key_down(vk: u16) -> bool {
+    unsafe { GetKeyState(vk as i32) < 0 }
+}
+
+/* ---------------- 網頁右鍵選單 ---------------- */
+
+struct CtxPending {
+    seq: u64,
+    args: ICoreWebView2ContextMenuRequestedEventArgs,
+    deferral: ICoreWebView2Deferral,
+}
+
+thread_local! {
+    /// 正在等使用者選的右鍵選單（一次只會有一個）
+    static CTX: RefCell<Option<CtxPending>> = const { RefCell::new(None) };
+    /// 下載中的檔案（可以暫停、繼續、取消）
+    static DLS: RefCell<HashMap<u64, ICoreWebView2DownloadOperation>> = RefCell::new(HashMap::new());
+}
+
+static DL_KEY: AtomicU64 = AtomicU64::new(0);
+static CTX_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// 拿出等待中的右鍵選單（seq = 0 不管是哪一個；不然要是同一個才拿）
+fn ctx_take(seq: u64) -> Option<CtxPending> {
+    CTX.with(|c| {
+        let mut g = c.borrow_mut();
+        if seq != 0 && g.as_ref().is_some_and(|p| p.seq != seq) {
+            return None;
+        }
+        g.take()
+    })
+}
+
+/// 右鍵選單結束：pick = 選了 WebView2 的哪個指令（沒選、選的是自己加的項目就 None）
+pub fn ctx_finish(seq: u64, pick: Option<i32>) {
+    if let Some(p) = ctx_take(seq) {
+        unsafe {
+            if let Some(id) = pick {
+                let _ = p.args.SetSelectedCommandId(id);
+            }
+            let _ = p.deferral.Complete();
+        }
+    }
+}
+
+/// 自己的選單顯示不出來：交還給 WebView2 顯示原本的選單
+pub fn ctx_default(seq: u64) {
+    if let Some(p) = ctx_take(seq) {
+        unsafe {
+            let _ = p.args.SetHandled(false);
+            let _ = p.deferral.Complete();
+        }
+    }
+}
+
+unsafe fn collect(list: &ICoreWebView2ContextMenuItemCollection, depth: u8) -> Vec<NativeItem> {
+    let mut n = 0u32;
+    if list.Count(&mut n).is_err() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for i in 0..n.min(80) {
+        let Ok(it) = list.GetValueAtIndex(i) else { continue };
+        let mut id = 0i32;
+        let _ = it.CommandId(&mut id);
+        let mut kind = COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND::default();
+        let _ = it.Kind(&mut kind);
+        let children = if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU && depth < 3 {
+            it.Children().map(|c| collect(&c, depth + 1)).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        out.push(NativeItem {
+            id,
+            name: text(|p| it.Name(p)),
+            label: text(|p| it.Label(p)),
+            kind: kind.0.clamp(0, 4) as u8,
+            enabled: flag(|b| it.IsEnabled(b)),
+            checked: flag(|b| it.IsChecked(b)),
+            shortcut: text(|p| it.ShortcutKeyDescription(p)),
+            children,
+        });
+    }
+    out
+}
+
+unsafe fn read_target(t: &ICoreWebView2ContextMenuTarget) -> CtxTarget {
+    let mut kind = COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND::default();
+    let _ = t.Kind(&mut kind);
+    let short = |s: String, n: usize| if s.len() > n { String::new() } else { s };
+    CtxTarget {
+        kind: kind.0.clamp(0, 4) as u8,
+        editable: flag(|b| t.IsEditable(b)),
+        link: if flag(|b| t.HasLinkUri(b)) { short(text(|p| t.LinkUri(p)), 8000) } else { String::new() },
+        src: if flag(|b| t.HasSourceUri(b)) { short(text(|p| t.SourceUri(p)), 8000) } else { String::new() },
+        selection: if flag(|b| t.HasSelection(b)) { text(|p| t.SelectionText(p)).chars().take(2000).collect() } else { String::new() },
+        page: text(|p| t.PageUri(p)),
+    }
+}
+
+/* ---------------- 掛上事件 ---------------- */
+
+/// 把瀏覽器需要的事件都掛到一個網頁（或工具列）上。任何一項失敗（WebView2 太舊）都只是少那個功能
+pub fn attach(w: &Wv, opts: Opts, sink: Sink) {
+    unsafe { attach_(&w.controller, &w.core, opts, sink) }
+}
+
+unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, opts: Opts, sink: Sink) {
+    let mut token = 0i64;
+
+    // 設定
+    if let Ok(s) = core.Settings() {
+        if opts.page {
+            // 滑鼠移到連結上時，左下角顯示網址；Ctrl + 滾輪可以縮放（跟 Chrome 一樣）
+            let _ = s.SetIsStatusBarEnabled(true);
+            let _ = s.SetIsZoomControlEnabled(true);
+        }
+        if let Ok(s3) = s.cast::<ICoreWebView2Settings3>() {
+            // 工具列這種自己的頁面不要 F5 重新整理、Ctrl+P 列印這些
+            let _ = s3.SetAreBrowserAcceleratorKeysEnabled(opts.page);
+        }
+        if opts.page {
+            if let Ok(s4) = s.cast::<ICoreWebView2Settings4>() {
+                let _ = s4.SetIsPasswordAutosaveEnabled(opts.save_passwords);
+            }
+        }
+    }
+    if opts.page && !opts.download_dir.is_empty() {
+        download_dir_(core, &opts.download_dir);
+    }
+
+    // 快捷鍵
+    {
+        let (s, accel, no_repeat) = (sink.clone(), opts.accel, opts.no_repeat);
+        let h = AcceleratorKeyPressedEventHandler::create(Box::new(move |_c, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
+            args.KeyEventKind(&mut kind)?;
+            if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN {
+                return Ok(());
+            }
+            let mut vk = 0u32;
+            args.VirtualKey(&mut vk)?;
+            let (ctrl, shift, alt) = (key_down(VK_CONTROL), key_down(VK_SHIFT), key_down(VK_MENU));
+            if vk == VK_ESCAPE as u32 && !ctrl && !shift && !alt {
+                // 只通知（關掉開著的選單），按鍵照樣給網頁
+                s(Ev::Key("esc"));
+                return Ok(());
+            }
+            if let Some(cmd) = accel(vk, ctrl, shift, alt) {
+                let mut st = COREWEBVIEW2_PHYSICAL_KEY_STATUS::default();
+                let _ = args.PhysicalKeyStatus(&mut st);
+                let _ = args.SetHandled(true);
+                if !(st.WasKeyDown.as_bool() && no_repeat(cmd)) {
+                    s(Ev::Key(cmd));
+                }
+            }
+            Ok(())
+        }));
+        let _ = controller.add_AcceleratorKeyPressed(&h, &mut token);
+    }
+
+    if !opts.page {
+        return;
+    }
+
+    // 上一頁／下一頁
+    {
+        let s = sink.clone();
+        let h = HistoryChangedEventHandler::create(Box::new(move |core, _| {
+            if let Some(core) = core {
+                s(Ev::Nav { back: flag(|b| core.CanGoBack(b)), forward: flag(|b| core.CanGoForward(b)) });
+            }
+            Ok(())
+        }));
+        let _ = core.add_HistoryChanged(&h, &mut token);
+    }
+
+    // 網址
+    {
+        let s = sink.clone();
+        let h = SourceChangedEventHandler::create(Box::new(move |core, _| {
+            if let Some(core) = core {
+                let u = text(|p| core.Source(p));
+                if !u.is_empty() {
+                    s(Ev::Source(u));
+                }
+            }
+            Ok(())
+        }));
+        let _ = core.add_SourceChanged(&h, &mut token);
+    }
+
+    // 內嵌框架不可以載入程式自己的頁面
+    if !opts.block_prefix.is_empty() {
+        let prefix = opts.block_prefix.to_lowercase();
+        let h = NavigationStartingEventHandler::create(Box::new(move |_c, args| {
+            if let Some(args) = args {
+                let u = text(|p| args.Uri(p)).to_lowercase();
+                if u.starts_with(&prefix) {
+                    let _ = args.SetCancel(true);
+                }
+            }
+            Ok(())
+        }));
+        let _ = core.add_FrameNavigationStarting(&h, &mut token);
+    }
+
+    // 網站圖示
+    if let Ok(c15) = core.cast::<ICoreWebView2_15>() {
+        let s = sink.clone();
+        let h = FaviconChangedEventHandler::create(Box::new(move |core, _| {
+            if let Some(c) = core.and_then(|c| c.cast::<ICoreWebView2_15>().ok()) {
+                let u = text(|p| c.FaviconUri(p));
+                if !u.is_empty() {
+                    s(Ev::Favicon(u));
+                }
+            }
+            Ok(())
+        }));
+        let _ = c15.add_FaviconChanged(&h, &mut token);
+    }
+
+    // 聲音
+    if let Ok(c8) = core.cast::<ICoreWebView2_8>() {
+        let audio = |core: Option<ICoreWebView2>| {
+            core.and_then(|c| c.cast::<ICoreWebView2_8>().ok())
+                .map(|c| Ev::Audio { playing: flag(|b| c.IsDocumentPlayingAudio(b)), muted: flag(|b| c.IsMuted(b)) })
+        };
+        let s = sink.clone();
+        let h = IsDocumentPlayingAudioChangedEventHandler::create(Box::new(move |core, _| {
+            if let Some(ev) = audio(core) {
+                s(ev);
+            }
+            Ok(())
+        }));
+        let _ = c8.add_IsDocumentPlayingAudioChanged(&h, &mut token);
+        let s = sink.clone();
+        let h = IsMutedChangedEventHandler::create(Box::new(move |core, _| {
+            if let Some(ev) = audio(core) {
+                s(ev);
+            }
+            Ok(())
+        }));
+        let _ = c8.add_IsMutedChanged(&h, &mut token);
+    }
+
+    // 縮放（Ctrl + 滾輪）
+    {
+        let s = sink.clone();
+        let h = ZoomFactorChangedEventHandler::create(Box::new(move |c, _| {
+            if let Some(c) = c {
+                let mut z = 1.0f64;
+                if c.ZoomFactor(&mut z).is_ok() {
+                    s(Ev::Zoom(z));
+                }
+            }
+            Ok(())
+        }));
+        let _ = controller.add_ZoomFactorChanged(&h, &mut token);
+    }
+
+    // 影片全螢幕
+    {
+        let s = sink.clone();
+        let h = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |core, _| {
+            if let Some(core) = core {
+                s(Ev::Fullscreen(flag(|b| core.ContainsFullScreenElement(b))));
+            }
+            Ok(())
+        }));
+        let _ = core.add_ContainsFullScreenElementChanged(&h, &mut token);
+    }
+
+    // window.close()
+    {
+        let s = sink.clone();
+        let h = WindowCloseRequestedEventHandler::create(Box::new(move |_c, _| {
+            s(Ev::CloseRequested);
+            Ok(())
+        }));
+        let _ = core.add_WindowCloseRequested(&h, &mut token);
+    }
+
+    // 右鍵選單
+    if let Ok(c11) = core.cast::<ICoreWebView2_11>() {
+        let s = sink.clone();
+        let h = ContextMenuRequestedEventHandler::create(Box::new(move |_c, args| {
+            let Some(args) = args else { return Ok(()) };
+            // 上一個還沒結束的先結束
+            ctx_finish(0, None);
+            let items = collect(&args.MenuItems()?, 0);
+            let target = read_target(&args.ContextMenuTarget()?);
+            if items.is_empty() {
+                return Ok(());
+            }
+            let deferral = args.GetDeferral()?;
+            args.SetHandled(true)?;
+            let seq = CTX_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+            CTX.with(|c| *c.borrow_mut() = Some(CtxPending { seq, args, deferral }));
+            s(Ev::Context { seq, target, items });
+            Ok(())
+        }));
+        let _ = c11.add_ContextMenuRequested(&h, &mut token);
+    }
+
+    // 下載
+    if let Ok(c4) = core.cast::<ICoreWebView2_4>() {
+        let s = sink.clone();
+        let h = DownloadStartingEventHandler::create(Box::new(move |_c, args| {
+            let Some(args) = args else { return Ok(()) };
+            let op = args.DownloadOperation()?;
+            let key = DL_KEY.fetch_add(1, Ordering::SeqCst) + 1;
+            let mut total = -1i64;
+            let _ = op.TotalBytesToReceive(&mut total);
+            s(Ev::Download(DlEv::Start { key, url: text(|p| op.Uri(p)), path: text(|p| args.ResultFilePath(p)), total }));
+            DLS.with(|d| d.borrow_mut().insert(key, op.clone()));
+            let mut tok = 0i64;
+            // 進度：最多每 0.3 秒通知一次
+            let s2 = s.clone();
+            let mut last = Instant::now() - Duration::from_secs(1);
+            let hb = BytesReceivedChangedEventHandler::create(Box::new(move |op, _| {
+                if let Some(op) = op {
+                    if last.elapsed() >= Duration::from_millis(300) {
+                        last = Instant::now();
+                        let (mut r, mut t) = (0i64, -1i64);
+                        let _ = op.BytesReceived(&mut r);
+                        let _ = op.TotalBytesToReceive(&mut t);
+                        s2(Ev::Download(DlEv::Progress { key, received: r, total: t }));
+                    }
+                }
+                Ok(())
+            }));
+            let _ = op.add_BytesReceivedChanged(&hb, &mut tok);
+            let s3 = s.clone();
+            let hs = StateChangedEventHandler::create(Box::new(move |op, _| {
+                let Some(op) = op else { return Ok(()) };
+                let mut st = COREWEBVIEW2_DOWNLOAD_STATE::default();
+                let _ = op.State(&mut st);
+                if st == COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS {
+                    return Ok(());
+                }
+                let state = if st == COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED {
+                    "done"
+                } else {
+                    let mut why = COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON::default();
+                    let _ = op.InterruptReason(&mut why);
+                    if why == COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON_USER_CANCELED || why == COREWEBVIEW2_DOWNLOAD_INTERRUPT_REASON_USER_SHUTDOWN {
+                        "canceled"
+                    } else {
+                        // 暫停也會通知「中斷」，但還可以繼續：不算結束
+                        if flag(|b| op.CanResume(b)) {
+                            return Ok(());
+                        }
+                        "failed"
+                    }
+                };
+                let mut r = 0i64;
+                let _ = op.BytesReceived(&mut r);
+                DLS.with(|d| d.borrow_mut().remove(&key));
+                s3(Ev::Download(DlEv::Done { key, state, path: text(|p| op.ResultFilePath(p)), received: r }));
+                Ok(())
+            }));
+            let _ = op.add_StateChanged(&hs, &mut tok);
+            Ok(())
+        }));
+        let _ = c4.add_DownloadStarting(&h, &mut token);
+    }
+}
+
+/* ---------------- 操作 ---------------- */
+
+pub fn go_back(w: &Wv) {
+    unsafe {
+        let _ = w.core.GoBack();
+    }
+}
+
+pub fn go_forward(w: &Wv) {
+    unsafe {
+        let _ = w.core.GoForward();
+    }
+}
+
+pub fn stop(w: &Wv) {
+    unsafe {
+        let _ = w.core.Stop();
+    }
+}
+
+pub fn can_go(w: &Wv) -> (bool, bool) {
+    unsafe { (flag(|b| w.core.CanGoBack(b)), flag(|b| w.core.CanGoForward(b))) }
+}
+
+pub fn set_muted(w: &Wv, muted: bool) {
+    unsafe {
+        if let Ok(c) = w.core.cast::<ICoreWebView2_8>() {
+            let _ = c.SetIsMuted(muted);
+        }
+    }
+}
+
+pub fn set_zoom(w: &Wv, z: f64) {
+    unsafe {
+        let mut cur = 1.0f64;
+        if w.controller.ZoomFactor(&mut cur).is_ok() && (cur - z).abs() < 0.001 {
+            return;
+        }
+        let _ = w.controller.SetZoomFactor(z);
+    }
+}
+
+pub fn set_password_save(w: &Wv, on: bool) {
+    unsafe {
+        if let Ok(s4) = w.core.Settings().and_then(|s| s.cast::<ICoreWebView2Settings4>()) {
+            let _ = s4.SetIsPasswordAutosaveEnabled(on);
+        }
+    }
+}
+
+unsafe fn download_dir_(core: &ICoreWebView2, dir: &str) {
+    if dir.trim().is_empty() {
+        return;
+    }
+    if let Ok(p) = core.cast::<ICoreWebView2_13>().and_then(|c| c.Profile()) {
+        let _ = p.SetDefaultDownloadFolderPath(&HSTRING::from(dir));
+    }
+}
+
+/// 下載要存的資料夾（整個瀏覽器設定檔共用）
+pub fn set_download_dir(w: &Wv, dir: &str) {
+    unsafe { download_dir_(&w.core, dir) }
+}
+
+/// 瀏覽器的工作管理員
+pub fn task_manager(w: &Wv) {
+    unsafe {
+        if let Ok(c) = w.core.cast::<ICoreWebView2_6>() {
+            let _ = c.OpenTaskManagerWindow();
+        }
+    }
+}
+
+/// 另存網頁
+pub fn save_as(w: &Wv) {
+    unsafe {
+        if let Ok(c) = w.core.cast::<ICoreWebView2_25>() {
+            let h = ShowSaveAsUICompletedHandler::create(Box::new(|_, _| Ok(())));
+            let _ = c.ShowSaveAsUI(&h);
+        }
+    }
+}
+
+/// 下載清單的小視窗：開著就關掉，關著就打開
+pub fn toggle_downloads(w: &Wv) {
+    unsafe {
+        if let Ok(c) = w.core.cast::<ICoreWebView2_9>() {
+            if flag(|b| c.IsDefaultDownloadDialogOpen(b)) {
+                let _ = c.CloseDefaultDownloadDialog();
+            } else {
+                let _ = c.OpenDefaultDownloadDialog();
+            }
+        }
+    }
+}
+
+/// 在網頁中尋找（顯示尋找列）。回傳 false = 這個 WebView2 版本沒有這個功能
+pub fn find(w: &Wv) -> bool {
+    unsafe {
+        let Ok(c28) = w.core.cast::<ICoreWebView2_28>() else { return false };
+        let Ok(find) = c28.Find() else { return false };
+        let Ok(env) = w.core.cast::<ICoreWebView2_2>().and_then(|c| c.Environment()) else { return false };
+        let Ok(env15) = env.cast::<ICoreWebView2Environment15>() else { return false };
+        let Ok(options) = env15.CreateFindOptions() else { return false };
+        let _ = options.SetFindTerm(&HSTRING::from(""));
+        let _ = options.SetSuppressDefaultFindDialog(false);
+        let h = FindStartCompletedHandler::create(Box::new(|_| Ok(())));
+        find.Start(&options, &h).is_ok()
+    }
+}
+
+/// WebView2（瀏覽器核心）的版本
+pub fn version(w: &Wv) -> String {
+    unsafe {
+        match w.core.cast::<ICoreWebView2_2>().and_then(|c| c.Environment()) {
+            Ok(env) => text(|p| env.BrowserVersionString(p)),
+            Err(_) => String::new(),
+        }
+    }
+}
+
+pub fn dl_cancel(key: u64) {
+    if let Some(op) = DLS.with(|d| d.borrow().get(&key).cloned()) {
+        unsafe {
+            let _ = op.Cancel();
+        }
+    }
+}
+
+pub fn dl_pause(key: u64, pause: bool) {
+    if let Some(op) = DLS.with(|d| d.borrow().get(&key).cloned()) {
+        unsafe {
+            let _ = if pause { op.Pause() } else { op.Resume() };
+        }
+    }
+}
+
+/// 清除瀏覽資料。kinds = 要清的種類（webev::data_kinds 的數值相加）；
+/// since_ms = 只清這個時間（Unix 毫秒）之後的，None = 全部
+pub fn clear_data(w: &Wv, kinds: i32, since_ms: Option<u64>, done: Box<dyn FnOnce(bool) + Send + 'static>) {
+    unsafe {
+        let Ok(p2) = w.core.cast::<ICoreWebView2_13>().and_then(|c| c.Profile()).and_then(|p| p.cast::<ICoreWebView2Profile2>()) else {
+            done(false);
+            return;
+        };
+        let kinds = COREWEBVIEW2_BROWSING_DATA_KINDS(kinds);
+        let h = ClearBrowsingDataCompletedHandler::create(Box::new(move |r| {
+            done(r.is_ok());
+            Ok(())
+        }));
+        let r = match since_ms {
+            // 時間是從 1970 年起的秒數
+            Some(ms) => p2.ClearBrowsingDataInTimeRange(kinds, ms as f64 / 1000.0, 4_102_444_800.0, &h),
+            None => p2.ClearBrowsingData(kinds, &h),
+        };
+        if let Err(e) = r {
+            eprintln!("清除瀏覽資料失敗：{e}");
+        }
+    }
+}
+
+/// 這個分頁可以回去的網頁清單（上一頁按鈕按右鍵用）：回傳 DevTools 的 Page.getNavigationHistory 結果（JSON 文字，失敗是空字串）
+pub fn nav_entries(w: &Wv, done: Box<dyn FnOnce(String) + Send + 'static>) {
+    unsafe {
+        let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |r, json| {
+            done(if r.is_ok() { json } else { String::new() });
+            Ok(())
+        }));
+        let _ = w.core.CallDevToolsProtocolMethod(&HSTRING::from("Page.getNavigationHistory"), &HSTRING::from("{}"), &h);
+    }
+}
+
+/// 跳到清單裡的某一頁
+pub fn nav_to(w: &Wv, entry: i64) {
+    unsafe {
+        let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|_, _| Ok(())));
+        let params = format!("{{\"entryId\":{entry}}}");
+        let _ = w.core.CallDevToolsProtocolMethod(&HSTRING::from("Page.navigateToHistoryEntry"), &HSTRING::from(params), &h);
+    }
+}
+
+/// 清掉一個網站的 Cookie 與儲存資料（origins = 要清的來源，例如 https://x.com）。
+/// Cookie 用 WebView2 的 Cookie 管理：把「開這個網址時會送出的 cookie」（含 .x.com 這種整個網域的）全部刪掉；
+/// 其他資料（localStorage、IndexedDB、快取、Service Worker）用 DevTools 的 Storage.clearDataForOrigin
+pub fn clear_site(w: &Wv, origins: &[String]) {
+    unsafe {
+        let core = &w.core;
+        if let Ok(cm) = core.cast::<ICoreWebView2_2>().and_then(|c| c.CookieManager()) {
+            for o in origins {
+                let cm2 = cm.clone();
+                let handler = GetCookiesCompletedHandler::create(Box::new(move |_, list| {
+                    if let Some(list) = list {
+                        let mut n = 0u32;
+                        let _ = list.Count(&mut n);
+                        for i in 0..n {
+                            if let Ok(c) = list.GetValueAtIndex(i) {
+                                let _ = cm2.DeleteCookie(&c);
+                            }
+                        }
+                    }
+                    Ok(())
+                }));
+                if let Err(e) = cm.GetCookies(&HSTRING::from(format!("{o}/")), &handler) {
+                    eprintln!("讀取 cookie 失敗：{e}");
+                }
+            }
+        } else {
+            eprintln!("這個 WebView2 版本沒有 Cookie 管理");
+        }
+        for o in origins {
+            let params = format!("{{\"origin\":\"{}\",\"storageTypes\":\"all\"}}", o.replace(['"', '\\'], ""));
+            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|_, _| Ok(())));
+            if let Err(e) = core.CallDevToolsProtocolMethod(&HSTRING::from("Storage.clearDataForOrigin"), &HSTRING::from(params), &handler) {
+                eprintln!("清除網站資料失敗：{e}");
+            }
+        }
+    }
+}
+
+/* ---------------- 視窗 ---------------- */
+
+/// 選單小視窗：Windows 11 的圓角
+pub fn round_corners(hwnd: isize) {
+    use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
+    let pref: i32 = DWMWCP_ROUND;
+    unsafe {
+        DwmSetWindowAttribute(hwnd as _, DWMWA_WINDOW_CORNER_PREFERENCE as u32, &pref as *const i32 as *const _, 4);
+    }
+}

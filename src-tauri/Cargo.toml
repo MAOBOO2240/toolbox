@@ -24,6 +24,8 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-single-instance = "2"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
+# 瀏覽器視窗：解析網址（Tauri 本來就用這個，沒有多下載東西）
+url = "2"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"

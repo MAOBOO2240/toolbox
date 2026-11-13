@@ -1031,13 +1031,7 @@
           <button class="cbtn c-blue small solid" id="webAdd">新增視窗</button>
         </nav>
         <div class="web-page">
-          <!-- 書籤與擴充功能：一個小框，詳細內容在獨立視窗 -->
-          <div class="card web-sum">
-            <div class="web-sum-item"><span class="web-sum-ic" style="--c:#f5c542">★</span><div><strong>書籤</strong><span class="muted" id="webBmCount">還沒有書籤</span></div></div>
-            <div class="web-sum-item"><span class="web-sum-ic" style="--c:#14b8a6">⚙</span><div><strong>擴充功能</strong><span class="muted" id="webExtCount">讀取中…</span></div></div>
-            <div class="web-sum-item"><span class="web-sum-ic" style="--c:#22b45e">{}</span><div><strong>使用者腳本</strong><span class="muted" id="webScriptSum">讀取中…</span></div></div>
-            <button class="cbtn small c-purple" id="webSetup">設定</button>
-          </div>
+          <p class="web-hint muted">外觀與操作跟 Chrome 一樣。書籤和擴充功能每次開啟都會自動跟這台電腦的 Chrome 同步；設定、歷史記錄、下載、擴充功能都在瀏覽器視窗右上角的「⋮」裡。</p>
           <div class="web-list" id="webList"></div>
         </div>
       </section>
@@ -1235,50 +1229,6 @@
     </div>
   </div>
   <!-- 瀏覽器：書籤與擴充功能設定 -->
-  <div class="alert-backdrop" id="webSetupBack">
-    <div class="alert web-setup" role="dialog" aria-modal="true">
-      <div class="web-setup-head"><h3 class="alert-msg">書籤、擴充功能與腳本</h3><button class="web-setup-x" id="webSetupClose" title="關閉"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-      <div class="web-bmcard">
-        <div class="web-bmhead">
-          <div class="web-name">
-            <strong class="web-tipt" data-tip="用你在 Chrome 登入的 Google 帳號的書籤：Chrome 書籤列上的網站會出現在瀏覽器視窗的書籤列，其他書籤在書籤列右邊的「所有書籤」。Chrome 新增書籤後幾秒內會自動加進來；在瀏覽器視窗刪掉的書籤不會再被加回來。只讀取書籤，不讀其他資料。">書籤 <i class="info">i</i></strong>
-            <span class="muted" id="webBmCount2">還沒有書籤</span>
-          </div>
-          <label class="web-opt" title="Chrome 的書籤有新增時，自動加到瀏覽器視窗的書籤列"><span>自動從 Chrome 匯入</span><span class="switch sm"><input type="checkbox" id="webSync" /><span class="slider"></span></span></label>
-        </div>
-        <div class="web-chrome">
-          <span class="web-chrome-who" id="webChromeWho">讀取中…</span>
-          <button class="cbtn small c-amber" id="webImport">立即匯入</button>
-          <button class="cbtn small c-blue" id="webPick" hidden>換帳號</button>
-        </div>
-        <div class="web-profiles" id="webProfiles" hidden></div>
-      </div>
-      <div class="web-bmcard">
-        <div class="web-bmhead">
-          <div class="web-name">
-            <strong class="web-tipt" data-tip="會用 Chrome 裡啟用中的擴充功能（跟書籤用同一個 Chrome 帳號）。程式每次開啟時會自動同步，新開的分頁、視窗才會套用。只支援會自動在網頁上執行的擴充功能（例如擋廣告、深色模式、翻譯）；要按圖示才能用的擴充功能可以從網址列右邊的擴充功能按鈕開。擴充功能的設定不會從 Chrome 帶過來。">擴充功能 <i class="info">i</i></strong>
-            <span class="muted" id="webExtCount2">讀取中…</span>
-          </div>
-          <button class="cbtn small c-purple" id="webExtSync">重新同步</button>
-        </div>
-        <div class="web-exts" id="webExts"></div>
-      </div>
-      <div class="web-bmcard">
-        <div class="web-bmhead">
-          <div class="web-name">
-            <strong class="web-tipt" data-tip="篡改猴（Tampermonkey）的 .user.js 腳本由瀏覽器視窗自己執行，不用裝篡改猴。可以匯入篡改猴「匯出」的備份 zip，或單一 .user.js。支援 @match、@include、@exclude、@run-at、@require、@resource 與常用的 GM_ 功能（GM_getValue／GM_setValue、GM_addStyle、GM_xmlhttpRequest、unsafeWindow…）。新匯入或改變的腳本，重新整理網頁後生效；document-start 的腳本要重開視窗。">使用者腳本 <i class="info">i</i></strong>
-            <span class="muted" id="webScriptCount">讀取中…</span>
-          </div>
-          <div class="web-chrome">
-            <button class="cbtn small c-green" id="webScriptImport">匯入腳本／備份</button>
-            <button class="cbtn small c-blue" id="webScriptDir" title="腳本放在這個資料夾；自己放 .user.js 進去後按「重新讀取」">開啟資料夾</button>
-            <button class="cbtn small c-silver" id="webScriptReload">重新讀取</button>
-          </div>
-        </div>
-        <div class="web-scripts" id="webScripts"></div>
-      </div>
-    </div>
-  </div>
   <div class="alert-backdrop" id="alertBackdrop">
     <div class="alert" role="alertdialog" aria-modal="true">
       <h3 class="alert-msg" id="alertMsg">確定執行此操作嗎？</h3>

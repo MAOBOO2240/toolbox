@@ -3,165 +3,296 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>web 選單</title>
+  <title>瀏覽器選單</title>
   <style>
+    /* 瀏覽器的選單、網址列建議、提示框（樣式比照 Chrome 深色）。內容由 web/pop.rs 決定 */
     * { box-sizing: border-box; margin: 0; }
-    html, body { height: 100%; background: #262b36; color: #f2f4f8; user-select: none;
-      font: 12.5px/1.2 -apple-system, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", sans-serif; }
-    body { overflow-y: auto; overflow-x: hidden; border: 1px solid #3a4252; }
-    body::-webkit-scrollbar { width: 8px; }
-    body::-webkit-scrollbar-thumb { background: #4a5263; border-radius: 4px; }
-    svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .menu { padding: 5px 0; }
-    /* 高度要跟 web.rs 的 MENU_ITEM_H、MENU_SEP_H、MENU_PAD 一致 */
-    .mi { height: 30px; display: flex; align-items: center; gap: 9px; padding: 0 12px; margin: 0 5px; border-radius: 6px; cursor: default; }
-    .mi:hover { background: #3a4252; }
-    .mi .ic { flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: #9aa3b2; }
-    .mi .ic svg { width: 15px; height: 15px; }
-    .mi .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mi .s { flex: none; color: #8a93a3; font-size: 11px; }
-    .mi.folder .ic { color: #f5c542; }
-    .mi.back { color: #7dd3fc; }
-    .mi.back .ic { color: #7dd3fc; }
-    .mi.act .ic.newtab { color: #60a5fa; }
-    .mi.act .ic.rename { color: #a78bfa; }
-    .mi.act .ic.reload { color: #34d399; }
-    .mi.act .ic.close { color: #fbbf24; }
-    .mi.act .ic.chrome { color: #f87171; }
-    .mi.danger, .mi.danger .ic { color: #f87171; }
-    .mi.danger:hover { background: rgba(239, 68, 68, 0.18); }
-    .mi.empty { color: #8a93a3; justify-content: center; }
-    /* 擴充功能選單：跟 Chrome 一樣，上面有標題，每一列右邊有「⋮」 */
-    .mi.head { font-weight: 700; font-size: 13.5px; cursor: default; padding-left: 10px; }
-    .mi.head:hover { background: none; }
-    .mi.ext .more { flex: none; width: 24px; height: 24px; border: 0; border-radius: 6px; background: none; color: #9aa3b2; display: grid; place-items: center; cursor: pointer; visibility: hidden; }
-    .mi.ext:hover .more { visibility: visible; }
-    .mi.ext .more:hover { background: #4a5263; color: #f2f4f8; }
-    .mi.ext .more svg { width: 16px; height: 16px; stroke-width: 2.6; }
-    .mi.ext.off .t, .mi.ext.off .ic { opacity: 0.45; }
-    .mi.empty:hover { background: none; }
-    .sep { height: 9px; display: flex; align-items: center; margin: 0 10px; }
-    .sep::after { content: ""; flex: 1; height: 1px; background: #3a4252; }
+    :root { --bg: #1f1f1f; --text: #e3e3e3; --text2: #c7c7c7; --dis: #7b7b7b; --line: #444746; --hover: rgba(227, 227, 227, 0.1); --accent: #a8c7fa; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); user-select: none;
+      font: 13px/1.3 "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", system-ui, sans-serif; }
+    body.omni { --bg: #282828; }
+    svg.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    button { padding: 0; font: inherit; border: 0; background: none; color: inherit; cursor: default; }
+    #scroll { height: 100vh; overflow-x: hidden; overflow-y: auto; }
+    #scroll::-webkit-scrollbar { width: 8px; }
+    #scroll::-webkit-scrollbar-thumb { background: #5e5e5e; border-radius: 4px; }
+    #menu { width: max-content; min-width: 200px; max-width: 440px; padding: 8px 0; }
+    body.bubble #menu { min-width: 300px; max-width: 380px; }
+    body.omni #menu { min-width: 0; max-width: none; padding: 6px 0 8px; }
     .fav { width: 16px; height: 16px; border-radius: 3px; object-fit: contain; display: block; }
     .letter { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+    .gl { display: grid; place-items: center; }
+
+    /* 一般項目 */
+    .mi { min-height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 16px; white-space: nowrap; }
+    .mi:hover, .mi.on { background: var(--hover); }
+    .mi.off { color: var(--dis); }
+    .mi.off:hover { background: none; }
+    .mi.danger { color: #f2b8b5; }
+    .mi .lead { flex: none; width: 18px; height: 18px; display: grid; place-items: center; color: var(--text2); }
+    .mi.off .lead { color: var(--dis); }
+    .mi.danger .lead { color: #f2b8b5; }
+    .mi .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+    .mi .t { overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+    .mi .s { display: none; color: var(--text2); font-size: 12px; white-space: normal; max-width: 300px; padding-bottom: 2px; }
+    body.bubble .mi .s { display: block; }
+    body.bubble .mi.two { padding-top: 6px; padding-bottom: 6px; }
+    .mi .k { flex: none; color: var(--text2); font-size: 12px; margin-left: 24px; }
+    .mi.off .k { color: var(--dis); }
+    .mi .ch { flex: none; margin-right: -6px; color: var(--text2); }
+    .mi .ch svg { width: 16px; height: 16px; }
+    .sep { height: 1px; margin: 4px 0; background: var(--line); }
+    .head { padding: 6px 16px 4px; color: var(--text2); font-size: 12px; }
+    body.bubble .head { padding: 8px 16px 8px; color: var(--text); font-size: 15px; font-weight: 600; }
+    body.bubble .sep + .head { font-size: 12px; font-weight: 400; color: var(--text2); padding: 6px 16px 4px; }
+    .empty { min-height: 32px; display: flex; align-items: center; padding: 0 16px; color: var(--dis); }
+    .info { padding: 6px 16px; color: var(--text2); font-size: 12px; white-space: normal; max-width: 340px; line-height: 1.5; }
+
+    /* 縮放那一列 */
+    .zoom { min-height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; }
+    .zoom .t { flex: 1; }
+    .zoom .ctl { display: flex; align-items: center; gap: 2px; }
+    .zoom .pct { min-width: 44px; text-align: center; }
+    .zb { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--text); }
+    .zb:hover { background: var(--hover); }
+    .zb svg { width: 16px; height: 16px; stroke-width: 2; }
+    .zoom .vr { width: 1px; height: 20px; background: var(--line); margin: 0 6px; }
+    .zoom.bubble { padding: 4px 12px 4px 20px; gap: 16px; }
+    .zoom.bubble .pct { font-size: 15px; min-width: 52px; text-align: left; }
+    .zoom .reset { height: 30px; padding: 0 14px; border-radius: 15px; border: 1px solid #5e5e5e; color: var(--accent); font-size: 13px; }
+    .zoom .reset:hover { background: rgba(168, 199, 250, 0.1); }
+
+    /* 網址列的建議 */
+    .sug { height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 9px; white-space: nowrap; margin-right: 12px; border-radius: 0 18px 18px 0; }
+    .sug:hover { background: rgba(227, 227, 227, 0.06); }
+    .sug.on { background: #3c3c3c; }
+    .sug .lead { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--text2); }
+    .sug .lead svg { width: 16px; height: 16px; stroke-width: 2; }
+    .sug .t { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+    .sug .t.url { color: var(--accent); }
+    .sug .d { flex: 0 10 auto; min-width: 40px; overflow: hidden; text-overflow: ellipsis; color: var(--text2); font-size: 14px; }
+    .sug .d::before { content: "- "; color: var(--text2); }
+    .sug .d.url { color: var(--accent); }
+
+    /* 分頁清單、擴充功能 */
+    .row { min-height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; white-space: nowrap; }
+    .row:hover, .row.on { background: var(--hover); }
+    .row.off .tx, .row.off .lead { opacity: 0.5; }
+    .row .lead { flex: none; width: 18px; height: 18px; display: grid; place-items: center; color: var(--text2); }
+    .row .lead img { width: 18px; height: 18px; }
+    .row .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .row .t { overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+    .row .s { color: var(--text2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+    .row .rb { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--text2); }
+    .row .rb:hover { background: rgba(227, 227, 227, 0.16); }
+    .row .rb svg { width: 16px; height: 16px; }
+    .row .rb.lit { color: var(--accent); }
+    .row.tab .rb { visibility: hidden; }
+    .row.tab:hover .rb { visibility: visible; }
+    .row.cur .t { color: var(--accent); }
   </style>
 </head>
 <body>
-  <div class="menu" id="menu"></div>
+  <div id="scroll"><div id="menu"></div></div>
+  <script src="web-icons.js"></script>
   <script>
     "use strict";
     (() => {
       const T = window.__TAURI__;
       if (!T) return;
-      const ICONS = {
-        folder: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>',
-        back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
-        newtab: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
-        rename: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
-        delete: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
-        reload: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></svg>',
-        close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-        chrome: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.3"/><path d="M12 8.7h8.1M9.2 13.7L5.1 6.7M14.8 13.7l-4 7"/></svg>',
-        chev: '<svg viewBox="0 0 24 24" width="12" height="12"><path d="M9 6l6 6-6 6"/></svg>',
-        more: '<svg viewBox="0 0 24 24"><path d="M12 5v.01M12 12v.01M12 19v.01"/></svg>',
-      };
-      const host = (u) => { try { return new URL(u).host; } catch { return ""; } };
-      function letter(text) {
-        const el = document.createElement("span");
-        let h = 0;
-        for (const c of text || "?") h = (h * 31 + c.charCodeAt(0)) % 360;
-        el.className = "letter";
-        el.style.background = `hsl(${h} 55% 45%)`;
-        el.textContent = ((text || "?").trim().charAt(0) || "?").toUpperCase();
-        return el;
-      }
-      function favicon(src, text) {
-        if (!src) return letter(text);
-        const img = document.createElement("img");
-        img.className = "fav";
-        img.alt = "";
-        img.draggable = false;
-        img.referrerPolicy = "no-referrer";
-        img.onerror = () => img.replaceWith(letter(text));
-        img.src = src;
-        return img;
-      }
-      const pick = (index, button) => T.core.invoke("web_menu_pick", { index, button }).catch(() => {});
+      const { ICONS, icon } = window.MB;
+      const invoke = (cmd, args) => T.core.invoke(cmd, args).catch(() => {});
+      const menu = document.getElementById("menu");
+      // 建議的種類 → 圖示
+      const SUG_ICON = { search: "search", suggest: "search", url: "globe", history: "clock", bookmark: "star" };
+      let cur = null;
+      let hoverTimer = 0;
+      let hovered = -1;
 
-      function render(items) {
-        const menu = document.getElementById("menu");
+      const el = (tag, cls, text) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      };
+      const pick = (index, button, part) => {
+        if (!cur) return;
+        invoke("web_pop_pick", { gen: cur.gen, index, button, part: part ?? null });
+      };
+      // 滑鼠停在某一項上：告訴程式（有下一層就打開，沒有就把更深的關掉）
+      function hover(row, index, now) {
+        if (!cur || hovered === index) return;
+        clearTimeout(hoverTimer);
+        const gen = cur.gen;
+        hoverTimer = setTimeout(() => {
+          if (!cur || cur.gen !== gen) return;
+          hovered = index;
+          const r = row.getBoundingClientRect();
+          invoke("web_pop_hover", { gen, index, rect: [r.left, r.top, r.right, r.bottom] });
+        }, now ? 0 : 140);
+      }
+      function wire(row, it, i, parts) {
+        if (it.off) return;
+        row.addEventListener("mouseenter", () => hover(row, i, false));
+        row.addEventListener("mouseup", (e) => {
+          if (e.button !== 0 && e.button !== 1) return;
+          if (it.more) { hover(row, i, true); return; }
+          pick(i, e.button, null);
+        });
+        row.addEventListener("contextmenu", (e) => { e.preventDefault(); pick(i, 2, null); });
+        for (const [btn, part] of parts || []) {
+          btn.addEventListener("mousedown", (e) => e.stopPropagation());
+          btn.addEventListener("mouseup", (e) => { e.stopPropagation(); if (e.button === 0) pick(i, 0, part); });
+        }
+      }
+      const lead = (src, text, cls) => {
+        const l = el("span", cls || "lead");
+        if (src) l.append(icon(src, text));
+        return l;
+      };
+
+      function render(m) {
+        cur = m;
+        hovered = -1;
+        clearTimeout(hoverTimer);
+        document.body.className = m.style === "menu" ? "" : m.style;
         menu.innerHTML = "";
-        document.body.scrollTop = 0;
+        menu.style.width = m.width > 0 ? `${m.width}px` : "";
+        document.getElementById("scroll").scrollTop = 0;
+        const items = m.items || [];
+        // 整個選單都沒有圖示、也沒有打勾的項目：左邊不用留圖示的位置
+        const hasLead = items.some((it) => it.kind === "item" && (it.icon || it.check));
         items.forEach((it, i) => {
-          if (it.kind === "sep") {
-            const s = document.createElement("div");
-            s.className = "sep";
-            menu.append(s);
+          if (it.kind === "sep") { menu.append(el("div", "sep")); return; }
+          if (it.kind === "head") { menu.append(el("div", "head", it.title)); return; }
+          if (it.kind === "empty") { menu.append(el("div", "empty", it.title)); return; }
+          if (it.kind === "info") { menu.append(el("div", "info", it.title)); return; }
+          if (it.kind === "zoom") {
+            const row = el("div", "zoom" + (it.tag === "bubble" ? " bubble" : ""));
+            const pct = el("span", "pct", `${it.n}%`);
+            pct.dataset.zoom = String(i);
+            const minus = el("button", "zb"), plus = el("button", "zb");
+            minus.innerHTML = ICONS.minus;
+            minus.title = "縮小";
+            plus.innerHTML = ICONS.plus;
+            plus.title = "放大";
+            const parts = [[minus, "minus"], [plus, "plus"]];
+            if (it.tag === "bubble") {
+              const reset = el("button", "reset", "重設");
+              const ctl = el("span", "ctl");
+              ctl.append(minus, plus);
+              row.append(pct, ctl, reset);
+              parts.push([reset, "reset"]);
+            } else {
+              if (hasLead) row.append(lead(it.icon, ""));
+              const full = el("button", "zb");
+              full.innerHTML = ICONS.full;
+              full.title = "全螢幕 (F11)";
+              const ctl = el("span", "ctl");
+              ctl.append(minus, pct, plus, el("span", "vr"), full);
+              row.append(el("span", "t", it.title), ctl);
+              parts.push([full, "full"]);
+            }
+            for (const [btn, part] of parts) {
+              btn.addEventListener("mouseup", (e) => { e.stopPropagation(); if (e.button === 0) pick(i, 0, part); });
+            }
+            row.addEventListener("mouseenter", () => hover(row, i, false));
+            menu.append(row);
             return;
           }
-          const row = document.createElement("div");
-          row.className = `mi ${it.kind}${it.danger ? " danger" : ""}`;
-          const ic = document.createElement("span");
-          ic.className = "ic";
-          if (it.kind === "ext") {
-            ic.append(favicon(it.icon, it.title));
-            if (it.sub === "已停用") row.classList.add("off");
-          } else if (it.kind === "link") {
-            const h = host(it.sub);
-            ic.append(favicon(it.icon || (h ? `https://${h}/favicon.ico` : ""), it.title || h));
-            row.title = it.sub;
-          } else if (it.kind === "folder") {
-            ic.innerHTML = ICONS.folder;
-          } else if (it.kind === "back") {
-            ic.innerHTML = ICONS.back;
-          } else if (it.kind === "act") {
-            ic.innerHTML = ICONS[it.icon] || "";
-            ic.classList.add(it.icon);
+          if (it.kind === "sug") {
+            const row = el("div", "sug" + (i === Math.max(0, m.sel) ? " on" : ""));
+            row.dataset.i = String(i);
+            row.append(lead(/^(https?:|data:)/.test(it.icon) ? it.icon : SUG_ICON[it.tag] || "globe", it.title));
+            const isUrl = it.tag !== "search" && it.tag !== "suggest";
+            row.append(el("span", "t" + (isUrl && it.sub ? "" : isUrl ? " url" : ""), isUrl && it.sub ? it.sub : it.title));
+            // 網頁：標題在前、網址在後（跟 Chrome 一樣）；搜尋：關鍵字在前、「Google 搜尋」在後
+            if (isUrl && it.sub) row.append(el("span", "d url", it.title));
+            else if (it.sub) row.append(el("span", "d", it.sub));
+            wire(row, it, i);
+            menu.append(row);
+            return;
           }
-          const t = document.createElement("span");
-          t.className = "t";
-          t.textContent = it.title;
-          row.append(ic, t);
-          if (it.kind === "folder") {
-            const s = document.createElement("span");
-            s.className = "s";
-            s.innerHTML = `${it.sub} ${ICONS.chev}`;
-            row.append(s);
-          }
-          if (it.kind === "ext") {
-            row.title = "點一下開啟擴充功能的選單";
-            if (it.sub) {
-              const s = document.createElement("span");
-              s.className = "s";
-              s.textContent = it.sub;
-              row.append(s);
+          if (it.kind === "tab" || it.kind === "ext") {
+            const row = el("div", `row ${it.kind}` + (it.off ? " off" : "") + (it.kind === "tab" && it.check ? " cur" : ""));
+            row.append(lead(it.icon || (it.kind === "ext" ? "puzzle" : "globe"), it.title));
+            const tx = el("span", "tx");
+            tx.append(el("span", "t", it.title));
+            if (it.sub) tx.append(el("span", "s", it.sub));
+            row.append(tx);
+            const parts = [];
+            if (it.kind === "tab") {
+              const x = el("button", "rb");
+              x.innerHTML = ICONS.close;
+              x.title = "關閉分頁";
+              row.append(x);
+              parts.push([x, "close"]);
+            } else {
+              const pin = el("button", "rb" + (it.check ? " lit" : ""));
+              pin.innerHTML = ICONS.pin;
+              pin.title = it.check ? "取消固定" : "固定在工具列上";
+              const more = el("button", "rb");
+              more.innerHTML = ICONS.more;
+              more.title = "更多動作";
+              if (!it.off) { row.append(pin); parts.push([pin, "pin"]); }
+              row.append(more);
+              parts.push([more, "more"]);
             }
-            const more = document.createElement("button");
-            more.className = "more";
-            more.title = "選項、停用／啟用";
-            more.innerHTML = ICONS.more;
-            more.addEventListener("mouseup", (e) => { e.stopPropagation(); pick(i, 2); });
-            more.addEventListener("mousedown", (e) => e.stopPropagation());
-            row.append(more);
+            // 停用的擴充功能也要能按「更多動作」重新啟用
+            wire(row, { ...it, off: false }, i, parts);
+            menu.append(row);
+            return;
           }
-          if (it.kind === "head") {
-            ic.remove();
+          // 一般項目
+          const two = !!it.sub && m.style === "bubble";
+          const row = el("div", "mi" + (it.off ? " off" : "") + (it.danger ? " danger" : "") + (two ? " two" : ""));
+          if (hasLead || it.icon) {
+            const l = el("span", "lead");
+            if (it.check && !it.icon) l.innerHTML = ICONS.check;
+            else if (it.icon) l.append(icon(it.icon, it.title));
+            row.append(l);
           }
-          if (it.kind !== "empty" && it.kind !== "head") {
-            row.addEventListener("mouseup", (e) => { if (e.button === 0 || e.button === 1) pick(i, e.button); });
-            row.addEventListener("contextmenu", (e) => {
-              e.preventDefault();
-              if (it.kind === "link" || it.kind === "folder" || it.kind === "ext") pick(i, 2);
-            });
+          const tx = el("span", "tx");
+          tx.append(el("span", "t", it.title));
+          if (it.sub) tx.append(el("span", "s", it.sub));
+          row.append(tx);
+          if (it.sub && !two) row.title = it.sub;
+          if (it.check && it.icon) {
+            const c = el("span", "ch");
+            c.innerHTML = ICONS.check;
+            row.append(c);
           }
+          if (it.key) row.append(el("span", "k", it.key));
+          if (it.more) {
+            const c = el("span", "ch");
+            c.innerHTML = ICONS["chev-right"];
+            row.append(c);
+          }
+          wire(row, it, i);
           menu.append(row);
         });
+        // 量好需要多大，告訴程式（程式算位置並顯示）
+        const r = menu.getBoundingClientRect();
+        invoke("web_pop_size", { gen: m.gen, w: Math.ceil(r.width), h: Math.ceil(r.height) });
       }
 
       document.addEventListener("contextmenu", (e) => e.preventDefault());
       document.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
-      T.event.listen("web-menu-items", (e) => render((e.payload && e.payload.items) || []));
-      T.core.invoke("web_menu_init").then((p) => render((p && p.items) || [])).catch(() => {});
+      document.addEventListener("dragstart", (e) => e.preventDefault());
+      T.event.listen("web-pop", (e) => { if (e.payload) render(e.payload); });
+      T.event.listen("web-pop-sel", (e) => {
+        const p = e.payload;
+        if (!cur || !p || p.gen !== cur.gen) return;
+        cur.sel = p.sel;
+        menu.querySelectorAll(".sug").forEach((row) => row.classList.toggle("on", Number(row.dataset.i) === Math.max(0, p.sel)));
+      });
+      T.event.listen("web-pop-zoom", (e) => {
+        const p = e.payload;
+        if (!cur || !p || p.gen !== cur.gen) return;
+        const span = menu.querySelector(`[data-zoom="${p.index}"]`);
+        if (span) span.textContent = `${p.pct}%`;
+      });
+      T.core.invoke("web_pop_ready").then((m) => { if (m) render(m); }).catch(() => {});
     })();
   </script>
 </body>

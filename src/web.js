@@ -1,8 +1,9 @@
 "use strict";
 
 /* ==========================================================
- * web：置頂的小瀏覽器（浮動視窗）。這一頁管理有哪些視窗、開關與設定；
- * 視窗本身由 Rust 建立，上面的工具列是 web.html。
+ * 瀏覽器：這一頁管理有哪些視窗、開關、不透明度與鎖定；
+ * 視窗本身由 Rust 建立（外觀與操作比照 Chrome），上面的工具列是 web.html。
+ * 書籤、擴充功能每次開啟視窗都會自動跟 Chrome 同步，管理都在瀏覽器視窗裡（⋮ 選單）。
  * ========================================================== */
 if (typeof document !== "undefined") (() => {
   const wapi = TAURI ? {
@@ -12,25 +13,19 @@ if (typeof document !== "undefined") (() => {
     close: (id) => invoke("web_close", { id }),
     del: (id) => invoke("web_delete", { id }),
     set: (id, o) => invoke("web_set", { id, opacity: o.opacity ?? null, locked: o.locked ?? null, gameOnly: o.game_only ?? null }),
-    chrome: () => invoke("web_chrome_status"),
     shot: (id) => invoke("web_shot", { id }),
-    importChrome: (dir) => invoke("web_chrome_import", { dir: dir ?? null }),
-    sync: (on) => invoke("web_chrome_sync", { on }),
-    exts: () => invoke("web_ext_list"),
-    scripts: () => invoke("web_scripts_list"),
-    scriptsImport: () => invoke("web_scripts_import"),
-    scriptsToggle: (file, on) => invoke("web_scripts_toggle", { file, on }),
-    scriptsDelete: (file) => invoke("web_scripts_delete", { file }),
-    scriptsDir: () => invoke("web_scripts_open_dir"),
-    scriptsReload: () => invoke("web_scripts_reload"),
-    extSync: () => invoke("web_ext_sync"),
     onChange: (cb) => listen("web-changed", cb),
   } : mockApi();
 
-  let file = { next_id: 0, wins: [], bookmarks: { bar: [], other: [] } };
-  const countLinks = (list) => (list || []).reduce((n, b) => n + (b.url ? 1 : countLinks(b.children)), 0);
+  let file = { next_id: 0, wins: [] };
 
-  const host = (u) => { try { return new URL(u).host; } catch { return u; } };
+  const PAGES = { newtab: "新分頁", history: "歷史記錄", downloads: "下載", bookmarks: "書籤", extensions: "擴充功能", settings: "設定" };
+  // 網站的網域；瀏覽器自己的頁面（chrome://…）顯示名稱
+  const host = (u) => {
+    const m = /^chrome:\/\/([a-z-]+)/.exec(u || "");
+    if (m) return PAGES[m[1]] || "";
+    try { return new URL(u).host; } catch { return u; }
+  };
   function letterIcon(text) {
     const el = document.createElement("i");
     let h = 0;
@@ -46,7 +41,7 @@ if (typeof document !== "undefined") (() => {
     const list = $("#webList");
     list.innerHTML = "";
     if (!file.wins.length) {
-      list.innerHTML = '<div class="g-empty">還沒有任何視窗，按右上角「新增視窗」開一個（預設首頁是 Google）</div>';
+      list.innerHTML = '<div class="g-empty">還沒有任何視窗，按右上角「新增視窗」開一個</div>';
       return;
     }
     file.wins.forEach((w, i) => {
@@ -79,7 +74,7 @@ if (typeof document !== "undefined") (() => {
             <span class="web-range"><input type="range" class="range web-alpha" min="30" max="100" step="5" value="${w.opacity}" /><b>${w.opacity}%</b></span></div>
           <label class="web-opt" title="鎖定後滑鼠會直接穿過視窗點到遊戲，視窗本身就不能點了；要操作時回到這裡解除"><span>鎖定（滑鼠穿透）</span>${sw("web-lock", w.locked)}</label>
         </div>`;
-      el.querySelector(".web-wtitle").textContent = w.title || "新視窗";
+      el.querySelector(".web-wtitle").textContent = w.title || "新分頁";
       // 視窗的畫面：開著時最近抓到的、關了的最後一張
       wapi.shot(w.id).then((src) => {
         if (!src || !el.isConnected) return;
@@ -119,7 +114,7 @@ if (typeof document !== "undefined") (() => {
         await reload();
       }));
       el.querySelector(".web-del").addEventListener("click", () => run(async () => {
-        if (!(await confirmBox(`確定要刪除「${w.title || "新視窗"}」嗎？`))) return;
+        if (!(await confirmBox(`確定要刪除「${w.title || "新分頁"}」嗎？`))) return;
         await wapi.del(w.id);
         await reload();
       }));
@@ -144,128 +139,10 @@ if (typeof document !== "undefined") (() => {
     });
   }
 
-  function renderBm() {
-    const b = file.bookmarks || { bar: [], other: [] };
-    const n = countLinks(b.bar) + countLinks(b.other);
-    const t = n ? `${n} 個書籤（所有瀏覽器視窗共用）` : "還沒有書籤";
-    $("#webBmCount").textContent = t;
-    $("#webBmCount2").textContent = t;
-  }
-
   async function reload() {
     file = await wapi.list();
     render();
-    renderBm();
-    await renderChrome();
-    renderExt(await wapi.exts());
-    renderScripts(await wapi.scripts());
   }
-
-  /* ---------- 使用者腳本 ---------- */
-  function renderScripts(x) {
-    const list = (x && x.list) || [];
-    const on = list.filter((s) => !s.off).length;
-    const t = list.length ? `${list.length} 個（${on} 個啟用）` : "還沒有腳本";
-    $("#webScriptCount").textContent = t;
-    $("#webScriptSum").textContent = t;
-    const box = $("#webScripts");
-    box.innerHTML = "";
-    for (const sc of list) {
-      const el = document.createElement("div");
-      el.className = "web-script" + (sc.off ? " off" : "");
-      const where = [...(sc.meta.matches || []), ...(sc.meta.includes || [])].join("、");
-      el.innerHTML = `<label class="switch sm"><input type="checkbox" ${sc.off ? "" : "checked"} /><span class="slider"></span></label>
-        <div class="web-script-name"><strong></strong><span class="muted"></span></div>
-        <button class="web-script-del" title="刪除這個腳本">×</button>`;
-      el.querySelector("strong").textContent = sc.meta.name + (sc.meta.version ? ` v${sc.meta.version}` : "");
-      const sub = el.querySelector(".muted");
-      if (sc.missing && sc.missing.length) { sub.textContent = `有外部檔案沒下載到，不會執行：${sc.missing.join("、")}`; sub.classList.add("bad"); }
-      else sub.textContent = where;
-      el.title = sc.meta.description || where;
-      el.querySelector("input").addEventListener("change", (e) => run(async () => { await wapi.scriptsToggle(sc.file, e.target.checked); renderScripts(await wapi.scripts()); }));
-      el.querySelector(".web-script-del").addEventListener("click", () => run(async () => {
-        if (!(await confirmBox(`確定要刪除腳本「${sc.meta.name}」嗎？`))) return;
-        await wapi.scriptsDelete(sc.file);
-        renderScripts(await wapi.scripts());
-      }));
-      box.append(el);
-    }
-  }
-  $("#webScriptImport").addEventListener("click", () => run(async () => {
-    const msg = await wapi.scriptsImport();
-    if (msg) toast(msg);
-    renderScripts(await wapi.scripts());
-  }));
-  $("#webScriptDir").addEventListener("click", () => run(() => wapi.scriptsDir()));
-  $("#webScriptReload").addEventListener("click", () => run(async () => renderScripts(await wapi.scriptsReload())));
-
-  /* ---------- 擴充功能 ---------- */
-  function renderExt(x) {
-    $("#webExtCount").textContent = $("#webExtCount2").textContent = x.broken
-      ? "這台電腦的 WebView2 沒辦法載入擴充功能（可以更新 Windows 或 Microsoft Edge 後再試）"
-      : x.list.length ? `${x.list.length} 個（從 Chrome 同步）` : "沒有擴充功能（Chrome 裡沒有啟用中的擴充功能）";
-    const box = $("#webExts");
-    box.innerHTML = "";
-    x.list.forEach((e, i) => {
-      const chip = document.createElement("span");
-      chip.className = `web-ext ${COLORS[i % COLORS.length]}${e.off ? " off" : ""}`;
-      chip.textContent = e.off ? `${e.name}（已停用）` : e.name;
-      chip.title = `${e.name} ${e.version}`;
-      box.append(chip);
-    });
-  }
-  // 書籤與擴充功能設定：獨立視窗
-  const setupBack = $("#webSetupBack");
-  const closeSetup = () => setupBack.classList.remove("show");
-  $("#webSetup").addEventListener("click", () => setupBack.classList.add("show"));
-  $("#webSetupClose").addEventListener("click", closeSetup);
-  setupBack.addEventListener("click", (e) => { if (e.target === setupBack) closeSetup(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && setupBack.classList.contains("show")) closeSetup(); });
-  $("#webExtSync").addEventListener("click", () => run(async () => {
-    const x = await wapi.extSync();
-    renderExt(x);
-    toast(`已同步 ${x.list.length} 個擴充功能，新開的分頁會套用`);
-  }));
-
-  /* ---------- 從 Chrome 匯入書籤 ---------- */
-  const COLORS = ["c-blue", "c-purple", "c-teal", "c-pink", "c-indigo", "c-orange", "c-green"];
-  const who = (p) => `${p.name}${p.account ? `（${p.account}）` : ""}`;
-  let chrome = { sync: true, current: null, profiles: [], error: "" };
-
-  async function renderChrome() {
-    chrome = await wapi.chrome();
-    $("#webSync").checked = chrome.sync;
-    const el = $("#webChromeWho");
-    el.classList.toggle("bad", !!chrome.error);
-    el.textContent = chrome.error || (chrome.current ? `Chrome 帳號：${who(chrome.current)}・${chrome.current.count} 個書籤` : "");
-    $("#webPick").hidden = chrome.profiles.length < 2;
-  }
-  async function importFrom(dir) {
-    const n = await wapi.importChrome(dir);
-    $("#webProfiles").hidden = true;
-    toast(n ? `已匯入 ${n} 個書籤` : "沒有新的書籤（都已經匯入過了）");
-    await reload();
-  }
-  $("#webImport").addEventListener("click", () => run(() => importFrom(null)));
-  $("#webSync").addEventListener("change", (e) => run(async () => {
-    await wapi.sync(e.target.checked);
-    toast(e.target.checked ? "已開啟自動匯入" : "已關閉自動匯入");
-    await reload();
-  }));
-  // Chrome 有好幾個使用者：選要用哪一個帳號的書籤
-  $("#webPick").addEventListener("click", () => {
-    const box = $("#webProfiles");
-    if (!box.hidden) { box.hidden = true; return; }
-    box.innerHTML = '<span class="muted">選要用哪一個 Chrome 帳號的書籤：</span>';
-    chrome.profiles.forEach((p, i) => {
-      const b = document.createElement("button");
-      b.className = `cbtn small ${COLORS[i % COLORS.length]}${chrome.current && chrome.current.dir === p.dir ? " solid" : ""}`;
-      b.textContent = `${who(p)}・${p.count} 個書籤`;
-      b.addEventListener("click", () => run(() => importFrom(p.dir)));
-      box.append(b);
-    });
-    box.hidden = false;
-  });
 
   $("#webAdd").addEventListener("click", () => run(async () => {
     await wapi.add();
@@ -283,7 +160,6 @@ if (typeof document !== "undefined") (() => {
       if (stateKey(next) === stateKey(file)) return;
       file = next;
       render();
-      renderBm();
     });
   });
   document.addEventListener("viewchange", (e) => { if (e.detail === "web") run(reload); });
@@ -310,31 +186,16 @@ if (typeof document !== "undefined") (() => {
     const f = {
       next_id: 1,
       wins: [{ id: "w1", url: "https://www.youtube.com/watch?v=x", title: "YouTube", opacity: 100, locked: false, game_only: false, open: true, min: true, tabs: [{ id: "t1" }, { id: "t2" }] }],
-      bookmarks: { bar: [], other: [] },
     };
     const clone = (x) => JSON.parse(JSON.stringify(x));
     return {
       list: async () => clone(f),
-      add: async () => { f.next_id++; const w = { id: `w${f.next_id}`, url: "https://www.google.com/", title: "", opacity: 100, locked: false, game_only: false, open: true }; f.wins.push(w); return clone(w); },
+      add: async () => { f.next_id++; const w = { id: `w${f.next_id}`, url: "chrome://newtab/", title: "", opacity: 100, locked: false, game_only: false, open: true }; f.wins.push(w); return clone(w); },
       open: async (id) => { Object.assign(f.wins.find((w) => w.id === id), { open: true, min: false }); },
       close: async (id) => { f.wins.find((w) => w.id === id).open = false; },
       del: async (id) => { f.wins = f.wins.filter((w) => w.id !== id); },
       set: async (id, o) => { Object.assign(f.wins.find((w) => w.id === id), o); },
       shot: async () => "",
-      chrome: async () => {
-        const profiles = [{ dir: "Default", name: "個人", account: "player@example.com", count: 24 }, { dir: "Profile 1", name: "工作", account: "", count: 7 }];
-        return { sync: f.sync !== false, current: profiles[f.dir === "Profile 1" ? 1 : 0], profiles, error: "" };
-      },
-      importChrome: async (dir) => { if (dir) f.dir = dir; f.bookmarks.bar.push({ url: "https://www.youtube.com/" }, { url: "https://forum.gamer.com.tw/" }); return 2; },
-      sync: async (on) => { f.sync = on; },
-      exts: async () => ({ broken: false, list: [{ id: "a", name: "uBlock Origin Lite", version: "1" }, { id: "b", name: "Dark Reader", version: "4" }, { id: "c", name: "Google 翻譯", version: "2" }] }),
-      extSync: async () => ({ broken: false, list: [{ id: "a", name: "uBlock Origin Lite", version: "1" }] }),
-      scripts: async () => ({ list: f.scripts || [], dir: "" }),
-      scriptsImport: async () => { f.scripts = [{ file: "a.user.js", off: false, missing: [], meta: { name: "YouTube Shorts 自動下一部", version: "1.2", matches: ["https://www.youtube.com/*"], includes: [] } }]; return "已匯入 1 個腳本"; },
-      scriptsToggle: async (file, on) => { const x = (f.scripts || []).find((s) => s.file === file); if (x) x.off = !on; },
-      scriptsDelete: async (file) => { f.scripts = (f.scripts || []).filter((s) => s.file !== file); },
-      scriptsDir: async () => {},
-      scriptsReload: async () => ({ list: f.scripts || [], dir: "" }),
       onChange: () => {},
     };
   }
