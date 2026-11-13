@@ -1903,14 +1903,50 @@ def s_bubbles():
             check(f"{name}：開在按鈕下面", ok, d)
         close_menus()
         check(f"{name}：點外面關掉", not menu_wins())
-    # 滑鼠先停在按鈕上一下再按（一般人的按法）：截圖看提示文字有沒有蓋住選單
-    p = bar_pt(SITE)
-    if p:
-        hover(*C(*p), settle=1.6)
-        shot("tooltip_before_click")
-        click(*C(*p), wait=1.6)
-        shot("tooltip_after_click")
+    # 提示文字（滑鼠停在按鈕上跳出來的小字）：打開選單後不能蓋在選單上
+    def tips():
+        """畫面上看得到的提示文字視窗（瀏覽器核心自己開的小視窗：沒有標題、很矮）"""
+        res = []
+        for h in top_windows():
+            if not user32.IsWindowVisible(h) or title(h) == MENU_TITLE:
+                continue
+            c = cls(h)
+            r = wrect(h)
+            w_, h_ = r[2] - r[0], r[3] - r[1]
+            if w_ <= 0 or h_ <= 0:
+                continue
+            owner = proc_name(pid_of(h)).lower()
+            if "tooltip" in c.lower() or (owner in ("msedgewebview2.exe", os.path.basename(EXE).lower()) and c.startswith("Chrome_WidgetWin") and h_ <= 90 and w_ <= 600):
+                res.append((c, owner, title(h), r))
+        return res
+
+    for el, key_, name in ((SITE, "site", "網址列左邊的圓鈕"), (MENU_BTN, "menu", "⋮"), (TABSEARCH, "tabs", "搜尋分頁")):
+        p = bar_pt(el)
+        if not p:
+            continue
+        # 滑鼠先停著，等提示文字出來再按（慢慢按）
+        hover(*C(*p), settle=1.8)
+        t1 = tips()
+        if key_ == "site":
+            shot("tooltip_before_click")
+        log(f"（{name}）滑鼠停著時的提示文字視窗：", t1)
+        click(*C(*p), wait=1.8)
+        t2 = tips()
+        shot("tooltip_after_click_" + key_)
+        check(f"{name}：滑鼠停著時會跳出提示文字（確認抓得到）", bool(t1), f"{t1}")
+        check(f"{name}：提示文字出來之後才按，選單打開時提示文字收起來", bool(menu_wins()) and not t2, f"按之前={t1} 按之後={t2}")
         close_menus()
+        move(*PG(620, 330))
+        time.sleep(0.6)
+        # 滑鼠一到就馬上按（快快按）：選單打開後過一下，提示文字也不能跳出來
+        click(*C(*p), wait=2.2)
+        t3 = tips()
+        if key_ == "tabs":
+            shot("tooltip_fast_click")
+        check(f"{name}：一移過去就按，選單打開後提示文字不會跳出來", bool(menu_wins()) and not t3, f"{t3}")
+        close_menus()
+        move(*PG(620, 330))
+        time.sleep(0.6)
     # 搜尋分頁：點清單裡的分頁會切過去
     ms = open_menu(TABSEARCH, "搜尋分頁")
     if ms:
