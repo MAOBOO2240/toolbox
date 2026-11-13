@@ -134,6 +134,8 @@
       function wire(row, it, i, parts) {
         if (it.off) return;
         row.addEventListener("mouseenter", () => hover(row, i, false));
+        // 滑鼠只是經過（例如斜斜地移向旁邊展開的那一層）就不算
+        row.addEventListener("mouseleave", () => clearTimeout(hoverTimer));
         row.addEventListener("mouseup", (e) => {
           if (e.button !== 0 && e.button !== 1) return;
           if (it.more) { hover(row, i, true); return; }
@@ -197,6 +199,7 @@
               btn.addEventListener("mouseup", (e) => { e.stopPropagation(); if (e.button === 0) pick(i, 0, part); });
             }
             row.addEventListener("mouseenter", () => hover(row, i, false));
+            row.addEventListener("mouseleave", () => clearTimeout(hoverTimer));
             menu.append(row);
             return;
           }
@@ -249,7 +252,7 @@
           if (hasLead || it.icon) {
             const l = el("span", "lead");
             if (it.check && !it.icon) l.innerHTML = ICONS.check;
-            else if (it.icon) l.append(icon(it.icon, it.title));
+            else if (it.icon) l.append(icon(it.icon, it.title, "globe"));
             row.append(l);
           }
           const tx = el("span", "tx");

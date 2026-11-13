@@ -33,7 +33,7 @@
     .tsb { flex: none; width: 28px; height: 27px; margin: 0 6px 7px 0; border-radius: 9px; background: var(--tool); color: #d3e3fd; display: grid; place-items: center; position: relative; z-index: 2; }
     .tsb:hover, .tsb.open { background: #4a4a4a; }
     .tsb svg { width: 16px; height: 16px; stroke-width: 3; }
-    .tablist { display: flex; align-items: flex-end; min-width: 0; flex: 0 1 auto; height: 40px; padding: 0 8px 0 0; overflow: hidden; margin-left: -8px; padding-left: 8px; }
+    .tablist { display: flex; align-items: flex-end; min-width: 0; flex: 0 1 auto; height: 40px; padding: 0 10px; overflow: hidden; margin-left: -10px; }
     .tab { position: relative; flex: 0 1 auto; width: 232px; min-width: 36px; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px;
       border-radius: 10px 10px 0 0; color: var(--text2); transition: transform 0.16s ease; }
     /* 沒選到的分頁：滑鼠移上去是比較亮的圓角底色；相鄰兩個之間有一條細線 */
@@ -44,11 +44,11 @@
     .tab > * { position: relative; }
     .tab.active { background: var(--tool); color: var(--text); z-index: 1; }
     /* 目前的分頁下面兩邊往外彎的小圓角（跟工具列接起來） */
-    .tab .foot { position: absolute; bottom: 0; width: 8px; height: 8px; overflow: hidden; pointer-events: none; }
-    .tab .foot::before { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 8px var(--tool); }
-    .tab .foot.l { left: -8px; }
+    .tab .foot { position: absolute; bottom: 0; width: 10px; height: 10px; overflow: hidden; pointer-events: none; }
+    .tab .foot::before { content: ""; position: absolute; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 10px var(--tool); }
+    .tab .foot.l { left: -10px; }
     .tab .foot.l::before { right: 0; bottom: 0; }
-    .tab .foot.r { right: -8px; }
+    .tab .foot.r { right: -10px; }
     .tab .foot.r::before { left: 0; bottom: 0; }
     .tab .ti { flex: none; width: 16px; height: 16px; display: grid; place-items: center; }
     .tab .ti .gl svg { width: 16px; height: 16px; stroke-width: 1.9; }
@@ -69,7 +69,7 @@
     /* 放到最大時：滑鼠移到螢幕最上緣也點得到分頁 */
     .tab .top { position: absolute; display: none; left: 0; right: 0; top: -6px; height: 6px; }
     body.max .tab .top { display: block; }
-    .newtab { flex: none; width: 28px; height: 28px; margin: 0 0 3px -2px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; }
+    .newtab { flex: none; width: 28px; height: 28px; margin: 0 0 3px -4px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; }
     .newtab:hover { background: var(--hover); }
     .newtab svg { width: 18px; height: 18px; stroke-width: 2.2; }
     .drag { flex: 1 1 40px; min-width: 40px; height: 100%; }
@@ -96,7 +96,11 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ---------- 工具列 ---------- */
-    .tool { height: 46px; display: flex; align-items: center; padding: 0 5px; }
+    .tool { height: 46px; display: flex; align-items: center; padding: 0 5px; position: relative; }
+    /* 工具列上面兩個角是圓的（跟 Chrome 一樣），角落露出分頁列的顏色 */
+    .tool::before, .tool::after { content: ""; position: absolute; top: 0; width: 10px; height: 10px; pointer-events: none; }
+    .tool::before { left: 0; background: radial-gradient(circle at 10px 10px, transparent 9.5px, var(--frame) 10px); }
+    .tool::after { right: 0; background: radial-gradient(circle at 0 10px, transparent 9.5px, var(--frame) 10px); }
     .tb { flex: none; width: 34px; height: 34px; margin: 0 1px; border-radius: 50%; color: var(--text2); display: grid; place-items: center; position: relative; }
     .tb:hover, .tb.open { background: var(--hover); }
     .tb:active { background: var(--press); }
@@ -213,7 +217,7 @@
     (() => {
       const T = window.__TAURI__;
       if (!T) return;
-      const { ICONS, icon } = window.MB;
+      const { ICONS, icon, siteIcon } = window.MB;
       const invoke = (cmd, args) => T.core.invoke(cmd, args).catch(() => {});
       const cmd = (name, tab) => invoke("web_cmd", { cmd: name, tab: tab ?? null });
       const $ = (id) => document.getElementById(id);
@@ -245,10 +249,6 @@
       $("bmMore").innerHTML = ICONS["chev-right"];
       $("inco").innerHTML = `${ICONS.incognito}<span>無痕模式</span>`;
 
-      const bmIcon = (b) => {
-        const h = host(b.url);
-        return bm.icons[h] || "globe";
-      };
 
       /* ---------- 分頁列 ---------- */
       function tabIcon(t) {
@@ -491,7 +491,7 @@
         el.dataset.id = b.id;
         if (b.url) {
           el.title = `${b.title}\n${b.url}`;
-          el.append(icon(bmIcon(b), b.title || host(b.url)));
+          el.append(siteIcon(b.url, bm.icons, b.title));
         } else {
           el.title = b.title;
           el.append(icon("folder", ""));
@@ -879,6 +879,7 @@
       T.event.listen("web-ask", (e) => {
         const what = e.payload;
         if (what === "main") openMenu($("menu"), "main", "main");
+        else if (what === "tabs") openMenu($("tabSearch"), "tabs", "tabs");
         else if (what === "bookmark") openMenu($("star").hidden ? $("site") : $("star"), "bookmark", "bookmark");
         else if (what === "zoom") {
           const el = $("zoomBtn").hidden ? ($("star").hidden ? $("site") : $("star")) : $("zoomBtn");
@@ -895,6 +896,8 @@
         renderExts();
         apply(init.state);
         renderBms();
+        // 剛開的新視窗：鍵盤直接交給網址列
+        if (init.focus !== null && init.focus !== undefined) focusOmni(!!init.focus);
       }).catch(() => {});
     })();
   </script>

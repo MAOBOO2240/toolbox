@@ -72,24 +72,33 @@
     return el;
   }
 
-  // 圖示：內建圖示的名稱、圖片網址，或都沒有（用第一個字）
-  function icon(src, text) {
-    if (src && ICONS[src]) {
-      const s = document.createElement("span");
-      s.className = "gl";
-      s.innerHTML = ICONS[src];
-      return s;
-    }
-    if (!src || !/^(https?:|data:image\/)/i.test(src)) return letter(text);
+  function glyph(name) {
+    const s = document.createElement("span");
+    s.className = "gl";
+    s.innerHTML = ICONS[name] || "";
+    return s;
+  }
+
+  // 圖示：內建圖示的名稱、圖片網址，或都沒有（用第一個字）。
+  // onError = 圖片載入失敗時改用哪個內建圖示（沒給就用第一個字）
+  function icon(src, text, onError) {
+    if (src && ICONS[src]) return glyph(src);
+    if (!src || !/^(https?:|data:image\/)/i.test(src)) return onError ? glyph(onError) : letter(text);
     const img = document.createElement("img");
     img.className = "fav";
     img.alt = "";
     img.draggable = false;
     img.referrerPolicy = "no-referrer";
-    img.onerror = () => img.replaceWith(letter(text));
+    img.onerror = () => img.replaceWith(onError ? glyph(onError) : letter(text));
     img.src = src;
     return img;
   }
 
-  window.MB = { ICONS, host, letter, icon };
+  // 書籤的圖示：逛過記下來的；沒有就試網站的 favicon.ico；再沒有就用地球
+  function siteIcon(url, icons, text) {
+    const h = host(url);
+    return icon((icons && icons[h]) || (h ? `https://${h}/favicon.ico` : ""), text, "globe");
+  }
+
+  window.MB = { ICONS, host, letter, icon, siteIcon };
 })();

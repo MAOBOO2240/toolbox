@@ -169,7 +169,7 @@
       if (window.top !== window) { document.documentElement.textContent = ""; return; }
       const T = window.__TAURI__;
       if (!T) return;
-      const { ICONS, icon, host } = window.MB;
+      const { ICONS, icon, host, siteIcon } = window.MB;
       const call = (cmd, args) => T.core.invoke(cmd, args);
       const quiet = (cmd, args) => call(cmd, args).catch(() => null);
       const P = new URLSearchParams(location.search);
@@ -547,7 +547,7 @@
           walk(data.other, 1);
           return out;
         };
-        const iconOf = (b) => (b.url ? data.icons[host(b.url)] || "globe" : "folder");
+
         function editDialog(b, parentId) {
           dialog(b.url ? "編輯書籤" : "重新命名資料夾", (d, close) => {
             const name = field(d, "名稱", b.title);
@@ -595,7 +595,7 @@
           const acts = el("span", "acts");
           acts.append(edit, del);
           const lead = el("span", "ic-wrap");
-          lead.append(icon(iconOf(b), b.title || host(b.url)));
+          lead.append(b.url ? siteIcon(b.url, data.icons, b.title) : icon("folder", ""));
           row.append(lead, ti, el("span", "ho", b.url ? (where ? `${where}・${b.url}` : b.url) : `${(b.children || []).length} 個項目`), acts);
           return row;
         }

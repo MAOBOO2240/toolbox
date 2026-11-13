@@ -469,8 +469,10 @@ fn work_area(app: &AppHandle, owner: &str, x: i32, y: i32) -> Option<(i32, i32, 
 
 /* ---------------- 選單的內容 ---------------- */
 
+/// 書籤的圖示：逛過記下來的；沒有就試網站的 favicon.ico（載入失敗時選單會改用地球圖示）
 fn bm_icon(url: &str, icons: &HashMap<String, String>) -> String {
-    host_of(url).and_then(|h| icons.get(&h).cloned()).filter(|i| !i.is_empty()).unwrap_or_else(|| "globe".to_string())
+    let Some(host) = host_of(url) else { return "globe".to_string() };
+    icons.get(&host).filter(|i| !i.is_empty()).cloned().unwrap_or_else(|| format!("https://{host}/favicon.ico"))
 }
 
 fn bm_menu(list: &[Bm], icons: &HashMap<String, String>) -> Menu {
@@ -490,8 +492,9 @@ fn bm_menu(list: &[Bm], icons: &HashMap<String, String>) -> Menu {
     m
 }
 
-/// 書籤的右鍵選單
-fn bm_ctx(b: &Bm) -> Menu {
+/// 書籤的右鍵選單。shown = 書籤列目前有沒有顯示
+/// （要由呼叫的人先查好傳進來：這個函式會在鎖著書籤資料時被呼叫，裡面不可以再讀設定）
+fn bm_ctx(b: &Bm, shown: bool) -> Menu {
     let mut m = Menu::default();
     let id = b.id.clone();
     if b.url.is_empty() {
@@ -509,9 +512,15 @@ fn bm_ctx(b: &Bm) -> Menu {
         m.add(Item::new("刪除", "trash").danger(), Act::BmDelete(id));
     }
     m.sep();
-    m.add(Item::new("顯示書籤列", "").check(show_bm()).key("Ctrl+Shift+B"), Act::Cmd("bm.bar"));
+    m.add(Item::new("顯示書籤列", "").check(shown).key("Ctrl+Shift+B"), Act::Cmd("bm.bar"));
     m.add(Item::new("書籤管理員", "").key("Ctrl+Shift+O"), Act::Cmd("bm.manager"));
     m
+}
+
+/// 某個書籤（或資料夾）的右鍵選單
+fn bm_ctx_of(id: &str) -> Option<Menu> {
+    let shown = show_bm();
+    bm_read(|b| bm_find_any(b, id).map(|x| bm_ctx(x, shown)))
 }
 
 /// 書籤列空白處的右鍵選單
@@ -965,7 +974,7 @@ pub async fn web_menu_open(
             });
             (m, "menu", tid)
         }
-        "bm" => match bm_read(|b| bm_find_any(b, &target).map(bm_ctx)) {
+        "bm" => match bm_ctx_of(&target) {
             Some(m) => (m, "menu", tid),
             None => return Ok(()),
         },
@@ -1166,8 +1175,8 @@ pub async fn web_pop_pick(app: AppHandle, webview: Webview, gen: u64, index: usi
     // 右鍵：書籤、擴充功能有自己的選單（再開一層）
     if button == 2 {
         let menu = match &act {
-            Act::Link(id) => bm_read(|b| bm_find_any(b, id).map(bm_ctx)),
-            Act::Sub(Sub::BmFolder(id)) => bm_read(|b| bm_find_any(b, id).map(bm_ctx)),
+            Act::Link(id) => bm_ctx_of(id),
+            Act::Sub(Sub::BmFolder(id)) => bm_ctx_of(id),
             Act::Ext(id) => ext_ctx(id),
             _ => None,
         };

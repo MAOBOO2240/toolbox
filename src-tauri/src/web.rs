@@ -681,6 +681,10 @@ struct Rt {
     fs: bool,
     /// 全螢幕時滑鼠移到最上面：暫時顯示工具列
     reveal: bool,
+    /// 工具列載入好了（可以收通知了）
+    bar_ready: bool,
+    /// 工具列還沒載入好時就要求把鍵盤交給網址列：等它好了再做（值 = 要不要全選）
+    want_omni: Option<bool>,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -783,6 +787,8 @@ pub struct BarInit {
     state: BarState,
     bm: BmPayload,
     exts: Vec<ExtInfo>,
+    /// 一載入好就把鍵盤交給網址列（值 = 要不要全選）
+    focus: Option<bool>,
 }
 
 fn url_kind(u: &str) -> &'static str {
@@ -1125,7 +1131,17 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
             }
             if web_url(&u) {
                 let (app, wid, tid) = (a3.clone(), w3.clone(), t3.clone());
+                // 跟 Chrome 一樣：Ctrl + 點或中鍵點 = 在背景開新分頁；Shift + 點 = 開新視窗
+                let (ctrl, shift, middle) = win32::click_mods();
                 std::thread::spawn(move || {
+                    if shift && !ctrl && !middle {
+                        let _ = new_window(&app, Some(u.to_string()), is_incognito(&wid), Some(&wid));
+                        return;
+                    }
+                    if (ctrl || middle) && !shift {
+                        let _ = add_tab(&app, &wid, u.to_string(), false, Some(&tid));
+                        return;
+                    }
                     // 同一個網址已經開著：切過去就好，不要一直開新分頁
                     let same = get(&wid).and_then(|w| w.tabs.into_iter().find(|t| same_url(&t.url, u.as_str()))).map(|t| t.id);
                     match same {
@@ -1539,7 +1555,17 @@ fn focus_omni(app: &AppHandle, wid: &str, select: bool) {
     if let Some(bar) = app.get_webview(&bar_label(wid)) {
         let _ = bar.set_focus();
     }
-    let _ = app.emit_to(bar_label(wid).as_str(), "web-omni-focus", select);
+    // 工具列還沒載入好（剛開的視窗）：等它好了再做
+    let ready = rt(|m| match m.get_mut(wid) {
+        Some(r) if !r.bar_ready => {
+            r.want_omni = Some(select);
+            false
+        }
+        _ => true,
+    });
+    if ready {
+        let _ = app.emit_to(bar_label(wid).as_str(), "web-omni-focus", select);
+    }
 }
 
 fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
@@ -1602,20 +1628,18 @@ fn reopen_tab(app: &AppHandle, wid: &str, index: usize) {
         s.dirty = true;
         s.file.closed.remove(n - 1 - index)
     };
-    // 原本的視窗還開著就放回原本的位置
-    let (target, after) = match get(&c.win).filter(|w| w.open && !w.incognito) {
-        Some(w) => {
-            let after = c.index.checked_sub(1).and_then(|i| w.tabs.get(i.min(w.tabs.len().saturating_sub(1)))).map(|t| t.id.clone());
-            (c.win.clone(), after)
-        }
-        None => (wid.to_string(), None),
-    };
-    if let Ok(tid) = add_tab(app, &target, c.url, true, after.as_deref()) {
+    // 原本的視窗還開著就放回原本的位置；不然開在目前的視窗最後面
+    let home = get(&c.win).is_some_and(|w| w.open && !w.incognito);
+    let target = if home { c.win.clone() } else { wid.to_string() };
+    if let Ok(tid) = add_tab(app, &target, c.url, true, None) {
         edit(&target, |w| {
-            if let Some(t) = w.tabs.iter_mut().find(|t| t.id == tid) {
-                t.title = c.title;
-                t.icon = c.icon;
-            }
+            let Some(i) = w.tabs.iter().position(|t| t.id == tid) else { return };
+            let mut t = w.tabs.remove(i);
+            t.title = c.title;
+            t.icon = c.icon;
+            let pinned = w.tabs.iter().filter(|x| x.pinned).count();
+            let at = if home { c.index.clamp(pinned, w.tabs.len()) } else { w.tabs.len() };
+            w.tabs.insert(at, t);
         });
         emit_state(app, &target);
     }
@@ -1667,6 +1691,19 @@ fn new_window(app: &AppHandle, url: Option<String>, incognito: bool, near: Optio
         w
     };
     open_window(app, &w.id, true)?;
+    // 使用者是在本程式（主程式或另一個瀏覽器視窗）裡開的：新視窗拿到鍵盤、放到最前面；
+    // 遊戲在前景時不搶（維持邊玩邊用）
+    #[cfg(windows)]
+    {
+        let hwnd = rt(|m| m.get(&w.id).map(|r| r.hwnd).unwrap_or(0));
+        if hwnd != 0 {
+            let _ = app.run_on_main_thread(move || {
+                if win32::is_own(win32::foreground()) {
+                    win32::activate(hwnd);
+                }
+            });
+        }
+    }
     Ok(w.id)
 }
 
@@ -1860,6 +1897,12 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
                     (c.x, c.y) = (x, y);
                 }
             });
+        }
+        // 從工作列關閉、Alt+F4：照一般的關閉流程走（記下狀態、留最後一張畫面）
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            let (app3, id3) = (app2.clone(), id2.clone());
+            std::thread::spawn(move || close_window(&app3, &id3));
         }
         WindowEvent::Destroyed => {
             let hwnd = rt(|m| m.remove(&id2).map(|r| r.hwnd).unwrap_or(0));
@@ -2510,6 +2553,7 @@ pub(crate) fn run_cmd(app: &AppHandle, wid: &str, tid: Option<&str>, cmd: &str) 
         }
         "omni.focus" | "omni.search" => focus_omni(app, wid, true),
         "menu.main" => ask_bar(app, wid, "main"),
+        "tab.search" => ask_bar(app, wid, "tabs"),
         "bm.add" => {
             if bookmark_add(app, wid).is_some() {
                 ask_bar(app, wid, "bookmark");
@@ -2618,6 +2662,9 @@ mod win32 {
     pub fn capture(_h: isize, _max_w: u32) -> Option<(u32, u32, Vec<u8>)> {
         None
     }
+    pub fn click_mods() -> (bool, bool, bool) {
+        (false, false, false)
+    }
 }
 
 #[cfg(windows)]
@@ -2628,7 +2675,7 @@ mod win32 {
     use std::sync::Mutex;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId};
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON, VK_SHIFT};
     use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
@@ -2912,6 +2959,14 @@ mod win32 {
         }
     }
 
+    /// 點連結開新分頁時的按鍵：(按著 Ctrl, 按著 Shift, 剛按過滑鼠中鍵)
+    pub fn click_mods() -> (bool, bool, bool) {
+        unsafe {
+            let mid = GetAsyncKeyState(VK_MBUTTON as i32);
+            (GetAsyncKeyState(VK_CONTROL as i32) < 0, GetAsyncKeyState(VK_SHIFT as i32) < 0, mid < 0 || (mid & 1) != 0)
+        }
+    }
+
     /// 滑鼠任一個鍵按著
     pub fn mouse_down() -> bool {
         unsafe { [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].iter().any(|&k| GetAsyncKeyState(k as i32) < 0) }
@@ -3072,7 +3127,9 @@ fn restore_later() {
         if *lock(&RESTORE_AT) != Some(now) {
             return;
         }
-        for cfg in st().file.wins.iter().filter(|w| w.open).cloned().collect::<Vec<_>>() {
+        // 先把清單複製出來再處理（直接寫在 for 後面的話，整個迴圈都會鎖著設定檔，裡面再讀設定檔就卡死）
+        let open: Vec<WebWin> = st().file.wins.iter().filter(|w| w.open).cloned().collect();
+        for cfg in open {
             let Some(win) = app.get_window(&win_label(&cfg.id)) else { continue };
             if win.is_minimized().unwrap_or(false) || win.is_maximized().unwrap_or(false) || rt(|m| m.get(&cfg.id).is_some_and(|r| r.full || r.fs)) {
                 continue;
@@ -4063,7 +4120,13 @@ pub async fn web_ext_sync(app: AppHandle) -> Result<ExtStatus, String> {
 #[tauri::command]
 pub fn web_bar_init(webview: Webview) -> Option<BarInit> {
     let id = id_of(&webview)?;
-    Some(BarInit { state: bar_state(&id)?, bm: bm_payload(), exts: ext_pins() })
+    let focus = rt(|m| {
+        m.get_mut(&id).and_then(|r| {
+            r.bar_ready = true;
+            r.want_omni.take()
+        })
+    });
+    Some(BarInit { state: bar_state(&id)?, bm: bm_payload(), exts: ext_pins(), focus })
 }
 
 /// 執行瀏覽器指令（工具列的按鈕、內部頁面）。tab = 針對哪個分頁（沒給就是目前的）

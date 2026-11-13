@@ -377,7 +377,8 @@ pub async fn web_ui_settings(app: AppHandle, webview: Webview) -> Result<Setting
 /// 套用會影響每個網頁的設定（密碼、下載位置）
 fn apply_to_pages(app: &AppHandle) {
     let set = settings();
-    for w in st().file.wins.iter().filter(|w| w.open).cloned().collect::<Vec<_>>() {
+    let open: Vec<WebWin> = st().file.wins.iter().filter(|w| w.open).cloned().collect();
+    for w in open {
         for t in &w.tabs {
             if let Some(p) = app.get_webview(&page_label(&w.id, &t.id)) {
                 let (save, dir) = (set.save_passwords && !w.incognito, set.download_dir.clone());

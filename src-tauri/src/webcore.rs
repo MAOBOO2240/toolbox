@@ -451,6 +451,7 @@ pub fn shortcut(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'static 
             _ if key('T') => Some("tab.reopen"),
             TAB => Some("tab.prev"),
             _ if key('B') => Some("bm.bar"),
+            _ if key('A') => Some("tab.search"),
             _ if key('O') => Some("bm.manager"),
             DEL => Some("page.cleardata"),
             0xBB => Some("zoom.in"),
@@ -459,6 +460,7 @@ pub fn shortcut(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'static 
         (false, false, true) => match vk {
             _ if key('D') => Some("omni.focus"),
             HOME => Some("nav.home"),
+            F4 => Some("win.close"),
             _ if key('F') || key('E') => Some("menu.main"),
             _ => None,
         },
@@ -1453,6 +1455,9 @@ mod tests {
         assert_eq!(shortcut('D' as u32, false, false, true), Some("omni.focus"));
         assert_eq!(shortcut(0x2E, true, true, false), Some("page.cleardata"));
         assert_eq!(shortcut(0x7A, false, false, false), Some("win.fullscreen"));
+        assert_eq!(shortcut(0x73, false, false, true), Some("win.close"));
+        assert_eq!(shortcut(0x73, true, false, false), Some("tab.close"));
+        assert_eq!(shortcut('A' as u32, true, true, false), Some("tab.search"));
         // 交給 WebView2 自己處理的
         assert_eq!(shortcut('R' as u32, true, false, false), None);
         assert_eq!(shortcut('S' as u32, true, false, false), None);
