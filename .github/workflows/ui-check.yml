@@ -1,14 +1,14 @@
 name: UI check
 
 # Only runs on the ui-check branch. Starts the test build (the one the dev branch produced) on a real
-# Windows desktop, clicks through the browser window and saves screenshots as a workflow artifact.
+# Windows desktop, clicks through the browser window and saves screenshots to a results branch.
 # Nothing is released from here.
 on:
   push:
     branches: [ui-check]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ui-check
@@ -36,9 +36,17 @@ jobs:
         continue-on-error: true
         run: ./.github/ui-check/run.ps1
 
-      - uses: actions/upload-artifact@v4
+      # Results (screenshots, log) go to the uitest-results-ui-check branch, replacing the previous run
+      - name: Publish results
         if: always()
-        with:
-          name: shots
-          path: shots
-          retention-days: 2
+        shell: bash
+        run: |
+          mkdir -p shots
+          cd shots
+          git init -q
+          git config user.name "ui-check"
+          git config user.email "ui-check@users.noreply.github.com"
+          git checkout -q -b results
+          git add -A
+          git commit -q -m "ui-check ${GITHUB_SHA::7}" || true
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" "results:uitest-results-ui-check"
