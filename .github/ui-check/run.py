@@ -1707,11 +1707,48 @@ def s_internal_pages():
         else:
             check(f"chrome://{p}：讀得到內容", False)
         restore_tabs(keep)
+    # 設定：關掉「顯示首頁按鈕」，工具列上的首頁按鈕就不見；再打開
+    click_bar(NEWTAB, wait=1.2)
+    type_text("chrome://settings")
+    key(VK_ENTER)
+    time.sleep(2.5)
+
+    def home_switch():
+        root = page_tree()
+        label = next((n for n in find_all(root, lambda n: n.type == "TextControl" and n.name == "顯示首頁按鈕")), None)
+        if label is None:
+            return None
+        cy = (label.t + label.b) / 2
+        sws = [n for n in find_all(root, lambda n: n.has("sw") or n.type == "CheckBoxControl") if n.w > 0 and abs((n.t + n.b) / 2 - cy) <= 30 * scale]
+        return sws[0] if sws else None
+
+    sw = home_switch()
+    had = rect_of(E("home")) is not None
+    if sw is not None:
+        click(*sw.center, wait=1.0)
+        gone = rect_of(E("home")) is None
+        sw2 = home_switch()
+        if sw2 is not None:
+            click(*sw2.center, wait=1.0)
+        back = rect_of(E("home")) is not None
+        check("設定 → 關掉「顯示首頁按鈕」：工具列上的首頁按鈕不見；再打開就回來", had and gone and back, f"原本={had} 關掉後不見={gone} 再打開={back}")
+    else:
+        check("設定頁：找得到「顯示首頁按鈕」的開關", False)
+    restore_tabs(keep)
     # 新分頁頁面：搜尋框可以打字前往
     click_bar(NEWTAB, wait=1.5)
     txt = page_text()
     log("新分頁內容：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:400])
     shot("page_newtab")
+    box = next((n for n in find_all(page_tree(), lambda n: n.type == "EditControl")), None)
+    if box is not None:
+        click(*box.center, wait=0.8)
+        type_text(f"127.0.0.1:{PORT}/snap.html?ntp")
+        key(VK_ENTER)
+        time.sleep(2.5)
+        check("新分頁頁面中間的搜尋框：打網址按 Enter 會前往", "短影片" in title(web), title(web))
+    else:
+        check("新分頁頁面：找得到搜尋框", False)
     restore_tabs(keep)
     home()
 
@@ -2064,6 +2101,27 @@ def s_game():
     # 上一頁（滑鼠）
     click_bar(BACK, wait=2.0)
     check("遊戲在前景時按上一頁：回到測試頁、鍵盤還在遊戲", "測試頁" in title(web) and fg() == game, f"{title(web)} fg={fg()}")
+
+    # ---- 新分頁頁面中間的搜尋框 ----
+    keep = tab_ids()
+    click_bar(NEWTAB, wait=1.5)
+    move(gx, gy)
+    time.sleep(1.3)
+    box = next((n for n in find_all(page_tree(), lambda n: n.type == "EditControl")), None)
+    if box is not None and fg() == game:
+        click(*box.center, wait=1.0)
+        check("遊戲在前景時點新分頁中間的搜尋框：鍵盤交給 web", fg() == web, f"fg={fg()}")
+        keys1 = game_keys()
+        type_text(f"127.0.0.1:{PORT}/snap.html?ntpgame")
+        key(VK_ENTER)
+        time.sleep(2.5)
+        check("在搜尋框打網址按 Enter：前往、遊戲沒收到那些字", "短影片" in title(web) and game_keys() == keys1, f"{title(web)} keys={game_keys()[len(keys1):]!r}")
+        check("搜尋框按 Enter 之後：鍵盤還給遊戲", fg() == game, f"fg={fg()}")
+    else:
+        check("遊戲在前景時開新分頁：找得到搜尋框、鍵盤在遊戲", False, f"box={box} fg={fg()}")
+    restore_tabs(keep)
+    home()
+    click(gx, gy, wait=0.8)
 
     # ---- 選單 ----
     ms = open_menu(MENU_BTN, "遊戲在前景時按 ⋮")
