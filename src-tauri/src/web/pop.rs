@@ -1336,9 +1336,7 @@ pub async fn web_pop_pick(app: AppHandle, webview: Webview, gen: u64, index: usi
                 let _ = add_tab(&app, &owner, u, false, Some(&tid));
             } else {
                 navigate_tab(&app, &owner, &tid, &u);
-                if let Some(p) = app.get_webview(&page_label(&owner, &tid)) {
-                    let _ = p.set_focus();
-                }
+                focus_page(&app, &owner, &tid);
             }
             let _ = app.emit_to(bar_label(&owner).as_str(), "web-blur", owner.clone());
         }

@@ -632,11 +632,14 @@ pub fn clear_site(w: &Wv, origins: &[String]) {
 
 /* ---------------- 視窗 ---------------- */
 
-/// 選單小視窗：Windows 11 的圓角
+/// 選單小視窗：Windows 11 的圓角與深色的細邊框（Windows 10 沒有這兩個設定，會直接略過）
 pub fn round_corners(hwnd: isize) {
-    use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
+    use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
     let pref: i32 = DWMWCP_ROUND;
+    // 顏色是 0x00BBGGRR：#444746
+    let border: u32 = 0x0046_4744;
     unsafe {
         DwmSetWindowAttribute(hwnd as _, DWMWA_WINDOW_CORNER_PREFERENCE as u32, &pref as *const i32 as *const _, 4);
+        DwmSetWindowAttribute(hwnd as _, DWMWA_BORDER_COLOR as u32, &border as *const u32 as *const _, 4);
     }
 }

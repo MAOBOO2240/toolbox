@@ -1551,9 +1551,33 @@ fn navigate_tab(app: &AppHandle, wid: &str, tid: &str, target: &str) {
 }
 
 /// 鍵盤交給網址列：select = 把裡面的字全選
+/// 本程式的視窗（主程式或瀏覽器）在前景。遊戲在前景時不可以自己去動鍵盤焦點（鍵盤要留在遊戲）
+fn own_foreground() -> bool {
+    #[cfg(windows)]
+    {
+        win32::is_own(win32::foreground())
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
+}
+
+/// 鍵盤焦點交給某個分頁的網頁（只有本程式在前景時才做）
+fn focus_page(app: &AppHandle, wid: &str, tid: &str) {
+    if own_foreground() {
+        if let Some(p) = app.get_webview(&page_label(wid, tid)) {
+            let _ = p.set_focus();
+        }
+    }
+}
+
 fn focus_omni(app: &AppHandle, wid: &str, select: bool) {
-    if let Some(bar) = app.get_webview(&bar_label(wid)) {
-        let _ = bar.set_focus();
+    // 遊戲在前景時不直接搬焦點：工具列會通知「要打字」，再照原本的方式把鍵盤交過來
+    if own_foreground() {
+        if let Some(bar) = app.get_webview(&bar_label(wid)) {
+            let _ = bar.set_focus();
+        }
     }
     // 工具列還沒載入好（剛開的視窗）：等它好了再做
     let ready = rt(|m| match m.get_mut(wid) {
@@ -4151,9 +4175,7 @@ pub async fn web_go(app: AppHandle, webview: Webview, input: String, new_tab: Op
     }
     navigate_tab(&app, &id, &tid, &target);
     // 鍵盤從網址列交給網頁
-    if let Some(p) = app.get_webview(&page_label(&id, &tid)) {
-        let _ = p.set_focus();
-    }
+    focus_page(&app, &id, &tid);
     Ok(())
 }
 
