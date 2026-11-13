@@ -25,6 +25,9 @@
     body.incognito { --frame: #101112; --tool: #303134; --pill: #1b1c1e; }
     svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
     button { padding: 0; font: inherit; border: 0; background: none; color: inherit; cursor: default; }
+    /* 按鈕、分頁裡面的圖示和文字不單獨接滑鼠：滑鼠在上面移動時，底下一直是同一個元素。
+       不然從圖示的線條移到旁邊的空白，瀏覽器核心會把還沒跳出來的提示文字取消掉，提示文字就不出現了 */
+    button > svg, button > span, button > img, .tab > .ti, .tab > .tt { pointer-events: none; }
     [hidden] { display: none !important; }
 
     /* ---------- 分頁列 ---------- */
