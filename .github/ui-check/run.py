@@ -1901,8 +1901,12 @@ def s_bubbles():
             log(name, menu_titles(ms))
             ok, d = below(rect_of(el), ms[0][0], side=side)
             check(f"{name}：開在按鈕下面", ok, d)
+            n = el(bar_tree())
+            check(f"{name}：選單開著時按鈕是按下去的樣子", n is not None and n.has("open"), n.cls if n is not None else "找不到按鈕")
         close_menus()
         check(f"{name}：點外面關掉", not menu_wins())
+        n = el(bar_tree())
+        check(f"{name}：選單關了，按鈕恢復原樣", n is not None and not n.has("open"), n.cls if n is not None else "找不到按鈕")
     # 提示文字（滑鼠停在按鈕上跳出來的小字）：打開選單後不能蓋在選單上
     def tips():
         """畫面上看得到的提示文字視窗（瀏覽器核心自己開的小視窗：沒有標題、很矮）"""
@@ -1944,7 +1948,22 @@ def s_bubbles():
         if key_ == "tabs":
             shot("tooltip_fast_click")
         check(f"{name}：一移過去就按，選單打開後提示文字不會跳出來", bool(menu_wins()) and not t3, f"{t3}")
+        # 選單開著時滑鼠移開再移回按鈕：提示文字也不會跳出來蓋住選單
+        move(*PG(620, 330))
+        time.sleep(0.4)
+        if menu_wins():
+            hover(*C(*p), settle=1.8)
+            t4 = tips()
+            if key_ == "site":
+                shot("tooltip_back_while_open")
+            check(f"{name}：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來", bool(menu_wins()) and not t4, f"{t4}")
         close_menus()
+        move(*PG(620, 330))
+        time.sleep(0.6)
+        # 選單關了、滑鼠移開之後再停上去：提示文字照常出現
+        hover(*C(*p), settle=1.8)
+        t5 = tips()
+        check(f"{name}：選單關了之後再停上去，提示文字照常出現", bool(t5), f"{t5}")
         move(*PG(620, 330))
         time.sleep(0.6)
     # 搜尋分頁：點清單裡的分頁會切過去
