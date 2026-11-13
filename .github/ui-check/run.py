@@ -408,7 +408,7 @@ with open(os.path.join(data_dir, "web-scripts", "t2.user.js"), "w", encoding="ut
     f.write("// ==UserScript==\n// @name 測試腳本二\n// @match http://127.0.0.1:8765/*\n// @match http://localhost:8765/*\n// @exclude http://localhost:8765/frame.html\n// @run-at document-start\n// ==/UserScript==\n"
             "fetch('/log?m=' + encodeURIComponent('[us] start ran ' + location.pathname + ' body=' + !!document.body));\n")
 with open(os.path.join(data_dir, "web-scripts", "t3.user.js"), "w", encoding="utf-8") as f:
-    f.write("// ==UserScript==\n// @name 不該跑\n// @match https://example.com/*\n// ==/UserScript==\nfetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[us] WRONG'));\n")
+    f.write("// ==UserScript==\n// @name 不該跑\n// @match https://not-visited.invalid/*\n// ==/UserScript==\nfetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[us] WRONG'));\n")
 
 # 一個 Chrome 使用者（書籤、一個擴充功能）：打開視窗時會自動同步進來
 EXT_ID = "eamehjingoajmedombhecpkpagoadodo"
@@ -914,13 +914,31 @@ def menu_hover(text, exact=True, settle=0.8):
     return True
 
 
+def blank_point():
+    """網頁上一個空白、沒被選單蓋住的點（螢幕座標）"""
+    rects = [wrect(h) for h in menu_wins()]
+    pr = page_rect()
+    for x, y in ((620, 330), (700, 250), (560, 420), (780, 380), (300, 330), (640, 120), (420, 200)):
+        sx, sy = PG(x, y)
+        if sx >= pr[2] - 6 or sy >= pr[3] - 6:
+            continue
+        if not any(r[0] - 6 <= sx <= r[2] + 6 and r[1] - 6 <= sy <= r[3] + 6 for r in rects):
+            return sx, sy
+    return PG(620, 330)
+
+
+def click_blank(wait=0.6):
+    """點一下網頁的空白處（鍵盤交給網頁／把選單關掉）"""
+    click(*blank_point(), wait=wait)
+
+
 def close_menus():
     """點網頁空白處把選單關掉"""
     if menu_wins():
-        click(*PG(300, 330), wait=0.6)
+        click_blank(0.7)
     if menu_wins():
         log("（選單還開著）", [wrect(h) for h in menu_wins()])
-        click(*PG(360, 300), wait=0.8)
+        click_blank(0.9)
     return not menu_wins()
 
 
@@ -982,10 +1000,38 @@ def select_tab(i, wait=1.2):
     click_bar(TAB(i), wait=wait)
 
 
+def tab_index(part):
+    return next((i for i, t in enumerate(tabs_info()) if part in t["title"]), None)
+
+
+def select_title(part, wait=1.2):
+    """切到標題含這些字的分頁（第一個）"""
+    ts = tabs_info()
+    i = next((k for k, t in enumerate(ts) if part in t["title"]), None)
+    if i is None:
+        log("（找不到分頁）", part, [t["title"] for t in ts])
+        return False
+    if not ts[i]["active"]:
+        click_bar(TAB(i), wait=wait)
+    return True
+
+
+def home(wait=1.2):
+    """每一步開始前：選單關掉、回到測試頁那個分頁"""
+    if menu_wins():
+        close_menus()
+    if not select_title("測試頁", wait):
+        select_tab(0, wait)
+
+
 def restore_tabs(keep):
     """只留下原本有的分頁（多出來的用中鍵關掉）"""
     for _ in range(10):
-        ids = tab_ids()
+        n = tab_count()
+        ids = tab_ids(n)
+        if len(ids) != n:
+            log("（分頁編號對不上，不關）", ids, n)
+            break
         extra = [i for i, t in enumerate(ids) if t not in keep]
         if not extra:
             break
@@ -1215,7 +1261,7 @@ def slides_since(t0):
 
 
 def s_snap_resize():
-    select_tab(1, wait=2.5)
+    select_title("短影片", 2.5)
     check("切到短影片分頁", "短影片" in title(web), title(web))
     px, py = PG(400, 300)
     for _ in range(3):
@@ -1259,7 +1305,7 @@ def s_drag_snap():
     select_tab(2, wait=1.5)
     a = active_tab()
     check("拖完視窗後點分頁：分頁列有跟著更新", a == 2, f"active={a} before={t_before}")
-    select_tab(1, wait=1.0)
+    select_title("短影片", 1.0)
     # 放回原位，後面的測試才在螢幕裡
     user32.MoveWindow(web, before[0], before[1], before[2] - before[0], before[3] - before[1], True)
     time.sleep(1.0)
@@ -1273,7 +1319,7 @@ def s_tabs():
     shot("tab3")
     a = active_tab()
     check("點第三個分頁：切過去", a == 2 if a is not None else "Example" in title(web), f"active={a} title={title(web)}")
-    select_tab(0, wait=1.5)
+    home(1.5)
     kids = vis_kids()
     check("切換分頁：只有一個網頁顯示", len(kids) == 2, f"{[wrect(c) for c in kids]}")
     check("切回第一個分頁", "測試頁" in title(web), title(web))
@@ -1288,7 +1334,7 @@ def s_tabs():
         drag(*C(r1[0] + 60, y), *C(r0[0] + 20, y), wait=1.0)
         ts = tabs_info()
         check("拖曳分頁：拖回原本的順序", len(ts) == 3 and "測試頁" in ts[0]["title"], f"{[t['title'] for t in ts]}")
-    select_tab(0, wait=1.0)
+    home(1.0)
 
 
 def s_bm_menu():
@@ -1298,7 +1344,7 @@ def s_bm_menu():
         check("書籤資料夾：裡面的書籤都列出來", names_of(ms[0][1]) == ["測試頁", "Example"], f"{menu_titles(ms)}")
         ok, d = below(rect_of(BM("資料夾")), ms[0][0])
         check("書籤資料夾：選單貼在資料夾下面", ok, d)
-    click(*PG(300, 330), wait=1.0)
+    click_blank(1.0)
     check("點外面：選單關掉", not menu_wins())
     check("選單關掉後程式有回應", responsive(web))
     ms = open_menu(OTHER, "點所有書籤")
@@ -1349,13 +1395,24 @@ def s_new_tab():
     shot("new_tab_loaded")
     check("新分頁輸入網址：有載入", "?new" in page_log(), page_log()[-300:])
     check("新分頁輸入網址：標題換成網頁的", "測試頁" in title(web), title(web))
+    st = bar_state()
+    ms = ctx_at(*PG(620, 330))
+    shot("new_tab_context")
+    if ms:
+        names = {it["t"]: it for it in ms[0][1]["items"]}
+        back_off = any("上一頁" in n and it["off"] for n, it in names.items())
+        fwd_off = any("下一頁" in n and it["off"] for n, it in names.items())
+        check("剛逛到的網頁按右鍵：可以上一頁、不能下一頁（跟工具列的箭頭一樣）", (not back_off) and fwd_off and st.get("back") is True and st.get("fwd") is False, f"選單 back_off={back_off} fwd_off={fwd_off} 工具列={st.get('back')},{st.get('fwd')}")
+    else:
+        check("剛逛到的網頁按右鍵：出現選單", False)
+    close_menus()
 
 
 # =====================================================================================
 # 比照 Chrome 做的部分
 # =====================================================================================
 def s_omnibox():
-    select_tab(0)
+    home()
     click_bar(ADDR, wait=0.7)
     st = bar_state()
     a = find_id(bar_tree(), "addr")
@@ -1379,11 +1436,25 @@ def s_omnibox():
         check("建議清單：有逛過的網頁（127.0.0.1）", any("127.0.0.1" in " ".join(it["texts"]) for it in m["items"]), f"{[it['texts'] for it in m['items']]}")
         on = lambda mm: next((i for i, it in enumerate(mm[0][1]["items"]) if "on" in it["cls"].split()), None) if mm else None
         on0 = on(ms)
+        v0 = bar_state().get("addr")
         key(VK_DOWN)
         time.sleep(0.6)
-        on1 = on(menus())
+        ms1 = menus()
+        on1 = on(ms1)
         v1 = bar_state().get("addr")
-        check("按向下鍵：選到下一個建議、網址列跟著換", on0 == 0 and on1 == 1 and v1 != "127", f"on {on0}→{on1} addr={v1!r}")
+        want1 = ms1[0][1]["items"][1]["texts"] if ms1 and len(ms1[0][1]["items"]) > 1 else []
+        key(VK_DOWN)
+        time.sleep(0.6)
+        ms2 = menus()
+        on2 = on(ms2)
+        v2 = bar_state().get("addr")
+        want2 = ms2[0][1]["items"][2]["texts"] if ms2 and len(ms2[0][1]["items"]) > 2 else []
+        log("向下鍵", (on0, v0), (on1, v1, want1), (on2, v2, want2))
+        # 搜尋建議：網址列是那個關鍵字；逛過的網頁：網址列是它的網址
+        fits = lambda v, want: bool(want) and (v == want[0] if "Google 搜尋" in want[-1] else want[-1] in (v or ""))
+        check("按向下鍵：一個一個往下選，網址列換成選到的那一個", (on0, on1, on2) == (0, 1, 2) and fits(v1, want1) and fits(v2, want2), f"{(on0, v0)} {(on1, v1, want1)} {(on2, v2, want2)}")
+        key(VK_UP)
+        time.sleep(0.3)
         key(VK_UP)
         time.sleep(0.3)
     key(VK_ESC)
@@ -1428,7 +1499,7 @@ MAIN_ITEMS = ["新分頁", "新視窗", "新增無痕式視窗", "歷史記錄",
 
 
 def s_main_menu():
-    select_tab(0)
+    home()
     ms = open_menu(MENU_BTN, "按右上角的 ⋮")
     shot("main_menu")
     if not ms:
@@ -1492,7 +1563,7 @@ def s_main_menu():
     else:
         check("⋮ 選單的縮放那一排：有縮小、放大按鈕", False, f"{z}")
     # 點外面關掉
-    click(*PG(300, 330), wait=1.0)
+    click_blank(1.0)
     check("點網頁：選單全部關掉", not menu_wins(), f"{len(menu_wins())}")
     # 再按一次按鈕也是關掉
     open_menu(MENU_BTN, "再按 ⋮")
@@ -1504,7 +1575,7 @@ def s_main_menu():
     menu_click("新分頁", wait=1.5)
     check("⋮ → 新分頁：多一個分頁、選單關掉", tab_count() == n0 + 1 and not menu_wins(), f"{n0} → {tab_count()}")
     restore_tabs(keep)
-    select_tab(0)
+    home()
 
 
 def ctx_at(x, y):
@@ -1516,7 +1587,7 @@ def ctx_at(x, y):
 
 
 def s_context():
-    select_tab(0)
+    home()
     st = bar_state()
     ms = ctx_at(*PG(300, 330))
     shot("ctx_page")
@@ -1531,7 +1602,7 @@ def s_context():
         check("網頁右鍵選單：上一頁／下一頁能不能按，跟工具列的箭頭一致", back_off == (not st.get("back")) and fwd_off == (not st.get("fwd")), f"選單 back_off={back_off} fwd_off={fwd_off} 工具列={st.get('back')},{st.get('fwd')}")
         r = wrect(h)
         mx, my = PG(300, 330)
-        check("網頁右鍵選單：開在滑鼠的位置", abs(r[0] - mx) <= 6 * scale and abs(r[1] - my) <= 6 * scale, f"{r} mouse=({mx:.0f},{my:.0f})")
+        check("網頁右鍵選單：開在滑鼠的位置（下面放不下就往上開）", abs(r[0] - mx) <= 6 * scale and (abs(r[1] - my) <= 6 * scale or abs(r[3] - my) <= 6 * scale), f"{r} mouse=({mx:.0f},{my:.0f})")
         t0 = time.time()
         menu_click("重新載入", exact=False, wait=2.0)
         check("右鍵 → 重新載入：網頁重新載入、選單關掉", any("[test] load" in l for l in page_log_since(t0)) and not menu_wins(), f"{page_log_since(t0)[-2:]}")
@@ -1550,7 +1621,7 @@ def s_context():
         check("右鍵 → 在新分頁中開啟連結：多一個分頁、留在原本的分頁", tab_count() == n0 + 1 and active_tab() == a0, f"{n0} → {tab_count()} active={active_tab()}")
     close_menus()
     restore_tabs(keep)
-    select_tab(0)
+    home()
     # 輸入框
     ms = ctx_at(*PG(200, 40))
     shot("ctx_input")
@@ -1561,7 +1632,7 @@ def s_context():
         check("輸入框右鍵選單：剪下、複製、貼上、全選", all(any(k in n for n in names) for k in ["剪下", "複製", "貼上", "全選"]), f"{names}")
     close_menus()
     key(VK_ESC)
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     # 分頁
     ms = open_menu(TAB(0), "分頁按右鍵", button="right")
     shot("ctx_tab")
@@ -1606,7 +1677,7 @@ def s_context():
         check("書籤右鍵選單：在新分頁／新視窗／無痕式視窗開啟、重新命名、刪除、書籤管理員", all(any(k in n for n in names) for k in ["新分頁", "新視窗", "無痕", "重新命名", "刪除", "書籤管理員"]), f"{names}")
     shot("ctx_bookmark")
     close_menus()
-    select_tab(0)
+    home()
 
 
 PAGES = [
@@ -1642,12 +1713,12 @@ def s_internal_pages():
     log("新分頁內容：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:400])
     shot("page_newtab")
     restore_tabs(keep)
-    select_tab(0)
+    home()
 
 
 def s_shortcuts():
-    select_tab(0)
-    click(*PG(300, 330), wait=0.6)
+    home()
+    click_blank(0.6)
     n0, keep = tab_count(), tab_ids()
     chord([VK_CTRL], 0x54, wait=1.2)  # Ctrl+T
     st = bar_state()
@@ -1656,12 +1727,12 @@ def s_shortcuts():
     key(VK_ENTER)
     time.sleep(2.0)
     check("新分頁打網址：前往", "短影片" in title(web), title(web))
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     chord([VK_CTRL], 0x57, wait=1.2)  # Ctrl+W
     check("Ctrl+W：關掉目前的分頁", tab_count() == n0, f"{tab_count()}")
     chord([VK_CTRL, VK_SHIFT], 0x54, wait=2.0)  # Ctrl+Shift+T
     check("Ctrl+Shift+T：重新開啟剛關掉的分頁", tab_count() == n0 + 1 and "短影片" in title(web), f"{tab_count()} {title(web)}")
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     a0 = active_tab()
     chord([VK_CTRL], VK_TAB, wait=0.9)
     a1 = active_tab()
@@ -1673,36 +1744,42 @@ def s_shortcuts():
     chord([VK_CTRL], 0x39, wait=0.9)  # Ctrl+9
     b9 = active_tab()
     check("Ctrl+1／Ctrl+9：第一個／最後一個分頁", b1 == 0 and b9 == tab_count() - 1, f"{b1} {b9}")
-    chord([VK_CTRL], 0x57, wait=1.2)
-    select_tab(0)
-    click(*PG(300, 330), wait=0.5)
+    if tab_count() == n0 + 1:
+        chord([VK_CTRL], 0x57, wait=1.2)
+        # 連續關：關掉之後不用再點網頁，快捷鍵還是有作用
+        chord([VK_CTRL, VK_SHIFT], 0x54, wait=1.8)
+        check("Ctrl+W 之後馬上 Ctrl+Shift+T：又開回來（鍵盤沒有掉）", tab_count() == n0 + 1, f"{tab_count()}")
+        chord([VK_CTRL], 0x57, wait=1.2)
+    check("關掉多的分頁：回到原本的數量", tab_count() == n0, f"{tab_count()}")
+    home()
+    click_blank(0.5)
     chord([VK_CTRL], 0x4C, wait=0.7)  # Ctrl+L
     st = bar_state()
     check("Ctrl+L：游標到網址列", st.get("focus") == "addr", f"{st}")
     key(VK_ESC)
     time.sleep(0.3)
     key(VK_ESC)
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     # 縮放
     chord([VK_CTRL], VK_PLUS, wait=1.0)
     st = bar_state()
     shot("zoom_110")
     check("Ctrl + 加號：放大到 110%，網址列出現縮放圖示", "110" in st.get("zoom", ""), f"{st}")
     close_menus()
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     chord([VK_CTRL], 0x30, wait=1.0)  # Ctrl+0
     time.sleep(1.5)
     close_menus()
     st = bar_state()
     check("Ctrl+0：回到 100%，縮放圖示消失", st.get("zoom") == "", f"{st}")
     # 重新載入
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     t0 = time.time()
     key(VK_F5)
     time.sleep(2.0)
     check("F5：重新載入", any("[test] load" in l for l in page_log_since(t0)), f"{page_log_since(t0)[-2:]}")
     # 書籤列開關
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     top0 = page_rect()[1]
     chord([VK_CTRL, VK_SHIFT], 0x42, wait=1.2)  # Ctrl+Shift+B
     top1 = page_rect()[1]
@@ -1711,7 +1788,7 @@ def s_shortcuts():
     top2 = page_rect()[1]
     check("Ctrl+Shift+B：書籤列收起來（網頁往上 34）、再按一次回來", top0 - top1 == round(34 * scale) and top2 == top0, f"{top0} → {top1} → {top2}")
     # Ctrl+D：加入書籤的小視窗
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     chord([VK_CTRL], 0x44, wait=1.2)  # Ctrl+D
     ms = menus()
     st = bar_state()
@@ -1725,23 +1802,23 @@ def s_shortcuts():
     check("小視窗按移除：書籤拿掉、星星變回空心", st.get("starOn") is False, f"{st}")
     # 歷史記錄、下載
     for vk, ttl in ((0x48, "歷史記錄"), (0x4A, "下載")):
-        click(*PG(300, 330), wait=0.5)
+        click_blank(0.5)
         n1 = tab_count()
         chord([VK_CTRL], vk, wait=2.0)
         check(f"Ctrl+{chr(vk)}：在新分頁開「{ttl}」", ttl in title(web) and tab_count() == n1 + 1, f"{title(web)} {tab_count()}")
         restore_tabs(keep)
-        select_tab(0)
+        home()
     # 尋找
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     chord([VK_CTRL], 0x46, wait=1.5)  # Ctrl+F
     shot("find_bar")
     log("Ctrl+F 之後的前景視窗", fg(), repr(title(fg())), proc_name(pid_of(fg())) if fg() else "")
     key(VK_ESC)
     time.sleep(0.6)
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     # Alt+左右
     go(f"127.0.0.1:{PORT}/snap.html?alt")
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     chord([VK_ALT], VK_LEFT, wait=2.0)
     t1 = title(web)
     chord([VK_ALT], VK_RIGHT, wait=2.0)
@@ -1749,11 +1826,11 @@ def s_shortcuts():
     check("Alt+←／Alt+→：上一頁／下一頁", "測試頁" in t1 and "短影片" in t2, f"{t1} → {t2}")
     click_bar(BACK, wait=2.0)
     restore_tabs(keep)
-    select_tab(0)
+    home()
 
 
 def s_bubbles():
-    select_tab(0)
+    home()
     for el, key_, name, side in ((PROFILE, "profile", "頭像（Chrome 使用者）", "right"), (SITE, "site", "網址列左邊的圓鈕（網站資訊）", "left"), (TABSEARCH, "tabs", "左上角的搜尋分頁", "left"), (EXT_BTN, "ext", "擴充功能（拼圖）", "right")):
         ms = open_menu(el, name)
         shot("bubble_" + key_)
@@ -1769,11 +1846,11 @@ def s_bubbles():
         menu_click("短影片測試", exact=False, wait=1.5)
         check("搜尋分頁 → 點清單裡的分頁：切過去", "短影片" in title(web), title(web))
     close_menus()
-    select_tab(0)
+    home()
 
 
 def s_download():
-    select_tab(0)
+    home()
     dl = os.path.join(os.path.expanduser("~"), "Downloads", "ui-check.bin")
     try:
         os.remove(dl)
@@ -1785,9 +1862,9 @@ def s_download():
     check("下載檔案：存到「下載」資料夾", os.path.exists(dl) and os.path.getsize(dl) == 300000, f"{dl} exists={os.path.exists(dl)}")
     check("下載檔案：工具列出現下載按鈕、分頁留在原本的網頁", st.get("dl") is True and "測試頁" in title(web), f"{st} {title(web)}")
     log("下載後的視窗", [(title(h), wrect(h)) for h in app_windows() if user32.IsWindowVisible(h)])
-    click(*PG(300, 330), wait=0.8)
+    click_blank(0.8)
     keep = tab_ids()
-    click(*PG(300, 330), wait=0.5)
+    click_blank(0.5)
     chord([VK_CTRL], 0x4A, wait=2.5)
     txt = page_text()
     shot("downloads_page")
@@ -1796,12 +1873,12 @@ def s_download():
     else:
         log("（讀不到下載頁面的內容）")
     restore_tabs(keep)
-    select_tab(0)
+    home()
 
 
 def s_incognito():
-    select_tab(0)
-    click(*PG(300, 330), wait=0.5)
+    home()
+    click_blank(0.5)
     before = set(app_windows())
     chord([VK_CTRL, VK_SHIFT], 0x4E, wait=4.0)  # Ctrl+Shift+N
     new = [h for h in app_windows() if h not in before and user32.IsWindowVisible(h) and title(h) not in KNOWN]
@@ -1839,8 +1916,8 @@ def s_incognito():
 
 
 def s_new_window():
-    select_tab(0)
-    click(*PG(300, 330), wait=0.5)
+    home()
+    click_blank(0.5)
     before = set(app_windows())
     chord([VK_CTRL], 0x4E, wait=4.0)  # Ctrl+N
     new = [h for h in app_windows() if h not in before and user32.IsWindowVisible(h) and title(h) not in KNOWN]
@@ -1849,6 +1926,31 @@ def s_new_window():
     if new:
         r, r0 = wrect(new[0]), wrect(web)
         check("新視窗：跟原本的一樣大、位置錯開一點", (r[2] - r[0], r[3] - r[1]) == (r0[2] - r0[0], r0[3] - r0[1]) and (r[0], r[1]) != (r0[0], r0[1]), f"{r} {r0}")
+        w2 = new[0]
+        a2, a1 = find_id(bar_tree(w2), "addr"), find_id(bar_tree(), "addr")
+        check("新視窗：游標在它自己的網址列，原本那個視窗的網址列沒有被動到", bool(a2 and a2.foc) and not (a1 and a1.foc) and fg() == w2, f"新={a2 and a2.foc} 舊={a1 and a1.foc} fg={fg()} w2={w2}")
+        # 在新視窗按 F10（打開 ⋮ 選單）：只有新視窗開選單，而且貼在新視窗的 ⋮ 下面
+        key(0x79)
+        time.sleep(1.2)
+        mw = menu_wins()
+        b2 = find_id(bar_tree(w2), "menu")
+        shot("two_windows_menu")
+        ok = len(mw) == 1 and b2 is not None and abs(wrect(mw[0])[2] - b2.r) <= 12 * scale and abs(wrect(mw[0])[1] - b2.b) <= 12 * scale
+        check("兩個視窗時按 F10：選單開在按的那個視窗", ok, f"選單={[wrect(h) for h in mw]} 新視窗的⋮={b2}")
+        key(VK_ESC)
+        time.sleep(0.6)
+        if menu_wins():
+            click(r[0] + 500 * scale, r[1] + 400 * scale, wait=0.8)
+        check("按 Esc：選單關掉", not menu_wins(), f"{len(menu_wins())}")
+        # Ctrl+L：只有新視窗的網址列有游標
+        click(r[0] + 500 * scale, r[1] + 400 * scale, wait=0.6)
+        chord([VK_CTRL], 0x4C, wait=0.8)
+        a2, a1 = find_id(bar_tree(w2), "addr"), find_id(bar_tree(), "addr")
+        check("兩個視窗時按 Ctrl+L：只有按的那個視窗的網址列有游標", bool(a2 and a2.foc) and not (a1 and a1.foc) and fg() == w2, f"新={a2 and a2.foc} 舊={a1 and a1.foc} fg={fg()}")
+        key(VK_ESC)
+        time.sleep(0.3)
+        key(VK_ESC)
+        time.sleep(0.3)
         click(r[2] - 23 * scale, r[1] + 16 * scale, wait=1.5)
         check("新視窗：按 × 關掉", not user32.IsWindow(new[0]) or not user32.IsWindowVisible(new[0]))
     click_bar(TAB(0), wait=1.0)
@@ -1858,7 +1960,7 @@ def s_new_window():
 # 邊玩遊戲邊用（鍵盤留在遊戲，打字時才交給瀏覽器）
 # =====================================================================================
 def s_game():
-    select_tab(0, wait=1.5)
+    home(1.5)
     # 遊戲上沒有被 web 視窗蓋住、也不在工作列上的點
     g, r = wrect(game), wrect(web)
     sh = user32.GetSystemMetrics(1) - 60
@@ -1875,11 +1977,15 @@ def s_game():
     click_bar(NEWTAB, wait=1.2)
     n1 = tab_count()
     check("遊戲在前景時點 web 的按鈕：第一下就有作用", n1 == n0 + 1, f"{n0} → {n1}")
-    check("遊戲在前景時按 +：鍵盤還在遊戲（不會自己跑到網址列）", fg() == game, f"fg={fg()}")
+    st = bar_state()
+    check("遊戲在前景時按 +：新分頁可以直接打網址（鍵盤先借給網址列）", fg() == web and st.get("focus") == "addr", f"fg={fg()} {st}")
+    move(gx, gy)
+    time.sleep(1.3)
+    check("按 + 之後滑鼠移出 web：鍵盤還給遊戲", fg() == game, f"fg={fg()}")
     # 中鍵關掉剛開的分頁，回到測試頁
     if n1 == n0 + 1:
         click_bar(TAB(n1 - 1), button="middle", wait=1.0)
-        select_tab(0, wait=1.0)
+        home(1.0)
         check("中鍵關掉分頁", tab_count() == n0, f"{tab_count()}")
     click(gx, gy, wait=1.0)
     check("再點遊戲：遊戲在前景", fg() == game, f"fg={fg()}")
@@ -1953,7 +2059,7 @@ def s_game():
     check("網址列按 Esc：鍵盤還給遊戲", fg() == game, f"fg={fg()}")
     # 點網址列之後改點網頁：鍵盤還給遊戲
     click_bar(ADDR, wait=1.0)
-    click(*PG(300, 330), wait=1.2)
+    click_blank(1.2)
     check("點網址列後改點網頁：鍵盤還給遊戲", fg() == game, f"fg={fg()}")
     # 上一頁（滑鼠）
     click_bar(BACK, wait=2.0)
@@ -1974,7 +2080,7 @@ def s_game():
         time.sleep(0.4)
         check("按 D：遊戲收到", "key:d" in game_keys(), game_keys()[-60:])
         restore_tabs(keep)
-        select_tab(0)
+        home()
     close_menus()
     # 右鍵選單
     t0 = time.time()
@@ -1988,7 +2094,7 @@ def s_game():
     # 書籤資料夾
     ms = open_menu(BM("資料夾"), "遊戲在前景時點書籤資料夾")
     check("遊戲在前景時開書籤資料夾：鍵盤還在遊戲", fg() == game, f"fg={fg()}")
-    click(*PG(300, 330), wait=1.0)
+    click_blank(1.0)
     check("遊戲在前景時點網頁關選單：關掉、鍵盤還在遊戲", not menu_wins() and fg() == game, f"fg={fg()}")
     # 點遊戲也會把選單關掉
     ms = open_menu(MENU_BTN, "再開一次選單")
@@ -2022,7 +2128,7 @@ def s_notepad():
         click(wrect(np)[0] + 250, wrect(np)[1] + 200, wait=1.0)
         check("記事本在前景時可以蓋住 web 視窗", above(np, web), f"fg={fg()} np={np}")
         shot("notepad_over_web")
-        select_tab(0, wait=1.0)
+        home(1.0)
         check("點 web 視窗：變成前景（一般視窗）", fg() == web and above(web, np), f"fg={fg()}")
     else:
         log("（記事本沒有開起來，略過）")
@@ -2035,19 +2141,19 @@ def s_dpi():
     user32.SetProcessDPIAware()
     info = dpi_info()
     log("縮放比例資訊", info)
-    if not info or info[3] <= info[2]:
+    if user32.GetSystemMetrics(0) < 1600:
         if not set_resolution(1920, 1080):
             log("沒辦法改解析度，略過縮放比例測試")
             return
         time.sleep(3)
         info = dpi_info()
-        log("改解析度後的縮放比例資訊", info)
+        log("改解析度後的縮放比例資訊", info, "螢幕", user32.GetSystemMetrics(0), user32.GetSystemMetrics(1), dump(web, "改解析度後"))
     if not info or info[3] <= info[2]:
         log("這台測試機不能調高縮放比例，略過")
         return
     src, lo, cur, hi = info
     # 切到短影片分頁（捲到某一張了），看縮放比例改變後還是不是同一張
-    select_tab(1, wait=1.5)
+    select_title("短影片", 1.5)
     t0 = time.time()
     d0 = user32.GetDpiForWindow(web)
     r = set_dpi_rel(src, cur + 1)
@@ -2084,11 +2190,11 @@ def s_dpi():
     check("縮放比例改回來：工具列和網頁位置正確", ok, f"dpi={d2} {vis}")
     after = slides_since(t0)
     check("縮放比例改回來：短影片還是同一張", all(x == SNAP["cur"] for x in after), f"{after}")
-    select_tab(0, wait=1.0)
+    home(1.0)
 
 
 def s_fullscreen():
-    select_tab(0, wait=1.0)
+    home(1.0)
     r0 = wrect(web)
     n0 = len(vis_kids())
     click(*PG(100, 420), wait=2.0)
@@ -2107,7 +2213,7 @@ def s_fullscreen():
     check("按 Esc：回到原本的大小", r == r0, f"{r} before={r0}")
     check("按 Esc：工具列回來", len(vis) == n0 and any(x[1] == r[1] for x in vis), f"{vis}")
     # F11：整個視窗全螢幕，滑鼠移到最上面工具列會出來
-    click(*PG(300, 330), wait=0.6)
+    click_blank(0.6)
     key(VK_F11)
     time.sleep(2.0)
     r = wrect(web)
@@ -2131,7 +2237,7 @@ def s_fullscreen():
 
 
 def s_ext():
-    select_tab(0)
+    home()
     before = vis_kids()
     ms = open_menu(EXT_BTN, "按擴充功能按鈕")
     shot("ext_menu")
@@ -2147,7 +2253,7 @@ def s_ext():
     check("擴充功能看得到目前的網頁（active tab）", "test.html" in act and "popup.html" not in act, act[-200:])
     lf = next((l for l in page_log().splitlines() if "[ext] lastFocused:" in l), "")
     check("擴充功能看得到目前的網頁（lastFocused）", "test.html" in lf and "popup.html" not in lf, lf[-200:])
-    click(*PG(100, 330), wait=1.0)
+    click_blank(1.0)
     after2 = vis_kids()
     check("點外面：小視窗關掉", len(after2) == len(before), f"{len(after2)}")
     # 固定在工具列上
@@ -2165,7 +2271,7 @@ def s_ext():
             if n == 1:
                 click_bar(EXTICON(0), wait=2.5)
                 check("點工具列上固定的擴充功能：開它的小視窗", len(vis_kids()) == len(before) + 1, f"{[wrect(c) for c in vis_kids()]}")
-                click(*PG(100, 330), wait=1.0)
+                click_blank(1.0)
                 ms = open_menu(EXTICON(0), "固定的擴充功能按右鍵", button="right")
                 if ms:
                     log("固定的擴充功能右鍵選單", menu_titles(ms))
@@ -2184,10 +2290,24 @@ def s_scripts():
     check("使用者腳本：document-start 的有執行", any("start ran /test.html" in l for l in lines))
     check("使用者腳本：@exclude 有效（內嵌框不跑）", not any("start ran /frame.html" in l for l in lines))
     check("使用者腳本：不符合的網站不跑", not any("WRONG" in l for l in lines))
+    # 檢視網頁原始碼：那個頁面不跑腳本
+    home()
+    keep = tab_ids()
+    t0 = time.time()
+    ms = ctx_at(*PG(620, 330))
+    if ms and menu_click("檢視網頁原始碼", wait=3.0):
+        st = bar_state()
+        shot("view_source")
+        check("右鍵 → 檢視網頁原始碼：在新分頁打開", "view-source:" in (st.get("shown") or "") or "view-source" in title(web), f"{st.get('shown')!r} {title(web)!r}")
+        ran = [l for l in page_log_since(t0) if "[us]" in l]
+        check("檢視原始碼的頁面：不跑使用者腳本", not ran, f"{ran}")
+        restore_tabs(keep)
+    close_menus()
+    home()
 
 
 def s_minimize():
-    select_tab(0)
+    home()
     click_bar(BTN_MIN, (W() - 115, 16), wait=1.2)
     check("按縮小：縮到工作列", user32.IsIconic(web))
     user32.ShowWindow(web, 9)
