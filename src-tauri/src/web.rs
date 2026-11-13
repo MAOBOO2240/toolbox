@@ -3144,10 +3144,11 @@ mod win32 {
         }
     }
 
-    /// 讓滑鼠底下的網頁（工具列或網頁）以為滑鼠移開了：把提示文字收起來。
-    /// 按按鈕打開選單之後滑鼠還停在按鈕上，提示文字不會自己消失，會蓋住剛打開的選單
+    /// 讓滑鼠底下的網頁（工具列）重新看一次滑鼠停在什麼東西上：把提示文字收起來。
+    /// 按按鈕打開選單之後滑鼠還停在按鈕上，按鈕的提示文字不會自己消失，會蓋住剛打開的選單。
+    /// 工具列在按下去的時候已經先把那個按鈕的提示文字拿掉了，這裡只要讓瀏覽器元件再處理一次滑鼠位置。
+    /// 只是傳訊息給自己的視窗，不會動到真正的滑鼠，也不是模擬輸入
     pub fn unhover() {
-        const WM_MOUSELEAVE: u32 = 0x02A3;
         unsafe {
             let mut p = POINT { x: 0, y: 0 };
             if GetCursorPos(&mut p) == 0 {
@@ -3165,7 +3166,12 @@ mod win32 {
                 let mut name = [0u16; 64];
                 let n = GetClassNameW(h, name.as_mut_ptr(), name.len() as i32).clamp(0, 63) as usize;
                 if String::from_utf16_lossy(&name[..n]) == "Chrome_WidgetWin_1" {
-                    PostMessageW(h, WM_MOUSELEAVE, 0, 0);
+                    let mut c = p;
+                    windows_sys::Win32::Graphics::Gdi::ScreenToClient(h, &mut c);
+                    let at = |x: i32, y: i32| (((y as u16 as u32) << 16) | (x as u16 as u32)) as LPARAM;
+                    // 位置有變才算有移動：先差一點點，再回到原位
+                    PostMessageW(h, WM_MOUSEMOVE, 0, at(c.x + 1, c.y));
+                    PostMessageW(h, WM_MOUSEMOVE, 0, at(c.x, c.y));
                     return;
                 }
                 h = GetParent(h);

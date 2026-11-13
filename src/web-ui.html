@@ -696,7 +696,7 @@
             const card = el("div", "ext" + (e.off ? " off" : ""));
             const hd = el("div", "hd");
             const tx = el("div");
-            tx.append(el("div", "nm", e.name), el("div", "ds", `版本 ${e.version || "—"}`), el("div", "ds", `ID：${e.id}`));
+            tx.append(el("div", "nm", e.name), el("div", "ds", `版本 ${String(e.version || "—").replace(/_\d+$/, "")}`), el("div", "ds", `ID：${e.id}`));
             hd.append(icon(e.icon || "puzzle", e.name), tx);
             const ft = el("div", "ft");
             if (e.options && !e.off) {
