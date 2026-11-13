@@ -257,10 +257,15 @@
         return icon(t.icon || "globe", t.title || host(t.url));
       }
       const tabTitle = (t) => t.title || (pageOf(t.url) === "newtab" ? "新分頁" : host(t.url)) || t.url || "新分頁";
+      let tabsSig = "";
       function renderTabs() {
-        // 按著分頁（可能要拖曳）時先不重畫，放開後再畫：按下非目前分頁時會切換分頁並重畫，
-        // 重畫後原本按著的元素就不在畫面上了，拖曳會沒反應
-        if (tdrag) { renderLater = true; return; }
+        // 按著分頁（可能要拖曳、或正在按關閉鈕）時先不重畫，放開後再畫：
+        // 重畫後原本按著的元素就不在畫面上了，拖曳、點擊會沒反應
+        if (tdrag || pressed) { renderLater = true; return; }
+        // 內容沒變就不用重畫（網頁載入時狀態會更新很多次）
+        const sig = JSON.stringify([st.active, st.tabs]);
+        if (sig === tabsSig) return;
+        tabsSig = sig;
         const box = $("tabs");
         box.innerHTML = "";
         for (const t of st.tabs) {
@@ -325,7 +330,29 @@
       // 拖曳分頁排順序：拖著的分頁跟著滑鼠走，其他分頁滑開讓位（固定的分頁只在固定的那一區裡移動）
       let tdrag = null;
       let renderLater = false;
+      // 滑鼠正按在某個分頁上（按下到放開之間不重畫）。
+      // 只算按在分頁上的：按分頁列空白處是拖曳視窗，滑鼠交給 Windows 之後這裡收不到「放開」
+      let pressed = false;
+      let pressTimer = 0;
+      $("tabs").addEventListener("pointerdown", (e) => {
+        if (!e.target.closest || !e.target.closest(".tab")) return;
+        pressed = true;
+        // 保險：萬一「放開」沒收到，過幾秒自己解除，分頁列不會一直停在舊的樣子
+        clearTimeout(pressTimer);
+        pressTimer = setTimeout(released, 4000);
+      }, true);
+      const released = () => {
+        clearTimeout(pressTimer);
+        pressed = false;
+        // 等這一下的點擊事件處理完再補畫
+        setTimeout(() => { if (renderLater && !tdrag && !pressed) { renderLater = false; renderTabs(); } }, 0);
+      };
+      window.addEventListener("pointerup", released);
+      window.addEventListener("pointercancel", released);
+      window.addEventListener("blur", released);
       window.addEventListener("pointermove", (e) => {
+        // 沒按著按鍵卻還記得「按著」：放開的事件沒收到（滑鼠被別的視窗接走了），這裡補做
+        if (e.buttons === 0 && (tdrag || pressed)) { endTabDrag(false); released(); return; }
         if (!tdrag) return;
         const d = tdrag;
         if (!d.active) {
@@ -371,6 +398,8 @@
             d.el.classList.remove("dragging");
             d.tabs.forEach((x) => (x.style.transform = ""));
           }
+          // 拖曳後畫面上的位置是暫時搬的：下次一定要重畫
+          tabsSig = "";
         }
         if (renderLater) { renderLater = false; renderTabs(); }
       }
@@ -843,6 +872,8 @@
         st = s;
         renderTabs();
         renderTool();
+        // 分頁列能用的寬度可能變了（無痕式的標示、最大化），分頁的寬窄樣式重算一次
+        fitTabs();
         fitTool();
         // 換頁了：網址列如果還停在舊網址（沒在打字），換成新的
         if (urlChanged && document.activeElement === addr && !sug.open && !sug.typed) {
