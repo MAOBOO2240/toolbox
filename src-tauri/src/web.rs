@@ -3144,6 +3144,35 @@ mod win32 {
         }
     }
 
+    /// 讓滑鼠底下的網頁（工具列或網頁）以為滑鼠移開了：把提示文字收起來。
+    /// 按按鈕打開選單之後滑鼠還停在按鈕上，提示文字不會自己消失，會蓋住剛打開的選單
+    pub fn unhover() {
+        const WM_MOUSELEAVE: u32 = 0x02A3;
+        unsafe {
+            let mut p = POINT { x: 0, y: 0 };
+            if GetCursorPos(&mut p) == 0 {
+                return;
+            }
+            let mut h = WindowFromPoint(p);
+            if h.is_null() || !is_own(GetAncestor(h, GA_ROOT) as isize) {
+                return;
+            }
+            // 往上找到瀏覽器元件收滑鼠訊息的那個視窗
+            for _ in 0..6 {
+                if h.is_null() {
+                    return;
+                }
+                let mut name = [0u16; 64];
+                let n = GetClassNameW(h, name.as_mut_ptr(), name.len() as i32).clamp(0, 63) as usize;
+                if String::from_utf16_lossy(&name[..n]) == "Chrome_WidgetWin_1" {
+                    PostMessageW(h, WM_MOUSELEAVE, 0, 0);
+                    return;
+                }
+                h = GetParent(h);
+            }
+        }
+    }
+
     /// 選單：放到指定位置、蓋在所有視窗最上面、顯示（不搶焦點）
     pub fn show_at(h: isize, x: i32, y: i32, w: i32, hh: i32) {
         unsafe { SetWindowPos(h as HWND, HWND_TOPMOST, x, y, w, hh, SWP_NOACTIVATE | SWP_SHOWWINDOW) };

@@ -358,6 +358,11 @@ fn open(app: &AppHandle, owner: &str, tid: &str, spec: Spec) {
         let _ = app.emit_to(bar_label(&old_owner).as_str(), "web-menu-closed", old_owner.clone());
     }
     let sf = app.get_window(&win_label(owner)).and_then(|w| w.scale_factor().ok()).unwrap_or(1.0).max(0.5);
+    // 滑鼠還停在按鈕上：把按鈕的提示文字收起來，才不會蓋住選單（網址列的建議不是按出來的，不用）
+    #[cfg(windows)]
+    if spec.key != "omni" {
+        win32::unhover();
+    }
     let menu = spec.menu.trim();
     let level = Level {
         gen: next_gen(),
@@ -1144,6 +1149,8 @@ fn open_ext(app: &AppHandle, owner: &str, id: &str, anchor: (i32, i32, i32, i32)
 pub async fn web_ext_open(app: AppHandle, webview: Webview, id: String, rect: [f64; 4]) -> Result<(), String> {
     let wid = id_of(&webview).ok_or("不是瀏覽器視窗")?;
     hide_all(&app, false);
+    #[cfg(windows)]
+    win32::unhover();
     // 同一個圖示再點一下：關掉
     if lock(&EXT_POPUP).as_ref().is_some_and(|(w, _)| *w == wid) {
         close_ext_popup(&app, &wid);
