@@ -880,6 +880,11 @@ fn nav_menu(json: &str, back: bool) -> Menu {
 
 /// 網頁按了右鍵（WebView2 通知的）
 pub fn open_context(app: &AppHandle, wid: &str, tid: &str, seq: u64, target: CtxTarget, items: Vec<NativeItem>) {
+    // 瀏覽器自己的頁面（設定、歷史記錄…）沒有「檢視網頁原始碼」
+    let mut target = target;
+    if Url::parse(&target.page).is_ok_and(|u| webcore::is_app_url(&u)) {
+        target.page.clear();
+    }
     let entries = webcore::build_context(&target, &items, engine(), is_incognito(wid));
     let pos = app.get_window(&win_label(wid)).and_then(|w| w.cursor_position().ok());
     let (Some(pos), false) = (pos, entries.is_empty()) else {
