@@ -141,12 +141,16 @@
         hoverTimer = setTimeout(() => {
           if (!cur || cur.gen !== gen) return;
           hovered = index;
+          // 有下一層的項目：下一層開著的時候它一直是反白的（滑鼠移進下一層也是），看得出是從哪一項展開的
+          menu.querySelectorAll(".mi.on, .row.on").forEach((x) => x.classList.remove("on"));
+          if (row.dataset.more === "1") row.classList.add("on");
           const r = row.getBoundingClientRect();
           invoke("web_pop_hover", { gen, index, rect: [r.left, r.top, r.right, r.bottom] });
         }, now ? 0 : 140);
       }
       function wire(row, it, i, parts) {
         if (it.off) return;
+        if (it.more) row.dataset.more = "1";
         row.addEventListener("mouseenter", () => hover(row, i, false));
         // 滑鼠只是經過（例如斜斜地移向旁邊展開的那一層）就不算
         row.addEventListener("mouseleave", () => clearTimeout(hoverTimer));
