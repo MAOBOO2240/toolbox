@@ -726,7 +726,7 @@ fn site_menu(wid: &str, tid: &str) -> Menu {
             m.head(webcore::host_of(&tab.url));
             m.add(Item::new("已建立安全連線", "lock").off(true).sub("你傳送給這個網站的資訊（例如密碼）不會外洩。"), Act::Nothing);
         }
-        "insecure" => {
+        "insecure" | "local" => {
             m.head(webcore::host_of(&tab.url));
             m.add(Item::new("你與這個網站的連線不安全", "warn").off(true).sub("請勿在這個網站輸入密碼、信用卡這類機密資訊。"), Act::Nothing);
         }

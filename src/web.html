@@ -422,6 +422,7 @@
         source: ["code", "", ""],
         secure: ["tune", "", ""],
         insecure: ["warn", "不安全", "warn"],
+        local: ["info", "", ""],
         other: ["tune", "", ""],
       };
       function renderTool() {
@@ -897,7 +898,7 @@
         document.querySelectorAll(".open").forEach((x) => x.classList.remove("open"));
         if (sug.open) { sug.open = false; sug.list = []; }
       });
-      T.event.listen("web-omni-focus", (e) => focusOmni(!!e.payload));
+      T.event.listen("web-omni-focus", (e) => { const p = e.payload; if (p && p.id === me) focusOmni(!!p.select); });
       T.event.listen("web-omni-list", (e) => {
         const p = e.payload;
         if (!p || p.gen !== sug.gen || !sug.open) return;
@@ -908,7 +909,9 @@
       });
       // 程式請工具列打開某個要貼著按鈕的小視窗
       T.event.listen("web-ask", (e) => {
-        const what = e.payload;
+        const p = e.payload;
+        if (!p || p.id !== me) return;
+        const what = p.what;
         if (what === "main") openMenu($("menu"), "main", "main");
         else if (what === "tabs") openMenu($("tabSearch"), "tabs", "tabs");
         else if (what === "bookmark") openMenu($("star").hidden ? $("site") : $("star"), "bookmark", "bookmark");

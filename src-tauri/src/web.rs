@@ -761,7 +761,7 @@ pub struct BarState {
     /// 目前分頁的網址，與網址列沒在打字時顯示的樣子
     url: String,
     display: String,
-    /// newtab / internal / source / ext / secure / insecure / other
+    /// newtab / internal / source / ext / secure / insecure / local / other
     kind: &'static str,
     /// 縮放（百分比）；zoomed = 跟預設值不一樣（網址列顯示放大鏡）
     zoom: u32,
@@ -803,7 +803,15 @@ fn url_kind(u: &str) -> &'static str {
     } else if u.starts_with("https://") {
         "secure"
     } else if u.starts_with("http://") {
-        "insecure"
+        // 這台電腦自己的網址（localhost、127.x.x.x）：跟 Chrome 一樣不標「不安全」
+        let local = Url::parse(u).ok().and_then(|p| p.host_str().map(str::to_lowercase)).is_some_and(|h| {
+            h == "localhost" || h.ends_with(".localhost") || h == "[::1]" || h.parse::<std::net::Ipv4Addr>().is_ok_and(|ip| ip.is_loopback())
+        });
+        if local {
+            "local"
+        } else {
+            "insecure"
+        }
     } else {
         "other"
     }
@@ -895,7 +903,8 @@ fn emit_bm(app: &AppHandle) {
 
 /// 請工具列做一件需要知道按鈕位置的事（打開主選單、書籤提示框、縮放提示框…）
 fn ask_bar(app: &AppHandle, wid: &str, what: &str) {
-    let _ = app.emit_to(bar_label(wid).as_str(), "web-ask", what.to_string());
+    // 帶著視窗編號：別的視窗的工具列也會收到這個事件，要認得不是給自己的
+    let _ = app.emit_to(bar_label(wid).as_str(), "web-ask", serde_json::json!({ "id": wid, "what": what }));
 }
 
 /* ---------------- 網址 ---------------- */
@@ -1498,6 +1507,13 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
             r.page_typing = false;
         }
     });
+    // 這個視窗正在用（它是前景視窗）：鍵盤交給新顯示的網頁，快捷鍵、捲動才會作用在它上面。
+    // 不然關掉分頁（Ctrl+W）之後鍵盤沒有人接，再按快捷鍵都沒反應。遊戲在前景時不動鍵盤
+    if is_foreground(wid) {
+        if let Some(p) = app.get_webview(&page_label(wid, tid)) {
+            let _ = p.set_focus();
+        }
+    }
     emit_state(app, wid);
     emit_main(app);
     Ok(())
@@ -1563,6 +1579,20 @@ fn own_foreground() -> bool {
     }
 }
 
+/// 這個瀏覽器視窗是不是前景視窗（使用者正在用它）
+fn is_foreground(wid: &str) -> bool {
+    #[cfg(windows)]
+    {
+        let h = rt(|m| m.get(wid).map(|r| r.hwnd).unwrap_or(0));
+        h != 0 && win32::foreground() == h
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = wid;
+        false
+    }
+}
+
 /// 鍵盤焦點交給某個分頁的網頁（只有本程式在前景時才做）
 fn focus_page(app: &AppHandle, wid: &str, tid: &str) {
     if own_foreground() {
@@ -1588,7 +1618,7 @@ fn focus_omni(app: &AppHandle, wid: &str, select: bool) {
         _ => true,
     });
     if ready {
-        let _ = app.emit_to(bar_label(wid).as_str(), "web-omni-focus", select);
+        let _ = app.emit_to(bar_label(wid).as_str(), "web-omni-focus", serde_json::json!({ "id": wid, "select": select }));
     }
 }
 

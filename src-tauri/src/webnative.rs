@@ -328,11 +328,23 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
     // 右鍵選單
     if let Ok(c11) = core.cast::<ICoreWebView2_11>() {
         let s = sink.clone();
-        let h = ContextMenuRequestedEventHandler::create(Box::new(move |_c, args| {
+        let h = ContextMenuRequestedEventHandler::create(Box::new(move |c, args| {
             let Some(args) = args else { return Ok(()) };
             // 上一個還沒結束的先結束
             ctx_finish(0, None);
-            let items = collect(&args.MenuItems()?, 0);
+            let mut items = collect(&args.MenuItems()?, 0);
+            // 「上一頁／下一頁」能不能按：以這個網頁實際能不能返回、前進為準（跟工具列的箭頭一致）。
+            // WebView2 給的選單項目有時在沒有下一頁時也標成可以按
+            if let Some(core) = &c {
+                let (back, forward) = (flag(|b| core.CanGoBack(b)), flag(|b| core.CanGoForward(b)));
+                for it in items.iter_mut() {
+                    match it.name.as_str() {
+                        "back" => it.enabled = back,
+                        "forward" => it.enabled = forward,
+                        _ => {}
+                    }
+                }
+            }
             let target = read_target(&args.ContextMenuTarget()?);
             if items.is_empty() {
                 return Ok(());

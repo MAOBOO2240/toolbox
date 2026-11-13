@@ -395,7 +395,8 @@ pub fn start_script() -> String {
         return String::new();
     }
     format!(
-        "(() => {{ const u = location.href; const top = window.top === window; const __us_ok = (inc, exc, frames) => {{ if (!top && !frames) return false; const m = (l) => l.some((r) => {{ try {{ return new RegExp(r).test(u); }} catch (_) {{ return false; }} }}); return m(inc) && !m(exc); }};\n{}\n}})();",
+        // 「檢視網頁原始碼」的頁面不跑腳本（那種頁面的網址跟原本的網頁一樣，要從內容認：最前面有一個行號的底）
+        "(() => {{ if (document.querySelector('body > div.line-gutter-backdrop')) return; const u = location.href; const top = window.top === window; const __us_ok = (inc, exc, frames) => {{ if (!top && !frames) return false; const m = (l) => l.some((r) => {{ try {{ return new RegExp(r).test(u); }} catch (_) {{ return false; }} }}); return m(inc) && !m(exc); }};\n{}\n}})();",
         parts.join("\n")
     )
 }

@@ -99,6 +99,14 @@
     "use strict";
     (() => {
       const T = window.__TAURI__;
+      // 這個小視窗是第幾層（webmenu = 0、webmenu1 = 1…）。每一層的內容是用事件送來的，
+      // 其他層的小視窗也會收到同一個事件，所以要認清楚是給自己的才畫（不然打開下一層時，上一層的內容會被蓋掉）
+      let myLevel = -1;
+      try {
+        const l = window.__TAURI_INTERNALS__.metadata.currentWebview.label;
+        myLevel = l === "webmenu" ? 0 : Number(l.slice(7));
+      } catch (_) {}
+      const mine = (m) => !Number.isInteger(myLevel) || myLevel < 0 || m.level === myLevel;
       if (!T) return;
       const { ICONS, icon } = window.MB;
       const invoke = (cmd, args) => T.core.invoke(cmd, args).catch(() => {});
@@ -282,7 +290,7 @@
       document.addEventListener("contextmenu", (e) => e.preventDefault());
       document.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
       document.addEventListener("dragstart", (e) => e.preventDefault());
-      T.event.listen("web-pop", (e) => { if (e.payload) render(e.payload); });
+      T.event.listen("web-pop", (e) => { if (e.payload && mine(e.payload)) render(e.payload); });
       T.event.listen("web-pop-sel", (e) => {
         const p = e.payload;
         if (!cur || !p || p.gen !== cur.gen) return;
@@ -295,7 +303,12 @@
         const span = menu.querySelector(`[data-zoom="${p.index}"]`);
         if (span) span.textContent = `${p.pct}%`;
       });
-      T.core.invoke("web_pop_ready").then((m) => { if (m) render(m); }).catch(() => {});
+      T.core.invoke("web_pop_ready").then((m) => {
+        if (!m) return;
+        // 這個指令回的一定是自己這一層的內容
+        if (!Number.isInteger(myLevel) || myLevel < 0) myLevel = m.level;
+        render(m);
+      }).catch(() => {});
     })();
   </script>
 </body>
