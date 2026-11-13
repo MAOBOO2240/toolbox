@@ -918,7 +918,13 @@ def blank_point():
     """網頁上一個空白、沒被選單蓋住的點（螢幕座標）"""
     rects = [wrect(h) for h in menu_wins()]
     pr = page_rect()
-    for x, y in ((620, 330), (700, 250), (560, 420), (780, 380), (300, 330), (640, 120), (420, 200)):
+    cx, cy, cw, ch = client(web)
+    for c in vis_kids():
+        r = wrect(c)
+        is_bar = r[1] == cy and r[0] == cx and (r[3] - r[1]) <= 140 * scale
+        if not is_bar and r != pr:
+            rects.append(r)
+    for x, y in ((620, 330), (700, 250), (560, 420), (780, 380), (300, 330), (640, 120), (420, 200), (100, 330), (40, 240)):
         sx, sy = PG(x, y)
         if sx >= pr[2] - 6 or sy >= pr[3] - 6:
             continue
@@ -1556,6 +1562,11 @@ def s_main_menu():
         time.sleep(0.4)
         t = menu_titles()
         check("書籤和清單 → 楓之谷 → 攻略：一層一層打開", len(t) >= 4 and t[-1] == ["短影片"], f"{t[1:]}")
+        rs = [m_["rect"] for _, m_ in menus()]
+        # 第 n 層和第 n-2 層不能重疊（一路往同一個方向展開）
+        over = lambda a, b: min(a[2], b[2]) - max(a[0], b[0]) > 12 * scale and min(a[3], b[3]) - max(a[1], b[1]) > 12 * scale
+        bad = [(i, i + 2) for i in range(len(rs) - 2) if over(rs[i], rs[i + 2])]
+        check("好幾層選單：裡面的不會蓋到外面的", len(rs) >= 4 and not bad, f"{rs} 重疊={bad}")
         menu_hover("設定")
         time.sleep(0.6)
     # 縮放那一排：按 + 放大、按 - 縮回來
@@ -1892,6 +1903,14 @@ def s_bubbles():
             check(f"{name}：開在按鈕下面", ok, d)
         close_menus()
         check(f"{name}：點外面關掉", not menu_wins())
+    # 滑鼠先停在按鈕上一下再按（一般人的按法）：截圖看提示文字有沒有蓋住選單
+    p = bar_pt(SITE)
+    if p:
+        hover(*C(*p), settle=1.6)
+        shot("tooltip_before_click")
+        click(*C(*p), wait=1.6)
+        shot("tooltip_after_click")
+        close_menus()
     # 搜尋分頁：點清單裡的分頁會切過去
     ms = open_menu(TABSEARCH, "搜尋分頁")
     if ms:
