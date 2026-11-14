@@ -5016,7 +5016,9 @@ def s_multiopen():
     check("網頁那邊三次都拿到開出來的視窗（沒有被當成擋掉）", any("multi opened=111" in l for l in L), f"{L}")
     check("排到晚一點才開的，後來都開成功了", done >= later, f"排隊 {later}、成功 {done}")
     spare_used = err.count("用預先建立好的空白網頁，交還 → true") - spare0
-    check("開新分頁時用的是預先建立好的空白網頁（不用現場建立，馬上回答瀏覽器元件）", spare_used >= 1, f"{spare_used} 個")
+    if os.environ.get("MAOBOO_DEBUG"):
+        # 程式有開「查問題用的訊息」時才看得出來（整輪檢查平常不開）
+        check("開新分頁時用的是預先建立好的空白網頁（不用現場建立，馬上回答瀏覽器元件）", spare_used >= 1, f"{spare_used} 個")
     # 開出來的分頁裡，使用者腳本照樣會跑（補登記之後重新整理也一樣）
     t1 = time.time()
     time.sleep(7.0)
