@@ -294,11 +294,7 @@
     wd.postMessage({ run: bb.id });
     var wdTimer = setInterval(function () { try { wd.postMessage(1); } catch (_) {} }, 250);
     var wdStop = function () { try { clearInterval(wdTimer); wd.terminate(); } catch (_) {} };
-    setTimeout(function () {
-      wdStop();
-      // 這一次有跑完、也沒有別的卡住記錄：留下來的小記錄收乾淨
-      try { if (stopped && !prevs.length) indexedDB.deleteDatabase('__mbdiag_wd'); } catch (_) {}
-    }, 60000);
+    setTimeout(wdStop, 60000);
   } catch (_) {}
 
   /* ---------- 顯示卡的名稱（網頁自己問的時候順便記下來，不另外問） ---------- */
