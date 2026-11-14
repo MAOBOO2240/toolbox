@@ -673,10 +673,12 @@ if "extprobe" in ONLY_EARLY:
                     src_ = open(os.path.join(root_, fn_), encoding="utf-8", errors="replace").read()
                 except Exception:
                     continue
-                for word_ in ("openOptionsPage", "openSettingsTab", "windows.create", "windows.update"):
-                    hits_ = [m.start() for m in _re.finditer(_re.escape(word_), src_)][:3]
+                if fn_ != "background.js":
+                    continue
+                for word_, n_ in (("openSettingsPage", 2), ("static async openTab", 1), ("static async findOne", 1), ("static async focus", 1), ("OpenSettingsTab,", 2), ("settingsUrl", 2)):
+                    hits_ = [m.start() for m in _re.finditer(_re.escape(word_), src_)][:n_]
                     for i_ in hits_:
-                        log(f"extprobe：AdGuard {os.path.relpath(os.path.join(root_, fn_), ad)} 裡的 {word_}：", src_[max(0, i_ - 220):i_ + 260].replace("\n", " "))
+                        log(f"extprobe：AdGuard background.js 裡的 {word_}：", src_[max(0, i_ - 150):i_ + 900].replace("\n", " "))
     except Exception as e:
         log("extprobe：讀 AdGuard 的程式失敗", repr(e))
     try:
@@ -3995,10 +3997,15 @@ def words(root, n=500):
 
 
 def extprobe_ui():
-    home()
     ensure_web_fg()
+    # 擴充功能剛裝好會開一堆歡迎頁：先關掉，只留原本三個分頁（分頁太多時標題會被擠掉，後面認不出來）
+    log("  一開始的分頁編號：", tab_ids(), [t["title"] for t in tabs_info()])
+    restore_tabs(["t1", "t2", "t3"])
+    select_tab(0, 1.2)
+    home()
     click_blank(0.5)
     keep = tab_ids()
+    user32.GetAsyncKeyState(0x04)
 
     def titles():
         return [t["title"] for t in tabs_info()]
@@ -4225,6 +4232,37 @@ def s_extprobe():
     _r, bf, af, _n = act("openOptionsPage", "chrome.runtime.openOptionsPage().then(() => 'ok')", settle=6)
     stray = [w for w in af["wins"] if w[1] == "Chrome_WidgetWin_1" and w[0]]
     check("extprobe：擴充功能的背景程式開選項頁 → 開成分頁，不是另外跳出一個視窗", len(af["tabs"]) == len(bf["tabs"]) + 1 and not stray, f"{len(bf['tabs'])} → {len(af['tabs'])}；視窗 {stray}；網址列 {bar_state().get('shown')!r}")
+    # AdGuard：背景程式自己開設定頁會怎樣
+    AD = "bgnkhhnnamicmpeenaelnjfhikgbkllg"
+    ta = sw_of(AD)
+    if ta is not None:
+        sa = b.attach(ta["targetId"])
+        for d in ("Runtime", "Log"):
+            b.call(d + ".enable", session=sa)
+        log("  AdGuard tabs.query(options)：", json.dumps(b.ev(sa, "chrome.tabs.query({url: chrome.runtime.getURL('pages/options.html') + '*'}).then(ts => ts.map(t => [t.id, t.windowId, t.url]))"), ensure_ascii=False)[:400])
+        log("  AdGuard tabs.query({})：", json.dumps(b.ev(sa, "chrome.tabs.query({}).then(ts => ts.map(t => [t.id, t.windowId, t.active, (t.url || '').slice(0, 60)]))"), ensure_ascii=False)[:1500])
+        home()
+        click_blank(0.5)
+        ms = open_menu(EXT_BTN, "擴充功能按鈕（AdGuard，接著偵錯）")
+        if ms and menu_click("AdGuard", exact=False, wait=4.5):
+            h = popup_hwnd()
+            root = snap(h, tries=8, limit=1200) if h else None
+            n = next((x for x in (root.walk() if root else []) if x.name == "Open AdGuard settings"), None)
+            if n is not None:
+                bf = snap_state("AdGuard 設定 之前")
+                b.events.clear()
+                click(*n.center, wait=0.2)
+                b.pump(5)
+                af = snap_state("AdGuard 設定 之後")
+                diff("AdGuard 設定", bf, af)
+                log("  AdGuard 背景程式的訊息：", b.drain(sa)[:15])
+                log("  其他事件：", [m.get("method") for _, m in b.events][:30])
+        bf = snap_state("AdGuard 自己開設定頁 之前")
+        log("  AdGuard tabs.create(options)：", json.dumps(b.ev(sa, "chrome.tabs.create({url: chrome.runtime.getURL('pages/options.html')}).then(t => ({id: t && t.id}))"), ensure_ascii=False)[:300])
+        time.sleep(5)
+        af = snap_state("AdGuard 自己開設定頁 之後")
+        diff("AdGuard 自己開設定頁", bf, af)
+        log("  AdGuard 背景程式的訊息：", b.drain(sa)[:15])
     # 一般網頁硬要開別人的擴充功能頁面：不可以真的開出來
     home()
     time.sleep(1.0)

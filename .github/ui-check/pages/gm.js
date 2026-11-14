@@ -6,9 +6,18 @@
   log('webview=' + typeof wv + ' desc=' + JSON.stringify((window.chrome && Object.getOwnPropertyDescriptor(window.chrome, 'webview')) || null, (k, v) => (typeof v === 'function' || (typeof v === 'object' && v && k) ? typeof v : v))
     + ' chromeDesc=' + JSON.stringify(Object.getOwnPropertyDescriptor(window, 'chrome') || null, (k, v) => (typeof v === 'function' || (typeof v === 'object' && v && k) ? typeof v : v)));
   if (!wv) return;
-  const post = wv.postMessage.bind(wv);
+  // 最上層的網頁：用程式加的「綁定函式」傳（名稱每次不同）；內嵌框架用 chrome.webview
+  const bn = Object.getOwnPropertyNames(window).find((n) => /^__mb[0-9a-f]{16}$/.test(n));
+  const bind = bn ? window[bn] : null;
+  log('binding=' + (bn ? 'yes ' + typeof bind : 'no'));
+  const post = who === 'top' && bind ? (m) => bind(JSON.stringify(m)) : wv.postMessage.bind(wv);
   wv.addEventListener('message', (e) => log('got ' + JSON.stringify(e.data)));
   post({ mb: 'test', who });
+  if (bn) {
+    let del = 'n/a';
+    try { del = String(delete window[bn]); } catch (e) { del = 'ERR ' + e.message; }
+    log('binding delete=' + del + ' after=' + typeof window[bn]);
+  }
   setTimeout(() => {
     let del = 'n/a';
     try { del = String(delete window.chrome.webview); } catch (e) { del = 'ERR ' + e.message; }
