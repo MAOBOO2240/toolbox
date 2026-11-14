@@ -5064,21 +5064,23 @@ def s_bundle():
     txt = page_text()
     check("整合包：按「安裝」→ 裝好了", "安裝好了" in txt, txt[:400])
     t0 = time.time()
-    go(f"http://127.0.0.1:{PORT}/snap.html?bundle=1", 8.0)
-    before = page_text()
+    go(f"http://127.0.0.1:{PORT}/multi.html?n=bundle", 8.0)
     ms = open_menu(US_BTN, "使用者腳本按鈕（整合包）")
     names = names_of(ms[0][1]) if ms else []
     log("  整合包的選單：", [it["texts"] for it in ms[0][1]["items"]] if ms else [])
     shot("bundle_menu")
     check("整合包在網頁上執行，而且登記了它的選單項目", any("MAO BOO" in n for n in names) and any("設定面板" in n for n in names), f"{names}")
-    if any("設定面板" in n for n in names):
-        menu_click("設定面板", exact=False, wait=3.5)
+    # 點它的開關（短影片自動下一部）：腳本收到、存了設定、選單上的字跟著變。
+    # （設定面板在上一輪實際開過、看得到內容；面板的元素很多，讀它的內容要等非常久，這裡不再讀）
+    if any("短影片自動下一部" in n for n in names):
+        menu_click("短影片自動下一部", exact=False, wait=2.0)
+    ms = open_menu(US_BTN, "使用者腳本按鈕（整合包，點過開關之後）") if not menu_wins() else menus()
+    names2 = [n for _, m in ms for n in names_of(m)]
+    shot("bundle_toggle")
+    check("點整合包的「【開】短影片自動下一部」：變成「【關】」（腳本有收到、設定有存）", any("【關】短影片自動下一部" in n for n in names2), f"{names2}")
+    if any("【關】短影片自動下一部" in n for n in names2):
+        menu_click("【關】短影片自動下一部", exact=False, wait=1.5)
     close_menus()
-    after = page_text()
-    shot("bundle_panel")
-    new_text = [l for l in after.splitlines() if l.strip() and l not in before.splitlines()]
-    log("  點了「開啟設定面板」之後網頁上多出來的字：", new_text[:25])
-    check("點整合包的「開啟設定面板」：網頁上出現它的設定面板", len(new_text) >= 3, f"{new_text[:12]}")
     errs = [l for l in stderr_text().splitlines() if "[us]" in l and ("失敗" in l or "錯誤" in l)]
     log("  程式這邊跟腳本有關的錯誤：", errs[-6:])
     ensure_web_fg()
