@@ -946,7 +946,17 @@ def page_hwnd(win=None):
     return best
 
 
+def _alive():
+    """程式沒有回應就不用再讀畫面了（每讀一次都要等很久）：直接結束這一步"""
+    if user32.IsWindow(web) and not responsive(web):
+        time.sleep(2.5)
+        if not responsive(web):
+            raise RuntimeError("程式沒有回應")
+
+
 def bar_tree(win=None):
+    if win is None:
+        _alive()
     h = bar_hwnd(win)
     return snap(h, need=lambda r: find_id(r, "tool") is not None) if h else None
 
@@ -1269,8 +1279,55 @@ def below(anchor_css, h, side="left"):
     return ok_y and ok_x, f"元素下緣=({ax:.0f}..{ar:.0f}, {ay:.0f}) 選單={r}"
 
 
+HUNG = {"v": False}
+
+
+def stderr_text():
+    """程式到目前為止印出來的訊息（程式還開著那個檔案，直接讀內容）"""
+    try:
+        APP_ERR.flush()
+    except Exception:
+        pass
+    try:
+        return open(os.path.join(OUT, "app_stderr.txt"), encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return f"（讀不到：{e!r}）"
+
+
+def hang_report(where):
+    """程式沒有回應了：把查得到的都記下來（程式自己印的訊息、每個執行緒停在哪裡），後面的步驟不用再跑"""
+    if HUNG["v"]:
+        return
+    HUNG["v"] = True
+    log(f"\n!!!!! 程式沒有回應（{where}）")
+    shot("hang")
+    # 等程式自己的看門狗印出哪些鎖被佔著
+    time.sleep(10)
+    txt = stderr_text()
+    log("程式的訊息（最後 250 行）：\n" + "\n".join("    " + l for l in txt.splitlines()[-250:]))
+    try:
+        with open(os.path.join(OUT, "app_stderr_copy.txt"), "w", encoding="utf-8") as f:
+            f.write(txt)
+    except Exception:
+        pass
+    cdb = next((c for c in (r"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe", r"C:\Program Files\Windows Kits\10\Debuggers\x64\cdb.exe") if os.path.exists(c)), None)
+    log("cdb：", cdb)
+    if cdb:
+        try:
+            r = subprocess.run([cdb, "-pv", "-p", str(app_proc.pid), "-y", r"srv*C:\symcache*https://msdl.microsoft.com/download/symbols", "-c", "~*k 60; qd"],
+                               capture_output=True, text=True, timeout=300, errors="replace")
+            with open(os.path.join(OUT, "hang_stacks.txt"), "w", encoding="utf-8") as f:
+                f.write(r.stdout + "\n" + r.stderr)
+            log("每個執行緒停在哪裡（詳細的在 hang_stacks.txt）：\n" + r.stdout[-12000:])
+        except Exception as e:
+            log("cdb 失敗", repr(e))
+
+
 def step(name, fn):
     log(f"\n===== {name} =====")
+    if HUNG["v"]:
+        log("（程式已經沒有回應，這一步不跑）")
+        return
     try:
         fn()
     except Exception:
@@ -1278,7 +1335,13 @@ def step(name, fn):
         check(name + " (沒有錯誤)", False, "exception")
     shot(name)
     dump(web, name)
-    check(name + "：程式有回應", responsive(web) if user32.IsWindow(web) else True)
+    ok = responsive(web) if user32.IsWindow(web) else True
+    if not ok:
+        time.sleep(4)
+        ok = responsive(web) if user32.IsWindow(web) else True
+        if not ok:
+            hang_report(name)
+    check(name + "：程式有回應", ok)
     try:
         if user32.IsWindow(web) and menu_wins():
             log("（這一步結束時選單還開著，關掉）")
@@ -4829,6 +4892,11 @@ for name, fn in STEPS:
         continue
     step(name, fn)
 
+try:
+    with open(os.path.join(OUT, "app_stderr_copy.txt"), "w", encoding="utf-8") as f:
+        f.write(stderr_text())
+except Exception:
+    pass
 log("\n===== 結果 =====")
 for name, ok, detail in RESULTS:
     log(("PASS" if ok else "FAIL"), name, detail)
