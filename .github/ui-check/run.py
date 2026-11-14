@@ -478,6 +478,34 @@ try:
     ONLY_EARLY = open(os.path.join(HERE, "only.txt"), encoding="utf-8").read().split()
 except Exception:
     ONLY_EARLY = []
+if "xprobe" in ONLY_EARLY:
+    # 跟使用者的電腦一樣：深色模式、語言是繁體中文；再放一個查問題用的腳本（記下網頁在等哪些瀏覽器功能）
+    for v in ("AppsUseLightTheme", "SystemUsesLightTheme"):
+        subprocess.run(["reg", "add", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "/v", v, "/t", "REG_DWORD", "/d", "0", "/f"], capture_output=True)
+    prof = os.path.join(data_dir, "web-profile", "EBWebView", "Default")
+    os.makedirs(prof, exist_ok=True)
+    with open(os.path.join(prof, "Preferences"), "w", encoding="utf-8") as f:
+        json.dump({"intl": {"accept_languages": "zh-TW,zh,en-US,en", "selected_languages": "zh-TW,zh,en-US,en"}}, f)
+    XDIAG = open(os.path.join(HERE, "xdiag.js"), encoding="utf-8").read()
+    with open(os.path.join(data_dir, "web-scripts", "x-diag.user.js"), "w", encoding="utf-8") as f:
+        f.write("// ==UserScript==\n// @name 查 X 卡住\n// @match https://x.com/*\n// @run-at document-start\n// @noframes\n// @grant none\n// ==/UserScript==\n" + XDIAG + """
+;(function () {
+  if (window.top !== window) return;
+  var show = function () {
+    try {
+      var s = 'URL=' + location.href + ' ' + window.__mbSummary();
+      var p = document.getElementById('__mbdiag');
+      if (!p) { p = document.createElement('div'); p.id = '__mbdiag'; document.documentElement.insertBefore(p, document.documentElement.firstChild); }
+      p.style.cssText = 'position:fixed;left:0;top:0;right:0;z-index:2147483647;background:#fff;color:#000;font:10px monospace;max-height:45%;overflow:auto;padding:2px;opacity:.92';
+      p.textContent = '';
+      for (var i = 0, k = 0; i < s.length; i += 380, k++) { var d = document.createElement('div'); d.textContent = 'MB' + (k < 10 ? '0' : '') + k + ':' + s.slice(i, i + 380); p.appendChild(d); }
+    } catch (e) {}
+  };
+  setTimeout(show, 15000);
+  setTimeout(show, 26000);
+})();
+""")
+    log("xprobe：深色模式、zh-TW、放好查問題的腳本")
 if "xcom" in ONLY_EARLY:
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
     log("xcom：打開瀏覽器元件的偵錯埠")
@@ -2540,6 +2568,91 @@ def s_xcom():
     home()
 
 
+def s_xprobe():
+    """（查問題用）x.com 的首頁在等哪些瀏覽器功能；把其中一個弄成「永遠不回應」時會不會停在 X 的標誌"""
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    keep = tab_ids()
+    # ---- 程式裡的瀏覽器 ----
+    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+    type_text("x.com")
+    key(VK_ENTER)
+    time.sleep(19)
+    shot("xprobe_app_19s")
+    log("  程式裡 19 秒後：標題", repr(title(web)), bar_state().get("shown"))
+
+    def read_overlay():
+        root = page_tree()
+        parts = sorted(n.name for n in find_all(root, lambda n: n.type == "TextControl" and n.name[:2] == "MB" and n.name[4:5] == ":"))
+        return "".join(x[5:] for x in parts)
+
+    ov = read_overlay()
+    log("  [app 16 秒] ", ov[:6000] or "（讀不到）")
+    time.sleep(10)
+    shot("xprobe_app_29s")
+    ov2 = read_overlay()
+    log("  [app 27 秒] ", ov2[:6000] or "（讀不到）")
+    txt = page_text()
+    log("  程式裡網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip() and not x.startswith("MB"))[:400])
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+    # ---- 同一台機器上的 Edge：一次把一種功能弄成永遠不回應 ----
+    edge = next((p for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe") if os.path.exists(p)), None)
+    if not edge:
+        log("  這台機器沒有 Edge")
+        return
+    diag_js = open(os.path.join(HERE, "xdiag.js"), encoding="utf-8").read()
+    udd = os.path.join(os.environ.get("TEMP", "."), "edge-xprobe")
+    shutil.rmtree(udd, ignore_errors=True)
+    ep = subprocess.Popen([edge, "--remote-debugging-port=9444", "--remote-allow-origins=*", f"--user-data-dir={udd}", "--no-first-run", "--no-default-browser-check", "--lang=zh-TW", "--window-size=1000,700", "about:blank"])
+    time.sleep(6)
+    tg = next((t for t in cdp_targets(9444) if t.get("type") == "page"), None)
+    if tg is None:
+        log("  Edge 的偵錯埠接不上")
+        subprocess.run(["taskkill", "/PID", str(ep.pid), "/T", "/F"], capture_output=True)
+        return
+    c = CDP(tg["webSocketDebuggerUrl"])
+    out = {}
+    try:
+        for d in ("Page", "Runtime", "Network"):
+            c.call(d + ".enable")
+        c.call("Network.setExtraHTTPHeaders", {"headers": {"Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"}})
+        c.call("Emulation.setEmulatedMedia", {"features": [{"name": "prefers-color-scheme", "value": "dark"}]})
+        last = None
+        for hang in ("", "gpu", "gpudev", "worker", "idb", "sw", "locks", "caches", "storage", "perm", "cred", "uadata", "media", "audio", "fonts", "raf", "webgl", "kbd", "battery", "rsa"):
+            if last:
+                c.call("Page.removeScriptToEvaluateOnNewDocument", {"identifier": last})
+            c.call("Network.clearBrowserCookies")
+            c.call("Storage.clearDataForOrigin", {"origin": "https://x.com", "storageTypes": "all"})
+            r = c.call("Page.addScriptToEvaluateOnNewDocument", {"source": "window.__mbHang=" + json.dumps(hang) + ";" + diag_js})
+            last = (r or {}).get("result", {}).get("identifier")
+            c.events.clear()
+            c.call("Page.navigate", {"url": "https://x.com/"})
+            c.pump(13)
+            raw = c.js("window.__mbSummary ? window.__mbSummary() : 'no summary'")
+            try:
+                st = json.loads(raw)
+            except Exception:
+                st = {"raw": str(raw)[:300]}
+            out[hang] = st
+            stuck = st.get("textLen", 0) < 40
+            log(f"  [edge 卡住的功能={hang or '（沒有）'}] {'停在標誌' if stuck else '有內容'} 標題={st.get('title')!r} 文字={st.get('textLen')} lang={st.get('lang')} dark={st.get('dark')} raf={st.get('raf')} 還在等={st.get('pending')}")
+            if hang == "":
+                log("    呼叫：", json.dumps(st.get("calls"), ensure_ascii=False)[:7000])
+                shot("xprobe_edge_base")
+            elif stuck:
+                shot("xprobe_edge_" + hang)
+    finally:
+        c.close()
+        subprocess.run(["taskkill", "/PID", str(ep.pid), "/T", "/F"], capture_output=True)
+        time.sleep(1.0)
+    log("  弄成不回應就會停在標誌的功能：", [k for k, v in out.items() if k and v.get("textLen", 0) < 40])
+    ensure_web_fg()
+    home()
+
+
 def dt_windows():
     """畫面上 WebView2 自己開的大視窗（開發人員工具是另一個視窗）"""
     res = []
@@ -3600,6 +3713,8 @@ if "maindiag" in ONLY:
 # 查 x.com 卡住：要連到外面的網站，平常不跑
 if "xcom" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xcom", s_xcom))
+if "xprobe" in ONLY:
+    STEPS.insert(len(STEPS) - 2, ("xprobe", s_xprobe))
 for name, fn in STEPS:
     if ONLY and name not in ONLY and name not in ("start", "close"):
         continue
