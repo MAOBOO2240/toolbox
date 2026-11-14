@@ -2026,7 +2026,12 @@ def s_login():
     def press(i, wait=4.5, win=None):
         if win is None and not select_title("登入測試", 1.0):
             return False
-        n = find_id(page_tree(win), i)
+        n = None
+        for _ in range(6):
+            n = find_id(page_tree(win), i)
+            if n is not None:
+                break
+            time.sleep(0.5)
         if n is None:
             log(f"  找不到按鈕 {i}")
             return False
@@ -2072,6 +2077,8 @@ def s_login():
         w1 = extra(w0)
         tabs_now = tab_count()
         check("登入小視窗裡會開新視窗的連結（說明、忘記密碼這類）：點了有打開", tabs_now > n_tabs or len(w1) > len(pops), f"分頁 {n_tabs}→{tabs_now}，視窗 {len(pops)}→{len(w1)}")
+        check("登入小視窗裡的連結：開在原本那個瀏覽器視窗的新分頁，那個視窗到最前面、小視窗還在", tabs_now == n_tabs + 1 and fg() == web and bool(user32.IsWindow(pop)) and "短影片" in title(web),
+              f"分頁 {n_tabs}→{tabs_now} fg={fg()} web={web} 目前={title(web)!r}")
         ensure_web_fg()
         press("c8", 2.5)
         L = since(t0)
@@ -2150,6 +2157,152 @@ def s_login():
     if select_title("登入測試", 1.0):
         chord([VK_CTRL], 0x57, wait=1.2)  # Ctrl+W
     home()
+
+
+def dt_windows():
+    """畫面上 WebView2 自己開的大視窗（開發人員工具是另一個視窗）"""
+    res = []
+    for h in top_windows():
+        if not user32.IsWindowVisible(h) or proc_name(pid_of(h)).lower() != "msedgewebview2.exe":
+            continue
+        r = wrect(h)
+        if r[2] - r[0] >= 300 and r[3] - r[1] >= 200:
+            res.append(h)
+    return res
+
+
+def s_devtools():
+    """開發人員工具（F12）：一般網頁打得開；程式自己的頁面（設定、新分頁…）不行"""
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    keep = tab_ids()
+    base_dt = set(dt_windows())
+    log("  原本就有的 WebView2 視窗：", [(title(h), cls(h), wrect(h)) for h in base_dt])
+
+    def new_dt():
+        return [h for h in dt_windows() if h not in base_dt]
+
+    def info(ws):
+        return [(title(h), cls(h), wrect(h)) for h in ws]
+
+    def opened(wait=15):
+        ws = wait_for(new_dt, wait, 0.3)
+        time.sleep(1.0)
+        return new_dt() if ws else []
+
+    def close_dt():
+        for h in new_dt():
+            user32.PostMessageW(h, 0x0010, None, None)
+        wait_for(lambda: not new_dt(), 8, 0.3)
+        time.sleep(0.5)
+        ensure_web_fg()
+        return not new_dt()
+
+    def none_opens(secs=3.5):
+        time.sleep(secs)
+        return not new_dt()
+
+    # 1. 一般網頁：F12
+    key(0x7B)
+    ws = opened()
+    shot("devtools_f12")
+    check("一般網頁按 F12：打開開發人員工具（另一個視窗）", len(ws) == 1, f"{info(ws)}")
+    check("開發人員工具開著時：瀏覽器視窗還在、有回應", bool(user32.IsWindow(web)) and responsive(web))
+    check("開發人員工具：關得掉", close_dt(), f"{info(new_dt())}")
+
+    # 2. 開過的分頁要前往程式自己的頁面：改開在新分頁
+    n0 = tab_count()
+    go("chrome://settings", wait=3.0)
+    ts = tabs_info()
+    check("開過開發人員工具的分頁前往「設定」：改開在新分頁，原本的分頁留在網頁上",
+          len(ts) == n0 + 1 and any(t["active"] and "設定" in t["title"] for t in ts) and any("測試頁" in t["title"] for t in ts), f"{[(t['title'], t['active']) for t in ts]}")
+
+    # 3. 程式自己的頁面：打不開
+    if any(t["active"] and "設定" in t["title"] for t in ts):
+        # 點頁面上的標題文字（不會動到任何設定），鍵盤交給這個頁面
+        hd = next((n for n in find_all(page_tree(), lambda n: n.type == "TextControl" and n.name.strip() == "設定" and n.w > 0)), None)
+        log("  設定頁面的標題：", hd)
+        # 鍵盤還在網址列上時（工具列接到按鍵）
+        key(0x7B)
+        ok0 = none_opens()
+        if hd is not None:
+            click(*hd.center, wait=0.5)
+        key(0x7B)
+        ok1 = none_opens()
+        chord([VK_CTRL, VK_SHIFT], 0x49, wait=0.5)  # Ctrl+Shift+I
+        ok2 = none_opens()
+        check("「設定」（程式自己的頁面）按 F12、Ctrl+Shift+I：不會打開開發人員工具", ok0 and ok1 and ok2, f"網址列上按 F12={ok0} 頁面上按 F12={ok1} Ctrl+Shift+I={ok2} {info(new_dt())}")
+        close_dt()
+        if hd is not None:
+            ms = ctx_at(*hd.center)
+            names = [it["t"] for _, m in ms for it in m["items"]]
+            check("「設定」按右鍵：沒有「檢查」", "檢查" not in names, f"{names}")
+            close_menus()
+        ms = open_menu(MENU_BTN, "⋮（設定頁面上）")
+        if ms:
+            menu_hover("更多工具")
+            wait_for(lambda: len(menu_wins()) >= 2, 3, 0.2)
+            time.sleep(0.5)
+            f = menu_find("開發人員工具")
+            check("「設定」頁面上：⋮ → 更多工具 →「開發人員工具」不能按", bool(f) and f[1]["off"], f"{menu_titles()}")
+        close_menus()
+    restore_tabs(keep)
+    home()
+    click_blank(0.5)
+
+    # 4. 右鍵 → 檢查
+    ms = ctx_at(*PG(300, 330))
+    names = [it["t"] for _, m in ms for it in m["items"]]
+    check("一般網頁按右鍵：最後一項是「檢查」", bool(names) and names[-1] == "檢查", f"{names}")
+    if "檢查" in names:
+        menu_click("檢查", wait=1.0)
+        ws = opened()
+        check("右鍵 → 檢查：打開開發人員工具", len(ws) == 1 and not menu_wins(), f"{info(ws)}")
+        close_dt()
+    close_menus()
+
+    # 5. ⋮ → 更多工具 → 開發人員工具
+    ms = open_menu(MENU_BTN, "⋮（要開開發人員工具）")
+    if ms:
+        menu_hover("更多工具")
+        wait_for(lambda: len(menu_wins()) >= 2, 3, 0.2)
+        time.sleep(0.5)
+        f = menu_find("開發人員工具")
+        check("⋮ → 更多工具：有「開發人員工具」，一般網頁上可以按", bool(f) and not f[1]["off"], f"{menu_titles()}")
+        if f:
+            menu_click("開發人員工具", wait=1.0)
+            ws = opened()
+            check("⋮ → 更多工具 → 開發人員工具：打開", len(ws) == 1, f"{info(ws)}")
+            close_dt()
+    close_menus()
+
+    # 6. 新分頁（程式自己的頁面）打不開；前往一般網頁之後才打得開；再按上一頁回新分頁時，改開在另一個分頁
+    click_blank(0.5)
+    chord([VK_CTRL], 0x54, wait=1.8)  # Ctrl+T
+    key(0x7B)
+    check("新分頁（程式自己的頁面）按 F12：不會打開開發人員工具", none_opens(), f"{info(new_dt())}")
+    close_dt()
+    type_text(f"127.0.0.1:{PORT}/snap.html?devtools")
+    key(VK_ENTER)
+    time.sleep(3.5)
+    click_blank(0.5)
+    key(0x7B)
+    ws = opened()
+    check("從新分頁前往一般網頁之後按 F12：打得開", len(ws) == 1, f"{info(ws)}")
+    # 開發人員工具還開著：按上一頁（要回到新分頁那個程式自己的頁面）
+    ensure_web_fg()
+    click_blank(0.5)
+    n1 = tab_count()
+    chord([VK_ALT], VK_LEFT, wait=3.0)
+    ts = tabs_info()
+    check("開發人員工具開著時按上一頁要回到新分頁：原本的分頁留在網頁上，新分頁另外開",
+          len(ts) == n1 + 1 and any("短影片" in t["title"] for t in ts) and len(new_dt()) == len(ws), f"{[(t['title'], t['active']) for t in ts]} 工具視窗={info(new_dt())}")
+    shot("devtools_back")
+    close_dt()
+    restore_tabs(keep)
+    home()
+    check("開發人員工具這一步結束：沒有留下工具視窗、分頁回到原本的樣子", not new_dt() and tab_count() == len(keep), f"{info(new_dt())} 分頁 {tab_count()}/{len(keep)}")
 
 
 def s_maindiag():
@@ -2962,6 +3115,7 @@ STEPS = [
     ("ext", s_ext),
     ("scripts", s_scripts),
     ("login", s_login),
+    ("devtools", s_devtools),
     ("tips", s_tipdiag),
     ("maindiag", s_maindiag),
     ("minimize", s_minimize),
