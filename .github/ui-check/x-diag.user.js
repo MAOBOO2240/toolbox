@@ -82,23 +82,27 @@
       prevs = prevs.slice(0, 3);
     }
   } catch (e) { lsState = '讀黑盒子失敗 ' + String(e).slice(0, 60); }
-  var wdMap = {};
+  var wdMap = {}, wdState = prevs.length ? '還沒讀完' : '不用讀', wdReady = [];
+  var wdDone = function (st) { wdState = st; var l = wdReady; wdReady = []; l.forEach(function (f) { try { f(); } catch (_) {} }); };
   try {
     var rq = indexedDB.open('__mbdiag_wd', 1);
     rq.onupgradeneeded = function () { try { rq.result.createObjectStore('kv'); } catch (_) {} };
+    rq.onerror = function () { wdDone('打不開 ' + String(rq.error).slice(0, 50)); };
+    rq.onblocked = function () { wdDone('被擋住'); };
     rq.onsuccess = function () {
       try {
-        var left = prevs.length;
+        var left = prevs.length, found = 0;
         if (!left) { rq.result.close(); return; }
         var st = rq.result.transaction('kv', 'readonly').objectStore('kv');
+        var one = function () { if (--left === 0) { try { rq.result.close(); } catch (_) {} wdDone('讀完，找到 ' + found + ' 筆'); } };
         prevs.forEach(function (p) {
           var g = st.get('wd:' + p.id);
-          g.onsuccess = function () { if (g.result) wdMap[p.id] = g.result; if (--left === 0) { try { rq.result.close(); } catch (_) {} } };
-          g.onerror = function () { if (--left === 0) { try { rq.result.close(); } catch (_) {} } };
+          g.onsuccess = function () { if (g.result) { wdMap[p.id] = g.result; found++; } one(); };
+          g.onerror = function () { one(); };
         });
-      } catch (_) {}
+      } catch (e) { wdDone('讀取失敗 ' + String(e).slice(0, 50)); }
     };
-  } catch (_) {}
+  } catch (e) { wdState = '不能用 ' + String(e).slice(0, 50); }
   var prevInfo = function () {
     if (!prevs.length) return null;
     return prevs.map(function (p) {
@@ -158,7 +162,7 @@
     panel.appendChild(row);
   };
   var prevText = function (why) {
-    return JSON.stringify({ 報告: 'MAOBOO X 診斷 ' + VER + '（上一次卡住的記錄）', 原因: why, 時間: new Date().toISOString(), 執行的地方: host, 瀏覽器: { UA: navigator.userAgent, 版本: uaFull }, 儲存空間能不能用: lsState, 上次沒跑完: prevInfo(), 這次的網址: short(location.href) }, null, 1);
+    return JSON.stringify({ 報告: 'MAOBOO X 診斷 ' + VER + '（上一次卡住的記錄）', 原因: why, 時間: new Date().toISOString(), 執行的地方: host, 瀏覽器: { UA: navigator.userAgent, 版本: uaFull }, 儲存空間能不能用: lsState, 看門狗的記錄: wdState, 上次沒跑完: prevInfo(), 這次的網址: short(location.href) }, null, 1);
   };
   var markReported = function () {
     prevs.forEach(function (p) { p.rep = (p.rep || 0) + 1; var c = p.cur; delete p.cur; lsSet(BBP + p.id, JSON.stringify(p)); p.cur = c; });
@@ -166,7 +170,10 @@
 
   if (READ_ONLY) {
     window.__mbDiag = true;  // 後面那一大段記錄用的程式在這種頁面不用跑
-    setTimeout(function () {
+    var roDone = false;
+    var roRun = function () {
+      if (roDone) return;
+      roDone = true;
       mount();
       if (!statusEl) return;
       if (!prevs.length) {
@@ -179,7 +186,8 @@
       statusEl.textContent = saved ? '上一次卡住的記錄已存到「下載」（' + saved + '）。回去跟 Claude 說「好了」。' : '找到記錄了，但沒辦法自動存檔。請按下面的「存成檔案」或「複製報告」。';
       detail();
       buttons(prevText, 'prev');
-    }, 600);
+    };
+    setTimeout(function () { if (wdState === '還沒讀完') { wdReady.push(roRun); setTimeout(roRun, 3000); } else roRun(); }, 500);
     return;
   }
 

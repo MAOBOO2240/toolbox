@@ -2807,7 +2807,7 @@ def s_xuser():
     time.sleep(3)
     shot("xuser_3s")
     early = page_text()
-    check("診斷腳本：一開始右下角就有小視窗", "X 診斷中" in early, " | ".join(x.strip() for x in early.splitlines() if x.strip())[:200])
+    check("診斷腳本：一開始右下角就有小視窗", "工具箱：X 診斷" in early, " | ".join(x.strip() for x in early.splitlines() if x.strip())[:200])
     time.sleep(24)
     shot("xuser_normal")
     collect("一般視窗", before)
@@ -2853,7 +2853,8 @@ def s_xuser():
             shutil.copyfile(f, os.path.join(OUT, "xuser_prev.txt"))
             rep = json.loads(open(f, encoding="utf-8").read())
             pv = (rep.get("上次沒跑完") or [{}])[0]
-            log("  [robots] 上一次的記錄：", json.dumps(pv, ensure_ascii=False)[:2200])
+            log("  [robots] 看門狗的記錄：", rep.get("看門狗的記錄"), "→", json.dumps(pv.get("看門狗"), ensure_ascii=False))
+            log("  [robots] 上一次的記錄：", json.dumps(pv, ensure_ascii=False)[:900])
             prev_ok = "webgl.getParameter" in str(pv.get("最後正在做")) and bool(pv.get("看門狗"))
         except Exception as e:
             log("  [robots] 讀不了：", repr(e))
