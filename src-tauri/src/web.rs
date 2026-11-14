@@ -3418,12 +3418,14 @@ mod win32 {
     pub fn click_mods() -> (bool, bool, bool) {
         (false, false, false)
     }
+    pub fn mid_watch() {}
+    pub fn mid_clear() {}
 }
 
 #[cfg(windows)]
 mod win32 {
     use super::{lock, TYPING_HWND};
-    use std::sync::atomic::{AtomicIsize, Ordering};
+    use std::sync::atomic::{AtomicIsize, AtomicU64, Ordering};
     use windows_sys::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
     use std::sync::Mutex;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
@@ -3740,12 +3742,47 @@ mod win32 {
         }
     }
 
+    /// 最近一次看到滑鼠中鍵按過是什麼時候（從程式啟動算起的毫秒；0 = 沒看過）
+    static MID_AT: AtomicU64 = AtomicU64::new(0);
+
+    fn now_ms() -> u64 {
+        static T0: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        T0.get_or_init(std::time::Instant::now).elapsed().as_millis() as u64 + 1
+    }
+
+    /// 問 Windows「上次問過之後，滑鼠中鍵有沒有按過」，有就記下現在的時間
+    fn mid_poll() -> bool {
+        let mid = unsafe { GetAsyncKeyState(VK_MBUTTON as i32) };
+        let hit = mid < 0 || (mid & 1) != 0;
+        if hit {
+            MID_AT.store(now_ms(), Ordering::SeqCst);
+        }
+        hit
+    }
+
+    /// 「剛按過滑鼠中鍵」只能靠 Windows 記的「上次問過之後有沒有按過」。如果一直沒有人問，很久以前按的那一次
+    /// （例如用中鍵關分頁）會留到下次開新分頁才被看到，那個新分頁就被當成「用中鍵點連結」開在背景，看起來像沒反應。
+    /// 所以固定每隔一小段時間問一次、記下時間：只有剛剛才按的才算數
+    pub fn mid_watch() {
+        std::thread::spawn(|| loop {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            mid_poll();
+        });
+    }
+
+    /// 用中鍵做了別的事（關分頁）：這一次不算「用中鍵點連結」
+    pub fn mid_clear() {
+        mid_poll();
+        MID_AT.store(0, Ordering::SeqCst);
+    }
+
     /// 點連結開新分頁時的按鍵：(按著 Ctrl, 按著 Shift, 剛按過滑鼠中鍵)
     pub fn click_mods() -> (bool, bool, bool) {
-        unsafe {
-            let mid = GetAsyncKeyState(VK_MBUTTON as i32);
-            (GetAsyncKeyState(VK_CONTROL as i32) < 0, GetAsyncKeyState(VK_SHIFT as i32) < 0, mid < 0 || (mid & 1) != 0)
-        }
+        let mid = mid_poll() || {
+            let at = MID_AT.load(Ordering::SeqCst);
+            at != 0 && now_ms().saturating_sub(at) < 450
+        };
+        unsafe { (GetAsyncKeyState(VK_CONTROL as i32) < 0, GetAsyncKeyState(VK_SHIFT as i32) < 0, mid) }
     }
 
     /// 滑鼠任一個鍵按著
@@ -4162,6 +4199,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let _ = WEB_DIR.set(dir.to_path_buf());
         crate::userscripts::init(dir.to_path_buf());
         us::init(app);
+        win32::mid_watch();
         load_side(dir);
     }
     #[cfg(windows)]
@@ -5145,6 +5183,8 @@ pub fn web_tab_move(app: AppHandle, webview: Webview, tab: String, index: usize)
 #[tauri::command]
 pub async fn web_tab_close(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     let id = id_of(&webview).ok_or("不是瀏覽器視窗")?;
+    // 可能是用滑鼠中鍵關的：那一下不要算成「用中鍵點連結」
+    win32::mid_clear();
     close_tab(&app, &id, &tab)
 }
 
