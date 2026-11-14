@@ -488,7 +488,7 @@ if "xprobe" in ONLY_EARLY:
         json.dump({"intl": {"accept_languages": "zh-TW,zh,en-US,en", "selected_languages": "zh-TW,zh,en-US,en"}}, f)
     XDIAG = open(os.path.join(HERE, "xdiag.js"), encoding="utf-8").read()
     with open(os.path.join(data_dir, "web-scripts", "x-diag.user.js"), "w", encoding="utf-8") as f:
-        f.write("// ==UserScript==\n// @name 查 X 卡住\n// @match https://x.com/*\n// @run-at document-start\n// @noframes\n// @grant none\n// ==/UserScript==\n" + XDIAG + """
+        f.write("// ==UserScript==\n// @name 0 查 X 卡住\n// @match https://x.com/*\n// @run-at document-start\n// @noframes\n// @grant none\n// ==/UserScript==\n" + XDIAG + """
 ;(function () {
   if (window.top !== window) return;
   var show = function () {
@@ -506,6 +506,17 @@ if "xprobe" in ONLY_EARLY:
 })();
 """)
     log("xprobe：深色模式、zh-TW、放好查問題的腳本")
+    # 使用者公開的油猴整合包：只在網址後面有 #mbb 的 x.com 才跑，看它會不會讓 X 停在標誌
+    try:
+        with urllib.request.urlopen("https://raw.githubusercontent.com/MAOBOO2240/userscripts/main/maoboo.user.js", timeout=40) as r:
+            bundle = r.read().decode("utf-8")
+        assert "// @match        *://*/*" in bundle
+        bundle = bundle.replace("// @match        *://*/*", "// @include      /^https:\\/\\/x\\.com\\/.*#mbb/", 1)
+        with open(os.path.join(data_dir, "web-scripts", "maoboo.user.js"), "w", encoding="utf-8") as f:
+            f.write(bundle)
+        log("xprobe：整合包放好了", len(bundle), [l for l in bundle.splitlines()[:16] if "@include" in l or "@version" in l])
+    except Exception as e:
+        log("xprobe：整合包拿不到", repr(e))
 if "xcom" in ONLY_EARLY:
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
     log("xcom：打開瀏覽器元件的偵錯埠")
@@ -2569,36 +2580,85 @@ def s_xcom():
 
 
 def s_xprobe():
-    """（查問題用）x.com 的首頁在等哪些瀏覽器功能；把其中一個弄成「永遠不回應」時會不會停在 X 的標誌"""
+    """（查問題用）x.com 的首頁：網頁和它的 Worker 在等哪些瀏覽器功能；一般視窗、無痕式視窗、加上使用者的整合包各看一次"""
     home()
     ensure_web_fg()
     click_blank(0.5)
     keep = tab_ids()
-    # ---- 程式裡的瀏覽器 ----
-    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
-    type_text("x.com")
-    key(VK_ENTER)
-    time.sleep(19)
-    shot("xprobe_app_19s")
-    log("  程式裡 19 秒後：標題", repr(title(web)), bar_state().get("shown"))
 
-    def read_overlay():
-        root = page_tree()
+    def read_overlay(win=None):
+        root = page_tree(win)
+        if root is None:
+            return ""
         parts = sorted(n.name for n in find_all(root, lambda n: n.type == "TextControl" and n.name[:2] == "MB" and n.name[4:5] == ":"))
         return "".join(x[5:] for x in parts)
 
-    ov = read_overlay()
-    log("  [app 16 秒] ", ov[:6000] or "（讀不到）")
-    time.sleep(10)
-    shot("xprobe_app_29s")
-    ov2 = read_overlay()
-    log("  [app 27 秒] ", ov2[:6000] or "（讀不到）")
-    txt = page_text()
-    log("  程式裡網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip() and not x.startswith("MB"))[:400])
-    ensure_web_fg()
+    def report(tag, ov, win=None):
+        try:
+            st = json.loads(ov[ov.index("{"):])
+        except Exception:
+            log(f"  [{tag}] 讀不到（或不完整，共 {len(ov)} 字）：", ov[:12000])
+            return None
+        stuck = st.get("textLen", 0) < 40
+        log(f"  [{tag}] {'停在標誌' if stuck else '有內容'} 標題={st.get('title')!r} 文字={st.get('textLen')} raw={st.get('raw')} raf={st.get('raf')} 還在等={st.get('pending')}")
+        log(f"  [{tag}] 環境：", json.dumps(st.get("env"), ensure_ascii=False))
+        for k, w in enumerate(st.get("workers") or []):
+            log(f"  [{tag}] Worker {k}：", json.dumps({x: w.get(x) for x in ("u", "len", "inst", "posts", "got", "term", "beat", "wt")}, ensure_ascii=False))
+            log(f"      誰建立的：{w.get('stack')}")
+            log(f"      開頭：{w.get('head')!r}")
+            log(f"      裡面：{json.dumps(w.get('w'), ensure_ascii=False)}")
+        log(f"  [{tag}] 呼叫：", json.dumps(st.get("calls"), ensure_ascii=False)[:5000])
+        return st
+
+    def app_pass(tag, url):
+        ensure_web_fg()
+        chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+        type_text(url)
+        key(0x2E)  # Delete：網址列自動補上的字不要
+        key(VK_ENTER)
+        time.sleep(19)
+        shot("xprobe_" + tag)
+        log(f"  [{tag}] 19 秒後：標題", repr(title(web)), bar_state().get("shown"))
+        st = report(tag, read_overlay())
+        txt = page_text()
+        log(f"  [{tag}] 網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip() and not x.startswith("MB"))[:300])
+        return st
+
+    # ---- 程式裡的瀏覽器：一般視窗 ----
+    app_pass("app_raw", "https://x.com/#mbraw")
+    st = app_pass("app", "https://x.com/")
+    if st is not None:
+        time.sleep(10)
+        report("app 再過 10 秒", read_overlay())
+    app_pass("app_bundle", "https://x.com/#mbb")
     restore_tabs(keep)
     home()
-    # ---- 同一台機器上的 Edge：一次把一種功能弄成永遠不回應 ----
+    # ---- 程式裡的瀏覽器：無痕式視窗 ----
+    click_blank(0.5)
+    before = set(app_windows())
+    chord([VK_CTRL, VK_SHIFT], 0x4E, wait=4.0)  # Ctrl+Shift+N
+    new = [h for h in app_windows() if h not in before and user32.IsWindowVisible(h) and title(h) not in KNOWN]
+    if len(new) == 1 and "無痕" in title(new[0]):
+        inc = new[0]
+        r = wrect(inc)
+        click(r[0] + 400 * scale, r[1] + 71 * scale, wait=0.7)
+        type_text("https://x.com/")
+        key(0x2E)
+        key(VK_ENTER)
+        time.sleep(19)
+        shot("xprobe_incognito")
+        log("  [無痕] 19 秒後：標題", repr(title(inc)))
+        report("無痕", read_overlay(inc), inc)
+        txt = page_text(inc)
+        log("  [無痕] 網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip() and not x.startswith("MB"))[:300])
+        r = wrect(inc)
+        click(r[2] - 23 * scale, r[1] + 16 * scale, wait=1.5)
+        log("  [無痕] 視窗關掉了：", not user32.IsWindow(inc) or not user32.IsWindowVisible(inc))
+    else:
+        log("  無痕式視窗打不開：", [(title(h), wrect(h)) for h in new])
+    ensure_web_fg()
+    home()
+    # ---- 同一台機器上的 Edge（對照）----
     edge = next((p for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe") if os.path.exists(p)), None)
     if not edge:
         log("  這台機器沒有 Edge")
@@ -2614,41 +2674,45 @@ def s_xprobe():
         subprocess.run(["taskkill", "/PID", str(ep.pid), "/T", "/F"], capture_output=True)
         return
     c = CDP(tg["webSocketDebuggerUrl"])
-    out = {}
     try:
         for d in ("Page", "Runtime", "Network"):
             c.call(d + ".enable")
         c.call("Network.setExtraHTTPHeaders", {"headers": {"Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"}})
         c.call("Emulation.setEmulatedMedia", {"features": [{"name": "prefers-color-scheme", "value": "dark"}]})
         last = None
-        for hang in ("", "gpu", "gpudev", "worker", "idb", "sw", "locks", "caches", "storage", "perm", "cred", "uadata", "media", "audio", "fonts", "raf", "webgl", "kbd", "battery", "rsa"):
+        for tag, pre in (("edge", ""), ("edge_raw", "window.__mbRaw=true;")):
             if last:
                 c.call("Page.removeScriptToEvaluateOnNewDocument", {"identifier": last})
             c.call("Network.clearBrowserCookies")
             c.call("Storage.clearDataForOrigin", {"origin": "https://x.com", "storageTypes": "all"})
-            r = c.call("Page.addScriptToEvaluateOnNewDocument", {"source": "window.__mbHang=" + json.dumps(hang) + ";" + diag_js})
+            r = c.call("Page.addScriptToEvaluateOnNewDocument", {"source": pre + diag_js})
             last = (r or {}).get("result", {}).get("identifier")
             c.events.clear()
             c.call("Page.navigate", {"url": "https://x.com/"})
-            c.pump(13)
+            c.pump(19)
             raw = c.js("window.__mbSummary ? window.__mbSummary() : 'no summary'")
-            try:
-                st = json.loads(raw)
-            except Exception:
-                st = {"raw": str(raw)[:300]}
-            out[hang] = st
-            stuck = st.get("textLen", 0) < 40
-            log(f"  [edge 卡住的功能={hang or '（沒有）'}] {'停在標誌' if stuck else '有內容'} 標題={st.get('title')!r} 文字={st.get('textLen')} lang={st.get('lang')} dark={st.get('dark')} raf={st.get('raf')} 還在等={st.get('pending')}")
-            if hang == "":
-                log("    呼叫：", json.dumps(st.get("calls"), ensure_ascii=False)[:7000])
-                shot("xprobe_edge_base")
-            elif stuck:
-                shot("xprobe_edge_" + hang)
+            report(tag, "URL " + str(raw))
+            shot("xprobe_" + tag)
+            if tag == "edge":
+                # Worker 的原始碼、網頁載入了哪些檔案：存下來看
+                try:
+                    blobs = json.loads(c.js("JSON.stringify(window.__mbBlobs || {})", wait=20) or "{}")
+                    for k, (u, text) in enumerate(blobs.items()):
+                        with open(os.path.join(OUT, f"xworker_{k}.js.txt"), "w", encoding="utf-8") as f:
+                            f.write("// " + u + "\n" + text)
+                        log(f"  Edge：blob {k} {u[-14:]} 長度 {len(text)}")
+                    res = c.js("JSON.stringify(performance.getEntriesByType('resource').map(e => e.initiatorType + ' ' + Math.round(e.startTime) + '-' + Math.round(e.responseEnd) + ' ' + e.name.slice(0, 150)))", wait=20)
+                    with open(os.path.join(OUT, "xresources.txt"), "w", encoding="utf-8") as f:
+                        f.write("\n".join(json.loads(res or "[]")))
+                    html = c.js("document.documentElement.outerHTML.slice(0, 60000)", wait=20)
+                    with open(os.path.join(OUT, "xpage.html.txt"), "w", encoding="utf-8") as f:
+                        f.write(str(html))
+                except Exception as e:
+                    log("  Edge：存檔失敗", repr(e))
     finally:
         c.close()
         subprocess.run(["taskkill", "/PID", str(ep.pid), "/T", "/F"], capture_output=True)
         time.sleep(1.0)
-    log("  弄成不回應就會停在標誌的功能：", [k for k, v in out.items() if k and v.get("textLen", 0) < 40])
     ensure_web_fg()
     home()
 
