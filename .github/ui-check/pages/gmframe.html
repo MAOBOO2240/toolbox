@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>訊息測試（框架）</title></head>
+<body>
+<div id="o">frame</div>
+<script>
+  // 第一層框架裡再放一層（回到另一個網域）
+  if (/lvl=1/.test(location.search)) {
+    const f = document.createElement('iframe');
+    f.src = 'http://127.0.0.1:8765/gmframe.html?lvl=2';
+    f.style.cssText = 'width:300px;height:60px';
+    document.body.appendChild(f);
+  }
+</script>
+<script src="gm.js"></script>
+</body></html>

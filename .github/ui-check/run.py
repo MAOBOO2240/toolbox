@@ -663,6 +663,23 @@ if "extprobe" in ONLY_EARLY:
         except Exception as e:
             log("extprobe：拿不到", eid, repr(e)[:300])
     try:
+        import re as _re
+        ad = os.path.join(chrome_root, "Default", "Extensions", "bgnkhhnnamicmpeenaelnjfhikgbkllg")
+        for root_, _dirs, files_ in os.walk(ad):
+            for fn_ in files_:
+                if not fn_.endswith(".js"):
+                    continue
+                try:
+                    src_ = open(os.path.join(root_, fn_), encoding="utf-8", errors="replace").read()
+                except Exception:
+                    continue
+                for word_ in ("openOptionsPage", "openSettingsTab", "windows.create", "windows.update"):
+                    hits_ = [m.start() for m in _re.finditer(_re.escape(word_), src_)][:3]
+                    for i_ in hits_:
+                        log(f"extprobe：AdGuard {os.path.relpath(os.path.join(root_, fn_), ad)} 裡的 {word_}：", src_[max(0, i_ - 220):i_ + 260].replace("\n", " "))
+    except Exception as e:
+        log("extprobe：讀 AdGuard 的程式失敗", repr(e))
+    try:
         pref = os.path.join(chrome_root, "Default", "Preferences")
         if not os.path.exists(pref):
             with open(pref, "w", encoding="utf-8") as f:
@@ -3998,9 +4015,15 @@ def extprobe_ui():
             check(f"extprobe：{zh}（找得到那一項）", False, words(root, 300))
             return
         before = titles()
+        wins0 = [(title(h), cls(h), proc_name(pid_of(h))) for h in top_windows() if user32.IsWindowVisible(h)]
         click(*n.center, wait=4.5)
         after = titles()
         st = bar_state()
+        wins1 = [(title(h), cls(h), proc_name(pid_of(h))) for h in top_windows() if user32.IsWindowVisible(h)]
+        extra = [w for w in wins1 if w not in wins0]
+        if extra:
+            log(f"  [{tag}] 多出來的視窗：", extra)
+        check(f"extprobe：{zh}（沒有另外跳出瀏覽器自己的視窗）", not any(w[1] == "Chrome_WidgetWin_1" and w[0] for w in extra), f"{extra}")
         log(f"  [{tag}] 按了 {n.name!r}（{n.type} {n.w}x{n.h}）之後：分頁 {len(before)} → {len(after)} {after[-3:]}；小視窗還在：{bool(popup_hwnd())}；網址列：{st.get('shown')!r}")
         check(f"extprobe：{zh}（開了分頁）", len(after) > len(before), f"{len(before)} → {len(after)}；網址列 {st.get('shown')!r}")
         check(f"extprobe：{zh}（小視窗收起來）", not popup_hwnd())
@@ -4048,6 +4071,22 @@ def extprobe_ui():
         press(tag + "_click", root, labels, zh)
         if popup_hwnd():
             click_blank(0.8)
+    # ---- 網頁（與內嵌框架）跟程式互傳訊息 ----
+    t0 = time.time()
+    ensure_web_fg()
+    home()
+    chord([VK_CTRL], 0x54, wait=1.5)
+    type_text("http://127.0.0.1:8765/gm.html")
+    key(0x2E)
+    key(VK_ENTER)
+    time.sleep(6)
+    gl = [l.split(" ", 1)[1] for l in page_log_since(t0) if "[gm " in l]
+    for l in gl:
+        log("  ", l[:500])
+    for who in ("top", "frame", "nested"):
+        check(f"extprobe：網頁傳訊息給程式、程式回得來（{who}）", any(l.startswith(f"[gm {who}] got") for l in gl), f"{[l[:80] for l in gl if l.startswith('[gm ' + who)]}")
+        check(f"extprobe：從網頁上拿掉 chrome.webview 之後，先前抓好的還能用（{who}）", sum(1 for l in gl if l.startswith(f"[gm {who}] got")) >= 2 and any(l.startswith(f"[gm {who}] ") and "after=undefined" in l for l in gl), "")
+    shot("extprobe_gm")
     ensure_web_fg()
     restore_tabs(keep)
     home()
@@ -4180,9 +4219,29 @@ def s_extprobe():
     T2 = "(t => ({id: t.id, w: t.windowId, a: t.active, u: t.url, pu: t.pendingUrl, st: t.status}))"
     act("tabs_create_http", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=1'}}).then({T2})")
     act("tabs_create_http_bg", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=bg', active: false}}).then({T2})")
-    act("tabs_create_ext", f"chrome.tabs.create({{url: chrome.runtime.getURL('options.html') + '#nav=dashboard'}}).then({T2})", settle=5)
+    _r, bf, af, _n = act("tabs_create_ext", f"chrome.tabs.create({{url: chrome.runtime.getURL('options.html') + '#nav=dashboard'}}).then({T2})", settle=5)
+    check("extprobe：擴充功能的背景程式要開它自己的頁面 → 開成分頁", len(af["tabs"]) == len(bf["tabs"]) + 1 and "chrome-extension://" in str(bar_state().get("shown")), f"{len(bf['tabs'])} → {len(af['tabs'])} {bar_state().get('shown')!r}")
     act("windows_create", "chrome.windows.create({url: 'http://127.0.0.1:8765/snap.html?wincreate=1', type: 'popup', width: 420, height: 320}).then(w => ({id: w && w.id, t: w && w.type}))")
-    act("openOptionsPage", "chrome.runtime.openOptionsPage().then(() => 'ok')", settle=5)
+    _r, bf, af, _n = act("openOptionsPage", "chrome.runtime.openOptionsPage().then(() => 'ok')", settle=6)
+    stray = [w for w in af["wins"] if w[1] == "Chrome_WidgetWin_1" and w[0]]
+    check("extprobe：擴充功能的背景程式開選項頁 → 開成分頁，不是另外跳出一個視窗", len(af["tabs"]) == len(bf["tabs"]) + 1 and not stray, f"{len(bf['tabs'])} → {len(af['tabs'])}；視窗 {stray}；網址列 {bar_state().get('shown')!r}")
+    # 一般網頁硬要開別人的擴充功能頁面：不可以真的開出來
+    home()
+    time.sleep(1.0)
+    pg = next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").endswith("/test.html")), None)
+    if pg is not None:
+        ps = b.attach(pg["targetId"])
+        bf = snap_state("網頁開擴充功能頁面 之前")
+        r = b.call("Runtime.evaluate", {"expression": f"(() => {{ const w = window.open('chrome-extension://{TM}/options.html#nav=settings'); return String(w); }})()", "returnByValue": True, "userGesture": True}, ps)
+        log("  網頁 window.open(擴充功能頁面)：", json.dumps(r, ensure_ascii=False)[:300])
+        time.sleep(4)
+        af = snap_state("網頁開擴充功能頁面 之後")
+        diff("網頁開擴充功能頁面", bf, af)
+        st = bar_state()
+        txt = page_text()
+        log("  之後網址列：", st.get("shown"), "；畫面文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:300])
+        shot("extprobe_page_opens_ext")
+        check("extprobe：一般網頁要開擴充功能的頁面 → 看不到那個頁面的內容", "Tampermonkey" not in txt and "Installed Userscripts" not in txt, txt[:200])
     log("  之後的 tabs.query({})：", json.dumps(b.ev(sw, Q), ensure_ascii=False)[:3000])
 
     b.pump(0.5)
