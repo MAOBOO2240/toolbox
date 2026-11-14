@@ -671,7 +671,8 @@ if "extprobe" in ONLY_EARLY:
 if "xcom" in ONLY_EARLY:
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
     log("xcom：打開瀏覽器元件的偵錯埠")
-app_proc = subprocess.Popen([EXE])
+APP_ERR = open(os.path.join(OUT, "app_stderr.txt"), "w", encoding="utf-8", errors="replace")
+app_proc = subprocess.Popen([EXE], stdout=APP_ERR, stderr=APP_ERR)
 MENU_TITLE = "瀏覽器選單"
 KNOWN = ("工具箱", MENU_TITLE, "計時器浮動視窗", "", "com.toolbox.desktop-siw")
 
@@ -4174,98 +4175,193 @@ def s_extprobe():
     T2 = "(t => ({id: t.id, w: t.windowId, a: t.active, u: t.url, pu: t.pendingUrl, st: t.status}))"
     act("tabs_create_http", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=1'}}).then({T2})")
     act("tabs_create_http_bg", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=bg', active: false}}).then({T2})")
-    act("tabs_create_ext", f"chrome.tabs.create({{url: chrome.runtime.getURL('options.html') + '#nav=dashboard'}}).then({T2})", settle=5)
-    act("windows_create", "chrome.windows.create({url: 'http://127.0.0.1:8765/snap.html?wincreate=1', type: 'popup', width: 420, height: 320}).then(w => ({id: w.id, t: w.type, tabs: (w.tabs || []).map(x => x.id)}))")
-    act("openOptionsPage", "chrome.runtime.openOptionsPage().then(() => 'ok')", settle=5)
-    act("action_openPopup", "chrome.action.openPopup().then(() => 'ok')")
     log("  之後的 tabs.query({})：", json.dumps(b.ev(sw, Q), ensure_ascii=False)[:3000])
 
-    # ---- 瀏覽器自己的擴充功能管理頁（edge://extensions）開不開得起來 ----
-    r = b.call("Target.createTarget", {"url": "edge://extensions/"})
-    log("  Target.createTarget(edge://extensions/)：", json.dumps(r, ensure_ascii=False)[:400])
-    time.sleep(3)
-    tlist("createTarget 之後")
-    mgmt = None
-    for t in b.targets():
-        if t.get("type") == "page" and (t.get("url", "").startswith("edge://extensions") or t.get("url", "").startswith("chrome://extensions")):
-            mgmt = b.attach(t["targetId"])
-            break
-    if mgmt is None:
-        # 借一個分頁用：把 Example 那個分頁導過去
-        ex = next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").startswith("https://example.com")), None)
-        if ex is None:
-            ex = next((t for t in b.targets() if t.get("type") == "page" and "snap.html" in t.get("url", "")), None)
-        if ex is not None:
-            mgmt = b.attach(ex["targetId"])
-            for u in ("edge://extensions/", "chrome://extensions/"):
-                r = b.call("Page.navigate", {"url": u}, mgmt)
-                log(f"  Page.navigate({u})：", json.dumps(r, ensure_ascii=False)[:400])
-                time.sleep(4)
-                st = b.ev(mgmt, "({href: location.href, title: document.title, dp: typeof chrome.developerPrivate, mg: typeof chrome.management, text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 300)})")
-                log(f"  {u} 之後：", json.dumps(st, ensure_ascii=False)[:800])
-                if isinstance(st, dict) and st.get("dp") == "object":
-                    break
-    shot("extprobe_mgmt")
-    st = b.ev(mgmt, "({href: location.href, title: document.title, dp: typeof chrome.developerPrivate, text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 400)})") if mgmt else None
-    log("  管理頁：", json.dumps(st, ensure_ascii=False)[:900])
-    has_dp = isinstance(st, dict) and st.get("dp") == "object"
-    check("extprobe：瀏覽器自己的擴充功能管理頁開得起來、有管理用的功能", has_dp, json.dumps(st, ensure_ascii=False)[:200])
+    # ---- 瀏覽器設定檔裡「允許使用者腳本」是怎麼記的；關掉程式改設定檔再開，會不會生效 ----
+    def prof(name):
+        return os.path.join(data_dir, "web-profile", "EBWebView", "Default", name)
+
+    def load(name):
+        try:
+            return json.load(open(prof(name), encoding="utf-8"))
+        except Exception as e:
+            log("  讀不到", name, repr(e)[:120])
+            return None
+
+    def dig(d, path):
+        for k in path.split("."):
+            if not isinstance(d, dict) or k not in d:
+                return None
+            d = d[k]
+        return d
+
+    def brief(v):
+        return {k: (x if not isinstance(x, (dict, list)) else f"<{type(x).__name__} {len(x)}>") for k, x in v.items()} if isinstance(v, dict) else v
+
+    def report(tag):
+        for name in ("Preferences", "Secure Preferences"):
+            d = load(name)
+            if d is None:
+                continue
+            ext = d.get("extensions") or {}
+            st = ext.get("settings") or {}
+            log(f"  [{tag}] {name}：頂層 {sorted(d.keys())}")
+            log(f"  [{tag}] {name}：extensions 底下 {brief(ext)}；ui={ext.get('ui')}")
+            if TM in st:
+                log(f"  [{tag}] {name} 篡改猴：", json.dumps(brief(st[TM]), ensure_ascii=False)[:1500])
+            prot = d.get("protection") or {}
+            macs = prot.get("macs") or {}
+            em = dig(macs, "extensions")
+            log(f"  [{tag}] {name} protection：{sorted(prot.keys())}；macs 頂層 {sorted(macs.keys())}；extensions 的 macs：{brief(em)}")
+            try:
+                shutil.copyfile(prof(name), os.path.join(OUT, f"prefs_{tag}_{name.replace(' ', '_')}.json"))
+            except Exception as e:
+                log("  複製不了", name, e)
+
+    def wv_alive():
+        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -match 'web-profile' } | Measure-Object | ForEach-Object { $_.Count }")
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout.strip()
+        try:
+            return int(out or 0)
+        except Exception:
+            return -1
+
+    def restart(tag, mutate):
+        """關掉程式（等瀏覽器元件也結束）→ 改設定檔 → 再開，回傳新的偵錯連線"""
+        global app_proc, web
+        nonlocal b
+        b.close()
+        time.sleep(12)  # 讓瀏覽器把設定寫進檔案
+        hmain = next((h for h in app_windows() if title(h) == "工具箱"), 0)
+        log(f"  [{tag}] 關掉程式（主視窗 {hmain}）")
+        subprocess.run(["taskkill", "/IM", os.path.basename(EXE)], capture_output=True)
+        time.sleep(4)
+        subprocess.run(["taskkill", "/IM", os.path.basename(EXE), "/F"], capture_output=True)
+        for _ in range(30):
+            if wv_alive() == 0:
+                break
+            time.sleep(1)
+        log(f"  [{tag}] 瀏覽器元件還在跑的數量：", wv_alive())
+        time.sleep(1.5)
+        try:
+            mutate()
+        except Exception:
+            log(traceback.format_exc())
+        for f in ("DevToolsActivePort",):
+            try:
+                os.remove(os.path.join(data_dir, "web-profile", "EBWebView", f))
+            except Exception:
+                pass
+        app_proc = subprocess.Popen([EXE], stdout=APP_ERR, stderr=APP_ERR)
+        web = wait_for(find_web, 45)
+        log(f"  [{tag}] 重新開好了：web hwnd", web)
+        time.sleep(8)
+        port = None
+        for _ in range(20):
+            port = next((pt for f, pt in app_cdp_ports() if "web-profile" in f.replace("\\", "/")), None)
+            if port:
+                break
+            time.sleep(1)
+        ver = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5).read().decode("utf-8", "replace"))
+        b = CDPB(ver["webSocketDebuggerUrl"])
+        return b
+
     US = "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"
 
-    def tm_sw():
+    def tm_state(tag):
         t = sw_of(TM)
-        return b.attach(t["targetId"]) if t else None
+        if t is None:
+            # 背景程式睡著了：開它的小視窗叫醒
+            log(f"  [{tag}] 篡改猴的背景程式沒在跑；目標：", [(x.get("type"), x.get("url", "")[:70]) for x in b.targets() if TM in x.get("url", "")])
+            try:
+                ensure_web_fg()
+                click_bar(EXTICON(0), wait=3.0)
+                t = sw_of(TM)
+                click_blank(0.8)
+            except Exception:
+                log(traceback.format_exc())
+            if t is None:
+                log(f"  [{tag}] 叫不醒；目標：", [(x.get("type"), x.get("url", "")[:70]) for x in b.targets()])
+                return None, None
+        sid = b.attach(t["targetId"])
+        r = b.ev(sid, US)
+        log(f"  [{tag}] 篡改猴的 userScripts：", json.dumps(r, ensure_ascii=False))
+        return sid, r
 
-    if has_dp:
-        P = lambda call: "new Promise((res) => { try { " + call + " } catch (e) { res('THROW ' + e.message); } })"
-        infos = b.ev(mgmt, P("chrome.developerPrivate.getExtensionsInfo({includeDisabled: true, includeTerminated: true}, (l) => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : l.map(i => ({id: i.id, name: i.name, state: i.state, usa: i.userScriptsAccess, loc: i.location, ver: i.version, err: (i.manifestErrors || []).length + '/' + (i.runtimeErrors || []).length, warn: i.installWarnings, dis: i.disableReasons, inc: i.incognitoAccess && i.incognitoAccess.isActive, file: i.fileAccess && i.fileAccess.isActive, host: i.permissions && i.permissions.runtimeHostPermissions && i.permissions.runtimeHostPermissions.hostAccess}))));"))
-        log("  developerPrivate.getExtensionsInfo：")
-        for i in (infos if isinstance(infos, list) else [infos]):
-            log("      ", json.dumps(i, ensure_ascii=False)[:600])
-        log("  getProfileConfiguration：", json.dumps(b.ev(mgmt, P("chrome.developerPrivate.getProfileConfiguration((c) => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : c));")), ensure_ascii=False)[:500])
-        # 1. 只開「允許使用者腳本」
-        r = b.ev(mgmt, P(f"chrome.developerPrivate.updateExtensionConfiguration({{extensionId: '{TM}', userScriptsAccess: true}}, () => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : 'ok'));"))
-        log("  updateExtensionConfiguration(userScriptsAccess: true)：", r)
-        time.sleep(2)
-        s2 = tm_sw()
-        log("  userScripts（開了允許使用者腳本之後）：", json.dumps(b.ev(s2, US), ensure_ascii=False) if s2 else "背景程式不見了")
-        infos = b.ev(mgmt, P(f"chrome.developerPrivate.getExtensionInfo('{TM}', (i) => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : {{usa: i.userScriptsAccess, state: i.state}}));"))
-        log("  篡改猴現在的狀態：", json.dumps(infos, ensure_ascii=False)[:300])
-        # 2. 還不行的話：再開開發人員模式
-        r0 = b.ev(s2, US) if s2 else None
-        if not (isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")):
-            r = b.ev(mgmt, P("chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode: true}, () => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : 'ok'));"))
-            log("  updateProfileConfiguration(inDeveloperMode: true)：", r)
-            time.sleep(2)
-            s2 = tm_sw()
-            log("  userScripts（再開開發人員模式之後）：", json.dumps(b.ev(s2, US), ensure_ascii=False) if s2 else "背景程式不見了")
-        # 3. 還不行：重新載入篡改猴
-        r0 = b.ev(s2, US) if s2 else None
-        if not (isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")):
-            r = b.ev(mgmt, P(f"chrome.developerPrivate.reload('{TM}', {{failQuietly: true}}, () => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : 'ok'));"))
-            log("  developerPrivate.reload(篡改猴)：", r)
-            time.sleep(5)
-            b.sessions.clear()
-            s2 = tm_sw()
-            log("  userScripts（重新載入之後）：", json.dumps(b.ev(s2, US), ensure_ascii=False) if s2 else "背景程式不見了")
-        r0 = b.ev(s2, US) if s2 else None
-        ok_us = isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")
-        check("extprobe：篡改猴拿得到「使用者腳本」功能", ok_us, json.dumps(r0, ensure_ascii=False)[:200])
-        if ok_us:
-            # 真的註冊一個小腳本，看網頁上會不會執行
-            reg = b.ev(s2, "chrome.userScripts.register([{id: 'mbprobe', matches: ['http://127.0.0.1/*'], js: [{code: \"fetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[uscript] ran ' + location.pathname + location.search + ' world=' + (typeof GM_info)))\"}], runAt: 'document_start', world: 'MAIN'}]).then(() => 'registered')")
-            log("  userScripts.register：", reg)
-            t0 = time.time()
-            ensure_web_fg()
-            chord([VK_CTRL], 0x54, wait=1.5)
-            type_text("http://127.0.0.1:8765/snap.html?uscript=1")
-            key(0x2E)
-            key(VK_ENTER)
-            time.sleep(4)
-            ran = [l for l in page_log_since(t0) if "[uscript]" in l]
-            log("  註冊的小腳本有沒有在網頁上執行：", ran)
-            check("extprobe：用「使用者腳本」功能註冊的腳本會在網頁上執行", bool(ran), f"{ran}")
-            log("  userScripts.unregister：", b.ev(s2, "chrome.userScripts.unregister({ids: ['mbprobe']}).then(() => 'ok')"))
+    report("第一次執行後")
+    # 1. 開發人員模式
+    def m1():
+        for name in ("Preferences", "Secure Preferences"):
+            d = load(name)
+            if d is None:
+                continue
+            ext = d.setdefault("extensions", {})
+            if name == "Preferences":
+                ext.setdefault("ui", {})["developer_mode"] = True
+            changed = name == "Preferences"
+            for k in list(ext.keys()):
+                if "migrat" in k and "user_script" in k:
+                    log("  拿掉", name, k, ext[k])
+                    del ext[k]
+                    changed = True
+            if changed:
+                with open(prof(name), "w", encoding="utf-8") as f:
+                    json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
+
+    b = restart("開發人員模式", m1)
+    report("開發人員模式")
+    tm_state("開發人員模式")
+
+    # 2. 直接記「允許使用者腳本」
+    def m2():
+        done = []
+        for name in ("Secure Preferences", "Preferences"):
+            d = load(name)
+            if d is None:
+                continue
+            st = dig(d, "extensions.settings")
+            if isinstance(st, dict) and TM in st:
+                st[TM]["user_scripts_enabled"] = True
+                with open(prof(name), "w", encoding="utf-8") as f:
+                    json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
+                done.append(name)
+        log("  寫了 user_scripts_enabled 的檔案：", done)
+
+    b = restart("允許使用者腳本", m2)
+    report("允許使用者腳本")
+    sid, r0 = tm_state("允許使用者腳本")
+    log("  擴充功能清單（程式記的）：", [(k, v.get("loaded")) for k, v in json.load(open(os.path.join(data_dir, "web-ext.json"), encoding="utf-8")).get("exts", {}).items()])
+    ok_us = isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")
+    check("extprobe：改設定檔之後，篡改猴拿得到「使用者腳本」功能", ok_us, json.dumps(r0, ensure_ascii=False)[:200])
+    if ok_us:
+        reg = b.ev(sid, "chrome.userScripts.register([{id: 'mbprobe', matches: ['http://127.0.0.1/*'], js: [{code: \"fetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[uscript] ran ' + location.pathname + location.search))\"}], runAt: 'document_start', world: 'MAIN'}]).then(() => 'registered')")
+        log("  userScripts.register：", reg)
+        t0 = time.time()
+        ensure_web_fg()
+        chord([VK_CTRL], 0x54, wait=1.5)
+        type_text("http://127.0.0.1:8765/snap.html?uscript=1")
+        key(0x2E)
+        key(VK_ENTER)
+        time.sleep(4)
+        ran = [l for l in page_log_since(t0) if "[uscript]" in l]
+        log("  註冊的小腳本有沒有在網頁上執行：", ran)
+        check("extprobe：用「使用者腳本」功能註冊的腳本會在網頁上執行", bool(ran), f"{ran}")
+        log("  userScripts.unregister：", b.ev(sid, "chrome.userScripts.unregister({ids: ['mbprobe']}).then(() => 'ok')"))
+        shot("extprobe_us_on")
+        # 篡改猴自己的畫面上那條「請啟用允許使用者腳本」還在不在
+        try:
+            click_bar(EXTICON(0), wait=3.0)
+            h = popup_hwnd()
+            root = snap(h, tries=8, limit=900) if h else None
+            log("  篡改猴小視窗（允許之後）：", words(root, 400))
+            shot("extprobe_tm_popup_after")
+            click_blank(0.8)
+        except Exception:
+            log(traceback.format_exc())
+        # 3. 再重開一次：設定還在不在
+        b = restart("再開一次", lambda: None)
+        report("再開一次")
+        tm_state("再開一次")
     b.pump(0.5)
     log("  最後的偵錯目標：")
     tlist("最後")
