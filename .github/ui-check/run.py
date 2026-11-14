@@ -533,6 +533,20 @@ if "xuser" in ONLY_EARLY:
         json.dump({"intl": {"accept_languages": "zh-TW,zh,en-US,en", "selected_languages": "zh-TW,zh,en-US,en"}}, f)
     shutil.copyfile(os.path.join(HERE, "x-diag.user.js"), os.path.join(data_dir, "web-scripts", "X 診斷（工具箱）.user.js"))
     log("xuser：放好要給使用者的診斷腳本", os.path.getsize(os.path.join(HERE, "x-diag.user.js")))
+    with open(os.path.join(data_dir, "web-scripts", "0-freeze.user.js"), "w", encoding="utf-8") as f:
+        f.write("""// ==UserScript==
+// @name 0 測試用：把網頁卡死
+// @match https://x.com/*
+// @run-at document-start
+// @noframes
+// @grant none
+// ==/UserScript==
+if (/mbfreeze/.test(location.hash)) setTimeout(function () {
+  var c = document.createElement('canvas'), gl = c.getContext('webgl');
+  if (gl) gl.getParameter(gl.VERSION);
+  for (;;) {}
+}, 2500);
+""")
 if "xcom" in ONLY_EARLY:
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
     log("xcom：打開瀏覽器元件的偵錯埠")
@@ -2804,6 +2818,51 @@ def s_xuser():
     time.sleep(27)
     shot("xuser_reload")
     collect("重新整理", before)
+    # ---- 故意把網頁卡死（跟使用者的情況一樣：網頁整個不動）----
+    before = reports()
+    ensure_web_fg()
+    chord([VK_CTRL], 0x54, wait=1.5)
+    type_text("https://x.com/#mbfreeze")
+    key(0x2E)
+    key(VK_ENTER)
+    time.sleep(12)
+    shot("xuser_frozen_12s")
+    txt = page_text()
+    log("  [卡死] 12 秒時網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:300])
+    # 卡死之後把視窗放大：畫面應該停在舊的大小（使用者的截圖就是這個樣子）
+    user32.ShowWindow(web, 3)
+    time.sleep(2.5)
+    shot("xuser_frozen_maximized")
+    user32.ShowWindow(web, 9)
+    time.sleep(16)
+    shot("xuser_frozen_30s")
+    new = sorted(reports() - before)
+    check("診斷腳本（卡死）：卡死的那一頁存不了報告（預期中）", len(new) == 0, f"{[os.path.basename(x) for x in new]}")
+    # 再開一個新分頁：一開始就把上一次的記錄存下來
+    before = reports()
+    ensure_web_fg()
+    chord([VK_CTRL], 0x54, wait=1.5)
+    type_text("https://x.com/")
+    key(0x2E)
+    key(VK_ENTER)
+    time.sleep(5)
+    shot("xuser_after_frozen_5s")
+    early = sorted(reports() - before)
+    log("  [卡死之後] 5 秒時「下載」裡多出來的：", [os.path.basename(x) for x in early])
+    prev_ok = False
+    for f in early:
+        try:
+            shutil.copyfile(f, os.path.join(OUT, "xuser_prev.txt"))
+            rep = json.loads(open(f, encoding="utf-8").read())
+            pv = rep.get("上次沒跑完") or {}
+            log("  [卡死之後] 上一次的記錄：", json.dumps(pv, ensure_ascii=False)[:1800])
+            prev_ok = "webgl.getParameter" in str(pv.get("最後正在做")) and bool(pv.get("看門狗"))
+        except Exception as e:
+            log("  [卡死之後] 讀不了：", repr(e))
+    check("診斷腳本（卡死之後再開一次）：上一次停在哪裡有記下來、有自動存檔", prev_ok, f"{[os.path.basename(x) for x in early]}")
+    time.sleep(22)
+    shot("xuser_after_frozen")
+    collect("卡死之後", before)
     restore_tabs(keep)
     home()
     # ---- 無痕式視窗 ----
