@@ -474,6 +474,13 @@ game = wait_for(lambda: next((h for h in top_windows() if title(h) == "MapleStor
 log("game hwnd", game, wrect(game) if game else None)
 
 log("測試程式是系統管理員", bool(ctypes.windll.shell32.IsUserAnAdmin()))
+try:
+    ONLY_EARLY = open(os.path.join(HERE, "only.txt"), encoding="utf-8").read().split()
+except Exception:
+    ONLY_EARLY = []
+if "xcom" in ONLY_EARLY:
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
+    log("xcom：打開瀏覽器元件的偵錯埠")
 app_proc = subprocess.Popen([EXE])
 MENU_TITLE = "瀏覽器選單"
 KNOWN = ("工具箱", MENU_TITLE, "計時器浮動視窗", "", "com.toolbox.desktop-siw")
@@ -2278,6 +2285,227 @@ def s_refocus():
     home()
 
 
+class CDP:
+    """（查問題用）接到瀏覽器元件的偵錯埠，看一個網頁的要求、錯誤訊息"""
+
+    def __init__(self, ws_url):
+        self.ws = websocket.create_connection(ws_url, timeout=8, suppress_origin=True)
+        self.n = 0
+        self.events = []
+
+    def _recv(self):
+        try:
+            self.ws.settimeout(0.5)
+            return json.loads(self.ws.recv())
+        except websocket.WebSocketTimeoutException:
+            return None
+
+    def call(self, method, params=None, wait=8):
+        self.n += 1
+        i = self.n
+        self.ws.send(json.dumps({"id": i, "method": method, "params": params or {}}))
+        end = time.time() + wait
+        while time.time() < end:
+            m = self._recv()
+            if m is None:
+                continue
+            if m.get("id") == i:
+                return m
+            self.events.append((time.time(), m))
+        return None
+
+    def pump(self, secs):
+        end = time.time() + secs
+        while time.time() < end:
+            m = self._recv()
+            if m is not None:
+                self.events.append((time.time(), m))
+
+    def js(self, expr, wait=8):
+        r = self.call("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True}, wait)
+        try:
+            return r["result"]["result"].get("value")
+        except Exception:
+            return r
+
+    def close(self):
+        try:
+            self.ws.close()
+        except Exception:
+            pass
+
+
+def cdp_targets(port):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+    except Exception as e:
+        log(f"  偵錯埠 {port} 讀不到：{e}")
+        return []
+
+
+def app_cdp_ports():
+    """程式的瀏覽器元件開的偵錯埠（每個資料夾各一個）"""
+    import glob
+    res = []
+    roots = [data_dir, os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.toolbox.desktop")]
+    for root in roots:
+        for f in glob.glob(os.path.join(root, "**", "DevToolsActivePort"), recursive=True):
+            try:
+                res.append((f, int(open(f).read().split()[0])))
+            except Exception as e:
+                log("  讀不到", f, e)
+    return res
+
+
+STATE_JS = """(async () => {
+  const q = (s) => document.querySelector(s);
+  let sw = '?';
+  try { sw = (await navigator.serviceWorker.getRegistrations()).map(r => r.scope + ':' + (r.active ? r.active.state : 'none')).join(','); } catch (e) { sw = 'err ' + e; }
+  const root = q('#react-root');
+  return {
+    href: location.href, ready: document.readyState, title: document.title,
+    text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 260),
+    placeholder: !!q('#placeholder'), rootKids: root ? root.querySelectorAll('*').length : -1,
+    scripts: document.scripts.length, scriptsLoaded: JSON.stringify(window.__SCRIPTS_LOADED__ || null),
+    ua: navigator.userAgent, webdriver: navigator.webdriver, cookieEnabled: navigator.cookieEnabled,
+    cookieLen: document.cookie.length, cookieNames: document.cookie.split(';').map(c => c.split('=')[0].trim()).filter(Boolean).join(','),
+    webview: !!(window.chrome && window.chrome.webview), tauri: Object.keys(window).filter(k => /TAURI|^__mb/i.test(k)).join(','),
+    sw,
+  };
+})()"""
+
+
+def cdp_watch(tag, c, url, secs=28):
+    """用偵錯埠前往一個網址，記下每個要求的結果、錯誤訊息，最後回報網頁的狀態"""
+    for d in ("Page", "Runtime", "Log", "Network"):
+        c.call(d + ".enable")
+    c.events.clear()
+    t0 = time.time()
+    c.call("Page.navigate", {"url": url})
+    c.pump(10)
+    shot(f"xcom_{tag}_10s")
+    st10 = c.js(STATE_JS)
+    log(f"  [{tag}] 10 秒時：", json.dumps(st10, ensure_ascii=False)[:900])
+    c.pump(max(1, secs - (time.time() - t0)))
+    shot(f"xcom_{tag}_end")
+    reqs, order, errs, pages = {}, [], [], []
+    for t, m in c.events:
+        me, pr = m.get("method"), m.get("params", {})
+        if me == "Network.requestWillBeSent":
+            i = pr["requestId"]
+            if i not in reqs:
+                order.append(i)
+            reqs[i] = {"url": pr["request"]["url"], "type": pr.get("type"), "t": t - t0, "method": pr["request"].get("method"), "done": None}
+        elif me == "Network.responseReceived" and pr["requestId"] in reqs:
+            r = pr["response"]
+            reqs[pr["requestId"]].update(status=r.get("status"), sw=r.get("fromServiceWorker"), proto=r.get("protocol"), mime=r.get("mimeType"))
+        elif me == "Network.loadingFinished" and pr["requestId"] in reqs:
+            reqs[pr["requestId"]]["done"] = "ok"
+        elif me == "Network.loadingFailed" and pr["requestId"] in reqs:
+            reqs[pr["requestId"]]["done"] = "FAILED " + str(pr.get("errorText")) + (" blocked=" + str(pr.get("blockedReason")) if pr.get("blockedReason") else "") + (" canceled" if pr.get("canceled") else "")
+        elif me == "Runtime.exceptionThrown":
+            d = pr.get("exceptionDetails", {})
+            errs.append(f"exception {d.get('text')} {(d.get('exception') or {}).get('description', '')[:300]} @{d.get('url')}:{d.get('lineNumber')}")
+        elif me == "Runtime.consoleAPICalled" and pr.get("type") in ("error", "warning", "assert"):
+            errs.append(f"console.{pr.get('type')} " + " ".join(str(a.get("value", a.get("description", "")))[:200] for a in pr.get("args", [])[:4]))
+        elif me == "Log.entryAdded":
+            e = pr.get("entry", {})
+            if e.get("level") in ("error", "warning"):
+                errs.append(f"log.{e.get('level')} [{e.get('source')}] {str(e.get('text'))[:260]} {str(e.get('url') or '')[:120]}")
+        elif me in ("Page.loadEventFired", "Page.domContentEventFired"):
+            pages.append(f"{me.split('.')[1]}@{t - t0:.1f}s")
+        elif me == "Page.frameNavigated" and not pr.get("frame", {}).get("parentId"):
+            pages.append(f"navigated {pr['frame'].get('url')}@{t - t0:.1f}s")
+    short = lambda u: u if len(u) <= 150 else u[:150] + "…"
+    done = [r for r in reqs.values() if r["done"] == "ok"]
+    failed = [r for r in reqs.values() if r["done"] and r["done"] != "ok"]
+    pending = [r for r in reqs.values() if not r["done"]]
+    bad = [r for r in reqs.values() if isinstance(r.get("status"), int) and r["status"] >= 400]
+    log(f"  [{tag}] 頁面事件：{pages}")
+    log(f"  [{tag}] 要求 {len(reqs)} 個：完成 {len(done)}、失敗 {len(failed)}、還沒回來 {len(pending)}、4xx/5xx {len(bad)}")
+    for r in failed[:25]:
+        log(f"    失敗 {r['type']} {r['done']} {short(r['url'])}")
+    for r in pending[:25]:
+        log(f"    還沒回來（{r['t']:.1f}s 送出） {r['type']} {r.get('status')} {short(r['url'])}")
+    for r in bad[:25]:
+        log(f"    {r['status']} {r['type']} {short(r['url'])}")
+    scripts = [r for r in reqs.values() if r["type"] == "Script"]
+    log(f"  [{tag}] 程式檔 {len(scripts)} 個：", [(r.get("status"), r["done"], r["url"].split("/")[-1][:40]) for r in scripts][:40])
+    for e in errs[:40]:
+        log(f"    {e}")
+    st = c.js(STATE_JS)
+    log(f"  [{tag}] 最後：", json.dumps(st, ensure_ascii=False)[:900])
+    return st if isinstance(st, dict) else {}
+
+
+def s_xcom():
+    """（查問題用）程式裡的瀏覽器開 x.com（不登入），看有沒有卡在 X 的標誌；跟同一台機器上的 Edge 對照"""
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    keep = tab_ids()
+    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+    type_text("x.com")
+    key(VK_ENTER)
+    time.sleep(12)
+    shot("xcom_typed")
+    log("  打網址前往 x.com 12 秒後：標題", repr(title(web)), bar_state())
+    txt = page_text()
+    log("  網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:500])
+    ports = app_cdp_ports()
+    log("  偵錯埠：", ports)
+    res = {}
+    for f, port in ports:
+        ts = cdp_targets(port)
+        log(f"  {port} 的網頁：", [(t.get("type"), t.get("url", "")[:70]) for t in ts])
+        tg = next((t for t in ts if t.get("type") == "page" and "x.com" in t.get("url", "")), None)
+        if tg is None:
+            continue
+        c = CDP(tg["webSocketDebuggerUrl"])
+        try:
+            st0 = c.js(STATE_JS)
+            log("  [app 一開始]", json.dumps(st0, ensure_ascii=False)[:900])
+            res["home"] = cdp_watch("app_root", c, "https://x.com/")
+            res["login"] = cdp_watch("app_login", c, "https://x.com/i/flow/login")
+            res["hm"] = cdp_watch("app_home", c, "https://x.com/home", secs=22)
+        finally:
+            c.close()
+        break
+    else:
+        log("  找不到 x.com 那個分頁的偵錯埠")
+    # ---- 對照：同一台機器上的 Edge（全新的使用者資料） ----
+    edge = next((p for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe") if os.path.exists(p)), None)
+    ctl = {}
+    if edge:
+        udd = os.path.join(os.environ.get("TEMP", "."), "edge-xcom")
+        shutil.rmtree(udd, ignore_errors=True)
+        ep = subprocess.Popen([edge, "--remote-debugging-port=9444", "--remote-allow-origins=*", f"--user-data-dir={udd}", "--no-first-run", "--no-default-browser-check", "--window-size=1000,700", "about:blank"])
+        time.sleep(6)
+        ts = cdp_targets(9444)
+        tg = next((t for t in ts if t.get("type") == "page"), None)
+        if tg is not None:
+            c = CDP(tg["webSocketDebuggerUrl"])
+            try:
+                ctl["home"] = cdp_watch("edge_root", c, "https://x.com/")
+                ctl["login"] = cdp_watch("edge_login", c, "https://x.com/i/flow/login", secs=22)
+            finally:
+                c.close()
+        else:
+            log("  Edge 的偵錯埠接不上", ts)
+        subprocess.run(["taskkill", "/PID", str(ep.pid), "/T", "/F"], capture_output=True)
+        time.sleep(1.0)
+    else:
+        log("  這台機器沒有 Edge")
+    stuck = lambda st: bool(st) and st.get("placeholder") and st.get("rootKids", 0) < 5
+    log("  結果：程式裡", {k: (stuck(v), v.get("title"), v.get("rootKids")) for k, v in res.items()}, "Edge", {k: (stuck(v), v.get("title"), v.get("rootKids")) for k, v in ctl.items()})
+    if res.get("home"):
+        check("x.com（沒登入）在程式的瀏覽器裡：不會卡在 X 的標誌（網頁內容有出來）", not stuck(res["home"]), f"程式={res['home'].get('title')!r} 內容元素={res['home'].get('rootKids')} | Edge={ctl.get('home', {}).get('title')!r} 內容元素={ctl.get('home', {}).get('rootKids')}")
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+
+
 def dt_windows():
     """畫面上 WebView2 自己開的大視窗（開發人員工具是另一個視窗）"""
     res = []
@@ -3335,6 +3563,9 @@ except Exception:
 # 主畫面那一步：讀主畫面的元素非常慢（會讓整輪超過時間），只有指名要跑時才跑
 if "maindiag" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("maindiag", s_maindiag))
+# 查 x.com 卡住：要連到外面的網站，平常不跑
+if "xcom" in ONLY:
+    STEPS.insert(len(STEPS) - 2, ("xcom", s_xcom))
 for name, fn in STEPS:
     if ONLY and name not in ONLY and name not in ("start", "close"):
         continue
