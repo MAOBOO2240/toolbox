@@ -537,12 +537,12 @@ try:
                 "sys.stdout.buffer.flush()\n")
     with open(os.path.join(nm_dir, "nmhost.bat"), "w", encoding="utf-8") as f:
         f.write('@echo off\r\n"' + sys.executable + '" -u "' + os.path.join(nm_dir, "nmhost.py") + '"\r\n')
-    for name, key in (("com.maoboo.uitest.chrome", r"Software\Google\Chrome\NativeMessagingHosts"), ("com.maoboo.uitest.edge", r"Software\Microsoft\Edge\NativeMessagingHosts")):
-        mf = os.path.join(nm_dir, name + ".json")
+    for nm_name, nm_key in (("com.maoboo.uitest.chrome", r"Software\Google\Chrome\NativeMessagingHosts"), ("com.maoboo.uitest.edge", r"Software\Microsoft\Edge\NativeMessagingHosts")):
+        mf = os.path.join(nm_dir, nm_name + ".json")
         with open(mf, "w", encoding="utf-8") as f:
-            json.dump({"name": name, "description": "ui test", "path": os.path.join(nm_dir, "nmhost.bat"), "type": "stdio", "allowed_origins": [f"chrome-extension://{EXT_ID}/"]}, f)
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key + "\\" + name) as k:
-            winreg.SetValueEx(k, None, 0, winreg.REG_SZ, mf)
+            json.dump({"name": nm_name, "description": "ui test", "path": os.path.join(nm_dir, "nmhost.bat"), "type": "stdio", "allowed_origins": [f"chrome-extension://{EXT_ID}/"]}, f)
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, nm_key + "\\" + nm_name) as nm_k:
+            winreg.SetValueEx(nm_k, None, 0, winreg.REG_SZ, mf)
     log("native messaging host registered", nm_dir)
 except Exception as e:
     log("native messaging host 登記失敗", repr(e))
@@ -4679,6 +4679,13 @@ def s_fullscreen():
 
 
 def s_ext():
+    many = "extprobe" in ONLY_EARLY
+    if many:
+        # 擴充功能剛裝好會陸續開歡迎頁（會搶走目前的分頁）：等它們開完、關掉再測
+        ensure_web_fg()
+        time.sleep(12)
+        restore_tabs(["t1", "t2", "t3"])
+        select_tab(0, 1.2)
     home()
     ensure_web_fg()
     before = vis_kids()
@@ -4705,9 +4712,19 @@ def s_ext():
     after2 = vis_kids()
     check("點外面：小視窗關掉", len(after2) == len(before), f"{len(after2)}")
     ms = ctx_at(*PG(300, 330))
-    log("（查能力）網頁右鍵選單裡有沒有擴充功能加的項目：", any("測試擴充項目" in n for _, m in ms for n in names_of(m)), menu_titles(ms))
+    has = any("測試擴充項目" in n for _, m in ms for n in names_of(m))
+    log("（查能力）網頁右鍵選單裡有沒有擴充功能加的項目：", has, menu_titles(ms))
+    check("網頁右鍵選單：有擴充功能加的項目", has, f"{menu_titles(ms)}")
+    t_ctx = time.time()
+    if has:
+        menu_click("測試擴充項目", wait=2.0)
+    got = [l for l in page_log_since(t_ctx) if "[extbg] menu clicked" in l]
+    check("點右鍵選單裡擴充功能加的項目：擴充功能有收到", bool(got), f"{got}")
     close_menus()
     click_blank(0.6)
+    if many:
+        log("（裝了很多擴充功能的模式：不測圖釘）")
+        return
     # 固定在工具列上
     ms = open_menu(EXT_BTN, "再按擴充功能按鈕")
     if ms:
