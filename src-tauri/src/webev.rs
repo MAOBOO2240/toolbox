@@ -57,6 +57,14 @@ pub enum Ev {
     Download(DlEv),
     /// 網頁自己呼叫 window.close()
     CloseRequested,
+    /// 網頁裡的使用者腳本傳來的訊息（JSON 文字）。frame = 0 是最上層的網頁，其他是內嵌框架的編號；
+    /// source = 傳訊息的那份文件的網址
+    Gm { frame: u32, source: String, json: String },
+    /// 這個網頁自己在瀏覽器裡的資料（DevTools 的 Target.getTargetInfo 回傳的 JSON 文字）
+    SelfTarget(String),
+    /// 瀏覽器裡多了一個頁面、分頁或背景程式（DevTools 的 Target.targetCreated 的 JSON 文字）。
+    /// 可能是程式開的，也可能是擴充功能叫瀏覽器自己開的視窗
+    Target(String),
 }
 
 pub type Sink = Arc<dyn Fn(Ev) + Send + Sync>;

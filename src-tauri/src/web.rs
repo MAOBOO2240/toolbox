@@ -101,6 +101,15 @@ mod webnative {
     pub fn take_new_window(_same: impl Fn(&str) -> bool) -> Option<NewWin> {
         None
     }
+    pub fn gm_post(_w: &Wv, _frame: u32, _json: &str) -> bool {
+        false
+    }
+    pub fn gm_frames(_w: &Wv) -> Vec<u32> {
+        Vec::new()
+    }
+    pub fn gm_set_boot(_w: &Wv, _script: &str) {}
+    pub fn gm_forget(_w: &Wv) {}
+    pub fn close_target(_w: &Wv, _id: &str) {}
 }
 
 /// 注入外部網頁的小腳本：只負責「現在有沒有輸入框被選取」，用標題最後的隱形記號告訴程式。
@@ -1208,20 +1217,6 @@ fn popup_window(app: &AppHandle, wid: &str, url: &Url, features: tauri::webview:
     Some(win)
 }
 
-/// 擴充功能的頁面可不可以開成分頁：要是裝著、開著的擴充功能，而且是它自己要開的——
-/// 來源是它自己的頁面（小視窗、選項頁…），或沒有來源（它的背景程式用 chrome.tabs.create 開的）。
-/// 一般網頁要開的不行（跟 Chrome 一樣，網頁不能隨便把人帶到擴充功能的頁面）
-fn ext_may_open(target: &Url, source: &str) -> bool {
-    let Some(id) = target.host_str() else { return false };
-    if !ext_state().exts.get(id).is_some_and(|m| !m.off && !m.dir.is_empty()) {
-        return false;
-    }
-    if source.is_empty() {
-        return true;
-    }
-    Url::parse(source).is_ok_and(|s| s.scheme() == "chrome-extension" && s.host_str() == Some(id))
-}
-
 /// 把擴充功能要開的頁面（或它要開的網頁）開成這個視窗的分頁並切過去；同一個網址已經開著就切過去。
 /// after = 放在哪個分頁後面（沒有就放最後）。在背景做（呼叫的人可能正在主執行緒處理 WebView2 的通知）
 fn open_ext_tab(app: &AppHandle, wid: &str, after: Option<&str>, u: &Url) {
@@ -1274,16 +1269,6 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
             if webcore::is_app_target(&u) {
                 return NewWindowResponse::Deny;
             }
-            // 擴充功能的頁面（選項、控制台…）：擴充功能自己要開的才開成分頁；一般網頁不能把人帶到擴充功能的頁面
-            if u.scheme() == "chrome-extension" {
-                let src = req.as_ref().map(|r| r.source().to_string()).unwrap_or_default();
-                let ok = ext_may_open(&u, &src);
-                crate::dlog!("[ext] 分頁 {w3}-{t3} 收到要開擴充功能的頁面 {u}（來源 {src:?}）→ {}", if ok { "開成分頁" } else { "不開" });
-                if ok {
-                    open_ext_tab(&a3, &w3, Some(&t3), &u);
-                }
-                return NewWindowResponse::Deny;
-            }
             if features.size().is_some() {
                 return match popup_window(&a3, &w3, &u, features) {
                     Some(window) => NewWindowResponse::Create { window },
@@ -1293,15 +1278,30 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
             // 跟 Chrome 一樣：Ctrl + 點或中鍵點 = 在背景開新分頁；Shift + 點 = 開新視窗
             let (ctrl, shift, middle) = win32::click_mods();
             let plain = !(shift && !ctrl && !middle) && !((ctrl || middle) && !shift);
+            // 擴充功能的頁面（選項、控制台、安裝後的說明…）。擴充功能的背景程式要開分頁時，WebView2 是通知「目前顯示的網頁」，
+            // 從通知裡分不出是擴充功能還是網頁要開的，所以不自己決定：開成跟這次要求連著的新分頁，讓瀏覽器照它自己的規則
+            // 載入——擴充功能要開的會正常顯示；一般網頁硬要開別人的擴充功能頁面，瀏覽器會擋下來（跟 Chrome 一樣）
+            let ext_page = u.scheme() == "chrome-extension";
             // 同一個網址已經開著：切過去就好，不要一直開新分頁
-            let same = if web_url(&u) { get(&w3).and_then(|w| w.tabs.into_iter().find(|t| same_url(&t.url, u.as_str()))).map(|t| t.id) } else { None };
+            let same = if web_url(&u) || ext_page { get(&w3).and_then(|w| w.tabs.into_iter().find(|t| same_url(&t.url, u.as_str()))).map(|t| t.id) } else { None };
             // 一般的情況：開成新分頁，而且跟開它的網頁連著（登入頁、付款頁靠這個把結果傳回來）。
             // 網站先開空白分頁再前往（about:blank）、開自己產生的檔案（blob:）也算
-            let linkable = web_url(&u) || u.as_str() == "about:blank" || u.scheme() == "blob";
+            let linkable = web_url(&u) || u.as_str() == "about:blank" || u.scheme() == "blob" || ext_page;
             if let Some(req) = req {
-                if plain && same.is_none() && linkable && !req.from_own() && linked_tab(&a3, &w3, &t3, &u, &features, req) {
+                // 擴充功能的頁面不看「有沒有按著 Ctrl／中鍵」（那是給網頁上的連結用的）
+                if (plain || ext_page) && same.is_none() && linkable && !req.from_own() && linked_tab(&a3, &w3, &t3, &u, &features, req) {
                     return NewWindowResponse::Deny;
                 }
+            }
+            if ext_page {
+                // 已經開著同一頁：切過去；其他情況（交不出去）就不開
+                if let Some(t) = same {
+                    let (app, wid) = (a3.clone(), w3.clone());
+                    std::thread::spawn(move || {
+                        let _ = select_tab(&app, &wid, &t);
+                    });
+                }
+                return NewWindowResponse::Deny;
             }
             if web_url(&u) {
                 let (app, wid, tid) = (a3.clone(), w3.clone(), t3.clone());
@@ -2806,6 +2806,97 @@ fn handle_ev(app: &AppHandle, wid: &str, tid: &str, ev: Ev) {
         Ev::CloseRequested => {
             let _ = close_tab(app, wid, tid);
         }
+        Ev::Gm { frame, source, json } => on_gm(app, wid, tid, frame, &source, &json),
+        Ev::SelfTarget(json) => {
+            if let Some(id) = target_field(&json, "targetId") {
+                let mut ours = lock(&OUR_TARGETS);
+                if !ours.contains(&id) {
+                    ours.push(id);
+                    // 關掉的分頁不會回來：只留最近的
+                    if ours.len() > 400 {
+                        ours.remove(0);
+                    }
+                }
+            }
+        }
+        Ev::Target(json) => on_target(app, wid, tid, &json),
+    }
+}
+
+/* ---------------- 擴充功能叫瀏覽器自己開的視窗 ---------------- */
+
+/// 程式自己開的網頁在瀏覽器裡的編號
+static OUR_TARGETS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// 已經處理過的「多了一個頁面」通知（每個分頁都會收到同一個通知）
+static SEEN_TARGETS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// DevTools 回傳的 JSON 裡某個文字欄位（資料可能包在 targetInfo 裡）
+fn target_field(json: &str, field: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(json).ok()?;
+    let t = v.get("targetInfo").unwrap_or(&v);
+    t.get(field).and_then(|x| x.as_str()).map(str::to_string)
+}
+
+/// 瀏覽器裡多了一個頁面。擴充功能呼叫 openOptionsPage 這類功能時，WebView2 不會通知程式，而是自己另外開一個
+/// 沒有分頁、沒有工具列的視窗：認出這種視窗，改開成分頁，再把那個視窗關掉
+fn on_target(app: &AppHandle, wid: &str, tid: &str, json: &str) {
+    if target_field(json, "type").as_deref() != Some("page") {
+        return;
+    }
+    let (Some(id), Some(url)) = (target_field(json, "targetId"), target_field(json, "url")) else { return };
+    if !url.starts_with("chrome-extension://") {
+        return;
+    }
+    {
+        let mut seen = lock(&SEEN_TARGETS);
+        if seen.contains(&id) {
+            return;
+        }
+        seen.push(id.clone());
+        if seen.len() > 200 {
+            seen.remove(0);
+        }
+    }
+    let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
+    std::thread::spawn(move || {
+        // 等一下再判斷：程式自己剛開的分頁，要過一下子才知道它的編號
+        std::thread::sleep(Duration::from_millis(900));
+        if lock(&OUR_TARGETS).contains(&id) {
+            return;
+        }
+        // 擴充功能的小視窗也是程式開的
+        let popup = open_ids().iter().any(|w| app.get_webview(&ext_popup_label(w)).and_then(|p| p.url().ok()).is_some_and(|u| same_url(webcore::norm_url(u.as_str()), webcore::norm_url(&url))));
+        crate::dlog!("[ext] 瀏覽器裡多了一個不是程式開的頁面 {url}（{id}）；是小視窗：{popup}");
+        if popup {
+            return;
+        }
+        let Ok(u) = Url::parse(&url) else { return };
+        if !u.host_str().is_some_and(|h| ext_state().exts.get(h).is_some_and(|m| !m.off)) {
+            return;
+        }
+        // 開在通知這件事的那個視窗（還開著的話），不然找一個開著的視窗
+        let target = if get(&wid).is_some_and(|w| w.open) { Some(wid.clone()) } else { open_ids().into_iter().next() };
+        let Some(target) = target else { return };
+        open_ext_tab(&app, &target, None, &u);
+        if let Some(p) = app.get_webview(&page_label(&wid, &tid)).or_else(|| active_page(&app, &target)) {
+            with_wv(&p, move |w| webnative::close_target(w, &id));
+        }
+    });
+}
+
+/* ---------------- 使用者腳本傳來的訊息 ---------------- */
+
+fn on_gm(app: &AppHandle, wid: &str, tid: &str, frame: u32, source: &str, json: &str) {
+    crate::dlog!("[gm] {wid}-{tid} 框架 {frame} 來源 {source}：{}", json.chars().take(200).collect::<String>());
+    // 查問題用：收到測試訊息就原樣回給傳的那一方（確認兩邊互傳、內嵌框架都通）
+    if crate::dbg::on() && json.contains("\"mb\":\"test\"") {
+        if let Some(p) = app.get_webview(&page_label(wid, tid)) {
+            let reply = serde_json::json!({ "mb": "test-echo", "frame": frame, "source": source }).to_string();
+            with_wv(&p, move |w| {
+                let ok = webnative::gm_post(w, frame, &reply);
+                crate::dlog!("[gm] 回給框架 {frame}：{ok}；這個網頁的框架 {:?}", webnative::gm_frames(w));
+            });
+        }
     }
 }
 
@@ -3713,6 +3804,8 @@ fn web_hwnds() -> Vec<isize> {
 
 /// 擴充功能的小視窗：蓋在網頁上（像 Chrome 按擴充功能圖示那樣），目前的分頁不變，擴充功能才看得到「目前網頁」
 static EXT_POPUP: Mutex<Option<(String, (i32, i32, i32, i32))>> = Mutex::new(None);
+/// 第幾次開擴充功能的小視窗（延後收掉舊的小視窗時，用來認出已經換成新的了）
+static EXT_POPUP_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 fn ext_popup_label(wid: &str) -> String {
     format!("webext-{wid}")
@@ -3762,6 +3855,7 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
             }
             NewWindowResponse::Deny
         });
+    EXT_POPUP_GEN.fetch_add(1, Ordering::SeqCst);
     let made = win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
     // 小視窗的網頁自己關掉（window.close()，很多擴充功能按完按鈕會這樣做）：把小視窗收起來
     {
@@ -3774,10 +3868,22 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
 
 #[cfg(windows)]
 fn ext_popup_close_hook(w: &webnative::Wv, app: AppHandle, wid: String) {
+    let gen = EXT_POPUP_GEN.load(Ordering::SeqCst);
     webnative::on_close_requested(w, move || {
         let (app, wid) = (app.clone(), wid.clone());
         // 不可以在通知裡面直接動視窗
-        std::thread::spawn(move || close_ext_popup(&app, &wid));
+        std::thread::spawn(move || {
+            // 先藏起來，晚一點才真的收掉：有些擴充功能是「請背景程式開分頁」之後馬上關小視窗，
+            // 那個開分頁的要求可能是通知這個小視窗的，太早收掉會漏接
+            if let Some(p) = app.get_webview(&ext_popup_label(&wid)) {
+                let _ = p.hide();
+            }
+            std::thread::sleep(Duration::from_millis(600));
+            // 這段時間又開了別的小視窗就不要動它
+            if EXT_POPUP_GEN.load(Ordering::SeqCst) == gen {
+                close_ext_popup(&app, &wid);
+            }
+        });
     });
 }
 

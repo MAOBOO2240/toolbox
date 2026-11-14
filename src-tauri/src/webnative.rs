@@ -11,12 +11,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
 use webview2_com::{
-    take_pwstr, AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, CallDevToolsProtocolMethodCompletedHandler,
-    ClearBrowsingDataCompletedHandler, ContainsFullScreenElementChangedEventHandler, ContextMenuRequestedEventHandler,
-    DownloadStartingEventHandler, FaviconChangedEventHandler, FindStartCompletedHandler, GetCookiesCompletedHandler,
-    HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, IsMutedChangedEventHandler, NavigationStartingEventHandler,
-    NewWindowRequestedEventHandler,
-    ShowSaveAsUICompletedHandler, SourceChangedEventHandler, StateChangedEventHandler, WindowCloseRequestedEventHandler,
+    take_pwstr, AcceleratorKeyPressedEventHandler, AddScriptToExecuteOnDocumentCreatedCompletedHandler, BytesReceivedChangedEventHandler,
+    CallDevToolsProtocolMethodCompletedHandler, ClearBrowsingDataCompletedHandler, ContainsFullScreenElementChangedEventHandler,
+    ContextMenuRequestedEventHandler, DevToolsProtocolEventReceivedEventHandler, DownloadStartingEventHandler, FaviconChangedEventHandler,
+    FindStartCompletedHandler, FrameChildFrameCreatedEventHandler, FrameCreatedEventHandler, FrameDestroyedEventHandler,
+    FrameWebMessageReceivedEventHandler, GetCookiesCompletedHandler, HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler,
+    IsMutedChangedEventHandler, NavigationStartingEventHandler, NewWindowRequestedEventHandler, ShowSaveAsUICompletedHandler,
+    SourceChangedEventHandler, StateChangedEventHandler, WebMessageReceivedEventHandler, WindowCloseRequestedEventHandler,
     ZoomFactorChangedEventHandler,
 };
 use windows_core::{Interface, BOOL, HSTRING, PWSTR};
@@ -62,6 +63,10 @@ thread_local! {
     /// 網頁要求開新視窗（window.open、開新分頁的連結）時 WebView2 給的資料，先收著。
     /// 之後把新開的分頁交還給它（見 NewWin::adopt），開它的網頁才拿得到這個分頁
     static NEWWIN: RefCell<VecDeque<NewWin>> = const { RefCell::new(VecDeque::new()) };
+    /// 每個網頁裡的內嵌框架（要回訊息給框架裡的使用者腳本時用）。鍵 = (網頁, 框架編號)
+    static FRAMES: RefCell<HashMap<(usize, u32), ICoreWebView2Frame2>> = RefCell::new(HashMap::new());
+    /// 每個網頁目前登記的「帶最新設定值啟動使用者腳本」的小程式（換新的時候要先拿掉舊的）。值 = (第幾次, 登記編號)
+    static GM_BOOT: RefCell<HashMap<usize, (u64, String)>> = RefCell::new(HashMap::new());
 }
 
 /// 一次「開新視窗」的要求
@@ -358,6 +363,11 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
             Ok(())
         }));
         let _ = core.add_NewWindowRequested(&h, &mut token);
+    }
+
+    if opts.page {
+        gm_attach(core, &sink);
+        targets_attach(core, &sink);
     }
 
     // 網站圖示
@@ -776,6 +786,201 @@ pub fn clear_site(w: &Wv, origins: &[String]) {
                 eprintln!("清除網站資料失敗：{e}");
             }
         }
+    }
+}
+
+/* ---------------- 使用者腳本：跟網頁裡的腳本互傳訊息 ---------------- */
+
+/// 是不是使用者腳本傳來的訊息（一定是物件，而且有 "mb" 這個欄位；其他網頁自己傳的不理）
+fn gm_like(json: &str) -> bool {
+    json.starts_with('{') && json.contains("\"mb\"")
+}
+
+/// 接網頁（最上層）與每個內嵌框架用 chrome.webview.postMessage 傳來的訊息
+unsafe fn gm_attach(core: &ICoreWebView2, sink: &Sink) {
+    let mut token = 0i64;
+    {
+        let sink = sink.clone();
+        let h = WebMessageReceivedEventHandler::create(Box::new(move |_c, args| {
+            if let Some(args) = args {
+                let json = text(|p| args.WebMessageAsJson(p));
+                if gm_like(&json) {
+                    sink(Ev::Gm { frame: 0, source: text(|p| args.Source(p)), json });
+                }
+            }
+            Ok(())
+        }));
+        let _ = core.add_WebMessageReceived(&h, &mut token);
+    }
+    if let Ok(c4) = core.cast::<ICoreWebView2_4>() {
+        let key = core.as_raw() as usize;
+        let sink = sink.clone();
+        let h = FrameCreatedEventHandler::create(Box::new(move |_c, args| {
+            if let Some(frame) = args.and_then(|a| a.Frame().ok()) {
+                hook_frame(key, &frame, sink.clone(), 0);
+            }
+            Ok(())
+        }));
+        let _ = c4.add_FrameCreated(&h, &mut token);
+    }
+}
+
+/// 一個內嵌框架：接它傳來的訊息、記住它（要回訊息）、它裡面再有框架也一樣處理
+unsafe fn hook_frame(key: usize, frame: &ICoreWebView2Frame, sink: Sink, depth: u8) {
+    let Ok(f2) = frame.cast::<ICoreWebView2Frame2>() else { return };
+    let mut id = 0u32;
+    if let Ok(f5) = frame.cast::<ICoreWebView2Frame5>() {
+        let _ = f5.FrameId(&mut id);
+    }
+    if id == 0 {
+        return;
+    }
+    FRAMES.with(|m| m.borrow_mut().insert((key, id), f2.clone()));
+    let mut token = 0i64;
+    {
+        let sink = sink.clone();
+        let h = FrameWebMessageReceivedEventHandler::create(Box::new(move |_f, args| {
+            if let Some(args) = args {
+                let json = text(|p| args.WebMessageAsJson(p));
+                if gm_like(&json) {
+                    sink(Ev::Gm { frame: id, source: text(|p| args.Source(p)), json });
+                }
+            }
+            Ok(())
+        }));
+        let _ = f2.add_WebMessageReceived(&h, &mut token);
+    }
+    {
+        let h = FrameDestroyedEventHandler::create(Box::new(move |_f, _| {
+            FRAMES.with(|m| m.borrow_mut().remove(&(key, id)));
+            Ok(())
+        }));
+        let _ = frame.add_Destroyed(&h, &mut token);
+    }
+    if depth < 6 {
+        if let Ok(f7) = frame.cast::<ICoreWebView2Frame7>() {
+            let h = FrameChildFrameCreatedEventHandler::create(Box::new(move |_f, args| {
+                if let Some(child) = args.and_then(|a| a.Frame().ok()) {
+                    hook_frame(key, &child, sink.clone(), depth + 1);
+                }
+                Ok(())
+            }));
+            let _ = f7.add_FrameCreated(&h, &mut token);
+        }
+    }
+}
+
+/// 傳訊息給網頁裡的使用者腳本。frame = 0 是最上層的網頁，其他是內嵌框架。回傳有沒有送出去
+pub fn gm_post(w: &Wv, frame: u32, json: &str) -> bool {
+    unsafe {
+        if frame == 0 {
+            return w.core.PostWebMessageAsJson(&HSTRING::from(json)).is_ok();
+        }
+        let key = w.core.as_raw() as usize;
+        let f = FRAMES.with(|m| m.borrow().get(&(key, frame)).cloned());
+        f.is_some_and(|f| f.PostWebMessageAsJson(&HSTRING::from(json)).is_ok())
+    }
+}
+
+/// 這個網頁目前有哪些內嵌框架（廣播設定值變動時用）
+pub fn gm_frames(w: &Wv) -> Vec<u32> {
+    let key = w.core.as_raw() as usize;
+    FRAMES.with(|m| m.borrow().keys().filter(|(k, _)| *k == key).map(|(_, f)| *f).collect())
+}
+
+/// 換掉這個網頁「每份文件一開始就執行」的那一小段程式（帶最新的設定值啟動使用者腳本）。
+/// 之後載入的文件（含內嵌框架）才會用到新的；空字串 = 只拿掉舊的
+pub fn gm_set_boot(w: &Wv, script: &str) {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let key = w.core.as_raw() as usize;
+    let seq = SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+    unsafe {
+        // 先記「現在是第幾次」：比較晚登記好的舊版要自己拿掉
+        let old = GM_BOOT.with(|m| m.borrow_mut().insert(key, (seq, String::new())));
+        if let Some((_, id)) = old {
+            if !id.is_empty() {
+                let _ = w.core.RemoveScriptToExecuteOnDocumentCreated(&HSTRING::from(id));
+            }
+        }
+        if script.is_empty() {
+            return;
+        }
+        let core = w.core.clone();
+        let h = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(move |r, id| {
+            if r.is_err() || id.is_empty() {
+                return Ok(());
+            }
+            let keep = GM_BOOT.with(|m| {
+                let mut m = m.borrow_mut();
+                match m.get_mut(&key) {
+                    Some((cur, slot)) if *cur == seq => {
+                        *slot = id.clone();
+                        true
+                    }
+                    _ => false,
+                }
+            });
+            if !keep {
+                // 登記好的時候已經有更新的版本了：這一份不要
+                let _ = core.RemoveScriptToExecuteOnDocumentCreated(&HSTRING::from(id));
+            }
+            Ok(())
+        }));
+        let _ = w.core.AddScriptToExecuteOnDocumentCreated(&HSTRING::from(script), &h);
+    }
+}
+
+/// 網頁關掉了：把記著的東西清掉
+pub fn gm_forget(w: &Wv) {
+    let key = w.core.as_raw() as usize;
+    FRAMES.with(|m| m.borrow_mut().retain(|(k, _), _| *k != key));
+    GM_BOOT.with(|m| m.borrow_mut().remove(&key));
+}
+
+/* ---------------- 瀏覽器裡有哪些頁面（認出不是程式開的視窗） ---------------- */
+
+/// 記下這個網頁自己的編號，並在瀏覽器多了一個頁面時通知（內容是 JSON 文字，由收到的人解讀）
+unsafe fn targets_attach(core: &ICoreWebView2, sink: &Sink) {
+    {
+        let sink = sink.clone();
+        let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |r, json| {
+            crate::dlog!("[cdp] Target.getTargetInfo → {:?} {}", r.is_ok(), json.chars().take(240).collect::<String>());
+            if r.is_ok() {
+                sink(Ev::SelfTarget(json));
+            }
+            Ok(())
+        }));
+        let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Target.getTargetInfo"), &HSTRING::from("{}"), &h);
+    }
+    if let Ok(recv) = core.GetDevToolsProtocolEventReceiver(&HSTRING::from("Target.targetCreated")) {
+        let sink = sink.clone();
+        let h = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |_c, args| {
+            if let Some(args) = args {
+                let json = text(|p| args.ParameterObjectAsJson(p));
+                crate::dlog!("[cdp] targetCreated {}", json.chars().take(300).collect::<String>());
+                sink(Ev::Target(json));
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let _ = recv.add_DevToolsProtocolEventReceived(&h, &mut token);
+        let h2 = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|r, json| {
+            crate::dlog!("[cdp] Target.setDiscoverTargets → {:?} {}", r.is_ok(), json.chars().take(200).collect::<String>());
+            Ok(())
+        }));
+        let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Target.setDiscoverTargets"), &HSTRING::from("{\"discover\":true}"), &h2);
+    }
+}
+
+/// 關掉瀏覽器裡的一個頁面（擴充功能叫瀏覽器自己開的視窗：改開成分頁之後把那個視窗關掉）
+pub fn close_target(w: &Wv, id: &str) {
+    unsafe {
+        let params = format!("{{\"targetId\":\"{}\"}}", id.replace(['"', '\\'], ""));
+        let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|r, json| {
+            crate::dlog!("[cdp] Target.closeTarget → {:?} {}", r.is_ok(), json.chars().take(120).collect::<String>());
+            Ok(())
+        }));
+        let _ = w.core.CallDevToolsProtocolMethod(&HSTRING::from("Target.closeTarget"), &HSTRING::from(params), &h);
     }
 }
 
