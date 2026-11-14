@@ -3678,6 +3678,53 @@ def s_game():
         time.sleep(1)
 
 
+def s_notitle():
+    """一開始沒有 <title>、載入時一直往 <head> 加東西的網頁（X 的舊版網頁就是這樣）：
+    程式注入的「有沒有在打字」小腳本不能讓網頁卡死；之後才出現的標題、打字偵測都照常"""
+    import re
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    keep = tab_ids()
+    t0 = time.time()
+    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+    type_text("http://127.0.0.1:8765/notitle.html")
+    key(0x2E)
+    key(VK_ENTER)
+    done = wait_for(lambda: next((l for l in page_log_since(t0) if "[notitle] done" in l), None), 15)
+    lines = [l.split(" ", 1)[1] for l in page_log_since(t0) if "[notitle]" in l]
+    log("  網頁回報：", lines)
+    check("沒有標題又一直往 <head> 加東西的網頁：沒有卡死（40 次都做完）", bool(done), " | ".join(lines[-3:])[:300])
+    m = re.search(r"max=(\d+)ms", done or "")
+    check("沒有標題的網頁：每一步都不慢", bool(m) and int(m.group(1)) < 1000, (done or "")[-70:])
+    shot("notitle_loaded")
+    ts = wait_for(lambda: [t["title"] for t in tabs_info() if "晚到的標題" in t["title"]], 5)
+    check("沒有標題的網頁：之後才設的標題出現在分頁上", bool(ts), f"{[t['title'] for t in tabs_info()]}")
+    txt = page_text()
+    check("沒有標題的網頁：畫面有更新到最後", "done" in txt, " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:200])
+    # 從遊戲點這一頁的輸入框：鍵盤要交給 web（靠標題上的記號，而這一頁的標題是晚到的）
+    g, r = wrect(game), wrect(web)
+    sh = user32.GetSystemMetrics(1) - 60
+    cands = [(g[0] + 40, g[1] + 60), (g[2] - 40, g[1] + 60), (g[0] + 40, min(g[3], sh) - 30), (g[2] - 40, min(g[3], sh) - 30)]
+    gx, gy = next(((x, y) for x, y in cands if not (r[0] <= x < r[2] and r[1] <= y < r[3])), cands[0])
+    click(gx, gy, wait=1.0)
+    check("標題晚到的網頁：點遊戲，遊戲在前景", fg() == game, f"fg={fg()} game={game}")
+    click(*PG(200, 40), wait=1.0)
+    check("標題晚到的網頁：點輸入框，鍵盤交給 web", fg() == web, f"fg={fg()}")
+    type_text("nt")
+    time.sleep(0.5)
+    got = [l.split(" ", 1)[1] for l in page_log_since(t0) if "[notitle] input" in l]
+    check("標題晚到的網頁：打字網頁收到", "[notitle] input:nt" in got, f"{got}")
+    key(VK_ENTER)
+    time.sleep(1.0)
+    check("標題晚到的網頁：按 Enter 鍵盤還給遊戲", fg() == game, f"fg={fg()}")
+    move(gx, gy)
+    time.sleep(0.8)
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+
+
 def s_notepad():
     np_proc = subprocess.Popen(["notepad.exe"])
     np = wait_for(lambda: next((h for h in top_windows() if pid_of(h) == np_proc.pid and user32.IsWindowVisible(h)), 0), 10)
@@ -3922,6 +3969,7 @@ STEPS = [
     ("incognito", s_incognito),
     ("new_window", s_new_window),
     ("game", s_game),
+    ("notitle", s_notitle),
     ("notepad", s_notepad),
     ("dpi", s_dpi),
     ("fullscreen", s_fullscreen),
