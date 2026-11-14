@@ -79,8 +79,11 @@ pub struct NewWin {
     from_own: bool,
     /// 提出要求的那個框架的網址（擴充功能的背景程式要開分頁時沒有框架，是空的）
     source: String,
-    /// 跟 WebView2 說「晚一點才回答」時拿到的東西（回答完、或不要了，都要交回去）
+    /// 跟 WebView2 說「晚一點才回答」時拿到的東西（回答完、或不要了，都要交回去）。
+    /// 一定要在收到要求的當下就拿（之後才拿，WebView2 不給）；程式自己的工具列那種頁面不拿
     deferral: Option<ICoreWebView2Deferral>,
+    /// 什麼時候收到的（放太久沒人拿的要丟掉）
+    at: Instant,
 }
 
 // 只在主執行緒建立、使用（為了能放進要求 Send 的閉包裡；閉包是在主執行緒當場執行的）
@@ -137,12 +140,10 @@ impl NewWin {
         Adopter(self.args.clone())
     }
 
-    /// 這個要求現在沒辦法處理（正在建立別的網頁）：跟 WebView2 說晚一點才回答，它會等。
-    /// 之後呼叫 adopt 把新網頁交給它；這個物件丟掉時就算回答完了。回傳有沒有成功
+    /// 這個要求現在沒辦法處理（正在建立別的網頁）：能不能晚一點才回答。
+    /// 收到要求的當下已經先跟 WebView2 說過「可能晚一點才回答」，所以它會等：之後呼叫 adopt 把新網頁交給它，
+    /// 這個物件丟掉時就算回答完了。false = 當時沒拿到（不能晚回答，呼叫的人要改用別的方式開）
     pub fn defer(&mut self) -> bool {
-        if self.deferral.is_none() {
-            self.deferral = unsafe { self.args.GetDeferral().ok() };
-        }
         self.deferral.is_some()
     }
 }
@@ -372,7 +373,7 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
 
     // 網頁要開新視窗：把這次的要求收著（開成新分頁時要把分頁交還給它，見 take_new_window）
     {
-        let own = opts.own_page;
+        let (own, page) = (opts.own_page, opts.page);
         let h = NewWindowRequestedEventHandler::create(Box::new(move |c, args| {
             if let Some(args) = args {
                 let uri = text(|p| args.Uri(p));
@@ -393,14 +394,21 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
                     args.cast::<ICoreWebView2NewWindowRequestedEventArgs2>().map(|a| text(|p| a.Name(p))).unwrap_or_default(),
                     c.as_ref().map(|c| text(|p| c.Source(p))).unwrap_or_default()
                 );
-                // 沒人來拿的不要一直留著（放開清單之後才丟掉）
+                // 一般網頁的要求：先跟 WebView2 說「可能晚一點才回答」。正在建立別的網頁時又來一個要求，
+                // 就得排隊等前一個建立完才開（見 NewWin::defer）；這個只有現在（通知的當下）拿得到。
+                // 用不到的話，這個要求處理完（物件丟掉）時就交回去了，不影響原本的流程
+                let deferral = if page { args.GetDeferral().ok() } else { None };
+                // 沒人來拿的不要一直留著（放開清單之後才丟掉；丟掉時會把上面那個交回去）
                 let old = NEWWIN.with(|q| {
                     let mut q = q.borrow_mut();
                     let mut old = Vec::new();
-                    while q.len() >= 6 {
-                        old.extend(q.pop_front());
+                    while q.len() >= 6 || q.front().is_some_and(|r| r.at.elapsed() > Duration::from_secs(5)) {
+                        match q.pop_front() {
+                            Some(r) => old.push(r),
+                            None => break,
+                        }
                     }
-                    q.push_back(NewWin { uri, args, from_own, source, deferral: None });
+                    q.push_back(NewWin { uri, args, from_own, source, deferral, at: Instant::now() });
                     old
                 });
                 drop(old);
