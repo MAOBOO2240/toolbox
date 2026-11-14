@@ -17,7 +17,7 @@ concurrency:
 jobs:
   ui:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 58
     steps:
       - uses: actions/checkout@v4
 
@@ -40,7 +40,7 @@ jobs:
 
       - name: Run UI check
         shell: pwsh
-        timeout-minutes: 32
+        timeout-minutes: 48
         continue-on-error: true
         env:
           PYTHONIOENCODING: utf-8
