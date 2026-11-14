@@ -4498,6 +4498,41 @@ def s_extprobe():
             log(f"  {eid} 讓網頁存取的檔案：", json.dumps(man_.get("web_accessible_resources"), ensure_ascii=False)[:600], "；選項頁：", man_.get("options_page") or (man_.get("options_ui") or {}).get("page"))
         except Exception as e:
             log("  讀不到 manifest", eid, repr(e)[:100])
+    # 幾個擴充功能的背景程式同時各開一個分頁（剛安裝好時就是這樣）：程式要排隊一個一個建立，不可以卡住、不可以漏掉
+    try:
+        restore_tabs(["t1", "t2", "t3"])
+        home()
+        time.sleep(1.0)
+        sws = [t for t in b.targets() if t.get("type") == "service_worker" and t.get("url", "").startswith("chrome-extension://")]
+        sess = [(t["url"].split("/")[2], b.attach(t["targetId"])) for t in sws]
+        sess = [(e, x) for e, x in sess if x][:5]
+        log("  同時開分頁的擴充功能：", [e for e, _ in sess])
+        n0b = tab_count()
+        later0 = stderr_text().count("這個晚一點再開")
+        done0 = len(re.findall(r"晚一點才開的 \S+ → true", stderr_text()))
+        t0b = time.time()
+        for rnd in range(3):
+            for i, (e, x) in enumerate(sess):
+                b.n += 1
+                b.ws.send(json.dumps({"id": b.n, "method": "Runtime.evaluate", "sessionId": x,
+                                      "params": {"expression": f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/multi.html?n=b{rnd}{i}'}}); 1", "awaitPromise": False}}))
+            b.pump(7)
+        time.sleep(3)
+        errb = stderr_text()
+        later = errb.count("這個晚一點再開") - later0
+        doneb = len(re.findall(r"晚一點才開的 \S+ → true", errb)) - done0
+        Lb = [l.split(" ", 1)[1] for l in page_log_since(t0b) if "[multi] child b" in l]
+        want = 3 * len(sess)
+        log(f"  同時開分頁：要開 {want} 個；分頁 {n0b} → {tab_count()}；載入的 {len(Lb)} 個；排到晚一點才開的 {later} 個、其中開成功 {doneb} 個")
+        shot("extprobe_burst")
+        check("extprobe：幾個擴充功能同時開分頁 → 每一個都開出來", bool(sess) and tab_count() == n0b + want and len(set(Lb)) == want, f"{n0b} → {tab_count()}，載入 {len(set(Lb))}／{want}")
+        check("extprobe：同時開分頁時排到晚一點才開的，都開成功了", doneb == later, f"排隊 {later}、成功 {doneb}")
+        check("extprobe：同時開分頁之後程式還有回應", responsive(web))
+        restore_tabs(["t1", "t2", "t3"])
+        home()
+    except Exception:
+        log(traceback.format_exc())
+        check("extprobe 同時開分頁 (沒有錯誤)", False, "exception")
     # 一般網頁硬要開別人的擴充功能頁面（沒有開放給網頁的）：不可以真的開出來
     SB = "mnjggcdmjocbbbhaepdhchncahnbgone"
     home()
@@ -4947,6 +4982,11 @@ def s_userscripts():
 def s_multiopen():
     """網頁一口氣開三個新分頁：都開得出來、都跟原本的網頁連著；瀏覽器元件不會當掉、程式不會卡住"""
     ensure_web_fg()
+    if "extprobe" in ONLY_EARLY:
+        # 擴充功能剛裝好會陸續開歡迎頁：等它們開完、關掉再測
+        time.sleep(14)
+        restore_tabs(["t1", "t2", "t3"])
+        select_tab(0, 1.2)
     home()
     click_blank(0.5)
     keep = tab_ids()
@@ -4977,6 +5017,19 @@ def s_multiopen():
     check("連著開出來的分頁：重新整理後使用者腳本照樣跑", any("[us] start ran /multi.html" in l for l in page_log_since(t1)), f"{[l for l in page_log_since(t1)][:5]}")
     rel = [l for l in err.splitlines() if "載入了：補登記腳本" in l]
     log("  補登記：", rel[-6:])
+    # 網頁和它裡面別的網站的框架（另一個程序）幾乎同時各開一個新分頁
+    select_title("腳本測試")
+    n1 = tab_count()
+    later1 = stderr_text().count("這個晚一點再開")
+    t2 = time.time()
+    btn2 = page_click(lambda n: n.type == "ButtonControl" and "兩邊同時開" in n.name, wait=9.0)
+    L2 = [l.split(" ", 1)[1] for l in page_log_since(t2) if "[multi]" in l or " both " in l]
+    for l in L2:
+        log("  ", l[:300])
+    err2 = stderr_text()
+    log(f"  兩邊同時開：排到晚一點才開的 {err2.count('這個晚一點再開') - later1} 個")
+    check("網頁和內嵌框架同時各開一個新分頁：兩個都開出來、都載入了", btn2 is not None and tab_count() == n1 + 2 and all(any(f"[multi] child {i} " in l for l in L2) for i in (4, 5)), f"{btn2} {n1} → {tab_count()} {L2}")
+    check("同時開新分頁之後：排隊的都開成功了", len(re.findall(r"晚一點才開的 \S+ → true", err2)) >= err2.count("這個晚一點再開"), f"{err2.count('這個晚一點再開')}")
     ensure_web_fg()
     restore_tabs(keep)
     home()

@@ -8,7 +8,7 @@
 </script></head>
 <body>
 <h1 id="h">腳本測試</h1>
-<p><a id="inst" href="/inst.user.js" target="_blank">安裝連結</a> <button id="multi">一次開三個</button></p>
+<p><a id="inst" href="/inst.user.js" target="_blank">安裝連結</a> <button id="multi">一次開三個</button> <button id="both">兩邊同時開</button></p>
 <script>
   document.getElementById('multi').onclick = () => {
     const r = [];
@@ -18,6 +18,13 @@
       r.push(w ? 1 : 0);
     }
     plog('multi opened=' + r.join(''));
+  };
+  document.getElementById('both').onclick = () => {
+    // 內嵌框架是別的網站（另一個程序）：請它開一個，自己也馬上開一個
+    document.getElementById('f1').contentWindow.postMessage('open', '*');
+    let w = null;
+    try { w = window.open('/multi.html?n=4'); } catch (e) {}
+    plog('both top=' + (w ? 1 : 0));
   };
 </script>
 <iframe id="f1" src="http://localhost:8765/usframe.html" style="width:400px;height:70px"></iframe>

@@ -4,4 +4,13 @@
   window.__pageRan = true;
   fetch('/log?m=' + encodeURIComponent('[uspage] frame webview=' + typeof (window.chrome && window.chrome.webview) + ' extra=' + Object.getOwnPropertyNames(window).filter((n) => /^_[0-9a-f]{16}$/.test(n)).length)).catch(() => {});
 </script></head>
-<body>frame</body></html>
+<body>frame
+<script>
+  addEventListener('message', (e) => {
+    if (e.data !== 'open') return;
+    let w = null;
+    try { w = window.open('http://127.0.0.1:8765/multi.html?n=5'); } catch (err) {}
+    fetch('/log?m=' + encodeURIComponent('[uspage] frame both frame=' + (w ? 1 : 0))).catch(() => {});
+  });
+</script>
+</body></html>
