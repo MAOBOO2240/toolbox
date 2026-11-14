@@ -1716,8 +1716,17 @@ struct Spare {
 
 /// (視窗編號, 預先建立好的空白網頁)
 static SPARES: Mutex<Vec<(String, Spare)>> = Mutex::new(Vec::new());
-/// 每個視窗放幾個：兩個。接連開兩個新分頁（擴充功能剛裝好時會一口氣開好幾個說明頁）也不用現場建立
-const SPARE_MAX: usize = 2;
+/// 擴充功能剛裝進瀏覽器的時間：它們接下來會一口氣開好幾個說明頁，這段時間多放幾個
+static SPARE_BURST: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// 每個視窗放幾個：平常兩個（接連開兩個新分頁也不用現場建立）；擴充功能剛裝好的那一分多鐘放四個
+fn spare_max() -> usize {
+    if lock(&SPARE_BURST).is_some_and(|t| t.elapsed() < Duration::from_secs(90)) {
+        4
+    } else {
+        2
+    }
+}
 
 fn spare_take(wid: &str) -> Option<Spare> {
     let mut g = lock(&SPARES);
@@ -1765,7 +1774,7 @@ fn spare_retry(app: &AppHandle, wid: &str, ms: u64, tries: u32) {
 /// （主執行緒）建立一個空白網頁放著：放在看不到的地方、藏起來、不拿鍵盤
 #[cfg(windows)]
 fn spare_make(app: &AppHandle, wid: &str, tries: u32) {
-    if !get(wid).is_some_and(|w| w.open) || spare_tids(wid).len() >= SPARE_MAX {
+    if !get(wid).is_some_and(|w| w.open) || spare_tids(wid).len() >= spare_max() {
         return;
     }
     let Some(win) = app.get_window(&win_label(wid)) else { return };
@@ -1806,7 +1815,7 @@ fn spare_make(app: &AppHandle, wid: &str, tries: u32) {
     crate::dlog!("[spare] {wid}-{tid}：預先建立好一個空白網頁");
     lock(&SPARES).push((wid.to_string(), Spare { tid, wv: made }));
     // 還不夠就再補一個
-    if spare_tids(wid).len() < SPARE_MAX {
+    if spare_tids(wid).len() < spare_max() {
         spare_retry(app, wid, 250, 0);
     }
 }
@@ -2137,6 +2146,9 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
         Ok(w) => {
             if had {
                 ext_mark_loaded();
+                // 擴充功能剛裝好會一口氣開好幾個說明頁：預先建立好的空白網頁多準備幾個，而且現在就開始準備
+                *lock(&SPARE_BURST) = Some(Instant::now());
+                spare_soon(app, wid, 300);
             }
             Ok(w)
         }
