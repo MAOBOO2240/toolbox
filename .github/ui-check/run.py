@@ -2439,12 +2439,37 @@ def cdp_watch(tag, c, url, secs=28):
     return st if isinstance(st, dict) else {}
 
 
+def listening_ports():
+    """程式的瀏覽器元件（msedgewebview2.exe）在這台電腦上開著的埠（偵錯埠）"""
+    out = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True).stdout
+    res = []
+    for l in out.splitlines():
+        q = l.split()
+        if len(q) >= 5 and q[0] == "TCP" and q[3] == "LISTENING" and q[1].startswith("127.0.0.1:"):
+            try:
+                pid, port = int(q[4]), int(q[1].rsplit(":", 1)[1])
+            except Exception:
+                continue
+            if proc_name(pid).lower() == "msedgewebview2.exe":
+                res.append((pid, port))
+    return res
+
+
+XCOM_URLS = [("root", "https://x.com/"), ("profile", "https://x.com/X"), ("explore", "https://x.com/explore"), ("home", "https://x.com/home"), ("search", "https://x.com/search?q=MapleStory&src=typed_query")]
+
+
 def s_xcom():
     """（查問題用）程式裡的瀏覽器開 x.com（不登入），看有沒有卡在 X 的標誌；跟同一台機器上的 Edge 對照"""
     home()
     ensure_web_fg()
     click_blank(0.5)
     keep = tab_ids()
+    try:
+        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -notmatch '--type=' } | ForEach-Object { \"$($_.ProcessId) :: $($_.CommandLine)\" }")
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout
+        log("  瀏覽器元件的啟動參數：\n" + "\n".join("    " + l for l in out.splitlines() if l.strip()))
+    except Exception as e:
+        log("  讀不到啟動參數", e)
     chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
     type_text("x.com")
     key(VK_ENTER)
@@ -2452,28 +2477,34 @@ def s_xcom():
     shot("xcom_typed")
     log("  打網址前往 x.com 12 秒後：標題", repr(title(web)), bar_state())
     txt = page_text()
-    log("  網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:500])
-    ports = app_cdp_ports()
-    log("  偵錯埠：", ports)
+    log("  網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:300])
+    ports = [pt for _, pt in app_cdp_ports()] + [pt for _, pt in listening_ports()]
+    log("  偵錯埠：", app_cdp_ports(), listening_ports())
     res = {}
-    for f, port in ports:
+    c = None
+    for port in dict.fromkeys(ports):
         ts = cdp_targets(port)
         log(f"  {port} 的網頁：", [(t.get("type"), t.get("url", "")[:70]) for t in ts])
         tg = next((t for t in ts if t.get("type") == "page" and "x.com" in t.get("url", "")), None)
-        if tg is None:
-            continue
-        c = CDP(tg["webSocketDebuggerUrl"])
+        if tg is not None:
+            c = CDP(tg["webSocketDebuggerUrl"])
+            break
+    if c is not None:
         try:
-            st0 = c.js(STATE_JS)
-            log("  [app 一開始]", json.dumps(st0, ensure_ascii=False)[:900])
-            res["home"] = cdp_watch("app_root", c, "https://x.com/")
-            res["login"] = cdp_watch("app_login", c, "https://x.com/i/flow/login")
-            res["hm"] = cdp_watch("app_home", c, "https://x.com/home", secs=22)
+            for tag, url in XCOM_URLS:
+                res[tag] = cdp_watch("app_" + tag, c, url, secs=24)
         finally:
             c.close()
-        break
     else:
-        log("  找不到 x.com 那個分頁的偵錯埠")
+        log("  接不上程式瀏覽器的偵錯埠：改用打網址、讀畫面的方式")
+        for tag, url in XCOM_URLS:
+            go(url.replace("https://", ""), wait=18)
+            shot("xcom_app_" + tag)
+            t2 = page_text()
+            st = bar_state()
+            words = " | ".join(x.strip() for x in t2.splitlines() if x.strip())
+            log(f"  [app_{tag}] 標題={title(web)!r} 網址列={st.get('shown')!r} 文字（{len(words)} 字）：{words[:300]}")
+            res[tag] = {"title": title(web), "placeholder": len(words) < 20, "rootKids": len(words)}
     # ---- 對照：同一台機器上的 Edge（全新的使用者資料） ----
     edge = next((p for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe") if os.path.exists(p)), None)
     ctl = {}
@@ -2485,22 +2516,25 @@ def s_xcom():
         ts = cdp_targets(9444)
         tg = next((t for t in ts if t.get("type") == "page"), None)
         if tg is not None:
-            c = CDP(tg["webSocketDebuggerUrl"])
+            c2 = CDP(tg["webSocketDebuggerUrl"])
             try:
-                ctl["home"] = cdp_watch("edge_root", c, "https://x.com/")
-                ctl["login"] = cdp_watch("edge_login", c, "https://x.com/i/flow/login", secs=22)
+                for tag, url in XCOM_URLS:
+                    ctl[tag] = cdp_watch("edge_" + tag, c2, url, secs=20)
             finally:
-                c.close()
+                c2.close()
         else:
             log("  Edge 的偵錯埠接不上", ts)
         subprocess.run(["taskkill", "/PID", str(ep.pid), "/T", "/F"], capture_output=True)
         time.sleep(1.0)
     else:
         log("  這台機器沒有 Edge")
-    stuck = lambda st: bool(st) and st.get("placeholder") and st.get("rootKids", 0) < 5
-    log("  結果：程式裡", {k: (stuck(v), v.get("title"), v.get("rootKids")) for k, v in res.items()}, "Edge", {k: (stuck(v), v.get("title"), v.get("rootKids")) for k, v in ctl.items()})
-    if res.get("home"):
-        check("x.com（沒登入）在程式的瀏覽器裡：不會卡在 X 的標誌（網頁內容有出來）", not stuck(res["home"]), f"程式={res['home'].get('title')!r} 內容元素={res['home'].get('rootKids')} | Edge={ctl.get('home', {}).get('title')!r} 內容元素={ctl.get('home', {}).get('rootKids')}")
+    stuck = lambda st: bool(st) and bool(st.get("placeholder")) and st.get("rootKids", 0) < 20
+    brief = lambda d: {k: ("卡住" if stuck(v) else "有內容", v.get("title"), v.get("rootKids")) for k, v in d.items()}
+    log("  結果：程式裡", brief(res))
+    log("  結果：Edge", brief(ctl))
+    for tag, _ in XCOM_URLS:
+        if tag in res:
+            check(f"x.com（沒登入，{tag}）在程式的瀏覽器裡：不會卡在 X 的標誌", not stuck(res[tag]), f"程式={res[tag].get('title')!r}/{res[tag].get('rootKids')} | Edge={ctl.get(tag, {}).get('title')!r}/{ctl.get(tag, {}).get('rootKids')}")
     ensure_web_fg()
     restore_tabs(keep)
     home()
