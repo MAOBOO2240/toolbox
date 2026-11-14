@@ -4027,7 +4027,7 @@ def extprobe_ui():
     else:
         close_menus()
     # ---- 其他擴充功能：小視窗打不打得開、上面寫什麼 ----
-    for nm in ("AdGuard", "SponsorBlock", "Return YouTube Dislike", "iCloud", "Claude", "遊戲橘子", "Google", "Chrome Remote"):
+    for nm in ():
         home()
         click_blank(0.5)
         before = titles()
@@ -4234,8 +4234,6 @@ def s_extprobe():
         time.sleep(12)  # 讓瀏覽器把設定寫進檔案
         hmain = next((h for h in app_windows() if title(h) == "工具箱"), 0)
         log(f"  [{tag}] 關掉程式（主視窗 {hmain}）")
-        subprocess.run(["taskkill", "/IM", os.path.basename(EXE)], capture_output=True)
-        time.sleep(4)
         subprocess.run(["taskkill", "/IM", os.path.basename(EXE), "/F"], capture_output=True)
         for _ in range(30):
             if wv_alive() == 0:
@@ -4255,6 +4253,9 @@ def s_extprobe():
         app_proc = subprocess.Popen([EXE], stdout=APP_ERR, stderr=APP_ERR)
         web = wait_for(find_web, 45)
         log(f"  [{tag}] 重新開好了：web hwnd", web)
+        if not web:
+            log("  視窗沒有開：", [(title(h), cls(h), user32.IsWindowVisible(h)) for h in app_windows()])
+            raise RuntimeError("瀏覽器視窗沒有自己開")
         time.sleep(8)
         port = None
         for _ in range(20):
@@ -4296,9 +4297,10 @@ def s_extprobe():
             if d is None:
                 continue
             ext = d.setdefault("extensions", {})
-            if name == "Preferences":
+            changed = False
+            if name == "Secure Preferences":
                 ext.setdefault("ui", {})["developer_mode"] = True
-            changed = name == "Preferences"
+                changed = True
             for k in list(ext.keys()):
                 if "migrat" in k and "user_script" in k:
                     log("  拿掉", name, k, ext[k])
