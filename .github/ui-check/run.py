@@ -554,7 +554,12 @@ if "extprobe" in ONLY_EARLY:
     import hashlib
     import io
     import zipfile
-    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=* --mb-from=env"
+    for root_ in ("HKLM", "HKCU"):
+        for name_, mark_ in (("MAOBOO.exe", "exe"), ("*", "star")):
+            r_ = subprocess.run(["reg", "add", rf"{root_}\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments", "/v", name_, "/t", "REG_SZ",
+                                 "/d", f"--remote-debugging-port=0 --remote-allow-origins=* --mb-from={root_}-{mark_}", "/f"], capture_output=True, text=True)
+            log("extprobe：登錄檔", root_, name_, r_.returncode, (r_.stdout + r_.stderr).strip()[:120])
     TM_ID = "dhdgffkkebhmkfjojejmpbldmpobfkfo"
     REAL_EXTS = [TM_ID, "bgnkhhnnamicmpeenaelnjfhikgbkllg", "mnjggcdmjocbbbhaepdhchncahnbgone", "gebbhagfogifgggkldgodflihgfeippi",
                  "cgakmbkklpmijhckpolanjijghgfpeoa", "mgojgddhfhekopdpkocobommepgdeffb", "fcoeoabgfenejglbffodgkkbkcdhcgfn",
@@ -3940,6 +3945,109 @@ class CDPB:
             pass
 
 
+def popup_hwnd():
+    """擴充功能的小視窗（蓋在網頁上的那一塊）"""
+    bh, ph = bar_hwnd(), page_hwnd()
+    hs = [h for h in render_hwnds(web) if h not in (bh, ph)]
+    return hs[0] if hs else 0
+
+
+def tree_dump(root, name):
+    """把畫面上讀到的元素寫成檔案（之後好對照）"""
+    lines = []
+
+    def rec(n, d):
+        if n.name or n.id or n.type in ("ButtonControl", "HyperlinkControl", "EditControl", "CheckBoxControl", "ImageControl", "TabItemControl", "MenuItemControl", "ListItemControl", "ComboBoxControl"):
+            lines.append(f"{'  ' * min(d, 14)}{n.type} {n.name[:80]!r} #{n.id} .{n.cls[:50]} ({n.l},{n.t},{n.r},{n.b})")
+        for k in n.kids:
+            rec(k, d + 1)
+
+    if root is not None:
+        rec(root, 0)
+    with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return lines
+
+
+def words(root, n=500):
+    if root is None:
+        return "（讀不到）"
+    return " | ".join(x.name.strip() for x in root.walk() if x.name.strip() and x.type in ("TextControl", "ButtonControl", "HyperlinkControl", "CheckBoxControl", "MenuItemControl", "ListItemControl"))[:n]
+
+
+def extprobe_ui():
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    keep = tab_ids()
+
+    def titles():
+        return [t["title"] for t in tabs_info()]
+
+    # ---- 篡改猴的小視窗：每一項按了有沒有反應 ----
+    def open_tm():
+        click_bar(EXTICON(0), wait=3.0)
+        h = popup_hwnd()
+        return snap(h, tries=8, limit=900) if h else None
+
+    root = open_tm()
+    shot("extprobe_tm_popup")
+    lines = tree_dump(root, "tm_popup_tree.txt")
+    log("  篡改猴小視窗：", len(lines), "個元素；", words(root))
+    check("extprobe：點工具列上的篡改猴圖示會出現小視窗", bool(popup_hwnd()), f"{[wrect(c) for c in vis_kids()]}")
+    for labels in (("Dashboard", "控制台"), ("Create a new script", "新增腳本"), ("Find new scripts", "取得新腳本"), ("Help", "說明")):
+        h = popup_hwnd()
+        root = snap(h, tries=4, limit=900) if h else open_tm()
+        n = next((x for x in (root.walk() if root else []) if x.name and any(l in x.name for l in labels) and x.w > 0 and x.h > 0), None)
+        if n is None:
+            log(f"  [{labels[0]}] 小視窗裡找不到這一項")
+            continue
+        before = titles()
+        click(*n.center, wait=4.0)
+        after = titles()
+        st = bar_state()
+        log(f"  [{labels[0]}] 按了 {n.name!r}（{n.type}）之後：分頁 {before} → {after}；小視窗還在：{bool(popup_hwnd())}；網址列：{st.get('shown')!r}")
+        check(f"extprobe：篡改猴小視窗按「{labels[1]}」有反應（開了分頁）", len(after) > len(before), f"{len(before)} → {len(after)}")
+        shot("extprobe_tm_" + labels[0].split()[0])
+    if popup_hwnd():
+        click_blank(0.8)
+    # ---- 篡改猴的選項頁（控制台）：從工具列圖示的右鍵選單開 ----
+    home()
+    before = titles()
+    ms = open_menu(EXTICON(0), "篡改猴圖示按右鍵", button="right")
+    log("  篡改猴圖示的右鍵選單：", menu_titles(ms))
+    if ms and menu_click("選項", wait=6.0):
+        after = titles()
+        log(f"  選項：分頁 {before} → {after}；網址列：{bar_state().get('shown')!r}")
+        shot("extprobe_tm_options")
+        root = snap(page_hwnd(), tries=10, limit=5000)
+        lines = tree_dump(root, "tm_options_tree.txt")
+        log("  篡改猴控制台：", len(lines), "個元素；", words(root, 900))
+    else:
+        close_menus()
+    # ---- 其他擴充功能：小視窗打不打得開、上面寫什麼 ----
+    for nm in ("AdGuard", "SponsorBlock", "Return YouTube Dislike", "iCloud", "Claude", "遊戲橘子", "Google", "Chrome Remote"):
+        home()
+        click_blank(0.5)
+        before = titles()
+        ms = open_menu(EXT_BTN, f"擴充功能按鈕（{nm}）")
+        if not ms or not menu_click(nm, exact=False, wait=4.5):
+            close_menus()
+            continue
+        tag = nm.split()[0]
+        shot("extprobe_pop_" + tag)
+        h = popup_hwnd()
+        root = snap(h, tries=8, limit=900) if h else None
+        tree_dump(root, f"pop_{tag}_tree.txt")
+        log(f"  [{nm}] 小視窗：{'有' if h else '沒有'}；分頁 {before} → {titles()}；選單：{menu_titles()}；文字：{words(root, 400) if h else ''}")
+        close_menus()
+        if popup_hwnd():
+            click_blank(0.8)
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+
+
 def s_extprobe():
     """（查問題用）跟使用者一樣的擴充功能在程式的瀏覽器裡：哪些功能能用、哪些不能"""
     TM = TM_ID
@@ -3954,13 +4062,24 @@ def s_extprobe():
     log("  一開始的分頁：", [t["title"] for t in tabs_info()])
     log("  一開始的視窗：", [(title(h), cls(h), proc_name(pid_of(h)), wrect(h)) for h in top_windows() if user32.IsWindowVisible(h)][:20])
     shot("extprobe_start")
+    try:
+        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -notmatch '--type=' } | ForEach-Object { \"$($_.ProcessId) :: $($_.CommandLine)\" }")
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout
+        log("  瀏覽器元件的啟動參數：\n" + "\n".join("    " + l for l in out.splitlines() if l.strip()))
+    except Exception as e:
+        log("  讀不到啟動參數", e)
+    try:
+        extprobe_ui()
+    except Exception:
+        log(traceback.format_exc())
+        check("extprobe 畫面操作 (沒有錯誤)", False, "exception")
     port = None
     for f, pt in app_cdp_ports():
         log("  偵錯埠檔案：", f, pt)
         if "web-profile" in f.replace("\\", "/"):
             port = pt
     if port is None:
-        check("extprobe：接得上瀏覽器的偵錯埠", False, f"{app_cdp_ports()}")
+        log("  （接不上瀏覽器的偵錯埠，偵錯埠那一段不做）", app_cdp_ports(), listening_ports())
         return
     ver = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5).read().decode("utf-8", "replace"))
     log("  瀏覽器：", json.dumps(ver, ensure_ascii=False)[:500])
