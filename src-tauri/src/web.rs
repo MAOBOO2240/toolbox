@@ -1697,7 +1697,7 @@ fn linked_tab_done(app: &AppHandle, wid: &str, opener: &str, tid: &str) {
     let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
     std::thread::spawn(move || {
         let _ = select_tab(&app, &wid, &tid);
-        spare_soon(&app, &wid, 150);
+        spare_soon(&app, &wid, 60);
         std::thread::sleep(Duration::from_secs(6));
         us::release(&app, &wid, &tid);
     });
@@ -1716,6 +1716,8 @@ struct Spare {
 
 /// (視窗編號, 預先建立好的空白網頁)
 static SPARES: Mutex<Vec<(String, Spare)>> = Mutex::new(Vec::new());
+/// 每個視窗放幾個：兩個。接連開兩個新分頁（擴充功能剛裝好時會一口氣開好幾個說明頁）也不用現場建立
+const SPARE_MAX: usize = 2;
 
 fn spare_take(wid: &str) -> Option<Spare> {
     let mut g = lock(&SPARES);
@@ -1763,7 +1765,7 @@ fn spare_retry(app: &AppHandle, wid: &str, ms: u64, tries: u32) {
 /// （主執行緒）建立一個空白網頁放著：放在看不到的地方、藏起來、不拿鍵盤
 #[cfg(windows)]
 fn spare_make(app: &AppHandle, wid: &str, tries: u32) {
-    if !get(wid).is_some_and(|w| w.open) || !spare_tids(wid).is_empty() {
+    if !get(wid).is_some_and(|w| w.open) || spare_tids(wid).len() >= SPARE_MAX {
         return;
     }
     let Some(win) = app.get_window(&win_label(wid)) else { return };
@@ -1803,6 +1805,10 @@ fn spare_make(app: &AppHandle, wid: &str, tries: u32) {
     }
     crate::dlog!("[spare] {wid}-{tid}：預先建立好一個空白網頁");
     lock(&SPARES).push((wid.to_string(), Spare { tid, wv: made }));
+    // 還不夠就再補一個
+    if spare_tids(wid).len() < SPARE_MAX {
+        spare_retry(app, wid, 250, 0);
+    }
 }
 
 /// 用預先建立好的空白網頁開「連著的新分頁」。true = 開好了（已經交還給 WebView2）；false = 沒有可以用的
