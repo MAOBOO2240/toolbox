@@ -523,6 +523,16 @@ if "xprobe" in ONLY_EARLY:
         log("xprobe：整合包放好了", len(bundle), [l for l in bundle.splitlines()[:16] if "@include" in l or "@version" in l])
     except Exception as e:
         log("xprobe：整合包拿不到", repr(e))
+if "xuser" in ONLY_EARLY:
+    for v in ("AppsUseLightTheme", "SystemUsesLightTheme"):
+        subprocess.run(["reg", "add", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "/v", v, "/t", "REG_DWORD", "/d", "0", "/f"], capture_output=True)
+    user32.SystemParametersInfoW(0x1043, 0, ctypes.c_void_p(1), 3)
+    prof = os.path.join(data_dir, "web-profile", "EBWebView", "Default")
+    os.makedirs(prof, exist_ok=True)
+    with open(os.path.join(prof, "Preferences"), "w", encoding="utf-8") as f:
+        json.dump({"intl": {"accept_languages": "zh-TW,zh,en-US,en", "selected_languages": "zh-TW,zh,en-US,en"}}, f)
+    shutil.copyfile(os.path.join(HERE, "x-diag.user.js"), os.path.join(data_dir, "web-scripts", "X 診斷（工具箱）.user.js"))
+    log("xuser：放好要給使用者的診斷腳本", os.path.getsize(os.path.join(HERE, "x-diag.user.js")))
 if "xcom" in ONLY_EARLY:
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
     log("xcom：打開瀏覽器元件的偵錯埠")
@@ -2741,6 +2751,85 @@ def s_xprobe():
     home()
 
 
+def s_xuser():
+    """（查問題用）要給使用者的診斷腳本：在程式的瀏覽器裡開 x.com，報告會不會自己存到「下載」、網頁還正不正常"""
+    import glob
+    dl_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+    os.makedirs(dl_dir, exist_ok=True)
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    keep = tab_ids()
+
+    def reports():
+        return set(glob.glob(os.path.join(dl_dir, "x-diag-report-*")))
+
+    def collect(tag, before, win=None):
+        new = sorted(reports() - before)
+        log(f"  [{tag}] 「下載」裡多出來的報告：", [os.path.basename(x) for x in new])
+        for k, f in enumerate(new):
+            try:
+                shutil.copyfile(f, os.path.join(OUT, f"xuser_{tag}_{k}.txt"))
+                rep = json.loads(open(f, encoding="utf-8").read())
+                log(f"  [{tag}] 報告 {os.path.getsize(f)} 位元組：執行的地方={rep.get('執行的地方')!r} 心跳={json.dumps(rep.get('心跳'), ensure_ascii=False)[:200]}")
+                log(f"  [{tag}] 小測試：", json.dumps(rep.get("小測試"), ensure_ascii=False)[:1500])
+                log(f"  [{tag}] 畫面：", json.dumps(rep.get("畫面"), ensure_ascii=False)[:1200])
+            except Exception as e:
+                log(f"  [{tag}] 報告讀不了：", repr(e))
+        txt = page_text(win)
+        lines = [x.strip() for x in txt.splitlines() if x.strip()]
+        log(f"  [{tag}] 網頁上的文字：", " | ".join(lines)[:700])
+        check(f"診斷腳本（{tag}）：報告自己存到「下載」", len(new) >= 1, f"{[os.path.basename(x) for x in new]}")
+        check(f"診斷腳本（{tag}）：x.com 的登入畫面照常出現", any("繼續" in x for x in lines), " | ".join(lines)[:200])
+        check(f"診斷腳本（{tag}）：右下角的小視窗寫著報告已存好", any("報告已存到" in x for x in lines), " | ".join(x for x in lines if "報告" in x or "診斷" in x)[:300])
+        return new
+
+    # ---- 一般視窗 ----
+    before = reports()
+    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+    type_text("https://x.com/")
+    key(0x2E)
+    key(VK_ENTER)
+    time.sleep(3)
+    shot("xuser_3s")
+    early = page_text()
+    check("診斷腳本：一開始右下角就有小視窗", "X 診斷中" in early, " | ".join(x.strip() for x in early.splitlines() if x.strip())[:200])
+    time.sleep(24)
+    shot("xuser_normal")
+    collect("一般視窗", before)
+    # ---- 重新整理一次（同一個分頁第二次自動存檔）----
+    before = reports()
+    ensure_web_fg()
+    key(VK_F5)
+    time.sleep(27)
+    shot("xuser_reload")
+    collect("重新整理", before)
+    restore_tabs(keep)
+    home()
+    # ---- 無痕式視窗 ----
+    click_blank(0.5)
+    before = reports()
+    wins0 = set(app_windows())
+    chord([VK_CTRL, VK_SHIFT], 0x4E, wait=4.0)
+    new = [h for h in app_windows() if h not in wins0 and user32.IsWindowVisible(h) and title(h) not in KNOWN]
+    if len(new) == 1 and "無痕" in title(new[0]):
+        inc = new[0]
+        r = wrect(inc)
+        click(r[0] + 400 * scale, r[1] + 71 * scale, wait=0.7)
+        type_text("https://x.com/")
+        key(0x2E)
+        key(VK_ENTER)
+        time.sleep(27)
+        shot("xuser_incognito")
+        collect("無痕視窗", before, inc)
+        r = wrect(inc)
+        click(r[2] - 23 * scale, r[1] + 16 * scale, wait=1.5)
+    else:
+        check("診斷腳本：無痕式視窗打得開", False, f"{[(title(h), wrect(h)) for h in new]}")
+    ensure_web_fg()
+    home()
+
+
 def dt_windows():
     """畫面上 WebView2 自己開的大視窗（開發人員工具是另一個視窗）"""
     res = []
@@ -3803,6 +3892,8 @@ if "xcom" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xcom", s_xcom))
 if "xprobe" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xprobe", s_xprobe))
+if "xuser" in ONLY:
+    STEPS.insert(len(STEPS) - 2, ("xuser", s_xuser))
 for name, fn in STEPS:
     if ONLY and name not in ONLY and name not in ("start", "close"):
         continue
