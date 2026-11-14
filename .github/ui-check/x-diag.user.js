@@ -19,7 +19,15 @@
   var VER = 'v3';
   var T0 = performance.now();
   var now = function () { return Math.round(performance.now() - T0); };
-  var short = function (u) { try { return String(u).replace(/^https?:\/\//, '').split('?')[0].split('#')[0].slice(0, 96); } catch (_) { return '?'; } };
+  var short = function (u) {
+    try {
+      var t = String(u).replace(/^https?:\/\//, '').split('?')[0].split('#')[0];
+      if (/^(pbs|video|ton)\.twimg\.com\//.test(t)) return t.split('/')[0] + '/…';
+      return t.slice(0, 96);
+    } catch (_) { return '?'; }
+  };
+  // 標題只在首頁、登入這類頁面才記（別的頁面的標題可能帶著貼文內容）
+  var safeTitle = function () { return /^\/($|home$|login$|explore$|i\/)/.test(location.pathname) ? document.title.slice(0, 60) : '（這一頁的標題不記）'; };
   // 只讀模式：x.com/robots.txt 這種很輕的頁面，只負責把「上一次卡住的記錄」拿出來存檔
   var READ_ONLY = /^\/robots\.txt$/.test(location.pathname) || (!!document.contentType && document.contentType !== 'text/html');
 
@@ -483,7 +491,7 @@
       var attrs = {};
       Array.prototype.forEach.call(d.attributes, function (a) { attrs[a.name] = String(a.value).slice(0, 40); });
       return {
-        html屬性: attrs, 標題: document.title.slice(0, 60),
+        html屬性: attrs, 標題: safeTitle(),
         html底下: Array.prototype.map.call(d.children, desc).slice(0, 10),
         body底下: b ? Array.prototype.map.call(b.children, desc).slice(0, 14) : null,
         等待中的標誌: !!document.querySelector('[class*="r-6uq4to"], #placeholder'),
@@ -522,6 +530,7 @@
       var s = JSON.parse(window.__mbSummary());
       delete s.text;
       delete s.href;
+      s.title = safeTitle();
       return s;
     });
     return out;
@@ -533,8 +542,8 @@
     mount();
     detail();
     if (!statusEl) return;
-    if (statusFixed) { statusEl.textContent = statusFixed; return; }
-    statusEl.textContent = '已經 ' + (Math.round(now() / 100) / 10) + ' 秒。20 秒時會自動把報告存到「下載」。';
+    var st = statusFixed || '已經 ' + (Math.round(now() / 100) / 10) + ' 秒。20 秒時會自動把報告存到「下載」。';
+    if (statusEl.textContent !== st) statusEl.textContent = st;
   };
   setInterval(tick, 500);
   var fullText = function (why) { return JSON.stringify(build(why), null, 1); };
