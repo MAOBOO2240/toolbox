@@ -260,6 +260,30 @@
   }
   var rafN = 0, ra = window.requestAnimationFrame;
   window.requestAnimationFrame = function (cb) { rafN++; return H === 'raf' ? 0 : ra.call(window, cb); };
+  var AN = { start: 0, end: 0, cancel: 0, tend: 0, waapi: 0, names: [] };
+  document.addEventListener('animationstart', function (ev) { AN.start++; if (AN.names.length < 6 && AN.names.indexOf(ev.animationName) < 0) AN.names.push(ev.animationName); }, true);
+  document.addEventListener('animationend', function () { AN.end++; }, true);
+  document.addEventListener('animationcancel', function () { AN.cancel++; }, true);
+  document.addEventListener('transitionend', function () { AN.tend++; }, true);
+  try {
+    var ea = Element.prototype.animate;
+    if (ea) Element.prototype.animate = function () {
+      var an = ea.apply(this, arguments);
+      try {
+        if (++AN.waapi <= 6) { var e = rec('el.animate(' + (this.tagName || '') + ')'); an.finished.then(function () { e.d = 'ok@' + now(); }, function (x) { e.d = 'rej@' + now() + ' ' + String(x).slice(0, 30); }); }
+      } catch (_) {}
+      return an;
+    };
+    var vt = Document.prototype.startViewTransition;
+    if (vt) Document.prototype.startViewTransition = function () {
+      var e = rec('startViewTransition()');
+      var t = vt.apply(this, arguments);
+      try { t.finished.then(function () { e.d = 'ok@' + now(); }, function (x) { e.d = 'rej@' + now() + ' ' + String(x).slice(0, 40); }); } catch (_) {}
+      return t;
+    };
+  } catch (_) {}
+  wrap(HTMLMediaElement.prototype, 'play', 'media.play', false);
+  if (window.requestIdleCallback) { var ric = window.requestIdleCallback, ricN = 0, ricD = 0; window.requestIdleCallback = function (cb, o) { ricN++; return ric.call(window, function (d) { ricD++; return cb(d); }, o); }; }
   var ce = console.error, ceN = 0;
   console.error = function () {
     try { if (++ceN <= 8) rec('console.error ' + Array.prototype.slice.call(arguments, 0, 3).map(function (x) { return String(x && x.message ? x.message : x).slice(0, 70); }).join(' | ')).d = '-'; } catch (_) {}
@@ -276,6 +300,19 @@
       href: location.href, title: document.title, ready: document.readyState, vis: document.visibilityState, lang: navigator.language,
       dark: matchMedia('(prefers-color-scheme: dark)').matches, textLen: txt.length, text: txt.slice(0, 100), raf: rafN, hang: H,
       raw: RAW, canvas2d: c2d,
+      motion: (function () {
+        try {
+          var st = {}, list = document.getAnimations ? document.getAnimations() : [];
+          list.forEach(function (x) { st[x.playState] = (st[x.playState] || 0) + 1; });
+          return {
+            reduce: matchMedia('(prefers-reduced-motion: reduce)').matches, attr: document.documentElement.getAttribute('data-reduce-motion'),
+            ev: AN, now: st, first: list.slice(0, 4).map(function (x) { return (x.animationName || x.transitionProperty || x.id || 'waapi') + ':' + x.playState + '@' + Math.round(x.currentTime || 0); }),
+            ric: (typeof ricN === 'number' ? ricN + '/' + ricD : ''),
+            videos: Array.prototype.map.call(document.querySelectorAll('video'), function (v) { return (v.paused ? 'paused' : 'playing') + ' rs' + v.readyState + ' t' + Math.round(v.currentTime * 10) / 10; }).slice(0, 4),
+          };
+        } catch (x) { return { err: String(x) }; }
+      })(),
+      view: { dpr: window.devicePixelRatio, inner: innerWidth + 'x' + innerHeight, els: document.querySelectorAll('*').length, body: document.body ? document.body.children.length : -1 },
       env: (function () {
         try {
           return {

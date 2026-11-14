@@ -482,6 +482,12 @@ if "xprobe" in ONLY_EARLY:
     # 跟使用者的電腦一樣：深色模式、語言是繁體中文；再放一個查問題用的腳本（記下網頁在等哪些瀏覽器功能）
     for v in ("AppsUseLightTheme", "SystemUsesLightTheme"):
         subprocess.run(["reg", "add", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "/v", v, "/t", "REG_DWORD", "/d", "0", "/f"], capture_output=True)
+    anim = wt.BOOL(0)
+    user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(anim), 0)
+    was = bool(anim.value)
+    user32.SystemParametersInfoW(0x1043, 0, ctypes.c_void_p(1), 3)  # SPI_SETCLIENTAREAANIMATION = 開
+    user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(anim), 0)
+    log("xprobe：Windows 的動畫效果 原本", was, "→ 現在", bool(anim.value), "遠端工作階段", user32.GetSystemMetrics(0x1000))
     prof = os.path.join(data_dir, "web-profile", "EBWebView", "Default")
     os.makedirs(prof, exist_ok=True)
     with open(os.path.join(prof, "Preferences"), "w", encoding="utf-8") as f:
@@ -2602,6 +2608,7 @@ def s_xprobe():
         stuck = st.get("textLen", 0) < 40
         log(f"  [{tag}] {'停在標誌' if stuck else '有內容'} 標題={st.get('title')!r} 文字={st.get('textLen')} raw={st.get('raw')} raf={st.get('raf')} 還在等={st.get('pending')}")
         log(f"  [{tag}] 環境：", json.dumps(st.get("env"), ensure_ascii=False))
+        log(f"  [{tag}] 動態效果：", json.dumps(st.get("motion"), ensure_ascii=False), "畫面：", json.dumps(st.get("view"), ensure_ascii=False), "vis", st.get("vis"))
         for k, w in enumerate(st.get("workers") or []):
             log(f"  [{tag}] Worker {k}：", json.dumps({x: w.get(x) for x in ("u", "len", "inst", "posts", "got", "term", "beat", "wt")}, ensure_ascii=False))
             log(f"      誰建立的：{w.get('stack')}")
@@ -2610,13 +2617,28 @@ def s_xprobe():
         log(f"  [{tag}] 呼叫：", json.dumps(st.get("calls"), ensure_ascii=False)[:5000])
         return st
 
-    def app_pass(tag, url):
+    def to_game():
+        # 遊戲上沒有被 web 視窗蓋住的點：點一下，前景就是遊戲（跟邊玩邊看網頁一樣）
+        g, r = wrect(game), wrect(web)
+        sh = user32.GetSystemMetrics(1) - 60
+        cands = [(g[0] + 40, g[1] + 60), (g[2] - 40, g[1] + 60), (g[0] + 40, min(g[3], sh) - 30), (g[2] - 40, min(g[3], sh) - 30)]
+        gx, gy = next(((x, y) for x, y in cands if not (r[0] <= x < r[2] and r[1] <= y < r[3])), cands[0])
+        click(gx, gy, wait=0.3)
+        return fg() == game
+
+    def app_pass(tag, url, game_fg=False):
         ensure_web_fg()
         chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
         type_text(url)
         key(0x2E)  # Delete：網址列自動補上的字不要
         key(VK_ENTER)
-        time.sleep(19)
+        if game_fg:
+            log(f"  [{tag}] 按 Enter 後馬上點遊戲：遊戲在前景", to_game(), "fg", repr(title(fg())))
+        time.sleep(6)
+        shot("xprobe_" + tag + "_6s")
+        time.sleep(13)
+        if game_fg:
+            log(f"  [{tag}] 19 秒時的前景：", repr(title(fg())))
         shot("xprobe_" + tag)
         log(f"  [{tag}] 19 秒後：標題", repr(title(web)), bar_state().get("shown"))
         st = report(tag, read_overlay())
@@ -2631,6 +2653,8 @@ def s_xprobe():
         time.sleep(10)
         report("app 再過 10 秒", read_overlay())
     app_pass("app_bundle", "https://x.com/#mbb")
+    app_pass("app_game", "https://x.com/", game_fg=True)
+    ensure_web_fg()
     restore_tabs(keep)
     home()
     # ---- 程式裡的瀏覽器：無痕式視窗 ----
@@ -2678,9 +2702,9 @@ def s_xprobe():
         for d in ("Page", "Runtime", "Network"):
             c.call(d + ".enable")
         c.call("Network.setExtraHTTPHeaders", {"headers": {"Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"}})
-        c.call("Emulation.setEmulatedMedia", {"features": [{"name": "prefers-color-scheme", "value": "dark"}]})
         last = None
-        for tag, pre in (("edge", ""), ("edge_raw", "window.__mbRaw=true;")):
+        for tag, pre, motion in (("edge", "", "no-preference"), ("edge_raw", "window.__mbRaw=true;", "no-preference"), ("edge_reduce", "", "reduce")):
+            c.call("Emulation.setEmulatedMedia", {"features": [{"name": "prefers-color-scheme", "value": "dark"}, {"name": "prefers-reduced-motion", "value": motion}]})
             if last:
                 c.call("Page.removeScriptToEvaluateOnNewDocument", {"identifier": last})
             c.call("Network.clearBrowserCookies")
