@@ -2463,28 +2463,60 @@ def s_maindiag():
     ensure_web_fg()
 
 
+def find_ui(start, want, skip=None, limit=1500):
+    """照樹狀一層一層找第一個符合的元素。skip(c) = 不用往裡面找的；最多看 limit 個（整棵樹很大，不能全部走）"""
+    q, n = [start], 0
+    while q and n < limit:
+        c = q.pop(0)
+        n += 1
+        try:
+            if want(c):
+                return c
+            if skip is not None and skip(c):
+                continue
+            q.extend(c.GetChildren())
+        except Exception:
+            pass
+    return None
+
+
 def main_tips(rhs, root):
     """主畫面的提示文字：有圖示的按鈕，滑鼠停在圖示的線條上也要跳得出來（美容美髮裡的「角色動作」）"""
     if not rhs or root is None:
         return
+    t_start = time.time()
     tile = next((n for n in root.walk() if n.type == "ButtonControl" and n.has("tile") and n.name.startswith("美容美髮") and n.w > 0), None)
     back = next((n for n in root.walk() if n.type == "ButtonControl" and n.has("back") and n.w > 0), None)
     if tile is None:
         log("（主畫面）找不到美容美髮")
         return
+    pane = auto.ControlFromHandle(rhs[0])
+    docs = [c for c in pane.GetChildren() if c.ControlTypeName == "DocumentControl"]
+    if not docs:
+        log("（主畫面）讀不到內容")
+        return
+    doc = docs[0]
+    cls_of = lambda c: (c.ClassName or "").split()
+    # 每個功能的頁面（class 是 view）很大：只往要看的那一頁裡面找
+    other_view = lambda c: "view" in cls_of(c) and c.AutomationId != "view-beauty"
+    # 測試版開起來會跳「發現新版本」：按「稍後」關掉，不然點不到後面的東西
+    later = find_ui(doc, lambda c: c.ControlTypeName == "ButtonControl" and c.Name.strip() == "稍後", skip=lambda c: "view" in cls_of(c), limit=400)
+    if later is not None:
+        r = later.BoundingRectangle
+        log("  主畫面有「發現新版本」的視窗：按稍後", (r.left, r.top, r.right, r.bottom))
+        click((r.left + r.right) / 2, (r.top + r.bottom) / 2, wait=1.0)
     click(*tile.center, wait=3.0)
     shot("main_beauty")
-    pane = auto.ControlFromHandle(rhs[0])
-    act = pane.ButtonControl(AutomationId="bAct", searchDepth=60)
-    found = act.Exists(6, 0.5)
-    sec = pane.Control(AutomationId="view-beauty", searchDepth=30)
-    sec_cls = sec.ClassName if sec.Exists(2, 0.3) else "?"
-    if found:
+    sec = find_ui(doc, lambda c: c.AutomationId == "view-beauty", skip=other_view, limit=400)
+    sec_cls = sec.ClassName if sec is not None else "?"
+    act = find_ui(sec, lambda c: c.AutomationId == "bAct", limit=1200) if sec is not None and "active" in sec_cls.split() else None
+    log(f"  美容美髮頁面={sec_cls!r} 找到角色動作按鈕={act is not None} 花了 {time.time() - t_start:.1f} 秒")
+    if act is not None:
         r = act.BoundingRectangle
         kids = act.GetChildren()
         imgs = [k for k in kids if k.ControlTypeName == "ImageControl"]
-        log(f"  角色動作按鈕 rect={(r.left, r.top, r.right, r.bottom)} help={act.HelpText!r} 頁面={sec_cls!r} 裡面={[(k.ControlTypeName, k.Name) for k in kids]}")
-        if "active" in sec_cls and r.width() > 0 and imgs:
+        log(f"  角色動作按鈕 rect={(r.left, r.top, r.right, r.bottom)} help={act.HelpText!r} 裡面={[(k.ControlTypeName, k.Name) for k in kids]}")
+        if r.width() > 0 and imgs:
             ir = imgs[0].BoundingRectangle
             res = {}
             # 箭頭圖示（24×24 的格子裡從 (7,10) 畫到 (12,15) 再到 (17,10)）：兩邊的線上、尖端、空白處
