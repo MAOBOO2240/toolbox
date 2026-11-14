@@ -17,7 +17,7 @@ use webview2_com::{
     FindStartCompletedHandler, FrameChildFrameCreatedEventHandler, FrameCreatedEventHandler, FrameDestroyedEventHandler,
     FrameWebMessageReceivedEventHandler, GetCookiesCompletedHandler, HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler,
     IsMutedChangedEventHandler, NavigationStartingEventHandler, NewWindowRequestedEventHandler, ShowSaveAsUICompletedHandler,
-    SourceChangedEventHandler, StateChangedEventHandler, WebMessageReceivedEventHandler, WindowCloseRequestedEventHandler,
+    SourceChangedEventHandler, StateChangedEventHandler, WindowCloseRequestedEventHandler,
     ZoomFactorChangedEventHandler,
 };
 use windows_core::{Interface, BOOL, HSTRING, PWSTR};
@@ -366,7 +366,7 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
     }
 
     if opts.page {
-        gm_attach(core, &sink);
+        gm_attach(core, &sink, &opts.gm_bind);
         targets_attach(core, &sink);
     }
 
@@ -796,21 +796,34 @@ fn gm_like(json: &str) -> bool {
     json.starts_with('{') && json.contains("\"mb\"")
 }
 
-/// 接網頁（最上層）與每個內嵌框架用 chrome.webview.postMessage 傳來的訊息
-unsafe fn gm_attach(core: &ICoreWebView2, sink: &Sink) {
+/// 接網頁裡的使用者腳本傳來的訊息。
+/// - 內嵌框架：用 chrome.webview.postMessage（每個框架各自接）
+/// - 最上層的網頁：不能用同一招——Tauri 自己也接了最上層的 chrome.webview 訊息，而且它遇到不是文字的訊息會回報失敗，
+///   WebView2 就不再通知後面的人。所以改用 DevTools 的「綁定函式」：網頁呼叫那個函式，程式這邊會收到通知
+///   （只加這個函式，不開 Runtime 的其他功能，網站看不出差別）
+unsafe fn gm_attach(core: &ICoreWebView2, sink: &Sink, bind: &str) {
     let mut token = 0i64;
-    {
-        let sink = sink.clone();
-        let h = WebMessageReceivedEventHandler::create(Box::new(move |_c, args| {
-            if let Some(args) = args {
-                let json = text(|p| args.WebMessageAsJson(p));
-                if gm_like(&json) {
-                    sink(Ev::Gm { frame: 0, source: text(|p| args.Source(p)), json });
+    if !bind.is_empty() {
+        if let Ok(recv) = core.GetDevToolsProtocolEventReceiver(&HSTRING::from("Runtime.bindingCalled")) {
+            let (sink, name) = (sink.clone(), format!("\"{bind}\""));
+            let h = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |c, args| {
+                if let Some(args) = args {
+                    let json = text(|p| args.ParameterObjectAsJson(p));
+                    if json.contains(&name) {
+                        let source = c.as_ref().map(|c| text(|p| c.Source(p))).unwrap_or_default();
+                        sink(Ev::Gm { frame: 0, source, json, wrapped: true });
+                    }
                 }
-            }
-            Ok(())
-        }));
-        let _ = core.add_WebMessageReceived(&h, &mut token);
+                Ok(())
+            }));
+            let _ = recv.add_DevToolsProtocolEventReceived(&h, &mut token);
+            let h2 = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|r, json| {
+                crate::dlog!("[cdp] Runtime.addBinding → {:?} {}", r.is_ok(), json.chars().take(160).collect::<String>());
+                Ok(())
+            }));
+            let params = format!("{{\"name\":\"{bind}\"}}");
+            let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Runtime.addBinding"), &HSTRING::from(params), &h2);
+        }
     }
     if let Ok(c4) = core.cast::<ICoreWebView2_4>() {
         let key = core.as_raw() as usize;
@@ -843,7 +856,7 @@ unsafe fn hook_frame(key: usize, frame: &ICoreWebView2Frame, sink: Sink, depth: 
             if let Some(args) = args {
                 let json = text(|p| args.WebMessageAsJson(p));
                 if gm_like(&json) {
-                    sink(Ev::Gm { frame: id, source: text(|p| args.Source(p)), json });
+                    sink(Ev::Gm { frame: id, source: text(|p| args.Source(p)), json, wrapped: false });
                 }
             }
             Ok(())
@@ -944,7 +957,6 @@ unsafe fn targets_attach(core: &ICoreWebView2, sink: &Sink) {
     {
         let sink = sink.clone();
         let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |r, json| {
-            crate::dlog!("[cdp] Target.getTargetInfo → {:?} {}", r.is_ok(), json.chars().take(240).collect::<String>());
             if r.is_ok() {
                 sink(Ev::SelfTarget(json));
             }
@@ -952,24 +964,30 @@ unsafe fn targets_attach(core: &ICoreWebView2, sink: &Sink) {
         }));
         let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Target.getTargetInfo"), &HSTRING::from("{}"), &h);
     }
-    if let Ok(recv) = core.GetDevToolsProtocolEventReceiver(&HSTRING::from("Target.targetCreated")) {
-        let sink = sink.clone();
-        let h = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |_c, args| {
-            if let Some(args) = args {
-                let json = text(|p| args.ParameterObjectAsJson(p));
-                crate::dlog!("[cdp] targetCreated {}", json.chars().take(300).collect::<String>());
-                sink(Ev::Target(json));
-            }
-            Ok(())
-        }));
-        let mut token = 0i64;
-        let _ = recv.add_DevToolsProtocolEventReceived(&h, &mut token);
-        let h2 = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|r, json| {
-            crate::dlog!("[cdp] Target.setDiscoverTargets → {:?} {}", r.is_ok(), json.chars().take(200).collect::<String>());
-            Ok(())
-        }));
-        let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Target.setDiscoverTargets"), &HSTRING::from("{\"discover\":true}"), &h2);
+    // 每個分頁都會收到整個瀏覽器的通知，數量很多：這裡只留「擴充功能的頁面」（其他的不用處理）
+    for ev in ["Target.targetCreated", "Target.targetInfoChanged"] {
+        if let Ok(recv) = core.GetDevToolsProtocolEventReceiver(&HSTRING::from(ev)) {
+            let sink = sink.clone();
+            let h = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |_c, args| {
+                if let Some(args) = args {
+                    let json = text(|p| args.ParameterObjectAsJson(p));
+                    if json.contains("\"type\":\"page\"") && json.contains("\"url\":\"chrome-extension://") {
+                        sink(Ev::Target(json));
+                    }
+                }
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = recv.add_DevToolsProtocolEventReceived(&h, &mut token);
+        }
     }
+    let h2 = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|r, json| {
+        if r.is_err() {
+            crate::dlog!("[cdp] Target.setDiscoverTargets 失敗 {}", json.chars().take(200).collect::<String>());
+        }
+        Ok(())
+    }));
+    let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Target.setDiscoverTargets"), &HSTRING::from("{\"discover\":true}"), &h2);
 }
 
 /// 關掉瀏覽器裡的一個頁面（擴充功能叫瀏覽器自己開的視窗：改開成分頁之後把那個視窗關掉）

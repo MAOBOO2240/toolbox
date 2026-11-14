@@ -12,6 +12,12 @@ use std::sync::{Mutex, OnceLock};
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 static CACHE: Mutex<Option<Vec<Script>>> = Mutex::new(None);
 
+/// 最上層的網頁傳訊息給程式用的函式名稱（每次執行都不一樣，網站沒辦法靠名稱認出來）
+pub fn bind_name() -> &'static str {
+    static NAME: OnceLock<String> = OnceLock::new();
+    NAME.get_or_init(|| format!("__mb{:016x}", rand::random::<u64>()))
+}
+
 pub fn init(dir: PathBuf) {
     let _ = DIR.set(dir.join("web-scripts"));
 }

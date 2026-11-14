@@ -1135,6 +1135,7 @@ fn attach_native(wv: &Webview, wid: &str, tid: &str, page: bool) {
         web_first: page && tab_of(wid, tid).is_some_and(|t| parse_web(&t.url).is_some()),
         save_passwords: set.save_passwords && !incognito,
         download_dir: download_dir(wv.app_handle()),
+        gm_bind: if page { crate::userscripts::bind_name().to_string() } else { String::new() },
     };
     with_wv(wv, move |w| webnative::attach(w, opts, sink));
 }
@@ -2806,7 +2807,17 @@ fn handle_ev(app: &AppHandle, wid: &str, tid: &str, ev: Ev) {
         Ev::CloseRequested => {
             let _ = close_tab(app, wid, tid);
         }
-        Ev::Gm { frame, source, json } => on_gm(app, wid, tid, frame, &source, &json),
+        Ev::Gm { frame, source, json, wrapped } => {
+            // 最上層的網頁傳來的包在 DevTools 事件裡：拿出裡面的訊息
+            let msg = if wrapped {
+                serde_json::from_str::<Value>(&json).ok().and_then(|v| v.get("payload").and_then(|p| p.as_str()).map(str::to_string))
+            } else {
+                Some(json)
+            };
+            if let Some(msg) = msg {
+                on_gm(app, wid, tid, frame, &source, &msg);
+            }
+        }
         Ev::SelfTarget(json) => {
             if let Some(id) = target_field(&json, "targetId") {
                 let mut ours = lock(&OUR_TARGETS);
