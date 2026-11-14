@@ -315,6 +315,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             return
+        if u.path == "/login.html":
+            with open(PAGE_LOG, "a", encoding="utf-8") as f:
+                f.write(f"{time.time():.2f} [hdr] ua={self.headers.get('User-Agent')!r} sec-ch-ua={self.headers.get('Sec-CH-UA')!r}\n")
+        if u.path == "/post-echo":
+            return self.echo("GET", u.query)
         if u.path == "/dl.bin":
             body = b"x" * 300000
             self.send_response(200)
@@ -325,6 +330,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
         super().do_GET()
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(n).decode("utf-8", "replace") if n else ""
+        if urllib.parse.urlparse(self.path).path == "/post-echo":
+            return self.echo("POST", body)
+        self.send_response(404)
+        self.end_headers()
+
+    def echo(self, method, body):
+        """收到表單：回一個網頁，網頁自己回報收到了什麼"""
+        info = json.dumps(f"method={method} body={body}")
+        html = ("<!doctype html><meta charset=utf-8><title>收到表單</title><body>" + method + "<script>"
+                "let op='none';try{op=window.opener?'true':'false'}catch(e){op='error'}"
+                "fetch('/log?m='+encodeURIComponent('[post] '+" + info + "+' opener='+op))</script>").encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(html)))
+        self.end_headers()
+        self.wfile.write(html)
 
     def log_message(self, *a):
         pass
@@ -1962,6 +1987,206 @@ class GUITHREADINFO(ctypes.Structure):
                 ("hwndMenuOwner", wt.HWND), ("hwndMoveSize", wt.HWND), ("hwndCaret", wt.HWND), ("rcCaret", wt.RECT)]
 
 
+def post_move_here():
+    pt = wt.POINT()
+    user32.GetCursorPos(ctypes.byref(pt))
+    h = user32.WindowFromPoint(pt)
+    for _ in range(6):
+        if not h:
+            return False
+        if cls(h) == "Chrome_WidgetWin_1":
+            c = wt.POINT(pt.x, pt.y)
+            user32.ScreenToClient(h, ctypes.byref(c))
+            user32.PostMessageW(h, 0x0200, 0, ((c.y & 0xffff) << 16) | (c.x & 0xffff))
+            return True
+        h = user32.GetParent(h)
+    return False
+
+
+def s_login():
+    """登入時另外跳出來的小視窗／新分頁：跟原本的網頁連不連得上、登入完會不會自己關"""
+    home()
+    ensure_web_fg()
+    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+    type_text(f"127.0.0.1:{PORT}/login.html")
+    key(VK_ENTER)
+    time.sleep(3.0)
+    if "登入測試" not in title(web):
+        check("登入測試頁打得開", False, repr(title(web)))
+        return
+    base = set(tab_ids())
+    log("  瀏覽器報給網站的身分：", [l.split(" ", 1)[1] for l in page_log().splitlines() if "[login] load ua=" in l or "[hdr]" in l][-2:])
+
+    def since(t0):
+        return "\n".join(l.split(" ", 1)[1] for l in page_log_since(t0))
+
+    def tail(L):
+        return " | ".join(L.splitlines()[-12:])
+
+    def press(i, wait=4.5, win=None):
+        if win is None and not select_title("登入測試", 1.0):
+            return False
+        n = find_id(page_tree(win), i)
+        if n is None:
+            log(f"  找不到按鈕 {i}")
+            return False
+        click(*n.center, wait=wait)
+        return True
+
+    def extra(w0):
+        return [h for h in app_windows() if h not in w0 and user32.IsWindowVisible(h) and title(h) != MENU_TITLE]
+
+    def cleanup(w0):
+        for h in extra(w0):
+            user32.PostMessageW(h, 0x0010, None, None)
+        time.sleep(0.8)
+        ensure_web_fg()
+        restore_tabs(base)
+        select_title("登入測試", 1.0)
+
+    # ---- 指定大小的小視窗 ----
+    for b, name in (("b1", "登入小視窗"), ("b2", "登入小視窗（先到別的網站再轉回來）"), ("b6", "登入小視窗（先開空白再前往）")):
+        t0, w0 = time.time(), set(app_windows())
+        press(b, 5.5)
+        L, left = since(t0), extra(w0)
+        check(f"{name}：跟開它的網頁連得上", f"[pop {b}] loaded opener=true" in L and (b != "b2" or "[provider] loaded origin=http://localhost" in L and "opener=true" in L.split("[provider]")[1].splitlines()[0]), tail(L))
+        check(f"{name}：登入結果送得回原本的網頁", "[login] message from" in L and f'"tag":"{b}"' in L, tail(L))
+        check(f"{name}：登入完自己關掉，原本的網頁也知道", f"{b} open=window" in L and f"{b} closed=true" in L and not left, f"留下的視窗={[title(h) for h in left]} " + tail(L))
+        check(f"{name}：裡面記住的登入狀態，原本的網頁讀得到", f"login_{b}=1" in L, tail(L))
+        cleanup(w0)
+
+    # ---- 小視窗開著：打字、裡面的連結、由原本的網頁關掉 ----
+    t0, w0, n_tabs = time.time(), set(app_windows()), tab_count()
+    press("b8", 3.0)
+    pops = extra(w0)
+    shot("login_popup")
+    check("登入小視窗：開成另一個視窗、在最前面", len(pops) == 1 and fg() == pops[0], f"{[(title(h), wrect(h)) for h in pops]} fg={fg()}")
+    if pops:
+        pop = pops[0]
+        type_text("ab")
+        time.sleep(0.6)
+        check("登入小視窗：可以直接打字", "[pop b8] input:ab" in since(t0), tail(since(t0)))
+        n = find_id(page_tree(pop), "help")
+        if n is not None:
+            click(*n.center, wait=3.5)
+        w1 = extra(w0)
+        tabs_now = tab_count()
+        check("登入小視窗裡會開新視窗的連結（說明、忘記密碼這類）：點了有打開", tabs_now > n_tabs or len(w1) > len(pops), f"分頁 {n_tabs}→{tabs_now}，視窗 {len(pops)}→{len(w1)}")
+        ensure_web_fg()
+        press("c8", 2.5)
+        L = since(t0)
+        gone = not (user32.IsWindow(pop) and user32.IsWindowVisible(pop))
+        check("原本的網頁可以把登入小視窗關掉", "c8 called close" in L and "b8 closed=true" in L and gone, f"關了={gone} " + tail(L))
+    cleanup(w0)
+
+    # ---- 沒指定大小：開成新分頁 ----
+    for b, name in (("b3", "開成新分頁的登入頁"), ("b4", "開成新分頁的登入頁（先開空白再前往）")):
+        t0, w0, n0 = time.time(), set(app_windows()), tab_count()
+        press(b, 5.5)
+        L = since(t0)
+        check(f"{name}：網站拿得到開出來的分頁（不會以為被擋掉）", f"{b} open=window" in L, tail(L))
+        check(f"{name}：跟開它的網頁連得上、登入結果送得回來", f"[pop {b}] loaded opener=true" in L and f'"tag":"{b}"' in L, tail(L))
+        n1 = tab_count()
+        check(f"{name}：登入完分頁自己關掉、回到原本的分頁", f"{b} closed=true" in L and n1 == n0 and "登入測試" in title(web), f"分頁 {n0}→{n1} 目前={title(web)!r} " + tail(L))
+        cleanup(w0)
+
+    t0, w0, n0 = time.time(), set(app_windows()), tab_count()
+    press("b5", 4.5)
+    L = since(t0)
+    check("送表單到新分頁：資料有送到", "[post] method=POST body=v=hello" in L and tab_count() == n0 + 1, f"分頁 {n0}→{tab_count()} " + tail(L))
+    cleanup(w0)
+
+    t0, w0, n0 = time.time(), set(app_windows()), tab_count()
+    press("b7", 6.0)
+    L = since(t0)
+    n1 = tab_count()
+    check("同一個名字的視窗開兩次：用同一個分頁（不會開兩個）", "same=true" in L and n1 == n0 + 1 and "[pop b7b] loaded" in L, f"分頁 {n0}→{n1} " + tail(L))
+    cleanup(w0)
+
+    for a, want, name in (("a1", "false", "一般的「開新分頁」連結：開新分頁，新分頁碰不到原本的網頁"), ("a2", "true", "指定要連著的連結（rel=opener）：新分頁拿得到原本的網頁")):
+        t0, w0, n0 = time.time(), set(app_windows()), tab_count()
+        press(a, 4.0)
+        L = since(t0)
+        check(name, f"[pop {a}] loaded opener={want}" in L and tab_count() == n0 + 1, f"分頁 {n0}→{tab_count()} " + tail(L))
+        cleanup(w0)
+
+    # ---- 無痕式視窗 ----
+    before = set(app_windows())
+    chord([VK_CTRL, VK_SHIFT], 0x4E, wait=4.0)  # Ctrl+Shift+N
+    new = [h for h in app_windows() if h not in before and user32.IsWindowVisible(h) and title(h) not in KNOWN]
+    if len(new) == 1:
+        inc = new[0]
+        r = wrect(inc)
+        click(r[0] + 400 * scale, r[1] + 71 * scale, wait=0.7)
+        type_text(f"127.0.0.1:{PORT}/login.html")
+        key(VK_ENTER)
+        time.sleep(3.0)
+        t0, w0 = time.time(), set(app_windows())
+        press("b1", 5.5, win=inc)
+        L, left = since(t0), extra(w0)
+        shot("login_incognito")
+        check("無痕式視窗裡的登入小視窗：連得上、結果送得回來、自己關掉", "[pop b1] loaded opener=true" in L and '"tag":"b1"' in L and "b1 closed=true" in L and not left, f"留下的視窗={[title(h) for h in left]} " + tail(L))
+        line = next((l for l in L.splitlines() if "b1 closed=true" in l), "")
+        check("無痕式視窗裡的登入小視窗：用無痕的資料（讀得到自己存的、讀不到一般視窗的登入狀態）", "login_b1=1" in line and "login_b2=1" not in line, line)
+        for h in left:
+            user32.PostMessageW(h, 0x0010, None, None)
+        time.sleep(0.8)
+        t0, w0 = time.time(), set(app_windows())
+        press("b3", 5.5, win=inc)
+        L = since(t0)
+        check("無痕式視窗裡開成新分頁的登入頁：連得上、結果送得回來、自己關掉", "b3 open=window" in L and "[pop b3] loaded opener=true" in L and '"tag":"b3"' in L and "b3 closed=true" in L, tail(L))
+        for h in extra(w0):
+            user32.PostMessageW(h, 0x0010, None, None)
+        r = wrect(inc)
+        click(r[2] - 23 * scale, r[1] + 16 * scale, wait=1.5)
+        if user32.IsWindow(inc) and user32.IsWindowVisible(inc):
+            user32.PostMessageW(inc, 0x0010, None, None)
+            time.sleep(1.0)
+    else:
+        check("無痕式視窗打得開（測登入小視窗用）", False, f"{[(title(h), wrect(h)) for h in new]}")
+    ensure_web_fg()
+    restore_tabs(base)
+    # 登入測試那個分頁也關掉，回到原本的樣子
+    if select_title("登入測試", 1.0):
+        chord([VK_CTRL], 0x57, wait=1.2)  # Ctrl+W
+    home()
+
+
+def s_maindiag():
+    """（查問題用）主畫面上有提示文字的元素"""
+    main = next((h for h in app_windows() if title(h) == "工具箱"), 0)
+    if not main:
+        log("找不到主畫面")
+        return
+    user32.keybd_event(VK_ALT, 0, 0, 0)
+    user32.keybd_event(VK_ALT, 0, 2, 0)
+    user32.SetForegroundWindow(main)
+    time.sleep(1.0)
+    shot("main_window")
+    log("主畫面", wrect(main), "fg", fg() == main)
+    rhs = render_hwnds(main)
+    root = snap(rhs[0], limit=900) if rhs else None
+    n_all = 0
+    shown = 0
+    if root is not None:
+        for n in root.walk():
+            n_all += 1
+            if n.type not in ("ButtonControl", "HyperlinkControl", "GroupControl", "CheckBoxControl", "EditControl", "ComboBoxControl", "ListItemControl", "TextControl", "ImageControl"):
+                continue
+            if n.w <= 0 or n.h <= 0:
+                continue
+            try:
+                ht = n.ctrl.HelpText
+            except Exception:
+                ht = ""
+            if ht or n.type == "ButtonControl":
+                shown += 1
+                if shown <= 80:
+                    log(f"  {n.type} #{n.id} .{n.cls} name={n.name!r} help={ht!r} rect={(n.l, n.t, n.r, n.b)} kids={[(k.type, k.name[:12]) for k in n.kids][:4]}")
+    log("主畫面元素數", n_all)
+    ensure_web_fg()
+
+
 def s_tipdiag():
     """（查問題用）哪些地方停上去會跳提示文字"""
     home()
@@ -2085,6 +2310,17 @@ def s_tipdiag():
         res[i] = probe(i)
     for i in ("b1", "b2", "b3", "b4", "b5"):
         res[i] = probe(i)
+    for i in ("a1", "a4", "a5"):
+        c6 = at(i)
+        if c6:
+            hover(c6[0], c6[1], settle=1.6)
+            n0 = len(tips_now())
+            sent = post_move_here()
+            time.sleep(1.6)
+            n1 = len(tips_now())
+            log(f"  [page {i} 補一個滑鼠訊息] 補之前={n0} 有送出={sent} 補之後={n1}")
+            move(*PG(620, 330))
+            time.sleep(0.6)
     # 只是記錄 WebView2 本身的行為（不是我們的程式）：滑鼠底下的元素一換，提示文字就不出現
     log("  WebView2 本身：", res)
     check("（對照）網頁裡照做的按鈕：圖示不單獨接滑鼠的那兩個，停在線條上提示文字會出現", bool(res.get("a2")) and bool(res.get("a6")), str(res))
@@ -2725,7 +2961,9 @@ STEPS = [
     ("fullscreen", s_fullscreen),
     ("ext", s_ext),
     ("scripts", s_scripts),
+    ("login", s_login),
     ("tips", s_tipdiag),
+    ("maindiag", s_maindiag),
     ("minimize", s_minimize),
     ("close", s_close),
 ]

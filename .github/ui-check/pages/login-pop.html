@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>登入</title></head>
+<body style="font:16px sans-serif;margin:16px">
+<input id="u" style="width:240px;height:32px;font-size:18px" placeholder="account" autofocus>
+<button id="ok" style="height:36px">登入</button>
+<a id="help" target="_blank" href="/snap.html?from=pop" style="margin-left:12px">說明</a>
+<script>
+  const q = new URLSearchParams(location.search), tag = q.get('tag'), mode = q.get('mode');
+  const log = (m) => fetch('/log?m=' + encodeURIComponent('[pop ' + tag + '] ' + m)).catch(() => {});
+  let op = 'none';
+  try { op = window.opener ? 'true' : 'false'; } catch (e) { op = 'error'; }
+  log('loaded opener=' + op + ' name=' + window.name + ' hist=' + history.length + ' size=' + innerWidth + 'x' + innerHeight);
+  const u = document.getElementById('u');
+  u.addEventListener('input', () => log('input:' + u.value));
+  function done() {
+    document.cookie = 'login_' + tag + '=1; max-age=600; path=/';
+    try { window.opener.postMessage({ tag, user: u.value }, '*'); log('posted'); } catch (e) { log('post failed ' + e); }
+    window.close();
+    setTimeout(() => log('still open after close()'), 900);
+  }
+  document.getElementById('ok').onclick = done;
+  if (mode === 'auto') setTimeout(done, 1000);
+</script>
+</body></html>

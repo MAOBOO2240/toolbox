@@ -1,0 +1,43 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>登入測試</title>
+<style>body{font:15px sans-serif;margin:14px} button,a{display:inline-block;margin:4px 6px 4px 0;padding:6px 10px;font-size:14px} .row{margin:6px 0}</style></head>
+<body>
+<div class="row">
+<button id="b1">小視窗</button>
+<button id="b2">小視窗轉址</button>
+<button id="b6">小視窗先空白</button>
+<button id="b8">小視窗不關</button>
+<button id="c8">關掉它</button>
+</div>
+<div class="row">
+<button id="b3">新分頁</button>
+<button id="b4">新分頁先空白</button>
+<button id="b5">新分頁送表單</button>
+<button id="b7">同名兩次</button>
+<a id="a1" target="_blank" href="/login-pop.html?mode=stay&tag=a1">連結</a>
+<a id="a2" target="_blank" rel="opener" href="/login-pop.html?mode=stay&tag=a2">連結opener</a>
+</div>
+<form id="f5" method="post" action="/post-echo" target="_blank"><input type="hidden" name="v" value="hello"></form>
+<script>
+  const log = (m) => fetch('/log?m=' + encodeURIComponent('[login] ' + m)).catch(() => {});
+  const other = 'http://localhost:' + location.port;
+  addEventListener('message', (e) => log('message from ' + e.origin + ' ' + JSON.stringify(e.data)));
+  function watch(w, tag) {
+    log(tag + ' open=' + (w ? 'window' : 'null'));
+    if (!w) return;
+    const t = setInterval(() => { if (w.closed) { clearInterval(t); log(tag + ' closed=true cookie=' + document.cookie); } }, 200);
+  }
+  const $ = (i) => document.getElementById(i);
+  const size = 'width=480,height=420';
+  $('b1').onclick = () => watch(window.open('/login-pop.html?mode=auto&tag=b1', 'lp1', size), 'b1');
+  $('b2').onclick = () => watch(window.open(other + '/login-provider.html?back=' + encodeURIComponent(location.origin + '/login-pop.html?mode=auto&tag=b2'), 'lp2', size), 'b2');
+  $('b6').onclick = () => { const w = window.open('about:blank', 'lp6', size); watch(w, 'b6'); if (w) setTimeout(() => { w.location = location.origin + '/login-pop.html?mode=auto&tag=b6'; }, 400); };
+  $('b8').onclick = () => { window.__w8 = window.open('/login-pop.html?mode=stay&tag=b8', 'lp8', size); watch(window.__w8, 'b8'); };
+  $('c8').onclick = () => { try { window.__w8.close(); log('c8 called close'); } catch (e) { log('c8 error ' + e); } };
+  $('b3').onclick = () => watch(window.open('/login-pop.html?mode=auto&tag=b3'), 'b3');
+  $('b4').onclick = () => { const w = window.open('', '_blank'); watch(w, 'b4'); if (w) setTimeout(() => { w.location = location.origin + '/login-pop.html?mode=auto&tag=b4'; }, 400); };
+  $('b5').onclick = () => $('f5').submit();
+  $('b7').onclick = () => { const w1 = window.open('/login-pop.html?mode=stay&tag=b7a', 'same7'); setTimeout(() => { const w2 = window.open('/login-pop.html?mode=stay&tag=b7b', 'same7'); log('b7 w1=' + !!w1 + ' w2=' + !!w2 + ' same=' + (!!w1 && w1 === w2)); }, 2000); };
+  log('load ua=' + navigator.userAgent + ' brands=' + JSON.stringify(navigator.userAgentData ? navigator.userAgentData.brands : null));
+</script>
+</body></html>
