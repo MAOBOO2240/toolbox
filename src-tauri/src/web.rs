@@ -1624,11 +1624,14 @@ fn linked_tab_now(app: &AppHandle, wid: &str, opener: &str, u: &Url, env: &webvi
     let (_, _, (pos, sz)) = geometry(wid, &win, size);
     // 一定要跟開它的網頁同一個環境、同一個設定檔，而且還沒載入過別的網址
     let b = page_builder(app, wid, &tid, blank, None, incognito).with_environment(env.clone());
+    // 從現在起到它要去的網頁載入之前，不可以另外對它登記使用者腳本（見 us::hold）
+    us::hold(wid, &tid);
     crate::dlog!("[newwin] {wid}-{tid}：建立網頁");
     let made = match win.add_child(b, pos, sz) {
         Ok(w) => w,
         Err(e) => {
             eprintln!("新分頁建立失敗：{e}");
+            us::forget(app, wid, &tid);
             drop_tab(&tid);
             return false;
         }
@@ -1643,6 +1646,7 @@ fn linked_tab_now(app: &AppHandle, wid: &str, opener: &str, u: &Url, env: &webvi
     crate::dlog!("[newwin] {wid}-{tid}：交還 → {}", ok.load(Ordering::SeqCst));
     if !ok.load(Ordering::SeqCst) {
         // 交不出去：這個分頁不要了，讓呼叫的人用原本的方式開
+        us::forget(app, wid, &tid);
         let _ = made.close();
         drop_tab(&tid);
         return false;
@@ -1657,12 +1661,13 @@ fn linked_tab_now(app: &AppHandle, wid: &str, opener: &str, u: &Url, env: &webvi
         }
     });
     // 切過去（顯示它、收起原本的、更新工具列）交給背景做。
-    // 使用者腳本「帶最新設定值啟動」的那一段也在這時候才登記：不可以在交還分頁之前（WebView2 的通知還沒處理完）
-    // 另外對新分頁登記東西又不等它完成，交還的時候會整個卡住。第一份文件用建立分頁時放的那一份啟動
+    // 使用者腳本「帶最新設定值啟動」的那一段要等它要去的網頁載入了才登記（on_page 會放行）；
+    // 一直沒載入（例如網頁開了一個空白視窗自己寫內容）就等幾秒再登記。第一份文件用建立分頁時放的那一份啟動
     let (app, wid) = (app.clone(), wid.to_string());
     std::thread::spawn(move || {
-        us::booted(&made, &wid, &tid);
         let _ = select_tab(&app, &wid, &tid);
+        std::thread::sleep(Duration::from_secs(6));
+        us::release(&app, &wid, &tid);
     });
     true
 }
@@ -1699,6 +1704,10 @@ fn apply_zoom(wv: &Webview, wid: &str, tid: &str, url: &str) {
 }
 
 fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, started: bool) {
+    // 連著開出來的分頁：它要去的網頁載入了，這時候才可以補登記使用者腳本（見 us::hold）
+    if !started && url.as_str() != "about:blank" {
+        us::release(app, wid, tid);
+    }
     if webcore::is_app_target(url) {
         on_own_page(wid, tid);
         // 保險：開過開發人員工具的分頁不應該載入得了程式自己的頁面（nav_check 會擋）。
@@ -2992,6 +3001,10 @@ fn handle_ev(app: &AppHandle, wid: &str, tid: &str, ev: Ev) {
             }
         }
         Ev::Target(json) => on_target(app, wid, tid, &json),
+        Ev::ProcessFailed { kind, reason, code, what } => {
+            // 查問題用：瀏覽器元件的程序不正常結束（kind 0 = 整個瀏覽器元件，其他是某個網頁或附屬的程序）
+            crate::dlog!("[process] {wid}-{tid}：瀏覽器元件的程序結束了 kind={kind} reason={reason} code={code:#x} {what}");
+        }
     }
 }
 

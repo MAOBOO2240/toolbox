@@ -65,6 +65,9 @@ pub enum Ev {
     /// 瀏覽器裡多了一個頁面、分頁或背景程式（DevTools 的 Target.targetCreated 的 JSON 文字）。
     /// 可能是程式開的，也可能是擴充功能叫瀏覽器自己開的視窗
     Target(String),
+    /// 瀏覽器元件的某個程序不正常結束了（kind、reason 是 WebView2 的 COREWEBVIEW2_PROCESS_FAILED_KIND／REASON；
+    /// kind 0 = 整個瀏覽器元件結束了，這個設定檔的網頁全部不能用了）
+    ProcessFailed { kind: i32, reason: i32, code: i32, what: String },
 }
 
 pub type Sink = Arc<dyn Fn(Ev) + Send + Sync>;

@@ -23,6 +23,9 @@ struct MenuCmd {
 struct UsTab {
     /// 這個分頁不跑腳本（無痕式視窗、檢視原始碼的分頁）
     skip: bool,
+    /// 連著開出來的分頁（交還給 WebView2 當成網頁要開的新視窗），它要去的網頁還沒載入：
+    /// 這段時間不可以另外對它登記東西（見 hold）
+    hold: bool,
     /// 建立分頁時登記的腳本清單是第幾版（0 = 沒登記）
     built: u64,
     /// 之後另外登記（清單變過）的是第幾版（0 = 沒有）
@@ -129,6 +132,36 @@ pub(super) fn booted(wv: &Webview, wid: &str, tid: &str) {
     }
 }
 
+/// 連著開出來的分頁（剛交還給 WebView2 當成網頁要開的新視窗）：它要去的網頁載入之前，不可以再另外對它登記
+/// 「每份文件一開始就執行」的程式——WebView2 這時候正在把它換成真正的新視窗，這時候去動它，
+/// 整個瀏覽器元件可能會當掉（所有分頁變黑）。第一份文件用建立分頁時放進去的那一份啟動，不受影響。
+/// 要在交還之前呼叫；之後用 release 放行
+pub(super) fn hold(wid: &str, tid: &str) {
+    tabs(|m| {
+        if let Some(t) = m.get_mut(&(wid.to_string(), tid.to_string())) {
+            t.hold = true;
+        }
+    });
+}
+
+/// 連著開出來的分頁要去的網頁載入了（或已經等夠久了）：把這段時間沒登記的補上
+pub(super) fn release(app: &AppHandle, wid: &str, tid: &str) {
+    let held = tabs(|m| m.get_mut(&(wid.to_string(), tid.to_string())).is_some_and(|t| std::mem::take(&mut t.hold)));
+    if !held {
+        return;
+    }
+    crate::dlog!("[us] {wid}-{tid} 載入了：補登記腳本");
+    // 不在 WebView2 的通知裡面直接做：丟給背景，由它排回主執行緒
+    let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
+    std::thread::spawn(move || {
+        if let Some(wv) = app.get_webview(&page_label(&wid, &tid)) {
+            booted(&wv, &wid, &tid);
+        }
+        // 這段時間腳本清單變過的話，也換成新的
+        request_sync();
+    });
+}
+
 /// 開著的分頁換成最新的腳本清單、最新的設定值（之後載入的網頁才會用到）。
 /// vals_due = 這次要不要連「只有設定值變了」的分頁也換（腳本清單變了的一定換）
 fn sync(app: &AppHandle, vals_due: bool) {
@@ -145,7 +178,7 @@ fn sync(app: &AppHandle, vals_due: bool) {
             let Some(page) = app.get_webview(&page_label(&wid, &t.id)) else { continue };
             let (need0, need1, built) = tabs(|m| {
                 let e = m.entry((wid.clone(), t.id.clone())).or_default();
-                if e.skip {
+                if e.skip || e.hold {
                     return (false, false, false);
                 }
                 let cur = if e.listed != 0 { e.listed } else { e.built };

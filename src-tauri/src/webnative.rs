@@ -16,7 +16,7 @@ use webview2_com::{
     ContextMenuRequestedEventHandler, DevToolsProtocolEventReceivedEventHandler, DownloadStartingEventHandler, FaviconChangedEventHandler,
     FindStartCompletedHandler, FrameChildFrameCreatedEventHandler, FrameCreatedEventHandler, FrameDestroyedEventHandler,
     FrameWebMessageReceivedEventHandler, GetCookiesCompletedHandler, HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler,
-    IsMutedChangedEventHandler, NavigationStartingEventHandler, NewWindowRequestedEventHandler, ShowSaveAsUICompletedHandler,
+    IsMutedChangedEventHandler, NavigationStartingEventHandler, NewWindowRequestedEventHandler, ProcessFailedEventHandler, ShowSaveAsUICompletedHandler,
     SourceChangedEventHandler, StateChangedEventHandler, WebMessageReceivedEventHandler, WindowCloseRequestedEventHandler,
     ZoomFactorChangedEventHandler,
 };
@@ -413,6 +413,34 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
     if opts.page {
         gm_attach(core, &sink);
         targets_attach(core, &sink);
+    }
+
+    // 瀏覽器元件的程序不正常結束（當掉、被關掉）
+    {
+        let s = sink.clone();
+        let h = ProcessFailedEventHandler::create(Box::new(move |_c, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
+            let _ = args.ProcessFailedKind(&mut kind);
+            let (mut reason, mut code, mut what) = (-1, 0, String::new());
+            if let Ok(a2) = args.cast::<ICoreWebView2ProcessFailedEventArgs2>() {
+                let mut r = COREWEBVIEW2_PROCESS_FAILED_REASON::default();
+                if a2.Reason(&mut r).is_ok() {
+                    reason = r.0;
+                }
+                let _ = a2.ExitCode(&mut code);
+                what = text(|p| a2.ProcessDescription(p));
+            }
+            if let Ok(a3) = args.cast::<ICoreWebView2ProcessFailedEventArgs3>() {
+                let module = text(|p| a3.FailureSourceModulePath(p));
+                if !module.is_empty() {
+                    what = format!("{what} {module}").trim().to_string();
+                }
+            }
+            s(Ev::ProcessFailed { kind: kind.0, reason, code, what });
+            Ok(())
+        }));
+        let _ = core.add_ProcessFailed(&h, &mut token);
     }
 
     // 網站圖示
