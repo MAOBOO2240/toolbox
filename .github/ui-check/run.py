@@ -2159,6 +2159,125 @@ def s_login():
     home()
 
 
+def focus_info(tag):
+    """（查問題用）瀏覽器視窗那條執行緒現在鍵盤在哪個視窗上。回傳：鍵盤是不是在某個網頁（或工具列）裡"""
+    try:
+        tid = user32.GetWindowThreadProcessId(web, None)
+        gi = GUITHREADINFO()
+        gi.cbSize = ctypes.sizeof(GUITHREADINFO)
+        ok = user32.GetGUIThreadInfo(tid, ctypes.byref(gi))
+        d = lambda h: (H(h), cls(h), wrect(h), proc_name(pid_of(h))) if h else None
+        log(f"  [{tag}] 前景={fg()}（{title(fg())!r}） web={web} ok={ok} active={d(gi.hwndActive)} focus={d(gi.hwndFocus)}")
+        return bool(gi.hwndFocus) and H(gi.hwndFocus) != web
+    except Exception as e:
+        log(f"  [{tag}] 讀不到鍵盤在哪：{e}")
+        return None
+
+
+def s_refocus():
+    """別的視窗（無痕式視窗、登入小視窗、開發人員工具）關掉、回到瀏覽器視窗之後：不用先點一下，快捷鍵馬上能用"""
+    home()
+    ensure_web_fg()
+    click_blank(0.6)
+    keep = tab_ids()
+    focus_info("一開始（剛點過網頁）")
+
+    def keys_work(name):
+        """不點任何東西，直接按 Ctrl+T：有沒有多一個分頁"""
+        time.sleep(1.2)
+        in_page = focus_info(name)
+        was_fg = fg() == web
+        n0 = tab_count()
+        chord([VK_CTRL], 0x54, wait=1.6)  # Ctrl+T
+        n1 = tab_count()
+        check(f"{name}：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用", was_fg and n1 == n0 + 1, f"瀏覽器視窗在最前面={was_fg} 鍵盤在網頁或工具列裡={in_page} 分頁 {n0}→{n1}")
+        ensure_web_fg()
+        restore_tabs(keep)
+        home()
+        click_blank(0.6)
+
+    # (1) 無痕式視窗：開、在裡面逛一個網頁、按右上角的 × 關掉
+    before = set(app_windows())
+    chord([VK_CTRL, VK_SHIFT], 0x4E, wait=4.0)  # Ctrl+Shift+N
+    new = [h for h in app_windows() if h not in before and user32.IsWindowVisible(h) and title(h) not in KNOWN]
+    if len(new) == 1:
+        inc = new[0]
+        r = wrect(inc)
+        click(r[0] + 400 * scale, r[1] + 71 * scale, wait=0.7)
+        type_text(f"127.0.0.1:{PORT}/snap.html?refocus")
+        key(VK_ENTER)
+        time.sleep(2.5)
+        r = wrect(inc)
+        click(r[2] - 23 * scale, r[1] + 16 * scale, wait=1.5)
+        gone = not (user32.IsWindow(inc) and user32.IsWindowVisible(inc))
+        log("  無痕式視窗關掉了：", gone)
+        if not gone:
+            user32.PostMessageW(inc, 0x0010, None, None)
+            time.sleep(1.0)
+        keys_work("無痕式視窗關掉")
+    else:
+        check("無痕式視窗打得開（測鍵盤用）", False, f"{[(title(h), wrect(h)) for h in new]}")
+
+    # (2) 登入小視窗：登入完自己關掉
+    chord([VK_CTRL], 0x54, wait=1.5)  # Ctrl+T
+    type_text(f"127.0.0.1:{PORT}/login.html")
+    key(VK_ENTER)
+    time.sleep(3.0)
+    keep2 = tab_ids()
+    n = None
+    for _ in range(6):
+        n = find_id(page_tree(), "b1")
+        if n is not None:
+            break
+        time.sleep(0.5)
+    if n is not None:
+        w0 = set(app_windows())
+        click(*n.center, wait=5.5)
+        left = [h for h in app_windows() if h not in w0 and user32.IsWindowVisible(h) and title(h) != MENU_TITLE]
+        log("  登入小視窗留下的視窗：", [title(h) for h in left])
+        time.sleep(1.2)
+        in_page = focus_info("登入小視窗自己關掉")
+        was_fg = fg() == web
+        n0 = tab_count()
+        chord([VK_CTRL], 0x54, wait=1.6)
+        n1 = tab_count()
+        check("登入小視窗自己關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用", was_fg and n1 == n0 + 1, f"瀏覽器視窗在最前面={was_fg} 鍵盤在網頁或工具列裡={in_page} 分頁 {n0}→{n1}")
+    else:
+        check("登入測試頁打得開（測鍵盤用）", False)
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+    click_blank(0.6)
+
+    # (3) 開發人員工具：開了再關
+    base_dt = set(dt_windows())
+    key(0x7B)
+    ws = wait_for(lambda: [h for h in dt_windows() if h not in base_dt], 15, 0.3)
+    time.sleep(1.0)
+    if ws:
+        for h in ws:
+            user32.PostMessageW(h, 0x0010, None, None)
+        wait_for(lambda: not [h for h in dt_windows() if h not in base_dt], 8, 0.3)
+        keys_work("開發人員工具關掉")
+    else:
+        check("開發人員工具打得開（測鍵盤用）", False)
+
+    # (4) 切到別的程式（假的遊戲視窗）再切回來
+    if game:
+        user32.keybd_event(VK_ALT, 0, 0, 0)
+        user32.keybd_event(VK_ALT, 0, 2, 0)
+        user32.SetForegroundWindow(game)
+        time.sleep(1.0)
+        log("  切到遊戲：", fg() == game)
+        user32.keybd_event(VK_ALT, 0, 0, 0)
+        user32.keybd_event(VK_ALT, 0, 2, 0)
+        user32.SetForegroundWindow(web)
+        keys_work("切到別的程式再切回來")
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+
+
 def dt_windows():
     """畫面上 WebView2 自己開的大視窗（開發人員工具是另一個視窗）"""
     res = []
@@ -2337,7 +2456,61 @@ def s_maindiag():
                 if shown <= 80:
                     log(f"  {n.type} #{n.id} .{n.cls} name={n.name!r} help={ht!r} rect={(n.l, n.t, n.r, n.b)} kids={[(k.type, k.name[:12]) for k in n.kids][:4]}")
     log("主畫面元素數", n_all)
+    try:
+        main_tips(rhs, root)
+    except Exception:
+        log(traceback.format_exc())
     ensure_web_fg()
+
+
+def main_tips(rhs, root):
+    """主畫面的提示文字：有圖示的按鈕，滑鼠停在圖示的線條上也要跳得出來（美容美髮裡的「角色動作」）"""
+    if not rhs or root is None:
+        return
+    tile = next((n for n in root.walk() if n.type == "ButtonControl" and n.has("tile") and n.name.startswith("美容美髮") and n.w > 0), None)
+    back = next((n for n in root.walk() if n.type == "ButtonControl" and n.has("back") and n.w > 0), None)
+    if tile is None:
+        log("（主畫面）找不到美容美髮")
+        return
+    click(*tile.center, wait=3.0)
+    shot("main_beauty")
+    pane = auto.ControlFromHandle(rhs[0])
+    act = pane.ButtonControl(AutomationId="bAct", searchDepth=60)
+    found = act.Exists(6, 0.5)
+    sec = pane.Control(AutomationId="view-beauty", searchDepth=30)
+    sec_cls = sec.ClassName if sec.Exists(2, 0.3) else "?"
+    if found:
+        r = act.BoundingRectangle
+        kids = act.GetChildren()
+        imgs = [k for k in kids if k.ControlTypeName == "ImageControl"]
+        log(f"  角色動作按鈕 rect={(r.left, r.top, r.right, r.bottom)} help={act.HelpText!r} 頁面={sec_cls!r} 裡面={[(k.ControlTypeName, k.Name) for k in kids]}")
+        if "active" in sec_cls and r.width() > 0 and imgs:
+            ir = imgs[0].BoundingRectangle
+            res = {}
+            # 箭頭圖示（24×24 的格子裡從 (7,10) 畫到 (12,15) 再到 (17,10)）：兩邊的線上、尖端、空白處
+            for tag, vx, vy in (("左邊的線", 9.5, 12.5), ("右邊的線", 14.5, 12.5), ("尖端", 12, 15), ("圖示空白處", 12, 8)):
+                x = ir.left + ir.width() * vx / 24
+                y = ir.top + ir.height() * vy / 24
+                move(r.left - 140, r.top - 90)
+                time.sleep(0.7)
+                hover(x, y, settle=0.0)
+                n, t0 = 0, time.time()
+                while time.time() - t0 < 2.4 and not n:
+                    time.sleep(0.25)
+                    n = len(tips_now())
+                res[tag] = bool(n)
+                if tag == "左邊的線":
+                    shot("main_tip")
+            move(r.left - 140, r.top - 90)
+            time.sleep(0.5)
+            check("主畫面有圖示的按鈕（美容美髮的「角色動作」）：滑鼠停在圖示的線條上，提示文字也會跳出來", all(res.values()), f"{res} 圖示={(ir.left, ir.top, ir.right, ir.bottom)}")
+        else:
+            log("（主畫面）角色動作按鈕沒有顯示出來，這一項不檢查")
+    else:
+        log("（主畫面）找不到角色動作按鈕，這一項不檢查")
+    # 回到首頁
+    if back is not None:
+        click(*back.center, wait=1.2)
 
 
 def s_tipdiag():
@@ -3116,6 +3289,7 @@ STEPS = [
     ("scripts", s_scripts),
     ("login", s_login),
     ("devtools", s_devtools),
+    ("refocus", s_refocus),
     ("tips", s_tipdiag),
     ("maindiag", s_maindiag),
     ("minimize", s_minimize),
