@@ -547,6 +547,122 @@ if (/mbfreeze/.test(location.hash)) setTimeout(function () {
   for (;;) {}
 }, 2500);
 """)
+if "extprobe" in ONLY_EARLY:
+    # （查問題用）跟使用者一樣的擴充功能：從 Chrome 線上應用程式商店拿，放進假的 Chrome 使用者資料夾，
+    # 程式打開瀏覽器視窗時會自動同步進來
+    import base64
+    import hashlib
+    import io
+    import zipfile
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
+    TM_ID = "dhdgffkkebhmkfjojejmpbldmpobfkfo"
+    REAL_EXTS = [TM_ID, "bgnkhhnnamicmpeenaelnjfhikgbkllg", "mnjggcdmjocbbbhaepdhchncahnbgone", "gebbhagfogifgggkldgodflihgfeippi",
+                 "cgakmbkklpmijhckpolanjijghgfpeoa", "mgojgddhfhekopdpkocobommepgdeffb", "fcoeoabgfenejglbffodgkkbkcdhcgfn",
+                 "ghbmnnjooekpmoecnnnilnnbdlolhkhi", "inomeogfingihgjfjlpeplalcfajhgai"]
+    try:
+        only_ids = open(os.path.join(HERE, "extprobe-ids.txt"), encoding="utf-8").read().split()
+        if only_ids:
+            REAL_EXTS = only_ids
+    except Exception:
+        pass
+
+    def _pb_fields(buf):
+        """很小的 protobuf 讀法：回傳 [(欄位編號, 型別, 值)]"""
+        i, out = 0, []
+        while i < len(buf):
+            key, shift = 0, 0
+            while True:
+                b = buf[i]; i += 1
+                key |= (b & 0x7F) << shift; shift += 7
+                if not b & 0x80:
+                    break
+            num, wt_ = key >> 3, key & 7
+            if wt_ == 0:
+                v, shift = 0, 0
+                while True:
+                    b = buf[i]; i += 1
+                    v |= (b & 0x7F) << shift; shift += 7
+                    if not b & 0x80:
+                        break
+                out.append((num, wt_, v))
+            elif wt_ == 2:
+                ln, shift = 0, 0
+                while True:
+                    b = buf[i]; i += 1
+                    ln |= (b & 0x7F) << shift; shift += 7
+                    if not b & 0x80:
+                        break
+                out.append((num, wt_, buf[i:i + ln])); i += ln
+            elif wt_ == 1:
+                out.append((num, wt_, buf[i:i + 8])); i += 8
+            elif wt_ == 5:
+                out.append((num, wt_, buf[i:i + 4])); i += 4
+            else:
+                break
+        return out
+
+    def _crx_id(pub):
+        return "".join(chr(ord("a") + int(c, 16)) for c in hashlib.sha256(pub).hexdigest()[:32])
+
+    pv = "150.0.0.0"
+    try:
+        out = subprocess.run(["reg", "query", r"HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}", "/v", "pv"], capture_output=True, text=True).stdout
+        pv = next((w for w in out.split() if w.count(".") == 3 and w[0].isdigit()), pv)
+    except Exception:
+        pass
+    log("extprobe：這台機器的 WebView2 版本", pv)
+    REAL_INFO = {}
+    for eid in REAL_EXTS:
+        try:
+            url = f"https://clients2.google.com/service/update2/crx?response=redirect&prodversion={pv}&acceptformat=crx2,crx3&x=id%3D{eid}%26uc"
+            req = urllib.request.Request(url, headers={"User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{pv} Safari/537.36"})
+            with urllib.request.urlopen(req, timeout=180) as r:
+                data = r.read()
+            if data[:4] != b"Cr24":
+                log("extprobe：不是 CRX", eid, len(data), data[:40])
+                continue
+            ver = struct.unpack("<I", data[4:8])[0]
+            pub = None
+            if ver == 3:
+                hlen = struct.unpack("<I", data[8:12])[0]
+                header, body = data[12:12 + hlen], data[12 + hlen:]
+                keys = []
+                for num, wt_, v in _pb_fields(header):
+                    if num in (2, 3) and wt_ == 2:
+                        for n2, w2, v2 in _pb_fields(v):
+                            if n2 == 1 and w2 == 2:
+                                keys.append(bytes(v2))
+                pub = next((k for k in keys if _crx_id(k) == eid), None)
+            elif ver == 2:
+                klen, slen = struct.unpack("<II", data[8:16])
+                pub, body = data[16:16 + klen], data[16 + klen + slen:]
+            else:
+                log("extprobe：不認得的 CRX 版本", eid, ver)
+                continue
+            z = zipfile.ZipFile(io.BytesIO(body))
+            man = json.loads(z.read("manifest.json").decode("utf-8-sig"))
+            dst = os.path.join(chrome_root, "Default", "Extensions", eid, man.get("version", "1") + "_0")
+            os.makedirs(dst, exist_ok=True)
+            z.extractall(dst)
+            if pub is not None and "key" not in man:
+                man["key"] = base64.b64encode(pub).decode()
+                with open(os.path.join(dst, "manifest.json"), "w", encoding="utf-8") as f:
+                    json.dump(man, f, ensure_ascii=False)
+            REAL_INFO[eid] = {"name": man.get("name"), "version": man.get("version"), "mv": man.get("manifest_version"), "key": pub is not None,
+                              "perms": man.get("permissions"), "opt": man.get("optional_permissions"), "bg": man.get("background"),
+                              "action": (man.get("action") or man.get("browser_action") or {}).get("default_popup"),
+                              "options": man.get("options_page") or (man.get("options_ui") or {}).get("page"), "side": man.get("side_panel"),
+                              "min": man.get("minimum_chrome_version"), "cs": len(man.get("content_scripts") or [])}
+            log("extprobe：放好", eid, len(data), json.dumps(REAL_INFO[eid], ensure_ascii=False)[:700])
+        except Exception as e:
+            log("extprobe：拿不到", eid, repr(e)[:300])
+    try:
+        pref = os.path.join(chrome_root, "Default", "Preferences")
+        if not os.path.exists(pref):
+            with open(pref, "w", encoding="utf-8") as f:
+                json.dump({"extensions": {"pinned_extensions": [TM_ID]}}, f)
+    except Exception as e:
+        log("extprobe：Preferences 寫不了", e)
 if "xcom" in ONLY_EARLY:
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=*"
     log("xcom：打開瀏覽器元件的偵錯埠")
@@ -3725,6 +3841,320 @@ def s_notitle():
     home()
 
 
+class CDPB:
+    """（查問題用）接到整個瀏覽器的偵錯埠：可以看所有的分頁、擴充功能的背景程式"""
+
+    def __init__(self, ws_url):
+        self.ws = websocket.create_connection(ws_url, timeout=8, suppress_origin=True)
+        self.n = 0
+        self.events = []
+        self.sessions = {}
+
+    def _recv(self):
+        try:
+            self.ws.settimeout(0.5)
+            return json.loads(self.ws.recv())
+        except websocket.WebSocketTimeoutException:
+            return None
+
+    def call(self, method, params=None, session=None, wait=12):
+        self.n += 1
+        i = self.n
+        msg = {"id": i, "method": method, "params": params or {}}
+        if session:
+            msg["sessionId"] = session
+        self.ws.send(json.dumps(msg))
+        end = time.time() + wait
+        while time.time() < end:
+            m = self._recv()
+            if m is None:
+                continue
+            if m.get("id") == i:
+                return m
+            self.events.append((time.time(), m))
+        return None
+
+    def pump(self, secs):
+        end = time.time() + secs
+        while time.time() < end:
+            m = self._recv()
+            if m is not None:
+                self.events.append((time.time(), m))
+
+    def targets(self):
+        r = self.call("Target.getTargets")
+        try:
+            return r["result"]["targetInfos"]
+        except Exception:
+            return []
+
+    def attach(self, target_id):
+        if target_id in self.sessions:
+            return self.sessions[target_id]
+        r = self.call("Target.attachToTarget", {"targetId": target_id, "flatten": True})
+        try:
+            sid = r["result"]["sessionId"]
+        except Exception:
+            log("  接不上", target_id, r)
+            return None
+        self.sessions[target_id] = sid
+        return sid
+
+    def ev(self, session, expr, wait=15):
+        """執行一段程式（可以是 Promise），結果轉成 Python 的值；出錯回傳 'ERR …'"""
+        code = "(async () => { try { const v = await (" + expr + "); return JSON.stringify(v === undefined ? '__undefined__' : v); } catch (e) { return JSON.stringify('ERR ' + ((e && (e.message || String(e))) || e)); } })()"
+        r = self.call("Runtime.evaluate", {"expression": code, "returnByValue": True, "awaitPromise": True}, session, wait)
+        try:
+            res = r["result"]
+            if "exceptionDetails" in res:
+                d = res["exceptionDetails"]
+                return "EXC " + str(d.get("text")) + " " + str((d.get("exception") or {}).get("description", ""))[:300]
+            v = res["result"].get("value")
+            return json.loads(v) if isinstance(v, str) else res["result"]
+        except Exception:
+            return "NORESULT " + str(r)[:300]
+
+    def drain(self, session=None):
+        """到目前為止收到的錯誤訊息（console.error、例外）"""
+        out = []
+        for t, m in self.events:
+            if session and m.get("sessionId") != session:
+                continue
+            me, pr = m.get("method"), m.get("params", {})
+            if me == "Runtime.exceptionThrown":
+                d = pr.get("exceptionDetails", {})
+                out.append(f"exception {d.get('text')} {(d.get('exception') or {}).get('description', '')[:300]} @{str(d.get('url'))[-60:]}:{d.get('lineNumber')}")
+            elif me == "Runtime.consoleAPICalled" and pr.get("type") in ("error", "warning", "assert"):
+                out.append(f"console.{pr.get('type')} " + " ".join(str(a.get("value", a.get("description", "")))[:240] for a in pr.get("args", [])[:5]))
+            elif me == "Log.entryAdded":
+                e = pr.get("entry", {})
+                if e.get("level") in ("error", "warning"):
+                    out.append(f"log.{e.get('level')} [{e.get('source')}] {str(e.get('text'))[:300]} {str(e.get('url') or '')[-80:]}")
+        self.events = [(t, m) for t, m in self.events if session and m.get("sessionId") != session]
+        return out
+
+    def close(self):
+        try:
+            self.ws.close()
+        except Exception:
+            pass
+
+
+def s_extprobe():
+    """（查問題用）跟使用者一樣的擴充功能在程式的瀏覽器裡：哪些功能能用、哪些不能"""
+    TM = TM_ID
+    home()
+    ensure_web_fg()
+    click_blank(0.5)
+    time.sleep(6)
+    try:
+        log("  web-ext.json：", json.dumps(json.load(open(os.path.join(data_dir, "web-ext.json"), encoding="utf-8")), ensure_ascii=False)[:3000])
+    except Exception as e:
+        log("  web-ext.json 讀不到", e)
+    log("  一開始的分頁：", [t["title"] for t in tabs_info()])
+    log("  一開始的視窗：", [(title(h), cls(h), proc_name(pid_of(h)), wrect(h)) for h in top_windows() if user32.IsWindowVisible(h)][:20])
+    shot("extprobe_start")
+    port = None
+    for f, pt in app_cdp_ports():
+        log("  偵錯埠檔案：", f, pt)
+        if "web-profile" in f.replace("\\", "/"):
+            port = pt
+    if port is None:
+        check("extprobe：接得上瀏覽器的偵錯埠", False, f"{app_cdp_ports()}")
+        return
+    ver = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5).read().decode("utf-8", "replace"))
+    log("  瀏覽器：", json.dumps(ver, ensure_ascii=False)[:500])
+    b = CDPB(ver["webSocketDebuggerUrl"])
+
+    def tlist(tag):
+        ts = b.targets()
+        log(f"  [{tag}] 偵錯目標 {len(ts)} 個：")
+        for t in ts:
+            log(f"      {t.get('type'):16} {t.get('targetId')[:8]} att={t.get('attached')} {t.get('url', '')[:110]} | {t.get('title', '')[:40]}")
+        return ts
+
+    def snap_state(tag):
+        ts = b.targets()
+        tabs = [t["title"] for t in tabs_info()]
+        wins = [(title(h), cls(h), proc_name(pid_of(h))) for h in top_windows() if user32.IsWindowVisible(h)]
+        log(f"  [{tag}] 分頁：{tabs}")
+        log(f"  [{tag}] 視窗：{wins[:14]}")
+        return {"targets": {t["targetId"]: t for t in ts}, "tabs": tabs, "wins": wins}
+
+    def diff(tag, before, after):
+        new_t = [t for i, t in after["targets"].items() if i not in before["targets"]]
+        gone_t = [t for i, t in before["targets"].items() if i not in after["targets"]]
+        log(f"  [{tag}] 多出來的偵錯目標：", [(t.get("type"), t.get("url", "")[:100]) for t in new_t], "不見的：", [(t.get("type"), t.get("url", "")[:80]) for t in gone_t])
+        log(f"  [{tag}] 分頁 {len(before['tabs'])} → {len(after['tabs'])}：{after['tabs']}")
+        nw = [w for w in after["wins"] if w not in before["wins"]]
+        if nw:
+            log(f"  [{tag}] 多出來的視窗：", nw)
+        return new_t
+
+    def sw_of(eid, wake=True):
+        """擴充功能的背景程式（service worker 或背景頁）"""
+        for _ in range(2):
+            for t in b.targets():
+                if t.get("url", "").startswith(f"chrome-extension://{eid}/") and t.get("type") in ("service_worker", "background_page"):
+                    return t
+            if not wake:
+                break
+            time.sleep(1.5)
+        return None
+
+    ts = tlist("一開始")
+    json.dump(ts, open(os.path.join(OUT, "ext_targets.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    # ---- 每個擴充功能的背景程式：在不在、能用哪些功能 ----
+    for eid in REAL_EXTS:
+        info = REAL_INFO.get(eid, {})
+        t = sw_of(eid, wake=False)
+        if t is None:
+            log(f"  [{info.get('name')}] {eid}：沒有背景程式在跑")
+            continue
+        sid = b.attach(t["targetId"])
+        if not sid:
+            continue
+        r = b.ev(sid, "({type: typeof window === 'undefined' ? 'worker' : 'page', apis: Object.keys(chrome).sort().join(','), ver: chrome.runtime.getManifest().version, name: chrome.runtime.getManifest().name, us: typeof chrome.userScripts, tabs: typeof chrome.tabs, incog: chrome.extension && chrome.extension.inIncognitoContext})")
+        log(f"  [{info.get('name')}] {eid} {t.get('type')}：", json.dumps(r, ensure_ascii=False)[:900])
+    # ---- 篡改猴的背景程式 ----
+    t = sw_of(TM)
+    if t is None:
+        check("extprobe：篡改猴的背景程式在跑", False, "找不到")
+        b.close()
+        return
+    sw = b.attach(t["targetId"])
+    for d in ("Runtime", "Log"):
+        b.call(d + ".enable", session=sw)
+    b.pump(1.5)
+    log("  篡改猴背景程式的錯誤訊息：", b.drain(sw)[:12])
+    Q = "chrome.tabs.query({}).then(ts => ts.map(t => ({id: t.id, w: t.windowId, a: t.active, i: t.index, st: t.status, u: (t.url || '').slice(0, 70), ti: (t.title || '').slice(0, 24)})))"
+    log("  tabs.query({})：", json.dumps(b.ev(sw, Q), ensure_ascii=False)[:2500])
+    log("  tabs.query({active:true})：", json.dumps(b.ev(sw, "chrome.tabs.query({active: true}).then(ts => ts.map(t => [t.id, t.windowId, (t.url || '').slice(0, 60)]))"), ensure_ascii=False)[:1200])
+    log("  tabs.query({active:true,currentWindow:true})：", json.dumps(b.ev(sw, "chrome.tabs.query({active: true, currentWindow: true}).then(ts => ts.map(t => [t.id, t.windowId, (t.url || '').slice(0, 60)]))"), ensure_ascii=False)[:1200])
+    log("  tabs.query({active:true,lastFocusedWindow:true})：", json.dumps(b.ev(sw, "chrome.tabs.query({active: true, lastFocusedWindow: true}).then(ts => ts.map(t => [t.id, t.windowId, (t.url || '').slice(0, 60)]))"), ensure_ascii=False)[:1200])
+    log("  windows.getAll：", json.dumps(b.ev(sw, "chrome.windows.getAll({populate: false}).then(ws => ws.map(w => ({id: w.id, f: w.focused, t: w.type, s: w.state, x: w.left, y: w.top, w: w.width, h: w.height})))"), ensure_ascii=False)[:1500])
+    log("  windows.getLastFocused：", json.dumps(b.ev(sw, "chrome.windows.getLastFocused().then(w => ({id: w.id, f: w.focused, t: w.type}))"), ensure_ascii=False)[:300])
+    log("  userScripts（一開始）：", json.dumps(b.ev(sw, "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"), ensure_ascii=False))
+    log("  permissions：", json.dumps(b.ev(sw, "chrome.permissions.getAll()"), ensure_ascii=False)[:900])
+
+    # ---- 擴充功能要開分頁、視窗時會怎樣 ----
+    def act(tag, expr, settle=3.5):
+        before = snap_state(tag + " 之前")
+        r = b.ev(sw, expr)
+        log(f"  [{tag}] 回傳：", json.dumps(r, ensure_ascii=False)[:500])
+        time.sleep(settle)
+        b.pump(0.5)
+        after = snap_state(tag + " 之後")
+        new_t = diff(tag, before, after)
+        errs = b.drain(sw)
+        if errs:
+            log(f"  [{tag}] 背景程式的錯誤訊息：", errs[:8])
+        shot("extprobe_" + tag)
+        return r, before, after, new_t
+
+    T2 = "(t => ({id: t.id, w: t.windowId, a: t.active, u: t.url, pu: t.pendingUrl, st: t.status}))"
+    act("tabs_create_http", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=1'}}).then({T2})")
+    act("tabs_create_http_bg", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=bg', active: false}}).then({T2})")
+    act("tabs_create_ext", f"chrome.tabs.create({{url: chrome.runtime.getURL('options.html') + '#nav=dashboard'}}).then({T2})", settle=5)
+    act("windows_create", "chrome.windows.create({url: 'http://127.0.0.1:8765/snap.html?wincreate=1', type: 'popup', width: 420, height: 320}).then(w => ({id: w.id, t: w.type, tabs: (w.tabs || []).map(x => x.id)}))")
+    act("openOptionsPage", "chrome.runtime.openOptionsPage().then(() => 'ok')", settle=5)
+    act("action_openPopup", "chrome.action.openPopup().then(() => 'ok')")
+    log("  之後的 tabs.query({})：", json.dumps(b.ev(sw, Q), ensure_ascii=False)[:3000])
+
+    # ---- 瀏覽器自己的擴充功能管理頁（edge://extensions）開不開得起來 ----
+    r = b.call("Target.createTarget", {"url": "edge://extensions/"})
+    log("  Target.createTarget(edge://extensions/)：", json.dumps(r, ensure_ascii=False)[:400])
+    time.sleep(3)
+    tlist("createTarget 之後")
+    mgmt = None
+    for t in b.targets():
+        if t.get("type") == "page" and (t.get("url", "").startswith("edge://extensions") or t.get("url", "").startswith("chrome://extensions")):
+            mgmt = b.attach(t["targetId"])
+            break
+    if mgmt is None:
+        # 借一個分頁用：把 Example 那個分頁導過去
+        ex = next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").startswith("https://example.com")), None)
+        if ex is None:
+            ex = next((t for t in b.targets() if t.get("type") == "page" and "snap.html" in t.get("url", "")), None)
+        if ex is not None:
+            mgmt = b.attach(ex["targetId"])
+            for u in ("edge://extensions/", "chrome://extensions/"):
+                r = b.call("Page.navigate", {"url": u}, mgmt)
+                log(f"  Page.navigate({u})：", json.dumps(r, ensure_ascii=False)[:400])
+                time.sleep(4)
+                st = b.ev(mgmt, "({href: location.href, title: document.title, dp: typeof chrome.developerPrivate, mg: typeof chrome.management, text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 300)})")
+                log(f"  {u} 之後：", json.dumps(st, ensure_ascii=False)[:800])
+                if isinstance(st, dict) and st.get("dp") == "object":
+                    break
+    shot("extprobe_mgmt")
+    st = b.ev(mgmt, "({href: location.href, title: document.title, dp: typeof chrome.developerPrivate, text: (document.body ? document.body.innerText : '').replace(/\\s+/g, ' ').slice(0, 400)})") if mgmt else None
+    log("  管理頁：", json.dumps(st, ensure_ascii=False)[:900])
+    has_dp = isinstance(st, dict) and st.get("dp") == "object"
+    check("extprobe：瀏覽器自己的擴充功能管理頁開得起來、有管理用的功能", has_dp, json.dumps(st, ensure_ascii=False)[:200])
+    US = "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"
+
+    def tm_sw():
+        t = sw_of(TM)
+        return b.attach(t["targetId"]) if t else None
+
+    if has_dp:
+        P = lambda call: "new Promise((res) => { try { " + call + " } catch (e) { res('THROW ' + e.message); } })"
+        infos = b.ev(mgmt, P("chrome.developerPrivate.getExtensionsInfo({includeDisabled: true, includeTerminated: true}, (l) => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : l.map(i => ({id: i.id, name: i.name, state: i.state, usa: i.userScriptsAccess, loc: i.location, ver: i.version, err: (i.manifestErrors || []).length + '/' + (i.runtimeErrors || []).length, warn: i.installWarnings, dis: i.disableReasons, inc: i.incognitoAccess && i.incognitoAccess.isActive, file: i.fileAccess && i.fileAccess.isActive, host: i.permissions && i.permissions.runtimeHostPermissions && i.permissions.runtimeHostPermissions.hostAccess}))));"))
+        log("  developerPrivate.getExtensionsInfo：")
+        for i in (infos if isinstance(infos, list) else [infos]):
+            log("      ", json.dumps(i, ensure_ascii=False)[:600])
+        log("  getProfileConfiguration：", json.dumps(b.ev(mgmt, P("chrome.developerPrivate.getProfileConfiguration((c) => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : c));")), ensure_ascii=False)[:500])
+        # 1. 只開「允許使用者腳本」
+        r = b.ev(mgmt, P(f"chrome.developerPrivate.updateExtensionConfiguration({{extensionId: '{TM}', userScriptsAccess: true}}, () => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : 'ok'));"))
+        log("  updateExtensionConfiguration(userScriptsAccess: true)：", r)
+        time.sleep(2)
+        s2 = tm_sw()
+        log("  userScripts（開了允許使用者腳本之後）：", json.dumps(b.ev(s2, US), ensure_ascii=False) if s2 else "背景程式不見了")
+        infos = b.ev(mgmt, P(f"chrome.developerPrivate.getExtensionInfo('{TM}', (i) => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : {{usa: i.userScriptsAccess, state: i.state}}));"))
+        log("  篡改猴現在的狀態：", json.dumps(infos, ensure_ascii=False)[:300])
+        # 2. 還不行的話：再開開發人員模式
+        r0 = b.ev(s2, US) if s2 else None
+        if not (isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")):
+            r = b.ev(mgmt, P("chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode: true}, () => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : 'ok'));"))
+            log("  updateProfileConfiguration(inDeveloperMode: true)：", r)
+            time.sleep(2)
+            s2 = tm_sw()
+            log("  userScripts（再開開發人員模式之後）：", json.dumps(b.ev(s2, US), ensure_ascii=False) if s2 else "背景程式不見了")
+        # 3. 還不行：重新載入篡改猴
+        r0 = b.ev(s2, US) if s2 else None
+        if not (isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")):
+            r = b.ev(mgmt, P(f"chrome.developerPrivate.reload('{TM}', {{failQuietly: true}}, () => res(chrome.runtime.lastError ? 'LASTERR ' + chrome.runtime.lastError.message : 'ok'));"))
+            log("  developerPrivate.reload(篡改猴)：", r)
+            time.sleep(5)
+            b.sessions.clear()
+            s2 = tm_sw()
+            log("  userScripts（重新載入之後）：", json.dumps(b.ev(s2, US), ensure_ascii=False) if s2 else "背景程式不見了")
+        r0 = b.ev(s2, US) if s2 else None
+        ok_us = isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")
+        check("extprobe：篡改猴拿得到「使用者腳本」功能", ok_us, json.dumps(r0, ensure_ascii=False)[:200])
+        if ok_us:
+            # 真的註冊一個小腳本，看網頁上會不會執行
+            reg = b.ev(s2, "chrome.userScripts.register([{id: 'mbprobe', matches: ['http://127.0.0.1/*'], js: [{code: \"fetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[uscript] ran ' + location.pathname + location.search + ' world=' + (typeof GM_info)))\"}], runAt: 'document_start', world: 'MAIN'}]).then(() => 'registered')")
+            log("  userScripts.register：", reg)
+            t0 = time.time()
+            ensure_web_fg()
+            chord([VK_CTRL], 0x54, wait=1.5)
+            type_text("http://127.0.0.1:8765/snap.html?uscript=1")
+            key(0x2E)
+            key(VK_ENTER)
+            time.sleep(4)
+            ran = [l for l in page_log_since(t0) if "[uscript]" in l]
+            log("  註冊的小腳本有沒有在網頁上執行：", ran)
+            check("extprobe：用「使用者腳本」功能註冊的腳本會在網頁上執行", bool(ran), f"{ran}")
+            log("  userScripts.unregister：", b.ev(s2, "chrome.userScripts.unregister({ids: ['mbprobe']}).then(() => 'ok')"))
+    b.pump(0.5)
+    log("  最後的偵錯目標：")
+    tlist("最後")
+    snap_state("最後")
+    b.close()
+    shot("extprobe_end")
+
+
 def s_notepad():
     np_proc = subprocess.Popen(["notepad.exe"])
     np = wait_for(lambda: next((h for h in top_windows() if pid_of(h) == np_proc.pid and user32.IsWindowVisible(h)), 0), 10)
@@ -3998,6 +4428,8 @@ if "xprobe" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xprobe", s_xprobe))
 if "xuser" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xuser", s_xuser))
+if "extprobe" in ONLY:
+    STEPS.insert(len(STEPS) - 2, ("extprobe", s_extprobe))
 for name, fn in STEPS:
     if ONLY and name not in ONLY and name not in ("start", "close"):
         continue
