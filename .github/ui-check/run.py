@@ -2829,40 +2829,36 @@ def s_xuser():
     shot("xuser_frozen_12s")
     txt = page_text()
     log("  [卡死] 12 秒時網頁上的文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:300])
-    # 卡死之後把視窗放大：畫面應該停在舊的大小（使用者的截圖就是這個樣子）
-    user32.ShowWindow(web, 3)
-    time.sleep(2.5)
-    shot("xuser_frozen_maximized")
-    user32.ShowWindow(web, 9)
-    time.sleep(16)
+    time.sleep(18)
     shot("xuser_frozen_30s")
     new = sorted(reports() - before)
     check("診斷腳本（卡死）：卡死的那一頁存不了報告（預期中）", len(new) == 0, f"{[os.path.basename(x) for x in new]}")
-    # 再開一個新分頁：一開始就把上一次的記錄存下來
+    # 卡死的分頁還開著：開新分頁到 x.com/robots.txt，把上一次卡住的記錄拿出來
     before = reports()
     ensure_web_fg()
     chord([VK_CTRL], 0x54, wait=1.5)
-    type_text("https://x.com/")
+    type_text("x.com/robots.txt")
     key(0x2E)
     key(VK_ENTER)
-    time.sleep(5)
-    shot("xuser_after_frozen_5s")
+    time.sleep(7)
+    shot("xuser_robots")
+    txt = page_text()
+    lines = [x.strip() for x in txt.splitlines() if x.strip()]
+    log("  [robots] 網頁上的文字：", " | ".join(lines)[:600])
     early = sorted(reports() - before)
-    log("  [卡死之後] 5 秒時「下載」裡多出來的：", [os.path.basename(x) for x in early])
+    log("  [robots]「下載」裡多出來的：", [os.path.basename(x) for x in early])
     prev_ok = False
     for f in early:
         try:
             shutil.copyfile(f, os.path.join(OUT, "xuser_prev.txt"))
             rep = json.loads(open(f, encoding="utf-8").read())
-            pv = rep.get("上次沒跑完") or {}
-            log("  [卡死之後] 上一次的記錄：", json.dumps(pv, ensure_ascii=False)[:1800])
+            pv = (rep.get("上次沒跑完") or [{}])[0]
+            log("  [robots] 上一次的記錄：", json.dumps(pv, ensure_ascii=False)[:2200])
             prev_ok = "webgl.getParameter" in str(pv.get("最後正在做")) and bool(pv.get("看門狗"))
         except Exception as e:
-            log("  [卡死之後] 讀不了：", repr(e))
-    check("診斷腳本（卡死之後再開一次）：上一次停在哪裡有記下來、有自動存檔", prev_ok, f"{[os.path.basename(x) for x in early]}")
-    time.sleep(22)
-    shot("xuser_after_frozen")
-    collect("卡死之後", before)
+            log("  [robots] 讀不了：", repr(e))
+    check("診斷腳本（卡死之後開 x.com/robots.txt）：上一次停在哪裡有記下來、有自動存檔", prev_ok, f"{[os.path.basename(x) for x in early]}")
+    check("診斷腳本（x.com/robots.txt）：小視窗寫著記錄已存好", any("上一次卡住的記錄已存到" in x for x in lines), " | ".join(x for x in lines if "記錄" in x)[:300])
     restore_tabs(keep)
     home()
     # ---- 無痕式視窗 ----

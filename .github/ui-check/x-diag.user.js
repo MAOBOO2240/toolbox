@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X 診斷（工具箱）
 // @namespace    maoboo-diag
-// @version      2
+// @version      3
 // @description  查 x.com 為什麼停在標誌：記下網頁在等哪些東西，20 秒後把報告存到「下載」。只記技術資訊，不記帳號密碼、Cookie 內容、貼文內容。查完請刪除。
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -16,42 +16,203 @@
   window.__mbUser = true;
   window.__mbRaw = true;   // 不改網頁的 Worker
   window.__mbLite = true;  // 不換掉 Blob
-  var VER = 'v2';
+  var VER = 'v3';
   var T0 = performance.now();
   var now = function () { return Math.round(performance.now() - T0); };
   var short = function (u) { try { return String(u).replace(/^https?:\/\//, '').split('?')[0].split('#')[0].slice(0, 96); } catch (_) { return '?'; } };
+  // 只讀模式：x.com/robots.txt 這種很輕的頁面，只負責把「上一次卡住的記錄」拿出來存檔
+  var READ_ONLY = /^\/robots\.txt$/.test(location.pathname) || (!!document.contentType && document.contentType !== 'text/html');
 
-  /* ---------- 黑盒子：每做一件事就記在這個網站的儲存空間，網頁整個卡死的話，下次開啟時看得到上次停在哪 ---------- */
-  var KEY = '__mbdiag_bb';
-  var LSset = Storage.prototype.setItem, LSget = Storage.prototype.getItem, LSrem = Storage.prototype.removeItem;
-  var lsSet = function (k, v) { try { LSset.call(localStorage, k, v); } catch (_) {} };
-  var lsState = 'ok', prev = null;
+  var host = '不是在工具箱的瀏覽器裡';
+  try { if (typeof GM_info !== 'undefined' && GM_info) host = String(GM_info.scriptHandler) + ' ' + String(GM_info.version || ''); } catch (_) {}
+  var uaFull = {};
   try {
-    var rawPrev = LSget.call(localStorage, KEY);
-    if (rawPrev) prev = JSON.parse(rawPrev);
-  } catch (e) { lsState = String(e).slice(0, 80); }
-  if (prev && (prev.done || !prev.at || Date.now() - prev.at > 30 * 60000)) prev = null;
-  var CUR = '__mbdiag_cur';
-  var prevCur = null;
-  try { prevCur = LSget.call(localStorage, CUR); } catch (_) {}
-  if (prev) prev.cur = prevCur;
-  var bb = { id: Date.now().toString(36), at: Date.now(), href: short(location.href), hb: 0, marks: [], tl: [], counts: {}, done: false };
-  var bbSave = function () { try { bb.vis = document.visibilityState + (document.hasFocus() ? ' 有焦點' : ' 沒焦點'); } catch (_) {} lsSet(KEY, JSON.stringify(bb)); };
+    if (navigator.userAgentData) navigator.userAgentData.getHighEntropyValues(['uaFullVersion', 'fullVersionList', 'platformVersion', 'architecture']).then(function (v) {
+      uaFull = { 完整版本: v.uaFullVersion, 清單: (v.fullVersionList || []).map(function (b) { return b.brand + ' ' + b.version; }).join(', '), Windows: v.platformVersion, 架構: v.architecture };
+    }, function () {});
+  } catch (_) {}
+
+  /* ---------- 右下角的小視窗（最先放上去：之後網頁就算整個卡死，也看得到上面的字） ---------- */
+  var panel = null, statusEl = null, detailEl = null, closed = false, statusFixed = '', savedPrev = '', hint = true;
+  var detail = function () {
+    if (!detailEl) return;
+    var t = '';
+    if (savedPrev) t += '上一次卡住的記錄已存到「下載」（' + savedPrev + '）。\n';
+    try { if (prevs.length) t += prevLine(); } catch (_) {}
+    if (hint && !READ_ONLY) t += '如果上面的秒數停住不動，就是網頁卡住了：\n請關掉這個分頁，再開新分頁前往 x.com/robots.txt';
+    if (detailEl.textContent !== t) detailEl.textContent = t;
+  };
+  var mk = function (tag, css, text) { var el = document.createElement(tag); el.style.cssText = css; if (text) el.textContent = text; return el; };
+  var mount = function () {
+    if (closed || !document.documentElement) return;
+    if (panel) { if (!panel.isConnected) { try { document.documentElement.appendChild(panel); } catch (_) {} } return; }
+    panel = mk('div', 'position:fixed;right:14px;bottom:14px;z-index:2147483647;width:420px;max-width:90vw;background:#fff;color:#111;font:13px/1.55 "Microsoft JhengHei","PingFang TC",sans-serif;border:2px solid #1d9bf0;border-radius:12px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.55);text-align:left;letter-spacing:0');
+    panel.appendChild(mk('div', 'font-weight:700;font-size:14px;margin-bottom:2px', '工具箱：X 診斷'));
+    statusEl = mk('div', 'color:#333', READ_ONLY ? '正在找上一次卡住的記錄…' : '剛開始');
+    panel.appendChild(statusEl);
+    detailEl = mk('div', 'color:#555;font-size:12px;margin-top:4px;white-space:pre-wrap;word-break:break-all;max-height:170px;overflow:auto', '');
+    panel.appendChild(detailEl);
+    document.documentElement.appendChild(panel);
+    detail();
+  };
+  if (document.documentElement) mount();
+  else { try { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); mount(); } }); mo.observe(document, { childList: true }); } catch (_) {} }
+
+  /* ---------- 黑盒子：每做一件事就記在這個網站的儲存空間；網頁整個卡死的話，之後開別的頁面時讀得到它停在哪 ---------- */
+  var BBP = '__mbdiag_bb_', CUP = '__mbdiag_cur_';
+  var LSset = Storage.prototype.setItem, LSget = Storage.prototype.getItem, LSrem = Storage.prototype.removeItem, LSkey = Storage.prototype.key;
+  var LS = null, lsState = 'ok';
+  try { LS = window.localStorage; LS.length; } catch (e) { LS = null; lsState = String(e).slice(0, 80); }
+  var lsSet = function (k, v) { try { if (LS) LSset.call(LS, k, v); } catch (_) {} };
+  var lsDel = function (k) { try { if (LS) LSrem.call(LS, k); } catch (_) {} };
+  var prevs = [];
+  try {
+    if (LS) {
+      var keys = [];
+      for (var i = 0; i < LS.length; i++) { var k0 = LSkey.call(LS, i); if (k0 && k0.indexOf(BBP) === 0) keys.push(k0); }
+      keys.forEach(function (k) {
+        var o = null;
+        try { o = JSON.parse(LSget.call(LS, k)); } catch (_) {}
+        if (!o || !o.id || !o.at || Date.now() - o.at > 30 * 60000) { lsDel(k); if (o && o.id) lsDel(CUP + o.id); return; }
+        if (Date.now() - (o.hbAt || o.at) < 4000) return;  // 別的分頁還在跑的
+        try { o.cur = LSget.call(LS, CUP + o.id); } catch (_) {}
+        prevs.push(o);
+      });
+      prevs.sort(function (a, b) { return b.at - a.at; });
+      prevs = prevs.slice(0, 3);
+    }
+  } catch (e) { lsState = '讀黑盒子失敗 ' + String(e).slice(0, 60); }
+  var wdMap = {};
+  try {
+    var rq = indexedDB.open('__mbdiag_wd', 1);
+    rq.onupgradeneeded = function () { try { rq.result.createObjectStore('kv'); } catch (_) {} };
+    rq.onsuccess = function () {
+      try {
+        var left = prevs.length;
+        if (!left) { rq.result.close(); return; }
+        var st = rq.result.transaction('kv', 'readonly').objectStore('kv');
+        prevs.forEach(function (p) {
+          var g = st.get('wd:' + p.id);
+          g.onsuccess = function () { if (g.result) wdMap[p.id] = g.result; if (--left === 0) { try { rq.result.close(); } catch (_) {} } };
+          g.onerror = function () { if (--left === 0) { try { rq.result.close(); } catch (_) {} } };
+        });
+      } catch (_) {}
+    };
+  } catch (_) {}
+  var prevInfo = function () {
+    if (!prevs.length) return null;
+    return prevs.map(function (p) {
+      var o = { 幾秒前開始: Math.round((Date.now() - p.at) / 1000), 網址: p.href, 最後有反應的毫秒: p.hb, 當時看得見與焦點: p.vis, 最後正在做: p.cur, 最後做的事: p.marks, 畫面變化: p.tl, 呼叫次數: p.counts };
+      var w = wdMap[p.id];
+      if (w) o.看門狗 = { 主執行緒最後有反應的毫秒: w.mainLast - p.at, 另一條執行緒活到毫秒: w.workerNow - p.at };
+      return o;
+    });
+  };
+  var prevLine = function () {
+    var p = prevs[0];
+    return '找到上一次卡住的記錄（' + Math.round((Date.now() - p.at) / 1000) + ' 秒前開始），停在第 ' + p.hb + ' 毫秒，當時正在做：' + String(p.cur || '?').split('|').slice(1, 2).join('') + '\n';
+  };
+
+  /* ---------- 存檔、複製 ---------- */
+  var fileName = function (tag) { var d = new Date(); var p = function (n) { return (n < 10 ? '0' : '') + n; }; return 'x-diag-report-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + (tag ? '-' + tag : '') + '.txt'; };
+  var download = function (text, tag) {
+    try {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+      var name = fileName(tag);
+      a.download = name;
+      a.style.display = 'none';
+      (document.body || document.documentElement).appendChild(a);
+      a.click();
+      setTimeout(function () { try { a.remove(); } catch (_) {} }, 2000);
+      return name;
+    } catch (_) { return ''; }
+  };
+  var copy = function (text, btn) {
+    var ok = function () { btn.textContent = '已複製，貼給 Claude'; };
+    var fallback = function () {
+      try {
+        var ta = mk('textarea', 'position:fixed;left:0;top:0;width:10px;height:10px;opacity:.01');
+        ta.value = text;
+        (document.body || document.documentElement).appendChild(ta);
+        ta.focus(); ta.select();
+        var done = document.execCommand('copy');
+        ta.remove();
+        if (done) ok(); else btn.textContent = '複製失敗，請改按「存成檔案」';
+      } catch (_) { btn.textContent = '複製失敗，請改按「存成檔案」'; }
+    };
+    try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (_) { fallback(); }
+  };
+  var buttons = function (makeText, tag) {
+    if (!panel || panel.__btn) return;
+    panel.__btn = true;
+    var row = mk('div', 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap');
+    var css = 'cursor:pointer;border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;color:#fff;';
+    var b1 = mk('button', css + 'background:#1d9bf0', '複製報告');
+    b1.onclick = function (ev) { ev.stopPropagation(); copy(makeText('按了複製'), b1); };
+    var b2 = mk('button', css + 'background:#00ba7c', '存成檔案');
+    b2.onclick = function (ev) { ev.stopPropagation(); b2.textContent = download(makeText('按了存檔'), tag) ? '已存到「下載」' : '存不了，請改按「複製報告」'; };
+    var b3 = mk('button', css + 'background:#8b98a5', '關閉');
+    b3.onclick = function (ev) { ev.stopPropagation(); closed = true; panel.remove(); };
+    row.appendChild(b1); row.appendChild(b2); row.appendChild(b3);
+    panel.appendChild(row);
+  };
+  var prevText = function (why) {
+    return JSON.stringify({ 報告: 'MAOBOO X 診斷 ' + VER + '（上一次卡住的記錄）', 原因: why, 時間: new Date().toISOString(), 執行的地方: host, 瀏覽器: { UA: navigator.userAgent, 版本: uaFull }, 儲存空間能不能用: lsState, 上次沒跑完: prevInfo(), 這次的網址: short(location.href) }, null, 1);
+  };
+  var markReported = function () {
+    prevs.forEach(function (p) { p.rep = (p.rep || 0) + 1; var c = p.cur; delete p.cur; lsSet(BBP + p.id, JSON.stringify(p)); p.cur = c; });
+  };
+
+  if (READ_ONLY) {
+    window.__mbDiag = true;  // 後面那一大段記錄用的程式在這種頁面不用跑
+    setTimeout(function () {
+      mount();
+      if (!statusEl) return;
+      if (!prevs.length) {
+        statusEl.textContent = '沒有找到卡住的記錄。';
+        detailEl.textContent = '請先開新分頁前往 x.com 等 30 秒；如果卡住，關掉那個分頁，再回來開這一頁。' + (lsState === 'ok' ? '' : '\n（儲存空間不能用：' + lsState + '）');
+        return;
+      }
+      var saved = download(prevText('只讀模式'), 'prev');
+      markReported();
+      statusEl.textContent = saved ? '上一次卡住的記錄已存到「下載」（' + saved + '）。回去跟 Claude 說「好了」。' : '找到記錄了，但沒辦法自動存檔。請按下面的「存成檔案」或「複製報告」。';
+      detail();
+      buttons(prevText, 'prev');
+    }, 600);
+    return;
+  }
+
+  var bb = { id: Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), at: Date.now(), hbAt: Date.now(), href: short(location.href), hb: 0, vis: '', marks: [], tl: [], counts: {} };
+  var KEY = BBP + bb.id, CUR = CUP + bb.id, stopped = false;
+  var bbSave = function () {
+    if (stopped) return;
+    try { bb.vis = document.visibilityState + (document.hasFocus() ? ' 有焦點' : ' 沒焦點'); } catch (_) {}
+    bb.hbAt = Date.now();
+    lsSet(KEY, JSON.stringify(bb));
+  };
   var pushMark = function (text) {
+    if (stopped) return;
     bb.marks.push(text);
     if (bb.marks.length > 40) bb.marks.shift();
     bb.hb = now();
     bbSave();
   };
+  var bbEnd = function () { stopped = true; window.__mbOnRec = null; lsDel(KEY); lsDel(CUR); };
   window.__mbOnRec = function (e) { pushMark(e.n + ' [' + e.t + ']'); };
   bbSave();
-  lsSet(CUR, '');
 
-  /* ---------- 會讓網頁停下來等的功能：每次呼叫前先記「現在正要做這件事」，卡死的話下次就知道是哪一件 ---------- */
+  /* ---------- 會讓網頁停下來等的功能：每次呼叫前先記「現在正要做這件事」（連同是哪一段程式叫的） ---------- */
   var counts = bb.counts;
+  var where = function () {
+    try {
+      return String(new Error().stack).split('\n').slice(4, 7).map(function (l) { return l.replace(/^\s*at\s+/, '').replace(/https?:\/\/[^\/]+\/(x-web\/x-web\/assets\/|responsive-web\/client-web[^\/]*\/)?/g, '').slice(-60); }).join(' < ').slice(0, 170);
+    } catch (_) { return ''; }
+  };
   var mark = function (name) {
+    if (stopped) return;
     var c = counts[name] = (counts[name] || 0) + 1;
-    lsSet(CUR, bb.id + '|' + name + '#' + c + '|' + now());
+    lsSet(CUR, bb.id + '|' + name + '#' + c + '|' + now() + '|' + where());
     if (c <= 2) pushMark(name + (c > 1 ? '#' + c : '') + ' [' + now() + ']');
   };
   var syncWrap = function (obj, keys, label) {
@@ -80,23 +241,29 @@
   if (window.OffscreenCanvasRenderingContext2D) syncWrap(OffscreenCanvasRenderingContext2D.prototype, ['fillText', 'measureText', 'getImageData'], 'offscreen2d');
   syncWrap(HTMLCanvasElement.prototype, ['toDataURL', 'toBlob', 'transferControlToOffscreen', 'captureStream'], 'canvas');
   if (window.OffscreenCanvas) syncWrap(OffscreenCanvas.prototype, ['transferToImageBitmap', 'convertToBlob'], 'offscreen');
-  syncWrap(window, ['alert', 'confirm', 'prompt', 'print', 'open', 'openDatabase', 'showOpenFilePicker'], 'window');
+  syncWrap(window, ['alert', 'confirm', 'prompt', 'print', 'open', 'openDatabase', 'showOpenFilePicker', 'getScreenDetails', 'queryLocalFonts'], 'window');
   syncWrap(Storage.prototype, ['getItem', 'setItem', 'removeItem', 'key'], 'storage');
   syncWrap(History.prototype, ['pushState', 'replaceState', 'go', 'back'], 'history');
   syncWrap(Document.prototype, ['write', 'open', 'execCommand'], 'document');
   if (window.speechSynthesis) syncWrap(Object.getPrototypeOf(speechSynthesis), ['getVoices'], 'speech');
   syncWrap(Navigator.prototype, ['getGamepads', 'sendBeacon', 'requestMediaKeySystemAccess', 'requestMIDIAccess', 'vibrate', 'javaEnabled'], 'navigator');
   if (document.fonts) syncWrap(Object.getPrototypeOf(document.fonts), ['check'], 'fonts');
+  if (window.FontFace) syncWrap(FontFace.prototype, ['load'], 'FontFace');
   if (navigator.mediaDevices) syncWrap(Object.getPrototypeOf(navigator.mediaDevices), ['getUserMedia', 'getDisplayMedia'], 'mediaDevices');
+  if (navigator.mediaCapabilities) syncWrap(Object.getPrototypeOf(navigator.mediaCapabilities), ['decodingInfo', 'encodingInfo'], 'mediaCapabilities');
+  if (navigator.credentials) syncWrap(Object.getPrototypeOf(navigator.credentials), ['create', 'preventSilentAccess', 'store'], 'credentials');
+  if (window.PublicKeyCredential) syncWrap(PublicKeyCredential, ['isUserVerifyingPlatformAuthenticatorAvailable', 'isConditionalMediationAvailable', 'getClientCapabilities'], 'PublicKeyCredential');
   ['hid', 'usb', 'serial', 'bluetooth'].forEach(function (k) { try { if (navigator[k]) syncWrap(Object.getPrototypeOf(navigator[k]), ['getDevices', 'getPorts', 'getAvailability'], k); } catch (_) {} });
   try { if (navigator.xr) syncWrap(Object.getPrototypeOf(navigator.xr), ['isSessionSupported', 'requestSession'], 'xr'); } catch (_) {}
   if (window.MediaSource) syncWrap(MediaSource, ['isTypeSupported'], 'MediaSource');
   syncWrap(HTMLMediaElement.prototype, ['canPlayType'], 'media');
+  if (window.RTCPeerConnection) syncWrap(RTCPeerConnection.prototype, ['createDataChannel', 'createOffer', 'createAnswer', 'setLocalDescription', 'setRemoteDescription', 'addIceCandidate', 'getStats', 'close'], 'rtc');
+  if (window.performance && performance.measureUserAgentSpecificMemory) syncWrap(Object.getPrototypeOf(performance), ['measureUserAgentSpecificMemory'], 'performance');
   getWrap(Document.prototype, 'cookie', 'document.cookie');
   getWrap(Navigator.prototype, 'plugins', 'navigator.plugins');
   getWrap(Navigator.prototype, 'mimeTypes', 'navigator.mimeTypes');
   try { if (window.Notification) getWrap(Notification, 'permission', 'Notification.permission'); } catch (_) {}
-  ['RTCPeerConnection', 'AudioContext', 'OfflineAudioContext', 'SharedWorker', 'WebSocket', 'EventSource', 'BroadcastChannel', 'FontFace', 'Notification', 'PaymentRequest'].forEach(function (k) {
+  ['RTCPeerConnection', 'webkitRTCPeerConnection', 'AudioContext', 'webkitAudioContext', 'OfflineAudioContext', 'SharedWorker', 'WebSocket', 'EventSource', 'BroadcastChannel', 'FontFace', 'Notification', 'PaymentRequest'].forEach(function (k) {
     try {
       var O = window[k];
       if (typeof O !== 'function') return;
@@ -110,19 +277,7 @@
   try { var xo0 = XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open = function (m, u, a) { if (a === false) mark('同步的 XMLHttpRequest ' + short(u).slice(0, 50)); return xo0.apply(this, arguments); }; } catch (_) {}
 
   /* ---------- 看門狗：另一條執行緒每秒記一次「網頁主要的那條執行緒最後一次有反應是什麼時候」 ---------- */
-  var wdPrev = null, wd = null;
-  try {
-    var rq = indexedDB.open('__mbdiag_wd', 1);
-    rq.onupgradeneeded = function () { try { rq.result.createObjectStore('kv'); } catch (_) {} };
-    rq.onsuccess = function () {
-      try {
-        if (!prev) { rq.result.close(); return; }
-        var g = rq.result.transaction('kv', 'readonly').objectStore('kv').get('wd:' + prev.id);
-        g.onsuccess = function () { wdPrev = g.result || null; try { rq.result.close(); } catch (_) {} };
-        g.onerror = function () { try { rq.result.close(); } catch (_) {} };
-      } catch (_) {}
-    };
-  } catch (_) {}
+  var wd = null;
   try {
     var wsrc = "var last=0,run='',db=null,t0=Date.now();onmessage=function(e){if(e.data&&e.data.run)run=e.data.run;last=Date.now();};" +
       "var rq=indexedDB.open('__mbdiag_wd',1);rq.onupgradeneeded=function(){try{rq.result.createObjectStore('kv');}catch(e){}};rq.onsuccess=function(){db=rq.result;};" +
@@ -130,20 +285,12 @@
     wd = new Worker(URL.createObjectURL(new Blob([wsrc], { type: 'text/javascript' })));
     wd.postMessage({ run: bb.id });
     var wdTimer = setInterval(function () { try { wd.postMessage(1); } catch (_) {} }, 250);
+    var wdStop = function () { try { clearInterval(wdTimer); wd.terminate(); } catch (_) {} };
     setTimeout(function () {
-      try { clearInterval(wdTimer); wd.terminate(); } catch (_) {}
-      // 這一次有跑完：留下來的小記錄收乾淨
-      try { if (bb.done) { LSrem.call(localStorage, CUR); indexedDB.deleteDatabase('__mbdiag_wd'); } } catch (_) {}
+      wdStop();
+      // 這一次有跑完、也沒有別的卡住記錄：留下來的小記錄收乾淨
+      try { if (stopped && !prevs.length) indexedDB.deleteDatabase('__mbdiag_wd'); } catch (_) {}
     }, 60000);
-  } catch (_) {}
-
-  var host = '不是在工具箱的瀏覽器裡';
-  try { if (typeof GM_info !== 'undefined' && GM_info) host = String(GM_info.scriptHandler) + ' ' + String(GM_info.version || ''); } catch (_) {}
-  var uaFull = {};
-  try {
-    if (navigator.userAgentData) navigator.userAgentData.getHighEntropyValues(['uaFullVersion', 'fullVersionList', 'platformVersion', 'architecture']).then(function (v) {
-      uaFull = { 完整版本: v.uaFullVersion, 清單: (v.fullVersionList || []).map(function (b) { return b.brand + ' ' + b.version; }).join(', '), Windows: v.platformVersion, 架構: v.architecture };
-    }, function () {});
   } catch (_) {}
 
   /* ---------- 顯示卡的名稱（網頁自己問的時候順便記下來，不另外問） ---------- */
@@ -204,7 +351,8 @@
   document.addEventListener('visibilitychange', function () { visRec(document.visibilityState); });
   window.addEventListener('focus', function () { visRec('focus'); });
   window.addEventListener('blur', function () { visRec('blur'); });
-  window.addEventListener('pagehide', function () { visRec('pagehide'); bbSave(); });
+  // 正常離開這一頁（換頁、關分頁）：不算卡住，記錄收掉
+  window.addEventListener('pagehide', function () { visRec('pagehide'); bbEnd(); });
   window.addEventListener('online', function () { visRec('online'); });
   window.addEventListener('offline', function () { visRec('offline'); });
 
@@ -215,7 +363,7 @@
     if (g > maxGap) { maxGap = g; maxGapAt = t; }
     lastBeat = t;
     beats++;
-    if (beats % 4 === 0 && !bb.done) { bb.hb = t; bbSave(); }
+    if (beats % 4 === 0 && !stopped) { bb.hb = t; bbSave(); }
   }, 250);
   var longs = [];
   try {
@@ -236,7 +384,7 @@
         scripts: document.scripts.length,
       };
       snaps.push(one);
-      if (!bb.done && bb.tl.length < 12) { bb.tl.push(one.t + ':' + one.ready.slice(0, 1) + ' 元素' + one.els + ' 字' + one.txt + (one.h1 ? ' 有標題' : '') + (one.form ? ' 有表單' : '')); bbSave(); }
+      if (!stopped && bb.tl.length < 12) { bb.tl.push(one.t + ':' + one.ready.slice(0, 1) + ' 元素' + one.els + ' 字' + one.txt + (one.h1 ? ' 有標題' : '') + (one.form ? ' 有表單' : '')); bbSave(); }
     } catch (e) { snaps.push({ t: now(), err: String(e).slice(0, 60) }); }
   };
   [100, 300, 600, 1000, 1500, 2000, 3500, 6000, 10000, 15000, 19500, 40000].forEach(function (ms) { setTimeout(snap, ms); });
@@ -299,12 +447,6 @@
   setTimeout(function () { try { runSelf(); } catch (e) { tests['小測試'] = '壞掉 ' + String(e).slice(0, 80); } }, 8000);
 
   /* ---------- 報告 ---------- */
-  var prevInfo = function () {
-    if (!prev) return null;
-    var o = { 幾秒前開始: Math.round((Date.now() - prev.at) / 1000), 網址: prev.href, 最後有反應的毫秒: prev.hb, 最後正在做: prev.cur, 最後做的事: prev.marks, 畫面變化: prev.tl, 呼叫次數: prev.counts };
-    if (wdPrev) o.看門狗 = { 主執行緒最後有反應的毫秒: wdPrev.mainLast - prev.at, 另一條執行緒活到毫秒: wdPrev.workerNow - prev.at };
-    return o;
-  };
   var build = function (why) {
     var out = { 報告: 'MAOBOO X 診斷 ' + VER, 原因: why, 時間: new Date().toISOString(), 經過毫秒: now(), 網址: short(location.href) };
     var put = function (k, fn) { try { out[k] = fn(); } catch (e) { out[k] = '取不到：' + String(e).slice(0, 80); } };
@@ -368,8 +510,8 @@
     put('Cookie名稱', function () { return document.cookie.split(';').map(function (c) { return c.split('=')[0].trim(); }).filter(Boolean).slice(0, 40).join(','); });
     put('儲存空間的項目', function () {
       var ks = [];
-      for (var i = 0; i < localStorage.length && ks.length < 40; i++) { var k = localStorage.key(i); if (k !== KEY && k !== CUR) ks.push(String(k).slice(0, 48)); }
-      return { 數量: localStorage.length, 名稱: ks };
+      for (var i = 0; i < LS.length && ks.length < 40; i++) { var k = LSkey.call(LS, i); if (k.indexOf('__mbdiag') !== 0) ks.push(String(k).slice(0, 48)); }
+      return { 數量: LS.length, 名稱: ks };
     });
     put('小測試', function () { return tests; });
     put('網頁做了什麼', function () {
@@ -381,97 +523,40 @@
     return out;
   };
 
-  /* ---------- 右下角的小視窗 ---------- */
-  var panel = null, statusEl = null, detailEl = null, latest = '';
-  var mk = function (tag, css, text) { var el = document.createElement(tag); el.style.cssText = css; if (text) el.textContent = text; return el; };
-  var fileName = function (tag) { var d = new Date(); var p = function (n) { return (n < 10 ? '0' : '') + n; }; return 'x-diag-report-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + (tag ? '-' + tag : '') + '.txt'; };
-  var download = function (text, tag) {
-    try {
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-      var name = fileName(tag);
-      a.download = name;
-      a.style.display = 'none';
-      (document.body || document.documentElement).appendChild(a);
-      a.click();
-      setTimeout(function () { try { a.remove(); } catch (_) {} }, 2000);
-      return name;
-    } catch (_) { return ''; }
-  };
-  var copy = function (text, btn) {
-    var ok = function () { btn.textContent = '已複製，貼給 Claude'; };
-    var fallback = function () {
-      try {
-        var ta = mk('textarea', 'position:fixed;left:0;top:0;width:10px;height:10px;opacity:.01');
-        ta.value = text;
-        (document.body || document.documentElement).appendChild(ta);
-        ta.focus(); ta.select();
-        var done = document.execCommand('copy');
-        ta.remove();
-        if (done) ok(); else btn.textContent = '複製失敗，請改按「存成檔案」';
-      } catch (_) { btn.textContent = '複製失敗，請改按「存成檔案」'; }
-    };
-    try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (_) { fallback(); }
-  };
-  var closed = false;
-  var mount = function () {
-    if (closed || !document.documentElement) return;
-    if (panel) { if (!panel.isConnected) { try { document.documentElement.appendChild(panel); } catch (_) {} } return; }
-    panel = mk('div', 'position:fixed;right:14px;bottom:14px;z-index:2147483647;width:400px;max-width:90vw;background:#fff;color:#111;font:13px/1.55 "Microsoft JhengHei","PingFang TC",sans-serif;border:2px solid #1d9bf0;border-radius:12px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.55);text-align:left;letter-spacing:0');
-    panel.appendChild(mk('div', 'font-weight:700;font-size:14px;margin-bottom:2px', '工具箱：X 診斷中'));
-    statusEl = mk('div', 'color:#333', '剛開始');
-    panel.appendChild(statusEl);
-    detailEl = mk('div', 'color:#555;font-size:12px;margin-top:4px;white-space:pre-wrap;word-break:break-all;max-height:180px;overflow:auto', '');
-    panel.appendChild(detailEl);
-    if (prev) detailEl.textContent = '上一次沒跑完（' + Math.round((Date.now() - prev.at) / 1000) + ' 秒前），最後有反應是在第 ' + prev.hb + ' 毫秒，當時正在做：' + (prev.cur || '?') + '\n之前做的事：\n' + (prev.marks || []).slice(-6).join('\n');
-    document.documentElement.appendChild(panel);
-  };
-  var buttons = function () {
-    if (!panel || panel.__btn) return;
-    panel.__btn = true;
-    var row = mk('div', 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap');
-    var css = 'cursor:pointer;border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;color:#fff;';
-    var b1 = mk('button', css + 'background:#1d9bf0', '複製報告');
-    b1.onclick = function (ev) { ev.stopPropagation(); latest = JSON.stringify(build('按了複製'), null, 1); copy(latest, b1); };
-    var b2 = mk('button', css + 'background:#00ba7c', '存成檔案');
-    b2.onclick = function (ev) { ev.stopPropagation(); latest = JSON.stringify(build('按了存檔'), null, 1); b2.textContent = download(latest) ? '已存到「下載」' : '存不了，請改按「複製報告」'; };
-    var b3 = mk('button', css + 'background:#8b98a5', '關閉');
-    b3.onclick = function (ev) { ev.stopPropagation(); closed = true; panel.remove(); };
-    row.appendChild(b1); row.appendChild(b2); row.appendChild(b3);
-    panel.appendChild(row);
-  };
+  /* ---------- 小視窗上的字 ---------- */
+  var earlyDone = false;
   var tick = function () {
     mount();
+    detail();
     if (!statusEl) return;
-    var s = Math.round(now() / 100) / 10;
-    if (panel.__failed) return;
-    if (!panel.__done && bb.done) statusEl.textContent = '報告好了，但沒辦法自動存檔。請按下面的「存成檔案」或「複製報告」。';
-    else if (!panel.__done) statusEl.textContent = '已經 ' + s + ' 秒。20 秒時會自動把報告存到「下載」。';
-    else statusEl.textContent = '報告已存到「下載」（' + panel.__done + '）。不用做別的事，回去跟 Claude 說「好了」。';
+    if (statusFixed) { statusEl.textContent = statusFixed; return; }
+    statusEl.textContent = '已經 ' + (Math.round(now() / 100) / 10) + ' 秒。20 秒時會自動把報告存到「下載」。';
   };
-  // 一有 <html> 就放上去（之後網頁就算整個卡死，也看得到上面的字）
-  if (document.documentElement) mount();
-  else { try { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); mount(); } }); mo.observe(document, { childList: true }); } catch (_) {} }
   setInterval(tick, 500);
-  var finish = function (why, auto) {
+  var fullText = function (why) { return JSON.stringify(build(why), null, 1); };
+  // 之前有卡住的記錄：一開始就先存下來（這一次可能又會卡死）
+  if (prevs.length && prevs.some(function (p) { return (p.rep || 0) < 2; })) setTimeout(function () {
     try {
-      latest = JSON.stringify(build(why), null, 1);
-      if (auto) { var saved = download(latest); if (saved && panel) panel.__done = saved; }
-      bb.done = true;
-      bbSave();
-      window.__mbOnRec = null;
-      buttons();
-      tick();
-    } catch (e) { if (panel) panel.__failed = true; if (statusEl) statusEl.textContent = '報告做不出來：' + String(e).slice(0, 120); buttons(); }
-  };
-  if (prev && Date.now() - prev.at >= 25000) setTimeout(function () {
-    try {
-      var early = { 報告: 'MAOBOO X 診斷 ' + VER + '（上一次沒跑完的記錄）', 時間: new Date().toISOString(), 執行的地方: host, 瀏覽器: { UA: navigator.userAgent, 版本: uaFull }, 上次沒跑完: prevInfo(), 這次的網址: short(location.href) };
-      var saved = download(JSON.stringify(early, null, 1), 'prev');
-      if (saved && detailEl) detailEl.textContent = '上一次的記錄已存到「下載」（' + saved + '）。\n' + detailEl.textContent;
+      savedPrev = download(prevText('一開始'), 'prev');
+      earlyDone = !!savedPrev;
+      markReported();
+      detail();
     } catch (_) {}
-  }, 350);
-  setTimeout(function () { finish('20 秒到了', true); }, 20000);
+  }, 400);
+  var finish = function () {
+    try {
+      var text = fullText('20 秒到了');
+      bbEnd();
+      if (!earlyDone) {
+        var saved = download(text);
+        statusFixed = saved ? '報告已存到「下載」（' + saved + '）。不用做別的事，回去跟 Claude 說「好了」。' : '報告好了，但沒辦法自動存檔。請按下面的「存成檔案」或「複製報告」。';
+      } else statusFixed = '這一次沒有卡住。請按下面的「存成檔案」，把這一次的報告也存下來。';
+      hint = false;
+      buttons(fullText);
+      tick();
+    } catch (e) { bbEnd(); hint = false; statusFixed = '報告做不出來：' + String(e).slice(0, 120); buttons(fullText); tick(); }
+  };
+  setTimeout(finish, 20000);
 })();
 
 (function () {
