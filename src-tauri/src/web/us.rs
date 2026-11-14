@@ -174,10 +174,13 @@ fn sync(app: &AppHandle, vals_due: bool) {
             continue;
         }
         let Some(w) = get(&wid) else { continue };
-        for t in &w.tabs {
-            let Some(page) = app.get_webview(&page_label(&wid, &t.id)) else { continue };
+        // 分頁，加上預先建立好、還沒用到的空白網頁（之後變成分頁時，腳本和設定值要是最新的）
+        let mut tids: Vec<String> = w.tabs.iter().map(|t| t.id.clone()).collect();
+        tids.extend(spare_tids(&wid));
+        for tid in &tids {
+            let Some(page) = app.get_webview(&page_label(&wid, tid)) else { continue };
             let (need0, need1, built) = tabs(|m| {
-                let e = m.entry((wid.clone(), t.id.clone())).or_default();
+                let e = m.entry((wid.clone(), tid.clone())).or_default();
                 if e.skip || e.hold {
                     return (false, false, false);
                 }
@@ -208,7 +211,7 @@ fn sync(app: &AppHandle, vals_due: bool) {
                 }
             };
             let go: Vec<String> = if built || active { vec![boot.get_or_insert_with(|| us::boot_script(false)).clone()] } else { Vec::new() };
-            crate::dlog!("[us] 更新 {wid}-{} 的腳本登記：清單 {}（{} 段）、設定值 {}", t.id, need0, list.len(), need1);
+            crate::dlog!("[us] 更新 {wid}-{tid} 的腳本登記：清單 {}（{} 段）、設定值 {}", need0, list.len(), need1);
             with_wv(&page, move |w| {
                 if need0 {
                     webnative::gm_set_slot(w, 0, list);

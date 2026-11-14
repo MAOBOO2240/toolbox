@@ -111,6 +111,7 @@ mod webnative {
     pub fn take_new_window(_same: impl Fn(&str) -> bool) -> Option<NewWin> {
         None
     }
+    pub fn set_devtools(_w: &Wv, _on: bool) {}
     pub fn gm_post(_w: &Wv, _frame: u32, _json: &str) -> bool {
         false
     }
@@ -1525,6 +1526,10 @@ fn open_devtools(app: &AppHandle, wid: &str, tid: &str) {
 /// 回傳 false = 沒辦法這樣開（呼叫的人改用原本的方式：自己開一個分頁載入那個網址）
 #[cfg(windows)]
 fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &tauri::webview::NewWindowFeatures, mut req: webnative::NewWin) -> bool {
+    // 有預先建立好的空白網頁：直接拿來用（不用現在才建立，可以馬上回答 WebView2）
+    if linked_tab_spare(app, wid, opener, u, &req) {
+        return true;
+    }
     let env = features.opener().environment.clone();
     // 正在建立別的網頁（主執行緒一邊等一邊處理訊息時又來一個開新視窗的要求，或背景正要建立分頁）：
     // 現在再建立一個會卡死。跟 WebView2 說這個要求晚一點才回答，排著等前一個建立完
@@ -1572,6 +1577,25 @@ fn link_soon(app: &AppHandle, ms: u64) {
 /// （主執行緒）開一個排著的新分頁；還在建立別的就再等一下
 #[cfg(windows)]
 fn link_drain(app: &AppHandle) {
+    // 排最前面的那個：已經有預先建立好的空白網頁就直接用（不用等別的網頁建立完）
+    while let Some(wid) = LINK_LATER.with(|q| q.borrow().front().map(|p| p.wid.clone())) {
+        if spare_tids(&wid).is_empty() {
+            break;
+        }
+        let Some(p) = LINK_LATER.with(|q| q.borrow_mut().pop_front()) else { break };
+        let ok = get(&p.wid).is_some_and(|w| w.open) && linked_tab_spare(app, &p.wid, &p.opener, &p.url, &p.req);
+        if !ok {
+            // 用不了：放回去，照下面的方式現場建立
+            LINK_LATER.with(|q| q.borrow_mut().push_front(p));
+            break;
+        }
+        crate::dlog!("[newwin] {}：晚一點才開的 {} → true", p.wid, p.url);
+        // 這個要求到這裡算回答完了
+        drop(p);
+    }
+    if LINK_LATER.with(|q| q.borrow().is_empty()) {
+        return;
+    }
     let Some(creating) = try_creating() else {
         if LINK_LATER.with(|q| !q.borrow().is_empty()) {
             link_soon(app, 40);
@@ -1651,24 +1675,182 @@ fn linked_tab_now(app: &AppHandle, wid: &str, opener: &str, u: &Url, env: &webvi
         drop_tab(&tid);
         return false;
     }
+    linked_tab_done(app, wid, opener, &tid);
+    true
+}
+
+/// 連著的新分頁交還給 WebView2 之後的收尾：記下是誰開的、切過去、補一個預先建立好的空白網頁
+#[cfg(windows)]
+fn linked_tab_done(app: &AppHandle, wid: &str, opener: &str, tid: &str) {
     rt(|m| {
         if let Some(r) = m.get_mut(wid) {
-            r.opener.insert(tid.clone(), opener.to_string());
+            r.opener.insert(tid.to_string(), opener.to_string());
             // 從開過開發人員工具的分頁開出來的，也當成開過（開發人員工具可能會自動跟著開）
             if r.devtools.contains(opener) {
-                r.devtools.insert(tid.clone());
+                r.devtools.insert(tid.to_string());
             }
         }
     });
     // 切過去（顯示它、收起原本的、更新工具列）交給背景做。
     // 使用者腳本「帶最新設定值啟動」的那一段要等它要去的網頁載入了才登記（on_page 會放行）；
     // 一直沒載入（例如網頁開了一個空白視窗自己寫內容）就等幾秒再登記。第一份文件用建立分頁時放的那一份啟動
-    let (app, wid) = (app.clone(), wid.to_string());
+    let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
     std::thread::spawn(move || {
         let _ = select_tab(&app, &wid, &tid);
+        spare_soon(&app, &wid, 150);
         std::thread::sleep(Duration::from_secs(6));
         us::release(&app, &wid, &tid);
     });
+}
+
+/* ---------------- 預先建立好的空白網頁 ---------------- */
+
+/// 網頁（或擴充功能）要開新分頁時，要把一個「還沒載入過東西的網頁」交還給 WebView2 當成那個新視窗。
+/// 現場才建立要花零點幾秒，這段時間要是開它的那個網頁剛好換頁（或被重新整理），WebView2 自己會當掉——
+/// 整個瀏覽器元件結束、所有分頁一起變黑。所以每個視窗先建立好一個空白的放著（藏起來），
+/// 要用的時候直接拿去交還（幾乎不用等），用掉再補一個
+struct Spare {
+    tid: String,
+    wv: Webview,
+}
+
+/// (視窗編號, 預先建立好的空白網頁)
+static SPARES: Mutex<Vec<(String, Spare)>> = Mutex::new(Vec::new());
+
+fn spare_take(wid: &str) -> Option<Spare> {
+    let mut g = lock(&SPARES);
+    let i = g.iter().position(|(w, _)| w == wid)?;
+    Some(g.remove(i).1)
+}
+
+/// 這個視窗預先建立好的空白網頁的分頁編號（使用者腳本要連它們一起換成最新的）
+fn spare_tids(wid: &str) -> Vec<String> {
+    lock(&SPARES).iter().filter(|(w, _)| w == wid).map(|(_, s)| s.tid.clone()).collect()
+}
+
+/// 視窗要關了：預先建立好的也不要了（網頁本身會跟著視窗一起消失）
+fn spare_forget(app: &AppHandle, wid: &str) {
+    let gone: Vec<Spare> = {
+        let mut g = lock(&SPARES);
+        let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut *g).into_iter().partition(|(w, _)| w == wid);
+        *g = rest;
+        mine.into_iter().map(|(_, s)| s).collect()
+    };
+    for s in gone {
+        us::forget(app, wid, &s.tid);
+    }
+}
+
+/// 過一下子補一個預先建立好的空白網頁（回到主執行緒建立）
+#[cfg(windows)]
+fn spare_soon(app: &AppHandle, wid: &str, ms: u64) {
+    spare_retry(app, wid, ms, 0);
+}
+
+#[cfg(not(windows))]
+fn spare_soon(_app: &AppHandle, _wid: &str, _ms: u64) {}
+
+#[cfg(windows)]
+fn spare_retry(app: &AppHandle, wid: &str, ms: u64, tries: u32) {
+    let (app, wid) = (app.clone(), wid.to_string());
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(ms));
+        let (a, w) = (app.clone(), wid.clone());
+        let _ = app.run_on_main_thread(move || spare_make(&a, &w, tries));
+    });
+}
+
+/// （主執行緒）建立一個空白網頁放著：放在看不到的地方、藏起來、不拿鍵盤
+#[cfg(windows)]
+fn spare_make(app: &AppHandle, wid: &str, tries: u32) {
+    if !get(wid).is_some_and(|w| w.open) || !spare_tids(wid).is_empty() {
+        return;
+    }
+    let Some(win) = app.get_window(&win_label(wid)) else { return };
+    // 正在建立別的網頁：等一下再來（一直沒空就算了，下次用掉時會再補）
+    let Some(creating) = try_creating() else {
+        if tries < 60 {
+            spare_retry(app, wid, 100, tries + 1);
+        }
+        return;
+    };
+    let Ok(blank) = Url::parse("about:blank") else { return };
+    let Some(tid) = edit(wid, |w| {
+        w.next_tab += 1;
+        format!("t{}", w.next_tab)
+    }) else {
+        return;
+    };
+    let b = page_builder(app, wid, &tid, blank, None, is_incognito(wid)).focused(false);
+    let made = win.add_child(b, PhysicalPosition::new(-96i32, -96i32), PhysicalSize::new(32u32, 32u32));
+    drop(creating);
+    let made = match made {
+        Ok(w) => w,
+        Err(e) => {
+            crate::dlog!("[spare] {wid}-{tid}：建立失敗 {e}");
+            us::forget(app, wid, &tid);
+            return;
+        }
+    };
+    let _ = made.hide();
+    attach_native(&made, wid, &tid, true);
+    us::booted(&made, wid, &tid);
+    // 建立的這段時間視窗關了：不要了
+    if !get(wid).is_some_and(|w| w.open) {
+        us::forget(app, wid, &tid);
+        let _ = made.close();
+        return;
+    }
+    crate::dlog!("[spare] {wid}-{tid}：預先建立好一個空白網頁");
+    lock(&SPARES).push((wid.to_string(), Spare { tid, wv: made }));
+}
+
+/// 用預先建立好的空白網頁開「連著的新分頁」。true = 開好了（已經交還給 WebView2）；false = 沒有可以用的
+#[cfg(windows)]
+fn linked_tab_spare(app: &AppHandle, wid: &str, opener: &str, u: &Url, req: &webnative::NewWin) -> bool {
+    let Some(win) = app.get_window(&win_label(wid)) else { return false };
+    let Some(sp) = spare_take(wid) else { return false };
+    let tid = sp.tid.clone();
+    // 還沒載入前，分頁先記要去的網址（空白頁就是 about:blank）
+    let shown = tab_url(u).unwrap_or_else(|| "about:blank".to_string());
+    let web = parse_web(&shown).is_some();
+    let inserted = edit(wid, |w| {
+        let pinned = w.tabs.iter().filter(|t| t.pinned).count();
+        let pos = w.tabs.iter().position(|t| t.id == opener).map(|i| i + 1).unwrap_or(w.tabs.len()).max(pinned);
+        w.tabs.insert(pos, Tab::new(tid.clone(), shown));
+    })
+    .is_some();
+    let drop_it = |sp: Spare| {
+        us::forget(app, wid, &sp.tid);
+        let _ = sp.wv.close();
+        edit(wid, |w| w.tabs.retain(|t| t.id != sp.tid));
+        // 之後再補一個
+        spare_soon(app, wid, 400);
+    };
+    if !inserted {
+        drop_it(sp);
+        return false;
+    }
+    // 放到網頁該在的位置（還藏著，切過去時才顯示）
+    let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
+    let (_, _, (pos, sz)) = geometry(wid, &win, size);
+    let _ = sp.wv.set_bounds(bounds(pos, sz));
+    // 從現在起到它要去的網頁載入之前，不可以另外對它登記使用者腳本（見 us::hold）
+    us::hold(wid, &tid);
+    let ok = Arc::new(AtomicBool::new(false));
+    let ok2 = ok.clone();
+    let adopter = req.adopter();
+    with_wv(&sp.wv, move |w| {
+        // 一般網頁才可以用開發人員工具（要在交還之前設定）
+        webnative::set_devtools(w, web);
+        ok2.store(adopter.adopt(w), Ordering::SeqCst);
+    });
+    crate::dlog!("[newwin] {wid}-{tid}：用預先建立好的空白網頁，交還 → {}", ok.load(Ordering::SeqCst));
+    if !ok.load(Ordering::SeqCst) {
+        drop_it(sp);
+        return false;
+    }
+    linked_tab_done(app, wid, opener, &tid);
     true
 }
 
@@ -2595,6 +2777,8 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
         std::thread::sleep(Duration::from_millis(1200));
         pop::warm_up(&app3);
     });
+    // 網頁要開新分頁時要用的空白網頁也先準備一個（見 Spare）
+    spare_soon(app, id, 2500);
     Ok(())
 }
 
@@ -2647,6 +2831,7 @@ fn close_window(app: &AppHandle, id: &str) {
     for t in get(id).map(|w| w.tabs).unwrap_or_default() {
         us::forget(app, id, &t.id);
     }
+    spare_forget(app, id);
     if let Some(win) = app.get_window(&win_label(id)) {
         let _ = win.destroy();
     }

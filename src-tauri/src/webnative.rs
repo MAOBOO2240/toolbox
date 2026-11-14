@@ -653,6 +653,15 @@ pub fn open_devtools(w: &Wv, own_page: fn(&str) -> bool) -> bool {
     }
 }
 
+/// 這個網頁可不可以用開發人員工具（右鍵的「檢查」、F12）。換網址時會再照新的網址重設（見 attach_）
+pub fn set_devtools(w: &Wv, on: bool) {
+    unsafe {
+        if let Ok(s) = w.core.Settings() {
+            let _ = s.SetAreDevToolsEnabled(on);
+        }
+    }
+}
+
 pub fn go_back(w: &Wv) {
     unsafe {
         let _ = w.core.GoBack();
