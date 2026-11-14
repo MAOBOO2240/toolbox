@@ -71,6 +71,8 @@ pub struct NewWin {
     args: ICoreWebView2NewWindowRequestedEventArgs,
     /// 是程式自己的頁面（設定、新分頁…）要開的
     from_own: bool,
+    /// 提出要求的那個框架的網址（擴充功能的背景程式要開分頁時沒有框架，是空的）
+    source: String,
 }
 
 // 只在主執行緒建立、使用（為了能放進要求 Send 的閉包裡；閉包是在主執行緒當場執行的）
@@ -80,6 +82,11 @@ impl NewWin {
     /// 是程式自己的頁面要開的：不可以讓開出來的網頁跟它連著
     pub fn from_own(&self) -> bool {
         self.from_own
+    }
+
+    /// 提出要求的那個框架的網址（沒有就是空的）
+    pub fn source(&self) -> &str {
+        &self.source
     }
 
     /// 把新開的網頁交給這個要求：WebView2 會把它當成 window.open 開出來的視窗——
@@ -324,6 +331,18 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
                     let src = text(|p| c.Source(p));
                     src.is_empty() || own(&src)
                 });
+                let source = args
+                    .cast::<ICoreWebView2NewWindowRequestedEventArgs3>()
+                    .ok()
+                    .and_then(|a| a.OriginalSourceFrameInfo().ok())
+                    .map(|f| text(|p| f.Source(p)))
+                    .unwrap_or_default();
+                crate::dlog!(
+                    "[newwin] uri={uri} source={source:?} user={} name={:?} page={:?}",
+                    flag(|b| args.IsUserInitiated(b)),
+                    args.cast::<ICoreWebView2NewWindowRequestedEventArgs2>().map(|a| text(|p| a.Name(p))).unwrap_or_default(),
+                    c.as_ref().map(|c| text(|p| c.Source(p))).unwrap_or_default()
+                );
                 // 沒人來拿的不要一直留著（放開清單之後才丟掉）
                 let old = NEWWIN.with(|q| {
                     let mut q = q.borrow_mut();
@@ -331,7 +350,7 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
                     while q.len() >= 6 {
                         old.extend(q.pop_front());
                     }
-                    q.push_back(NewWin { uri, args, from_own });
+                    q.push_back(NewWin { uri, args, from_own, source });
                     old
                 });
                 drop(old);

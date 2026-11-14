@@ -91,6 +91,9 @@ mod webnative {
         pub fn from_own(&self) -> bool {
             true
         }
+        pub fn source(&self) -> &str {
+            ""
+        }
         pub fn adopt(&self, _w: &Wv) -> bool {
             false
         }
@@ -211,6 +214,15 @@ const EXT_TABS_JS: &str = r#"(() => {
     }
     if (t.getCurrent) {
       t.getCurrent = (cb) => call(mine(), cb);
+    }
+    // WebView2 的 openOptionsPage 會另外跳出一個沒有工具列的視窗：改成開分頁（由程式開在這個瀏覽器視窗裡）
+    const r = chrome.runtime, m = r.getManifest(), opt = m.options_page || (m.options_ui && m.options_ui.page);
+    if (opt && r.openOptionsPage && t.create) {
+      r.openOptionsPage = (cb) => {
+        const p = Promise.resolve(t.create({ url: r.getURL(opt) })).then(() => undefined);
+        if (typeof cb === "function") { p.then(() => cb(), () => cb()); return undefined; }
+        return p;
+      };
     }
   } catch (_) {}
 })();"#;
@@ -1196,6 +1208,36 @@ fn popup_window(app: &AppHandle, wid: &str, url: &Url, features: tauri::webview:
     Some(win)
 }
 
+/// 擴充功能的頁面可不可以開成分頁：要是裝著、開著的擴充功能，而且是它自己要開的——
+/// 來源是它自己的頁面（小視窗、選項頁…），或沒有來源（它的背景程式用 chrome.tabs.create 開的）。
+/// 一般網頁要開的不行（跟 Chrome 一樣，網頁不能隨便把人帶到擴充功能的頁面）
+fn ext_may_open(target: &Url, source: &str) -> bool {
+    let Some(id) = target.host_str() else { return false };
+    if !ext_state().exts.get(id).is_some_and(|m| !m.off && !m.dir.is_empty()) {
+        return false;
+    }
+    if source.is_empty() {
+        return true;
+    }
+    Url::parse(source).is_ok_and(|s| s.scheme() == "chrome-extension" && s.host_str() == Some(id))
+}
+
+/// 把擴充功能要開的頁面（或它要開的網頁）開成這個視窗的分頁並切過去；同一個網址已經開著就切過去。
+/// after = 放在哪個分頁後面（沒有就放最後）。在背景做（呼叫的人可能正在主執行緒處理 WebView2 的通知）
+fn open_ext_tab(app: &AppHandle, wid: &str, after: Option<&str>, u: &Url) {
+    let (app, wid, after, url) = (app.clone(), wid.to_string(), after.map(str::to_string), u.to_string());
+    std::thread::spawn(move || {
+        let same = get(&wid).and_then(|w| w.tabs.into_iter().find(|t| t.url == url)).map(|t| t.id);
+        let r = match same {
+            Some(t) => select_tab(&app, &wid, &t),
+            None => add_tab(&app, &wid, url.clone(), true, after.as_deref()).map(|_| ()),
+        };
+        if let Err(e) = r {
+            crate::dlog!("[ext] 開分頁失敗 {url}：{e}");
+        }
+    });
+}
+
 fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<PathBuf>, incognito: bool) -> WebviewBuilder<tauri::Wry> {
     let (a1, a2, a3, a4) = (app.clone(), app.clone(), app.clone(), app.clone());
     let (w1, w2, w3, w4) = (wid.to_string(), wid.to_string(), wid.to_string(), wid.to_string());
@@ -1230,6 +1272,16 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
             // WebView2 這次「開新視窗」的要求（每次都要拿，順序才對得上）
             let req = webnative::take_new_window(|raw| Url::parse(raw).is_ok_and(|x| x == u));
             if webcore::is_app_target(&u) {
+                return NewWindowResponse::Deny;
+            }
+            // 擴充功能的頁面（選項、控制台…）：擴充功能自己要開的才開成分頁；一般網頁不能把人帶到擴充功能的頁面
+            if u.scheme() == "chrome-extension" {
+                let src = req.as_ref().map(|r| r.source().to_string()).unwrap_or_default();
+                let ok = ext_may_open(&u, &src);
+                crate::dlog!("[ext] 分頁 {w3}-{t3} 收到要開擴充功能的頁面 {u}（來源 {src:?}）→ {}", if ok { "開成分頁" } else { "不開" });
+                if ok {
+                    open_ext_tab(&a3, &w3, Some(&t3), &u);
+                }
                 return NewWindowResponse::Deny;
             }
             if features.size().is_some() {
@@ -3693,15 +3745,44 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
     // 用網頁目前真正的網址（YouTube 這類不換頁就換網址的網站，記錄的網址會舊）
     let page = active_page(app, wid).and_then(|p| p.url().ok()).map(|u| u.to_string()).or_else(|| get(wid).map(|w| w.url)).unwrap_or_default();
     let patch = EXT_TABS_JS.replace("__PAGE_URL__", &serde_json::to_string(&page).unwrap_or_else(|_| "\"\"".into()));
+    let ext_id = url.host_str().unwrap_or_default().to_string();
+    let (a1, w1) = (app.clone(), wid.to_string());
     let b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
         .initialization_script(&patch)
-        .disable_drag_drop_handler();
-    win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
+        .disable_drag_drop_handler()
+        // 小視窗裡按了會開分頁的東西（控制台、選項、說明網頁…）：開在這個瀏覽器視窗的新分頁，小視窗收起來（跟 Chrome 一樣）。
+        // 沒有接的話 WebView2 會直接不理，按了就像沒反應
+        .on_new_window(move |u, _features| {
+            let ok = !webcore::is_app_target(&u) && (web_url(&u) || (u.scheme() == "chrome-extension" && u.host_str() == Some(ext_id.as_str())));
+            crate::dlog!("[ext] 小視窗 {w1} 要開 {u} → {}", if ok { "開成分頁" } else { "不開" });
+            if ok {
+                open_ext_tab(&a1, &w1, None, &u);
+            }
+            NewWindowResponse::Deny
+        });
+    let made = win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
+    // 小視窗的網頁自己關掉（window.close()，很多擴充功能按完按鈕會這樣做）：把小視窗收起來
+    {
+        let (a2, w2) = (app.clone(), wid.to_string());
+        with_wv(&made, move |w| ext_popup_close_hook(w, a2, w2));
+    }
     *lock(&EXT_POPUP) = Some((wid.to_string(), (origin.x + x, origin.y + y, origin.x + x + w, origin.y + y + h)));
     Ok(())
 }
+
+#[cfg(windows)]
+fn ext_popup_close_hook(w: &webnative::Wv, app: AppHandle, wid: String) {
+    webnative::on_close_requested(w, move || {
+        let (app, wid) = (app.clone(), wid.clone());
+        // 不可以在通知裡面直接動視窗
+        std::thread::spawn(move || close_ext_popup(&app, &wid));
+    });
+}
+
+#[cfg(not(windows))]
+fn ext_popup_close_hook(_w: &webnative::Wv, _app: AppHandle, _wid: String) {}
 
 fn install_subclass(app: &AppHandle, hwnd: isize, rect: (i32, i32, u32, u32)) {
     #[cfg(windows)]

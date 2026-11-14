@@ -4,6 +4,8 @@
 mod audio;
 mod autostart;
 mod avatar;
+#[macro_use]
+mod dbg;
 mod elevate;
 mod fg;
 mod input;
