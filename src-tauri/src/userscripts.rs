@@ -612,9 +612,16 @@ fn def_script(s: &Script) -> String {
     )
 }
 
+static DEFS: Mutex<Option<(u64, Arc<Vec<String>>)>> = Mutex::new(None);
+
+/// 查問題用：這個檔案裡的鎖現在有沒有被佔著
+pub fn lock_state() -> String {
+    let held = |b: bool| if b { "佔著" } else { "空" };
+    format!("腳本清單={} 設定值={} 注入的程式={} 等安裝的={} 連線名額={}", held(CACHE.try_lock().is_err()), held(VALS.try_lock().is_err()), held(DEFS.try_lock().is_err()), held(PENDING.try_lock().is_err()), held(XHR_SLOTS.0.try_lock().is_err()))
+}
+
 /// 所有會執行的腳本各自的那一段（清單沒變就用上次算好的）
 pub fn def_scripts() -> Arc<Vec<String>> {
-    static DEFS: Mutex<Option<(u64, Arc<Vec<String>>)>> = Mutex::new(None);
     let g = gen();
     if let Some((at, v)) = lock(&DEFS).as_ref() {
         if *at == g {
@@ -643,7 +650,9 @@ pub fn boot_script(baked: bool) -> String {
     let (ver, vals) = values_snapshot();
     let f = if baked { "baked" } else { "go" };
     let text = serde_json::to_string(&vals).unwrap_or_else(|_| "\"{}\"".into());
-    format!("(function (g) {{ if (g && g.{f}) g.{f}({:?}, {ver}, {text}); }})(window[{:?}]);", token(), slot())
+    // 備用的那一份帶著建立的時間：分頁剛建立的那幾秒內，網頁直接用它啟動
+    let made = if baked { format!(", {}", now_ms()) } else { String::new() };
+    format!("(function (g) {{ if (g && g.{f}) g.{f}({:?}, {ver}, {text}{made}); }})(window[{:?}]);", token(), slot())
 }
 
 /* ---------------- 設定值（GM_getValue／GM_setValue） ---------------- */
@@ -1403,6 +1412,22 @@ pub async fn web_scripts_preview(url: String) -> Result<Preview, String> {
 #[tauri::command]
 pub async fn web_scripts_install(url: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || install(&url)).await.map_err(|e| e.to_string())?
+}
+
+/// 安裝貼上來的腳本內容。回傳腳本名稱
+#[tauri::command]
+pub async fn web_scripts_add(source: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if source.len() > 24 << 20 {
+            return Err("內容太長".to_string());
+        }
+        let name = parse_meta(&source).name;
+        write_source(&source)?;
+        invalidate();
+        Ok(name)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// 現在就檢查更新。回傳訊息

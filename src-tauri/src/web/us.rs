@@ -21,6 +21,8 @@ struct MenuCmd {
 
 #[derive(Default)]
 struct UsTab {
+    /// 這個分頁不跑腳本（無痕式視窗、檢視原始碼的分頁）
+    skip: bool,
     /// 建立分頁時登記的腳本清單是第幾版（0 = 沒登記）
     built: u64,
     /// 之後另外登記（清單變過）的是第幾版（0 = 沒有）
@@ -94,10 +96,12 @@ pub(super) fn request_sync() {
 /// 建立分頁的網頁時：把執行環境、每支腳本、建立當下的設定值登記進去（第一份文件一定用得到）。
 /// 無痕式視窗、檢視原始碼的分頁不跑腳本
 pub(super) fn register(mut b: WebviewBuilder<tauri::Wry>, wid: &str, tid: &str, url: &Url, incognito: bool) -> WebviewBuilder<tauri::Wry> {
-    let on = !incognito && url.scheme() != "view-source" && us::any_active();
+    let skip = incognito || url.scheme() == "view-source";
+    let on = !skip && us::any_active();
     let gen = if on { us::gen() } else { 0 };
+    crate::dlog!("[us] 建立 {wid}-{tid} 的網頁：{}", if skip { "不跑腳本" } else if on { "登記腳本" } else { "目前沒有腳本" });
     tabs(|m| {
-        m.insert((wid.to_string(), tid.to_string()), UsTab { built: gen, ..UsTab::default() });
+        m.insert((wid.to_string(), tid.to_string()), UsTab { skip, built: gen, ..UsTab::default() });
     });
     if on {
         b = b.initialization_script_for_all_frames(us::shim_script());
@@ -141,6 +145,9 @@ fn sync(app: &AppHandle, vals_due: bool) {
             let Some(page) = app.get_webview(&page_label(&wid, &t.id)) else { continue };
             let (need0, need1, built) = tabs(|m| {
                 let e = m.entry((wid.clone(), t.id.clone())).or_default();
+                if e.skip {
+                    return (false, false, false);
+                }
                 let cur = if e.listed != 0 { e.listed } else { e.built };
                 // 這個分頁登記過執行環境（之後就算腳本全關了，也要讓它知道清單空了）
                 let had = e.built != 0 || e.listed != 0;
@@ -168,6 +175,7 @@ fn sync(app: &AppHandle, vals_due: bool) {
                 }
             };
             let go: Vec<String> = if built || active { vec![boot.get_or_insert_with(|| us::boot_script(false)).clone()] } else { Vec::new() };
+            crate::dlog!("[us] 更新 {wid}-{} 的腳本登記：清單 {}（{} 段）、設定值 {}", t.id, need0, list.len(), need1);
             with_wv(&page, move |w| {
                 if need0 {
                     webnative::gm_set_slot(w, 0, list);
@@ -179,6 +187,12 @@ fn sync(app: &AppHandle, vals_due: bool) {
             });
         }
     }
+}
+
+/// 查問題用：這個檔案裡的鎖現在有沒有被佔著
+pub(super) fn lock_state() -> String {
+    let held = |b: bool| if b { "佔著" } else { "空" };
+    format!("腳本分頁={} 腳本連線={}", held(TABS.try_lock().is_err()), held(XHRS.try_lock().is_err()))
 }
 
 /// 分頁關掉了

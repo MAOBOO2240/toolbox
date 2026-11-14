@@ -81,7 +81,13 @@
         add: (tok, d) => { if (tok === TOKEN && !started && d && typeof d.fn === "function") defs.push(d); },
         // 腳本清單在這個分頁建立之後變過：前面交進來的作廢，改用後面交的
         reset: (tok) => { if (tok === TOKEN && !started) defs = []; },
-        baked: (tok, ver, raw) => { if (tok === TOKEN && !started) baked = { ver, raw }; },
+        // 建立分頁時先放的一份。分頁才剛建立（幾秒內）：這一份就是最新的，直接啟動
+        // （「帶最新設定值啟動」那一段這時候可能還沒登記好）；過了這段時間就只留著備用
+        baked: (tok, ver, raw, made) => {
+          if (tok !== TOKEN || started) return;
+          baked = { ver, raw };
+          if (typeof made === "number" && Date.now() - made < 4000) start(ver, raw);
+        },
         go: (tok, ver, raw) => { if (tok === TOKEN) start(ver, raw); },
       }),
     });
@@ -467,8 +473,8 @@
       s.api = makeApi(s, vals[s.id] && typeof vals[s.id] === "object" ? vals[s.id] : {});
       apis[s.id] = s.api;
     }
-    for (const s of mine) if (s.at === "start") exec(s);
     const at = (w) => { if (!source()) mine.filter((s) => s.at === w).forEach(exec); };
+    at("start");
     // document-body：<body> 一出現；document-end：內容讀完；document-idle（預設）：再晚一點
     if (mine.some((s) => s.at === "body")) {
       if (D.body) at("body");

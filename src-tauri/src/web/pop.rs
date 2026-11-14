@@ -224,6 +224,12 @@ static HWNDS: [AtomicIsize; LEVELS] = [const { AtomicIsize::new(0) }; LEVELS];
 static GEN: AtomicU64 = AtomicU64::new(0);
 static MAKE: Mutex<()> = Mutex::new(());
 
+/// 查問題用：選單的鎖現在有沒有被佔著
+pub(super) fn lock_state() -> String {
+    let held = |b: bool| if b { "佔著" } else { "空" };
+    format!("選單={} 選單剛關={} 選單建立中={}", held(POP.try_lock().is_err()), held(CLOSED.try_lock().is_err()), held(MAKE.try_lock().is_err()))
+}
+
 fn next_gen() -> u64 {
     GEN.fetch_add(1, Ordering::SeqCst) + 1
 }

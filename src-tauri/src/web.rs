@@ -1306,8 +1306,13 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
             let linkable = web_url(&u) || u.as_str() == "about:blank" || u.scheme() == "blob" || ext_page;
             if let Some(req) = req {
                 // 擴充功能的頁面不看「有沒有按著 Ctrl／中鍵」（那是給網頁上的連結用的）
-                if (plain || ext_page) && same.is_none() && linkable && !req.from_own() && linked_tab(&a3, &w3, &t3, &u, &features, req) {
-                    return NewWindowResponse::Deny;
+                if (plain || ext_page) && same.is_none() && linkable && !req.from_own() {
+                    crate::dlog!("[newwin] {w3}-{t3} 開成連著的新分頁：{u}");
+                    let done = linked_tab(&a3, &w3, &t3, &u, &features, req);
+                    crate::dlog!("[newwin] 連著的新分頁 → {done}");
+                    if done {
+                        return NewWindowResponse::Deny;
+                    }
                 }
             }
             if ext_page {
@@ -1501,6 +1506,7 @@ fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &taur
     let (_, _, (pos, sz)) = geometry(wid, &win, size);
     // 一定要跟開它的網頁同一個環境、同一個設定檔，而且還沒載入過別的網址
     let b = page_builder(app, wid, &tid, blank, None, incognito).with_environment(features.opener().environment.clone());
+    crate::dlog!("[newwin] {wid}-{tid}：建立網頁");
     let made = match win.add_child(b, pos, sz) {
         Ok(w) => w,
         Err(e) => {
@@ -1509,11 +1515,13 @@ fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &taur
             return false;
         }
     };
+    crate::dlog!("[newwin] {wid}-{tid}：建立好了，掛上通知");
     attach_native(&made, wid, &tid, true);
-    us::booted(&made, wid, &tid);
     let ok = Arc::new(AtomicBool::new(false));
     let ok2 = ok.clone();
+    crate::dlog!("[newwin] {wid}-{tid}：交還給瀏覽器");
     with_wv(&made, move |w| ok2.store(req.adopt(w), Ordering::SeqCst));
+    crate::dlog!("[newwin] {wid}-{tid}：交還 → {}", ok.load(Ordering::SeqCst));
     if !ok.load(Ordering::SeqCst) {
         // 交不出去：這個分頁不要了，讓呼叫的人用原本的方式開
         let _ = made.close();
@@ -1529,9 +1537,12 @@ fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &taur
             }
         }
     });
-    // 切過去（顯示它、收起原本的、更新工具列）交給背景做
+    // 切過去（顯示它、收起原本的、更新工具列）交給背景做。
+    // 使用者腳本「帶最新設定值啟動」的那一段也在這時候才登記：不可以在交還分頁之前（WebView2 的通知還沒處理完）
+    // 另外對新分頁登記東西又不等它完成，交還的時候會整個卡住。第一份文件用建立分頁時放的那一份啟動
     let (app, wid) = (app.clone(), wid.to_string());
     std::thread::spawn(move || {
+        us::booted(&made, &wid, &tid);
         let _ = select_tab(&app, &wid, &tid);
     });
     true
@@ -4072,6 +4083,33 @@ pub fn init(app: &AppHandle, path: PathBuf) {
 
     // 選單開著時：點到選單外面就關掉
     pop::watch(app);
+
+    // 查問題用（平常不會開）：主執行緒卡住時，印出哪些鎖被佔著
+    if crate::dbg::on() {
+        let a = app.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_secs(2));
+            let (tx, rx) = std::sync::mpsc::channel::<()>();
+            let _ = a.run_on_main_thread(move || {
+                let _ = tx.send(());
+            });
+            if rx.recv_timeout(Duration::from_secs(6)).is_err() {
+                let held = |b: bool| if b { "佔著" } else { "空" };
+                eprintln!(
+                    "[hang] 主執行緒 6 秒沒有回應。鎖：瀏覽器資料={} 執行狀態={} 打字中的視窗={} 擴充功能小視窗={} 擴充功能清單={} {} {} {}",
+                    held(STORE.get().is_some_and(|m| m.try_lock().is_err())),
+                    held(RT.try_lock().is_err()),
+                    held(TYPING_HWND.try_lock().is_err()),
+                    held(EXT_POPUP.try_lock().is_err()),
+                    held(EXT_LOCK.try_lock().is_err()),
+                    pop::lock_state(),
+                    us::lock_state(),
+                    crate::userscripts::lock_state()
+                );
+                std::thread::sleep(Duration::from_secs(30));
+            }
+        });
+    }
 }
 
 enum Action {

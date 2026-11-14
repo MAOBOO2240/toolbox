@@ -564,6 +564,7 @@ fn main() {
             userscripts::web_scripts_reload,
             userscripts::web_scripts_preview,
             userscripts::web_scripts_install,
+            userscripts::web_scripts_add,
             userscripts::web_scripts_update,
             userscripts::web_scripts_auto,
             license::license_info,

@@ -812,7 +812,7 @@
           ui.col.append(el("div", "note", "篡改猴（Tampermonkey）的腳本由這個瀏覽器自己執行，要裝在這裡才會跑（裝在篡改猴擴充功能裡的不會執行：這個瀏覽器的核心沒有讓擴充功能執行腳本的開關）。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip）。安裝、開關之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。"));
           const bar = el("div");
           bar.style.cssText = "display:flex;gap:8px;padding:0 4px 12px;flex-wrap:wrap";
-          const imp = btn("匯入腳本", "", "plus"), byUrl = btn("從網址安裝", "", "link"), upd = btn("檢查更新", "", "sync"), dir = btn("開啟腳本資料夾", "", "folder"), rel = btn("重新讀取", "", "reload");
+          const imp = btn("匯入腳本", "", "plus"), byUrl = btn("從網址安裝", "", "link"), paste = btn("貼上腳本", "", "script"), upd = btn("檢查更新", "", "sync"), dir = btn("開啟腳本資料夾", "", "folder"), rel = btn("重新讀取", "", "reload");
           imp.onclick = async () => { try { const msg = await call("web_scripts_import"); if (msg) toast(msg); } catch (e) { fail(e); } loadScripts(); };
           byUrl.onclick = () => dialog("從網址安裝腳本", (d, close) => {
             const i = field(d, "腳本的網址（.user.js）", "", "https://…/….user.js");
@@ -822,6 +822,22 @@
               open(`chrome://extensions/install?url=${encodeURIComponent(u)}`);
             }, close);
           });
+          paste.onclick = () => dialog("貼上腳本", (d, close) => {
+            const l = el("label", "f", "腳本的內容（開頭要有 ==UserScript== 那一段）");
+            const ta = el("textarea", "tin");
+            ta.spellcheck = false;
+            ta.style.cssText = "height:260px;resize:vertical;font-family:Consolas,monospace;font-size:12px;line-height:1.5;padding:8px 10px;white-space:pre";
+            l.append(ta);
+            d.append(l);
+            d.style.width = "min(640px, 100%)";
+            footer(d, "安裝", async () => {
+              if (!ta.value.trim()) throw "還沒貼上內容";
+              const name = await call("web_scripts_add", { source: ta.value });
+              toast(`「${name}」安裝好了`);
+              loadScripts();
+            }, close);
+            setTimeout(() => ta.focus(), 0);
+          });
           upd.onclick = async () => {
             upd.disabled = true;
             try { toast(await call("web_scripts_update")); } catch (e) { fail(e); }
@@ -830,7 +846,7 @@
           };
           dir.onclick = () => quiet("web_scripts_open_dir");
           rel.onclick = async () => { scripts = (await quiet("web_scripts_reload")) || scripts; render(); };
-          bar.append(imp, byUrl, upd, dir, rel);
+          bar.append(imp, byUrl, paste, upd, dir, rel);
           ui.col.append(bar);
           const sc = el("div", "card");
           {
