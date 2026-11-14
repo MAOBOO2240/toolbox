@@ -3323,7 +3323,6 @@ STEPS = [
     ("devtools", s_devtools),
     ("refocus", s_refocus),
     ("tips", s_tipdiag),
-    ("maindiag", s_maindiag),
     ("minimize", s_minimize),
     ("close", s_close),
 ]
@@ -3333,6 +3332,9 @@ try:
     ONLY += open(os.path.join(HERE, "only.txt"), encoding="utf-8").read().split()
 except Exception:
     pass
+# 主畫面那一步：讀主畫面的元素非常慢（會讓整輪超過時間），只有指名要跑時才跑
+if "maindiag" in ONLY:
+    STEPS.insert(len(STEPS) - 2, ("maindiag", s_maindiag))
 for name, fn in STEPS:
     if ONLY and name not in ONLY and name not in ("start", "close"):
         continue
