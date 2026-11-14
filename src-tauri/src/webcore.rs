@@ -116,7 +116,38 @@ pub fn local_to_virtual(u: &Url) -> Option<String> {
 
 /// 程式本身的頁面（不管是不是瀏覽器的內部頁面）
 pub fn is_app_url(u: &Url) -> bool {
-    Url::parse(ui_base()).is_ok_and(|b| u.scheme() == b.scheme() && u.host_str() == b.host_str())
+    app_url_of(u, ui_base())
+}
+
+/// base = 程式頁面的網址開頭。Windows 上 http、https 的 tauri.localhost（不管連接埠）
+/// 都會被當成程式自己的頁面（可以呼叫程式內部的功能），所以兩種都要算
+fn app_url_of(u: &Url, base: &str) -> bool {
+    let Ok(b) = Url::parse(base) else { return false };
+    let web = |s: &str| matches!(s, "http" | "https");
+    u.host_str() == b.host_str() && (u.scheme() == b.scheme() || (web(u.scheme()) && web(b.scheme())))
+}
+
+/// 程式本身的頁面，或是它的「檢視原始碼」（view-source:…，內容不一樣但算同一個網站）
+pub fn is_app_target(u: &Url) -> bool {
+    app_target_of(u, ui_base())
+}
+
+fn app_target_of(u: &Url, base: &str) -> bool {
+    if app_url_of(u, base) {
+        return true;
+    }
+    let mut s = u.as_str();
+    let mut wrapped = false;
+    while let Some(inner) = s.strip_prefix("view-source:") {
+        s = inner;
+        wrapped = true;
+    }
+    wrapped && Url::parse(s).is_ok_and(|x| app_url_of(&x, base))
+}
+
+/// 同上，給網址文字用（WebView2 回報的網址）。看不懂的網址不算
+pub fn is_app_str(s: &str) -> bool {
+    Url::parse(s.trim()).is_ok_and(|u| is_app_target(&u))
 }
 
 /* ---------------- 搜尋引擎、網址列輸入 ---------------- */
@@ -403,7 +434,8 @@ pub fn zoom_pct(z: f64) -> u32 {
 /* ---------------- 鍵盤快捷鍵 ---------------- */
 
 /// 瀏覽器的快捷鍵（Windows 的按鍵代碼）→ 指令。回傳 None 的交給網頁或 WebView2 自己處理
-/// （重新整理、尋找、列印、上一頁／下一頁、開發人員工具這些 WebView2 本來就會做）
+/// （重新整理、尋找、列印、上一頁／下一頁這些 WebView2 本來就會做）。
+/// 開發人員工具（F12、Ctrl+Shift+I／J／C）一定要自己接：要先確認不是程式自己的頁面才可以開
 pub fn shortcut(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'static str> {
     const TAB: u32 = 0x09;
     const PGUP: u32 = 0x21;
@@ -414,6 +446,7 @@ pub fn shortcut(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'static 
     const F6: u32 = 0x75;
     const F10: u32 = 0x79;
     const F11: u32 = 0x7A;
+    const F12: u32 = 0x7B;
     const ESC: u32 = 0x1B;
     let key = |c: char| vk == c as u32;
     match (ctrl, shift, alt) {
@@ -453,6 +486,7 @@ pub fn shortcut(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'static 
             _ if key('B') => Some("bm.bar"),
             _ if key('A') => Some("tab.search"),
             _ if key('O') => Some("bm.manager"),
+            _ if key('I') || key('J') || key('C') => Some("devtools"),
             DEL => Some("page.cleardata"),
             0xBB => Some("zoom.in"),
             _ => None,
@@ -468,6 +502,7 @@ pub fn shortcut(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'static 
             F6 => Some("omni.focus"),
             F10 => Some("menu.main"),
             F11 => Some("win.fullscreen"),
+            F12 => Some("devtools"),
             _ => None,
         },
         (false, true, false) => match vk {
@@ -488,7 +523,6 @@ pub fn shortcut_bar(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'sta
     const RIGHT: u32 = 0x27;
     const F3: u32 = 0x72;
     const F5: u32 = 0x74;
-    const F12: u32 = 0x7B;
     let key = |c: char| vk == c as u32;
     match (ctrl, shift, alt) {
         (true, false, false) => match vk {
@@ -502,7 +536,6 @@ pub fn shortcut_bar(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'sta
         },
         (true, true, false) => match vk {
             _ if key('R') => Some("nav.reload"),
-            _ if key('I') || key('J') || key('C') => Some("noop"),
             _ if key('P') || key('S') || key('G') => Some("noop"),
             _ => None,
         },
@@ -514,7 +547,6 @@ pub fn shortcut_bar(vk: u32, ctrl: bool, shift: bool, alt: bool) -> Option<&'sta
         (false, false, false) => match vk {
             F5 => Some("nav.reload"),
             F3 => Some("find"),
-            F12 => Some("noop"),
             _ => None,
         },
         (false, true, false) => match vk {
@@ -1091,6 +1123,8 @@ pub enum CtxAct {
     OpenIncognito(String),
     Search(String),
     ViewSource(String),
+    /// 「檢查」：打開開發人員工具。Some = WebView2 自己的指令（會選到按右鍵的那個元素）；None = 只把工具打開
+    Inspect(Option<i32>),
     None,
 }
 
@@ -1161,6 +1195,21 @@ fn hidden(name: &str) -> bool {
         || n.contains("bing")
 }
 
+/// WebView2 選單裡會打開開發人員工具的項目（目前叫 inspectElement；名字寫法有出入也要認得，
+/// 不然會被當成一般項目直接執行，繞過「只有一般網頁可以開」的檢查）
+fn is_inspect(name: &str) -> bool {
+    let n = name.to_lowercase();
+    n.contains("inspect") || n.contains("devtools")
+}
+
+/// 把「檢查」拿掉（包含子選單裡的）
+fn strip_inspect(list: &mut Vec<CtxEntry>) {
+    list.retain(|x| !matches!(x.act, CtxAct::Inspect(_)));
+    for x in list.iter_mut() {
+        strip_inspect(&mut x.children);
+    }
+}
+
 fn convert(items: &[NativeItem], target: &CtxTarget) -> Vec<CtxEntry> {
     let mut out = Vec::new();
     for it in items {
@@ -1182,7 +1231,8 @@ fn convert(items: &[NativeItem], target: &CtxTarget) -> Vec<CtxEntry> {
         if it.kind == 4 && children.iter().all(|c| c.sep) {
             continue;
         }
-        out.push(CtxEntry { title, shortcut, enabled: it.enabled, checked: it.checked, sep: false, act: CtxAct::Native(it.id), children });
+        let act = if is_inspect(&it.name) { CtxAct::Inspect(Some(it.id)) } else { CtxAct::Native(it.id) };
+        out.push(CtxEntry { title, shortcut, enabled: it.enabled, checked: it.checked, sep: false, act, children });
     }
     out
 }
@@ -1222,6 +1272,15 @@ fn is_web(u: &str) -> bool {
 /// 補上「在新分頁中開啟連結」「透過 Google 搜尋」「檢視網頁原始碼」這些
 pub fn build_context(target: &CtxTarget, items: &[NativeItem], e: &Engine, incognito: bool) -> Vec<CtxEntry> {
     let mut list = convert(items, target);
+    // 「檢查」（開發人員工具）：只有一般網頁有，一律放在最後面。
+    // 程式自己的頁面（呼叫的人會把 page 清空）不可以有
+    let has_inspect = |list: &Vec<CtxEntry>| list.iter().any(|x| matches!(x.act, CtxAct::Inspect(_)));
+    if !is_web(&target.page) {
+        strip_inspect(&mut list);
+    } else if !has_inspect(&list) {
+        list.push(CtxEntry::sep());
+        list.push(CtxEntry::custom("檢查", "", CtxAct::Inspect(None)));
+    }
     let pos = |list: &Vec<CtxEntry>, names: &[&str]| -> Option<usize> {
         // 用轉換後的標題找（名稱已經換成 Chrome 的說法）
         list.iter().position(|x| names.iter().any(|n| x.title == *n))
@@ -1679,6 +1738,81 @@ mod tests {
     }
 
     #[test]
+    fn context_menu_inspect() {
+        let base = vec![ni(1, "back", "返回"), ni(3, "reload", "重新整理"), nsep(), ni(5, "print", "列印")];
+        let titles = |m: &Vec<CtxEntry>| m.iter().map(|x| if x.sep { "-".to_string() } else { x.title.clone() }).collect::<Vec<_>>();
+        // WebView2 沒給「檢查」（開發人員工具的設定還沒生效）：一般網頁還是有，放最後面，只把工具打開
+        let t = CtxTarget { page: "https://a.com/".into(), ..CtxTarget::default() };
+        let m = build_context(&t, &base, engine("google"), false);
+        assert_eq!(titles(&m), ["上一頁", "重新載入", "-", "列印…", "-", "檢視網頁原始碼", "檢查"]);
+        assert_eq!(m.last().unwrap().act, CtxAct::Inspect(None));
+        // WebView2 有給：用它的指令（會選到按右鍵的元素），不重複加
+        let mut with = base.clone();
+        with.push(nsep());
+        with.push(ni(8, "inspectElement", "檢查"));
+        let m = build_context(&t, &with, engine("google"), false);
+        assert_eq!(titles(&m).iter().filter(|x| *x == "檢查").count(), 1);
+        assert_eq!(m.last().unwrap().act, CtxAct::Inspect(Some(8)));
+        // 點在連結、輸入框上也有
+        let link = CtxTarget { link: "https://b.com/".into(), page: "https://a.com/".into(), ..CtxTarget::default() };
+        assert_eq!(build_context(&link, &base, engine("google"), false).last().unwrap().act, CtxAct::Inspect(None));
+        // 程式自己的頁面（page 被清空）、其他不是網頁的：就算 WebView2 給了也拿掉
+        for page in ["", "chrome-extension://abc/options.html", "view-source:https://a.com/"] {
+            let t = CtxTarget { page: page.into(), ..CtxTarget::default() };
+            let m = build_context(&t, &with, engine("google"), false);
+            assert!(!m.iter().any(|x| matches!(x.act, CtxAct::Inspect(_)) || x.title == "檢查"), "{page}: {:?}", titles(&m));
+            assert!(!m.last().unwrap().sep);
+        }
+    }
+
+    #[test]
+    fn devtools_keys_and_own_pages() {
+        // F12、Ctrl+Shift+I／J／C 一定由程式自己接（不可以漏給 WebView2 直接開）
+        for (vk, ctrl, shift) in [(0x7Bu32, false, false), ('I' as u32, true, true), ('J' as u32, true, true), ('C' as u32, true, true)] {
+            assert_eq!(shortcut(vk, ctrl, shift, false), Some("devtools"));
+            assert_eq!(shortcut_bar(vk, ctrl, shift, false), Some("devtools"));
+        }
+        assert!(no_repeat("devtools"));
+        // 複製（Ctrl+C）不受影響
+        assert_eq!(shortcut('C' as u32, true, false, false), None);
+        // 程式自己的頁面：各種寫法都認得
+        for u in ["http://tauri.localhost/web-ui.html?p=settings", "http://TAURI.localhost/", "http://x:y@tauri.localhost/index.html", "http://tauri.localhost:80/a", " http://tauri.localhost/index.html "] {
+            assert_eq!(is_app_str(u), cfg!(windows), "{u}");
+        }
+        for u in ["https://tauri.localhost.evil.com/", "https://example.com/?u=http://tauri.localhost/", "about:blank", "", "not a url"] {
+            assert!(!is_app_str(u), "{u}");
+        }
+        // Windows 上的規則（在別的系統上也照樣檢查）：https、別的連接埠、檢視原始碼都算程式自己的頁面
+        let win = "http://tauri.localhost/";
+        let own = |s: &str| Url::parse(s).is_ok_and(|u| app_target_of(&u, win));
+        for u in [
+            "http://tauri.localhost/web-ui.html?p=settings",
+            "https://tauri.localhost/",
+            "https://tauri.localhost:8443/x",
+            "http://tauri.localhost:8080/web-ui.html?p=settings",
+            "view-source:http://tauri.localhost/web-ui.html?p=settings",
+            "view-source:https://tauri.localhost/",
+            "view-source:view-source:http://tauri.localhost/index.html",
+        ] {
+            assert!(own(u), "{u}");
+        }
+        for u in [
+            "https://example.com/",
+            "view-source:https://example.com/",
+            "https://tauri.localhost.evil.com/",
+            "http://localhost/",
+            "http://ipc.localhost/",
+            "chrome-extension://abc/tauri.localhost",
+            "view-source:https://example.com/?u=http://tauri.localhost/",
+            "ftp://tauri.localhost/",
+        ] {
+            assert!(!own(u), "{u}");
+        }
+        // 「檢視原始碼」不算程式的頁面本身（只有在判斷「是不是程式的網站」時才算）
+        assert!(!app_url_of(&Url::parse("view-source:http://tauri.localhost/index.html").unwrap(), win));
+    }
+
+    #[test]
     fn context_menu_link_image_selection() {
         let items = vec![
             ni(1, "openLinkInNewWindow", "在新視窗中開啟連結"),
@@ -1725,7 +1859,8 @@ mod tests {
         let t = CtxTarget { kind: 0, editable: true, page: "https://a.com/".into(), ..CtxTarget::default() };
         let m = build_context(&t, &items, engine("google"), false);
         let titles: Vec<&str> = m.iter().map(|x| if x.sep { "-" } else { x.title.as_str() }).collect();
-        assert_eq!(titles, ["拼字檢查", "-", "剪下", "複製", "貼上", "全選"]);
+        // 輸入框裡按右鍵：沒有「檢視網頁原始碼」，最後面一樣有「檢查」
+        assert_eq!(titles, ["拼字檢查", "-", "剪下", "複製", "貼上", "全選", "-", "檢查"]);
         assert_eq!(m[0].children.len(), 1);
         assert!(!m[4].enabled);
         assert_eq!(m[4].shortcut, "Ctrl+V");

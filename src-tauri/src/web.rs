@@ -83,6 +83,21 @@ mod webnative {
     pub fn nav_to(_w: &Wv, _entry: i64) {}
     pub fn clear_site(_w: &Wv, _origins: &[String]) {}
     pub fn round_corners(_hwnd: isize) {}
+    pub fn open_devtools(_w: &Wv, _own_page: fn(&str) -> bool) -> bool {
+        false
+    }
+    pub struct NewWin;
+    impl NewWin {
+        pub fn from_own(&self) -> bool {
+            true
+        }
+        pub fn adopt(&self, _w: &Wv) -> bool {
+            false
+        }
+    }
+    pub fn take_new_window(_same: impl Fn(&str) -> bool) -> Option<NewWin> {
+        None
+    }
 }
 
 /// 注入外部網頁的小腳本：只負責「現在有沒有輸入框被選取」，用標題最後的隱形記號告訴程式。
@@ -688,6 +703,14 @@ struct Rt {
     /// 正在「檢視原始碼」的分頁 → 被檢視的網址。
     /// WebView2 回報這種分頁的網址時不會帶 view-source: 開頭，要自己記著才分得出來
     source: HashMap<String, String>,
+    /// 開過開發人員工具的分頁：之後不能再載入程式自己的頁面（見 nav_check）
+    devtools: HashSet<String>,
+    /// 目前顯示程式自己頁面（設定、新分頁…）的分頁：不能開開發人員工具
+    own_page: HashSet<String>,
+    /// 正要前往程式自己頁面的分頁（還沒真的換過去也不能開開發人員工具）
+    heading_own: HashSet<String>,
+    /// 分頁是從哪個分頁開出來的（關掉時回到那個分頁；中途切到別的分頁就不算了）
+    opener: HashMap<String, String>,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -947,7 +970,7 @@ fn tab_url(u: &Url) -> Option<String> {
 
 /// 分頁裡可以開的網址（外部網頁不能把分頁導到程式自己的其他頁面，例如主程式的畫面）
 fn nav_allowed(u: &Url) -> bool {
-    !webcore::is_app_url(u) || webcore::local_to_virtual(u).is_some()
+    !webcore::is_app_target(u) || webcore::local_to_virtual(u).is_some()
 }
 
 /* ---------------- 視窗、分頁 ---------------- */
@@ -1067,31 +1090,83 @@ fn attach_native(wv: &Webview, wid: &str, tid: &str, page: bool) {
         page,
         accel: if page { webcore::shortcut } else { webcore::shortcut_bar },
         no_repeat: webcore::no_repeat,
-        block_prefix: webcore::ui_base().to_string(),
+        own_page: webcore::is_app_str,
+        web_first: page && tab_of(wid, tid).is_some_and(|t| parse_web(&t.url).is_some()),
         save_passwords: set.save_passwords && !incognito,
-        download_dir: set.download_dir,
+        download_dir: download_dir(wv.app_handle()),
     };
     with_wv(wv, move |w| webnative::attach(w, opts, sink));
 }
 
-/// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉
-fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
+/// 下載要存的資料夾：設定裡沒指定就是 Windows 的「下載」。
+/// WebView2 會把這個資料夾記在瀏覽器資料裡，所以「恢復預設」時也要明確設回去，不然會一直用上次選的
+pub(crate) fn download_dir(app: &AppHandle) -> String {
+    let set = st().file.settings.download_dir.clone();
+    if !set.trim().is_empty() {
+        return set;
+    }
+    app.path().download_dir().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// 登入用的小視窗（網頁用 window.open 指定大小開的）：開成真的視窗，才能打字、登入完會自己關掉。
+/// wid = 開它的網頁所在的瀏覽器視窗
+fn popup_window(app: &AppHandle, wid: &str, url: &Url, features: tauri::webview::NewWindowFeatures) -> Option<WebviewWindow> {
     let n = POPUP_N.fetch_add(1, Ordering::SeqCst) + 1;
+    let label = format!("webpop-{n}");
+    let (a2, w2) = (app.clone(), wid.to_string());
     // 要跟網頁用同一個設定檔、同樣的環境選項：WebView2 才會把它當成同一個瀏覽器開出來的視窗
     // （開它的網頁才拿得到 window.opener、登入結果才送得回去；Google 登入 X.com 就是靠這個）
-    let win = WebviewWindowBuilder::new(app, format!("webpop-{n}"), WebviewUrl::External("about:blank".parse().ok()?))
+    let win = WebviewWindowBuilder::new(app, &label, WebviewUrl::External("about:blank".parse().ok()?))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
+        // 無痕式視窗開的小視窗也要是無痕的：不然 WebView2 不接受，小視窗會一片空白、網站以為被擋掉
+        .incognito(is_incognito(wid))
         .window_features(features)
         .title(url.host_str().unwrap_or("登入"))
         .focused(true)
         // 小視窗不能開程式自己的頁面
-        .on_navigation(|u| !webcore::is_app_url(u))
+        .on_navigation(|u| !webcore::is_app_target(u))
         .on_document_title_changed(|w, title| {
             let _ = w.set_title(&title);
         })
+        // 小視窗裡會開新視窗的連結（說明、忘記密碼、建立帳戶…）：指定大小的再開一個小視窗，
+        // 其他的開在原本那個瀏覽器視窗的新分頁，並把那個視窗叫到前面（跟 Chrome 一樣）
+        .on_new_window(move |u, features| {
+            if webcore::is_app_target(&u) {
+                return NewWindowResponse::Deny;
+            }
+            if features.size().is_some() {
+                return match popup_window(&a2, &w2, &u, features) {
+                    Some(window) => NewWindowResponse::Create { window },
+                    None => NewWindowResponse::Deny,
+                };
+            }
+            if web_url(&u) {
+                let (app, wid) = (a2.clone(), w2.clone());
+                std::thread::spawn(move || {
+                    let target = match add_tab(&app, &wid, u.to_string(), true, None) {
+                        Ok(_) => Some(wid.clone()),
+                        // 原本的視窗已經關了：開一個新的
+                        Err(_) => new_window(&app, Some(u.to_string()), is_incognito(&wid), None).ok(),
+                    };
+                    let hwnd = target.map(|id| rt(|m| m.get(&id).map(|r| r.hwnd).unwrap_or(0))).unwrap_or(0);
+                    if hwnd != 0 {
+                        let _ = app.run_on_main_thread(move || win32::activate(hwnd));
+                    }
+                });
+            }
+            NewWindowResponse::Deny
+        })
         .build()
         .ok()?;
+    // 網頁自己關視窗（window.close()，登入完成時）：WebView2 只會把裡面的網頁收掉，視窗要自己關，
+    // 不然會留一個空白的視窗在畫面上
+    {
+        let (a3, l3) = (app.clone(), label.clone());
+        with_wv(win.as_ref(), move |w| {
+            webnative_close_hook(w, a3, l3);
+        });
+    }
     // 遊戲在前景時點網頁不會切換前景，Windows 就不讓新開的小視窗變成前景（打字會跑到遊戲）：主動叫到前景
     #[cfg(windows)]
     if let Ok(h) = win.hwnd() {
@@ -1102,9 +1177,9 @@ fn popup_window(app: &AppHandle, url: &Url, features: tauri::webview::NewWindowF
 }
 
 fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<PathBuf>, incognito: bool) -> WebviewBuilder<tauri::Wry> {
-    let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
-    let (w1, w2, w3) = (wid.to_string(), wid.to_string(), wid.to_string());
-    let (t1, t2, t3) = (tid.to_string(), tid.to_string(), tid.to_string());
+    let (a1, a2, a3, a4) = (app.clone(), app.clone(), app.clone(), app.clone());
+    let (w1, w2, w3, w4) = (wid.to_string(), wid.to_string(), wid.to_string(), wid.to_string());
+    let (t1, t2, t3, t4) = (tid.to_string(), tid.to_string(), tid.to_string(), tid.to_string());
     // 新分頁不要搶走焦點（網址列要能直接打字）
     let blank = webcore::local_to_virtual(&url).is_some_and(|v| webcore::is_newtab(&v));
     let mut b = WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
@@ -1125,26 +1200,39 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
     b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
         .disable_drag_drop_handler()
-        .on_navigation(nav_allowed)
+        .on_navigation(move |u| nav_check(&a4, &w4, &t4, u))
         .on_page_load(move |wv, p| {
             on_page(&a1, &w1, &t1, &wv, p.url(), matches!(p.event(), PageLoadEvent::Started));
         })
         .on_document_title_changed(move |_wv, raw| on_title(&a2, &w2, &t2, raw))
         // 登入用的小視窗開成真的視窗；其他開新分頁的連結：在這個視窗開一個新分頁
         .on_new_window(move |u, features| {
-            if webcore::is_app_url(&u) {
+            // WebView2 這次「開新視窗」的要求（每次都要拿，順序才對得上）
+            let req = webnative::take_new_window(|raw| Url::parse(raw).is_ok_and(|x| x == u));
+            if webcore::is_app_target(&u) {
                 return NewWindowResponse::Deny;
             }
             if features.size().is_some() {
-                return match popup_window(&a3, &u, features) {
+                return match popup_window(&a3, &w3, &u, features) {
                     Some(window) => NewWindowResponse::Create { window },
                     None => NewWindowResponse::Allow,
                 };
             }
+            // 跟 Chrome 一樣：Ctrl + 點或中鍵點 = 在背景開新分頁；Shift + 點 = 開新視窗
+            let (ctrl, shift, middle) = win32::click_mods();
+            let plain = !(shift && !ctrl && !middle) && !((ctrl || middle) && !shift);
+            // 同一個網址已經開著：切過去就好，不要一直開新分頁
+            let same = if web_url(&u) { get(&w3).and_then(|w| w.tabs.into_iter().find(|t| same_url(&t.url, u.as_str()))).map(|t| t.id) } else { None };
+            // 一般的情況：開成新分頁，而且跟開它的網頁連著（登入頁、付款頁靠這個把結果傳回來）。
+            // 網站先開空白分頁再前往（about:blank）、開自己產生的檔案（blob:）也算
+            let linkable = web_url(&u) || u.as_str() == "about:blank" || u.scheme() == "blob";
+            if let Some(req) = req {
+                if plain && same.is_none() && linkable && !req.from_own() && linked_tab(&a3, &w3, &t3, &u, &features, req) {
+                    return NewWindowResponse::Deny;
+                }
+            }
             if web_url(&u) {
                 let (app, wid, tid) = (a3.clone(), w3.clone(), t3.clone());
-                // 跟 Chrome 一樣：Ctrl + 點或中鍵點 = 在背景開新分頁；Shift + 點 = 開新視窗
-                let (ctrl, shift, middle) = win32::click_mods();
                 std::thread::spawn(move || {
                     if shift && !ctrl && !middle {
                         let _ = new_window(&app, Some(u.to_string()), is_incognito(&wid), Some(&wid));
@@ -1154,20 +1242,199 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
                         let _ = add_tab(&app, &wid, u.to_string(), false, Some(&tid));
                         return;
                     }
-                    // 同一個網址已經開著：切過去就好，不要一直開新分頁
-                    let same = get(&wid).and_then(|w| w.tabs.into_iter().find(|t| same_url(&t.url, u.as_str()))).map(|t| t.id);
                     match same {
                         Some(t) => {
                             let _ = select_tab(&app, &wid, &t);
                         }
                         None => {
-                            let _ = add_tab(&app, &wid, u.to_string(), true, Some(&tid));
+                            if let Ok(new) = add_tab(&app, &wid, u.to_string(), true, Some(&tid)) {
+                                set_opener(&wid, &new, &tid);
+                            }
                         }
                     }
                 });
             }
             NewWindowResponse::Deny
         })
+}
+
+/// 登入小視窗的網頁自己關視窗時，把整個視窗關掉
+#[cfg(windows)]
+fn webnative_close_hook(w: &webnative::Wv, app: AppHandle, label: String) {
+    webnative::on_close_requested(w, move || {
+        let (app, label) = (app.clone(), label.clone());
+        // 不可以在通知裡面直接動視窗
+        std::thread::spawn(move || {
+            if let Some(win) = app.get_webview_window(&label) {
+                let _ = win.close();
+            }
+        });
+    });
+}
+
+#[cfg(not(windows))]
+fn webnative_close_hook(_w: &webnative::Wv, _app: AppHandle, _label: String) {}
+
+/// 記下分頁是從哪個分頁開出來的（關掉時回到那個分頁）
+fn set_opener(wid: &str, tid: &str, opener: &str) {
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.opener.insert(tid.to_string(), opener.to_string());
+        }
+    });
+}
+
+/// 分頁要前往某個網址：可不可以。順便記下這個分頁是不是在程式自己的頁面上。
+/// 「開過開發人員工具」和「在自己的頁面上」放在同一把鎖裡判斷，兩件事不會同時成立：
+/// 程式自己的頁面可以呼叫程式內部的功能，開發人員工具開在上面等於把內部整個攤開
+fn nav_check(app: &AppHandle, wid: &str, tid: &str, u: &Url) -> bool {
+    if !nav_allowed(u) {
+        return false;
+    }
+    let own = webcore::is_app_target(u);
+    let blocked = rt(|m| {
+        let Some(r) = m.get_mut(wid) else { return false };
+        if own && r.devtools.contains(tid) {
+            return true;
+        }
+        // 正要前往程式自己的頁面：還沒真的換過去就先記（前往途中也不能開開發人員工具），改成前往別的網頁才拿掉。
+        // 「已經顯示著自己的頁面」另外記（見 on_own_page），要等真的換到別的網頁才拿掉
+        if own {
+            r.heading_own.insert(tid.to_string());
+        } else {
+            r.heading_own.remove(tid);
+        }
+        false
+    });
+    if blocked {
+        // 開過開發人員工具的分頁：程式自己的頁面改開在新分頁
+        if let Some(v) = webcore::local_to_virtual(u) {
+            let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
+            std::thread::spawn(move || {
+                let _ = add_tab(&app, &wid, v, true, Some(&tid));
+            });
+        }
+        return false;
+    }
+    true
+}
+
+/// 分頁真的換到程式自己的頁面了
+fn on_own_page(wid: &str, tid: &str) {
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.own_page.insert(tid.to_string());
+        }
+    });
+}
+
+/// 分頁真的換到一般網頁了：不再算「在自己的頁面上」
+fn left_own_page(wid: &str, tid: &str) {
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.own_page.remove(tid);
+        }
+    });
+}
+
+/// 這個分頁可不可以開開發人員工具（只有一般網頁可以）；可以就記下「開過」
+pub(crate) fn devtools_mark(wid: &str, tid: &str) -> bool {
+    if !tab_of(wid, tid).is_some_and(|t| parse_web(&t.url).is_some()) {
+        return false;
+    }
+    rt(|m| {
+        m.get_mut(wid).is_some_and(|r| {
+            if r.own_page.contains(tid) || r.heading_own.contains(tid) {
+                return false;
+            }
+            r.devtools.insert(tid.to_string());
+            true
+        })
+    })
+}
+
+fn devtools_used(wid: &str, tid: &str) -> bool {
+    rt(|m| m.get(wid).is_some_and(|r| r.devtools.contains(tid)))
+}
+
+/// 開發人員工具（F12）：開成另一個視窗
+fn open_devtools(app: &AppHandle, wid: &str, tid: &str) {
+    if !devtools_mark(wid, tid) {
+        return;
+    }
+    if let Some(p) = app.get_webview(&page_label(wid, tid)) {
+        with_wv(&p, |w| {
+            webnative::open_devtools(w, webcore::is_app_str);
+        });
+    }
+}
+
+/// 網頁要開新分頁（window.open 沒指定大小、開新分頁的連結、送到新分頁的表單）：開成新分頁，並且把分頁交還給
+/// WebView2 當成這次開出來的視窗——網站拿得到開出來的分頁（不會以為被擋掉）、新分頁拿得到 window.opener、
+/// 表單資料也帶得過去。要在主執行緒呼叫（WebView2 通知「要開新視窗」的當下）。
+/// 回傳 false = 沒辦法這樣開（呼叫的人改用原本的方式：自己開一個分頁載入那個網址）
+#[cfg(windows)]
+fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &tauri::webview::NewWindowFeatures, req: webnative::NewWin) -> bool {
+    let Some(win) = app.get_window(&win_label(wid)) else { return false };
+    let Ok(blank) = Url::parse("about:blank") else { return false };
+    let incognito = is_incognito(wid);
+    // 還沒載入前，分頁先記要去的網址（空白頁就是 about:blank）
+    let shown = tab_url(u).unwrap_or_else(|| "about:blank".to_string());
+    let Some(tid) = edit(wid, |w| {
+        w.next_tab += 1;
+        let tid = format!("t{}", w.next_tab);
+        let pinned = w.tabs.iter().filter(|t| t.pinned).count();
+        let pos = w.tabs.iter().position(|t| t.id == opener).map(|i| i + 1).unwrap_or(w.tabs.len()).max(pinned);
+        w.tabs.insert(pos, Tab::new(tid.clone(), shown));
+        tid
+    }) else {
+        return false;
+    };
+    let drop_tab = |tid: &str| {
+        edit(wid, |w| w.tabs.retain(|t| t.id != tid));
+    };
+    let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
+    let (_, _, (pos, sz)) = geometry(wid, &win, size);
+    // 一定要跟開它的網頁同一個環境、同一個設定檔，而且還沒載入過別的網址
+    let b = page_builder(app, wid, &tid, blank, None, incognito).with_environment(features.opener().environment.clone());
+    let made = match win.add_child(b, pos, sz) {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("新分頁建立失敗：{e}");
+            drop_tab(&tid);
+            return false;
+        }
+    };
+    attach_native(&made, wid, &tid, true);
+    let ok = Arc::new(AtomicBool::new(false));
+    let ok2 = ok.clone();
+    with_wv(&made, move |w| ok2.store(req.adopt(w), Ordering::SeqCst));
+    if !ok.load(Ordering::SeqCst) {
+        // 交不出去：這個分頁不要了，讓呼叫的人用原本的方式開
+        let _ = made.close();
+        drop_tab(&tid);
+        return false;
+    }
+    rt(|m| {
+        if let Some(r) = m.get_mut(wid) {
+            r.opener.insert(tid.clone(), opener.to_string());
+            // 從開過開發人員工具的分頁開出來的，也當成開過（開發人員工具可能會自動跟著開）
+            if r.devtools.contains(opener) {
+                r.devtools.insert(tid.clone());
+            }
+        }
+    });
+    // 切過去（顯示它、收起原本的、更新工具列）交給背景做
+    let (app, wid) = (app.clone(), wid.to_string());
+    std::thread::spawn(move || {
+        let _ = select_tab(&app, &wid, &tid);
+    });
+    true
+}
+
+#[cfg(not(windows))]
+fn linked_tab(_app: &AppHandle, _wid: &str, _opener: &str, _u: &Url, _features: &tauri::webview::NewWindowFeatures, _req: webnative::NewWin) -> bool {
+    false
 }
 
 /// 網頁載入完成後：取得網站圖示的網址與標題（只回傳這兩樣，不做其他事）
@@ -1197,6 +1464,22 @@ fn apply_zoom(wv: &Webview, wid: &str, tid: &str, url: &str) {
 }
 
 fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, started: bool) {
+    if webcore::is_app_target(url) {
+        on_own_page(wid, tid);
+        // 保險：開過開發人員工具的分頁不應該載入得了程式自己的頁面（nav_check 會擋）。
+        // 萬一還是載入了：換一個新的分頁來開，這個關掉（開發人員工具會跟著關）
+        if devtools_used(wid, tid) {
+            let (app2, w2, t2) = (app.clone(), wid.to_string(), tid.to_string());
+            let v = webcore::local_to_virtual(url).unwrap_or_else(|| HOME.to_string());
+            std::thread::spawn(move || {
+                let _ = add_tab(&app2, &w2, v, true, Some(&t2));
+                let _ = close_tab(&app2, &w2, &t2);
+            });
+            return;
+        }
+    } else if !started {
+        left_own_page(wid, tid);
+    }
     let shown = shown_url(wid, tid, url, started);
     // 檢視原始碼的頁面：不跑使用者腳本、不記到歷史記錄
     let viewing = shown.as_deref().is_some_and(|s| s.starts_with("view-source:"));
@@ -1251,6 +1534,11 @@ fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, start
 
 /// 網址變了但沒有重新載入（YouTube 這類不換頁就換網址的網站）
 fn on_source(app: &AppHandle, wid: &str, tid: &str, raw: &str) {
+    if webcore::is_app_str(raw) {
+        on_own_page(wid, tid);
+    } else {
+        left_own_page(wid, tid);
+    }
     let Some(shown) = Url::parse(raw).ok().and_then(|u| shown_url(wid, tid, &u, false)) else { return };
     let loading = rt(|m| m.get(wid).is_some_and(|r| r.loading.contains(tid)));
     let changed = edit(wid, |w| {
@@ -1547,6 +1835,8 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     rt(|m| {
         if let Some(r) = m.get_mut(wid) {
             r.page_typing = false;
+            // 切到別的分頁了：其他分頁「是從哪個分頁開的」不再算（跟 Chrome 一樣，關掉時不會跳回去）
+            r.opener.retain(|child, _| child == tid);
         }
     });
     // 這個視窗正在用（它是前景視窗）：鍵盤交給新顯示的網頁，快捷鍵、捲動才會作用在它上面。
@@ -1671,15 +1961,20 @@ fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
         Select(String),
         Stay,
     }
+    let opener = rt(|m| m.get(wid).and_then(|r| r.opener.get(tid).cloned()));
     let after = edit(wid, |w| {
         let i = w.tabs.iter().position(|t| t.id == tid)?;
         let t = w.tabs.remove(i);
-        let closed = (!w.incognito).then(|| webcore::ClosedTab { url: t.url, title: t.title, icon: t.icon, win: w.id.clone(), index: i, at: webcore::now_ms() });
+        // 空白頁（網站先開空白分頁、還沒前往就關掉的）不用記到「最近關閉」
+        let closed = (!w.incognito && t.url != "about:blank")
+            .then(|| webcore::ClosedTab { url: t.url, title: t.title, icon: t.icon, win: w.id.clone(), index: i, at: webcore::now_ms() });
         if w.tabs.is_empty() {
             return Some((After::Last, closed));
         }
         if w.active == tid {
-            return Some((After::Select(w.tabs[i.min(w.tabs.len() - 1)].id.clone()), closed));
+            // 從別的分頁開出來的（登入頁這類）：關掉後回到開它的那個分頁；不然是右邊那個
+            let back = opener.filter(|o| w.tabs.iter().any(|t| t.id == *o));
+            return Some((After::Select(back.unwrap_or_else(|| w.tabs[i.min(w.tabs.len() - 1)].id.clone())), closed));
         }
         Some((After::Stay, closed))
     })
@@ -1701,6 +1996,11 @@ fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
             r.zoom.remove(tid);
             r.zoom_set.remove(tid);
             r.source.remove(tid);
+            r.devtools.remove(tid);
+            r.own_page.remove(tid);
+            r.heading_own.remove(tid);
+            r.opener.remove(tid);
+            r.opener.retain(|_, o| o != tid);
         }
     });
     match after {
@@ -2743,6 +3043,7 @@ pub(crate) fn run_cmd(app: &AppHandle, wid: &str, tid: Option<&str>, cmd: &str) 
                 with_wv(&p, webnative::task_manager);
             }
         }
+        "devtools" => open_devtools(app, wid, &tid),
         "dl.toggle" => {
             if let Some(p) = active_page(app, wid) {
                 with_wv(&p, webnative::toggle_downloads);
@@ -2767,6 +3068,7 @@ mod win32 {
     pub fn iconic(_h: isize) -> bool {
         false
     }
+    pub fn activate(_h: isize) {}
     pub fn capture(_h: isize, _max_w: u32) -> Option<(u32, u32, Vec<u8>)> {
         None
     }

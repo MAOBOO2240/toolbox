@@ -134,6 +134,8 @@ enum Act {
     ExtSync,
     /// WebView2 右鍵選單的指令
     Native(i32),
+    /// 右鍵選單的「檢查」（開發人員工具）。Some = 用 WebView2 的指令（會選到按右鍵的元素）
+    Inspect(Option<i32>),
     /// 重新開啟最近關閉的分頁（從新到舊第幾個）
     Reopen(usize),
     SelectTab(String),
@@ -632,6 +634,7 @@ fn sub_menu(wid: &str, tid: &str, sub: &Sub) -> Menu {
             let web = tab_of(wid, tid).is_some_and(|t| parse_web(&t.url).is_some());
             m.add(Item::new("工作管理員", "task").key("Shift+Esc"), Act::Cmd("taskmgr"));
             m.add(Item::new("檢視網頁原始碼", "code").key("Ctrl+U").off(!web), Act::Cmd("source"));
+            m.add(Item::new("開發人員工具", "code").key("Ctrl+Shift+I").off(!web), Act::Cmd("devtools"));
             m.sep();
             m.add(Item::new("清除這個網站的資料（Cookie、登入狀態）", "trash").danger().off(!web), Act::Cmd("site.clear"));
         }
@@ -843,6 +846,7 @@ fn ctx_menu(list: &[CtxEntry]) -> Menu {
             CtxAct::OpenIncognito(u) => Act::NewWindow(u.clone(), true),
             CtxAct::Search(text) => Act::NewTab(webcore::search_url(engine(), text), true),
             CtxAct::ViewSource(u) => Act::NewTab(format!("view-source:{u}"), true),
+            CtxAct::Inspect(id) => Act::Inspect(*id),
             CtxAct::None => Act::Nothing,
         };
         m.add(item, act);
@@ -887,18 +891,26 @@ fn nav_menu(json: &str, back: bool) -> Menu {
 pub fn open_context(app: &AppHandle, wid: &str, tid: &str, seq: u64, target: CtxTarget, items: Vec<NativeItem>) {
     // 瀏覽器自己的頁面（設定、歷史記錄…）沒有「檢視網頁原始碼」
     let mut target = target;
-    if Url::parse(&target.page).is_ok_and(|u| webcore::is_app_url(&u)) {
+    let own = Url::parse(&target.page).is_ok_and(|u| webcore::is_app_target(&u));
+    // 正在「檢視原始碼」的分頁也一樣：沒有「檢視網頁原始碼」和「檢查」
+    let viewing = tab_of(wid, tid).is_some_and(|t| t.url.starts_with("view-source:"));
+    if own || viewing {
         target.page.clear();
     }
     let entries = webcore::build_context(&target, &items, engine(), is_incognito(wid));
     let pos = app.get_window(&win_label(wid)).and_then(|w| w.cursor_position().ok());
+    // 顯示不了自己的選單：交還給 WebView2 顯示原本的。原本的選單裡可能有「檢查」，
+    // 所以先當成這個分頁開過開發人員工具；不能開的（程式自己的頁面）就不顯示選單
+    let native_menu = || {
+        let ok = !own && devtools_mark(wid, tid);
+        let _ = app.run_on_main_thread(move || if ok { webnative::ctx_default(seq) } else { webnative::ctx_finish(seq, None) });
+    };
     let (Some(pos), false) = (pos, entries.is_empty()) else {
-        // 顯示不了自己的選單：交還給 WebView2 顯示原本的
-        let _ = app.run_on_main_thread(move || webnative::ctx_default(seq));
+        native_menu();
         return;
     };
     if ensure_window(app, 0).is_err() {
-        let _ = app.run_on_main_thread(move || webnative::ctx_default(seq));
+        native_menu();
         return;
     }
     let spec = Spec {
@@ -1306,6 +1318,25 @@ pub async fn web_pop_pick(app: AppHandle, webview: Webview, gen: u64, index: usi
                 p.ctx = None;
             }
             hide_all(&app, false);
+        }
+        Act::Inspect(id) => {
+            // 只有一般網頁可以開；開過的分頁要記下來（之後不能再載入程式自己的頁面）
+            let ok = devtools_mark(&owner, &tid);
+            match (id, ctx, ok) {
+                (Some(id), Some(seq), true) => {
+                    finish_ctx(&app, seq, Some(id));
+                    if let Some(p) = lock(&POP).as_mut() {
+                        p.ctx = None;
+                    }
+                    hide_all(&app, false);
+                }
+                _ => {
+                    hide_all(&app, false);
+                    if ok {
+                        run_cmd(&app, &owner, Some(&tid), "devtools");
+                    }
+                }
+            }
         }
         Act::Reopen(n) => {
             hide_all(&app, false);

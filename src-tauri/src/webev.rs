@@ -68,8 +68,11 @@ pub struct Opts {
     pub accel: fn(u32, bool, bool, bool) -> Option<&'static str>,
     /// 按住不放時不要重複的指令
     pub no_repeat: fn(&str) -> bool,
-    /// 網頁裡的內嵌框架不可以載入這個開頭的網址（程式自己的頁面）
-    pub block_prefix: String,
+    /// 這個網址是不是程式自己的頁面（設定、新分頁…）。網頁裡的內嵌框架不可以載入、
+    /// 開發人員工具也不可以開在上面
+    pub own_page: fn(&str) -> bool,
+    /// 這個分頁一開始要載入的是一般網頁（第一個網頁就可以用開發人員工具；之後每次換網址再照網址決定）
+    pub web_first: bool,
     /// 詢問要不要儲存密碼
     pub save_passwords: bool,
     /// 下載要存的資料夾（空白 = 不改，用 Windows 的「下載」）

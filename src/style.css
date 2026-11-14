@@ -59,6 +59,9 @@ html, body {
 
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 input, select { font: inherit; color: inherit; }
+/* 有提示文字的按鈕裡的圖示不單獨接滑鼠：圖示的線條很細，滑鼠停在線條和空白之間時
+   WebView2 會把提示文字收掉不再顯示（時有時無）。點擊、滑鼠移入一樣由外層的按鈕接 */
+[title] svg:not([title]) { pointer-events: none; }
 
 /* ---------- 版面 ---------- */
 .app { display: flex; height: 100%; }

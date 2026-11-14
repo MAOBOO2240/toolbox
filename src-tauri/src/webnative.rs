@@ -6,7 +6,7 @@
 
 use crate::webev::{CtxTarget, DlEv, Ev, NativeItem, Opts, Sink};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
@@ -15,6 +15,7 @@ use webview2_com::{
     ClearBrowsingDataCompletedHandler, ContainsFullScreenElementChangedEventHandler, ContextMenuRequestedEventHandler,
     DownloadStartingEventHandler, FaviconChangedEventHandler, FindStartCompletedHandler, GetCookiesCompletedHandler,
     HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, IsMutedChangedEventHandler, NavigationStartingEventHandler,
+    NewWindowRequestedEventHandler,
     ShowSaveAsUICompletedHandler, SourceChangedEventHandler, StateChangedEventHandler, WindowCloseRequestedEventHandler,
     ZoomFactorChangedEventHandler,
 };
@@ -58,6 +59,48 @@ thread_local! {
     static CTX: RefCell<Option<CtxPending>> = const { RefCell::new(None) };
     /// 下載中的檔案（可以暫停、繼續、取消）
     static DLS: RefCell<HashMap<u64, ICoreWebView2DownloadOperation>> = RefCell::new(HashMap::new());
+    /// 網頁要求開新視窗（window.open、開新分頁的連結）時 WebView2 給的資料，先收著。
+    /// 之後把新開的分頁交還給它（見 NewWin::adopt），開它的網頁才拿得到這個分頁
+    static NEWWIN: RefCell<VecDeque<NewWin>> = const { RefCell::new(VecDeque::new()) };
+}
+
+/// 一次「開新視窗」的要求
+pub struct NewWin {
+    /// 要開的網址
+    uri: String,
+    args: ICoreWebView2NewWindowRequestedEventArgs,
+    /// 是程式自己的頁面（設定、新分頁…）要開的
+    from_own: bool,
+}
+
+// 只在主執行緒建立、使用（為了能放進要求 Send 的閉包裡；閉包是在主執行緒當場執行的）
+unsafe impl Send for NewWin {}
+
+impl NewWin {
+    /// 是程式自己的頁面要開的：不可以讓開出來的網頁跟它連著
+    pub fn from_own(&self) -> bool {
+        self.from_own
+    }
+
+    /// 把新開的網頁交給這個要求：WebView2 會把它當成 window.open 開出來的視窗——
+    /// 開它的網頁拿得到它（回傳值不是 null）、它拿得到開它的網頁（window.opener）、
+    /// 要送出的表單資料也會一起帶過去。新網頁要還沒載入過別的網址
+    pub fn adopt(&self, w: &Wv) -> bool {
+        unsafe { self.args.SetNewWindow(&w.core).is_ok() }
+    }
+}
+
+/// 拿出剛才收著的「開新視窗」要求。same(網址) = 是不是這一次的；排在它前面對不上的是過期的，丟掉
+pub fn take_new_window(same: impl Fn(&str) -> bool) -> Option<NewWin> {
+    NEWWIN.with(|q| {
+        let mut q = q.borrow_mut();
+        while let Some(req) = q.pop_front() {
+            if same(&req.uri) {
+                return Some(req);
+            }
+        }
+        None
+    })
 }
 
 static DL_KEY: AtomicU64 = AtomicU64::new(0);
@@ -166,6 +209,8 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
             if let Ok(s4) = s.cast::<ICoreWebView2Settings4>() {
                 let _ = s4.SetIsPasswordAutosaveEnabled(opts.save_passwords);
             }
+            // 開發人員工具：一開始照分頁要載入的網址決定（之後每次換網址都會重設，見下面）
+            let _ = s.SetAreDevToolsEnabled(opts.web_first);
         }
     }
     if opts.page && !opts.download_dir.is_empty() {
@@ -235,18 +280,57 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
     }
 
     // 內嵌框架不可以載入程式自己的頁面
-    if !opts.block_prefix.is_empty() {
-        let prefix = opts.block_prefix.to_lowercase();
+    {
+        let own = opts.own_page;
         let h = NavigationStartingEventHandler::create(Box::new(move |_c, args| {
             if let Some(args) = args {
-                let u = text(|p| args.Uri(p)).to_lowercase();
-                if u.starts_with(&prefix) {
+                if own(&text(|p| args.Uri(p))) {
                     let _ = args.SetCancel(true);
                 }
             }
             Ok(())
         }));
         let _ = core.add_FrameNavigationStarting(&h, &mut token);
+    }
+
+    // 開發人員工具：只有一般網頁可以用右鍵的「檢查」；程式自己的頁面關掉
+    // （設定在下一次載入網頁時生效，所以每次要前往新的網址時照那個網址設定）
+    {
+        let own = opts.own_page;
+        let h = NavigationStartingEventHandler::create(Box::new(move |c, args| {
+            if let (Some(c), Some(args)) = (c, args) {
+                if let Ok(s) = c.Settings() {
+                    let _ = s.SetAreDevToolsEnabled(!own(&text(|p| args.Uri(p))));
+                }
+            }
+            Ok(())
+        }));
+        let _ = core.add_NavigationStarting(&h, &mut token);
+    }
+
+    // 網頁要開新視窗：把這次的要求收著（開成新分頁時要把分頁交還給它，見 take_new_window）
+    {
+        let own = opts.own_page;
+        let h = NewWindowRequestedEventHandler::create(Box::new(move |c, args| {
+            if let Some(args) = args {
+                let uri = text(|p| args.Uri(p));
+                // 看不出是哪個網頁要開的，就當成程式自己的頁面（不連）
+                let from_own = c.as_ref().is_none_or(|c| {
+                    let src = text(|p| c.Source(p));
+                    src.is_empty() || own(&src)
+                });
+                NEWWIN.with(|q| {
+                    let mut q = q.borrow_mut();
+                    // 沒人來拿的不要一直留著
+                    while q.len() >= 6 {
+                        q.pop_front();
+                    }
+                    q.push_back(NewWin { uri, args, from_own });
+                });
+            }
+            Ok(())
+        }));
+        let _ = core.add_NewWindowRequested(&h, &mut token);
     }
 
     // 網站圖示
@@ -424,6 +508,32 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
 }
 
 /* ---------------- 操作 ---------------- */
+
+/// 網頁自己呼叫 window.close() 時通知（給登入用的小視窗：要把整個視窗關掉）
+pub fn on_close_requested(w: &Wv, f: impl Fn() + 'static) {
+    unsafe {
+        let mut token = 0i64;
+        let h = WindowCloseRequestedEventHandler::create(Box::new(move |_c, _| {
+            f();
+            Ok(())
+        }));
+        let _ = w.core.add_WindowCloseRequested(&h, &mut token);
+    }
+}
+
+/// 打開開發人員工具（F12）。own_page(網址) = 程式自己的頁面：不可以開。回傳有沒有開
+pub fn open_devtools(w: &Wv, own_page: fn(&str) -> bool) -> bool {
+    unsafe {
+        let src = text(|p| w.core.Source(p));
+        if src.is_empty() || own_page(&src) {
+            return false;
+        }
+        if let Ok(s) = w.core.Settings() {
+            let _ = s.SetAreDevToolsEnabled(true);
+        }
+        w.core.OpenDevToolsWindow().is_ok()
+    }
+}
 
 pub fn go_back(w: &Wv) {
     unsafe {

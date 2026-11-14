@@ -381,7 +381,7 @@ fn apply_to_pages(app: &AppHandle) {
     for w in open {
         for t in &w.tabs {
             if let Some(p) = app.get_webview(&page_label(&w.id, &t.id)) {
-                let (save, dir) = (set.save_passwords && !w.incognito, set.download_dir.clone());
+                let (save, dir) = (set.save_passwords && !w.incognito, download_dir(app));
                 with_wv(&p, move |wv| {
                     webnative::set_password_save(wv, save);
                     webnative::set_download_dir(wv, &dir);
