@@ -148,6 +148,10 @@ enum Act {
     Sug(String),
     /// 縮放那一列（按鈕在 part 裡）
     Zoom,
+    /// 使用者腳本自己登記的選單項目（腳本編號, 項目編號, 按了要不要把選單關掉）
+    GmCmd(String, String, bool),
+    /// 開關一支使用者腳本（檔名, 要不要關掉）
+    GmToggle(String, bool),
 }
 
 #[derive(Default)]
@@ -700,6 +704,53 @@ fn ext_menu() -> Menu {
     m
 }
 
+/// 工具列的「使用者腳本」按鈕：這個網頁用到的腳本（可以開關）、腳本自己登記的選單項目
+fn scripts_menu(wid: &str, tid: &str) -> Menu {
+    let mut m = Menu::default();
+    m.head("使用者腳本");
+    let rows = us::rows(wid, tid);
+    if rows.is_empty() {
+        m.add(Item::of("info", "這個網頁沒有要執行的腳本。"), Act::Nothing);
+    }
+    for r in &rows {
+        let sub = if r.off {
+            "已關閉"
+        } else if r.broken {
+            "缺少需要的檔案，沒有執行（到「管理使用者腳本」按「重新讀取」）"
+        } else if r.running {
+            "執行中"
+        } else {
+            "重新整理網頁後執行"
+        };
+        m.add(Item::new(r.name.clone(), "").check(!r.off).sub(sub), Act::GmToggle(r.file.clone(), !r.off));
+        for c in &r.cmds {
+            m.add(Item::new(c.caption.clone(), "").sub(c.title.clone()), Act::GmCmd(c.sid.clone(), c.id.clone(), c.close));
+        }
+        m.sep();
+    }
+    m.sep();
+    m.add(Item::new("管理使用者腳本", "gear"), Act::Cmd("page.extensions"));
+    m
+}
+
+/// 腳本登記的選單項目變了：「使用者腳本」選單正開著就跟著更新
+pub(super) fn scripts_changed(app: &AppHandle, wid: &str, tid: &str) {
+    static STAMP: AtomicU64 = AtomicU64::new(0);
+    let is_open = |wid: &str, tid: &str| lock(&POP).as_ref().is_some_and(|p| p.key == "scripts" && p.owner == wid && p.tid == tid);
+    if !is_open(wid, tid) {
+        return;
+    }
+    // 腳本常常是「全部取消再全部重新登記」：等它停下來再更新一次，選單才不會閃
+    let stamp = STAMP.fetch_add(1, Ordering::SeqCst) + 1;
+    let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(90));
+        if STAMP.load(Ordering::SeqCst) == stamp && is_open(&wid, &tid) {
+            replace_level(&app, 0, scripts_menu(&wid, &tid));
+        }
+    });
+}
+
 /// 擴充功能的右鍵選單：選項、固定、停用／啟用
 fn ext_ctx(id: &str) -> Option<Menu> {
     let e = ext_list().into_iter().find(|e| e.id == id)?;
@@ -957,7 +1008,7 @@ pub async fn web_menu_open(
         Some([l, t, r, b]) => {
             let p = win.inner_position().map_err(|e| e.to_string())?;
             let f = |v: f64| (v * sf).round() as i32;
-            let right = matches!(kind.as_str(), "main" | "ext" | "profile" | "bookmark" | "zoom" | "other");
+            let right = matches!(kind.as_str(), "main" | "ext" | "scripts" | "profile" | "bookmark" | "zoom" | "other");
             Place::Below { rect: (p.x + f(l), p.y + f(t), p.x + f(r), p.y + f(b)), right }
         }
         None => {
@@ -1002,6 +1053,7 @@ pub async fn web_menu_open(
         },
         "bmbar" => (bmbar_menu(), "menu", tid),
         "ext" => (ext_menu(), "bubble", tid),
+        "scripts" => (scripts_menu(&wid, &tid), "bubble", tid),
         "extpin" => match ext_ctx(&target) {
             Some(m) => (m, "menu", tid),
             None => return Ok(()),
@@ -1384,6 +1436,19 @@ pub async fn web_pop_pick(app: AppHandle, webview: Webview, gen: u64, index: usi
                 focus_page(&app, &owner, &tid);
             }
             let _ = app.emit_to(bar_label(&owner).as_str(), "web-blur", owner.clone());
+        }
+        Act::GmCmd(sid, id, close) => {
+            // 開關類的項目按了選單不關：腳本改完標題會通知，選單跟著更新（見 scripts_changed）
+            if close {
+                hide_all(&app, false);
+            }
+            us::click(&app, &owner, &tid, &sid, &id);
+        }
+        Act::GmToggle(file, off) => {
+            crate::userscripts::set_off(&file, off);
+            if lock(&POP).as_ref().is_some_and(|p| p.key == key) {
+                replace_level(&app, i, scripts_menu(&owner, &tid));
+            }
         }
         Act::Zoom => {
             let cur = tab_zoom(&owner, &tid);

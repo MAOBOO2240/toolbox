@@ -17,7 +17,7 @@ use webview2_com::{
     FindStartCompletedHandler, FrameChildFrameCreatedEventHandler, FrameCreatedEventHandler, FrameDestroyedEventHandler,
     FrameWebMessageReceivedEventHandler, GetCookiesCompletedHandler, HistoryChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler,
     IsMutedChangedEventHandler, NavigationStartingEventHandler, NewWindowRequestedEventHandler, ShowSaveAsUICompletedHandler,
-    SourceChangedEventHandler, StateChangedEventHandler, WindowCloseRequestedEventHandler,
+    SourceChangedEventHandler, StateChangedEventHandler, WebMessageReceivedEventHandler, WindowCloseRequestedEventHandler,
     ZoomFactorChangedEventHandler,
 };
 use windows_core::{Interface, BOOL, HSTRING, PWSTR};
@@ -65,8 +65,9 @@ thread_local! {
     static NEWWIN: RefCell<VecDeque<NewWin>> = const { RefCell::new(VecDeque::new()) };
     /// 每個網頁裡的內嵌框架（要回訊息給框架裡的使用者腳本時用）。鍵 = (網頁, 框架編號)
     static FRAMES: RefCell<HashMap<(usize, u32), ICoreWebView2Frame2>> = RefCell::new(HashMap::new());
-    /// 每個網頁目前登記的「帶最新設定值啟動使用者腳本」的小程式（換新的時候要先拿掉舊的）。值 = (第幾次, 登記編號)
-    static GM_BOOT: RefCell<HashMap<usize, (u64, String)>> = RefCell::new(HashMap::new());
+    /// 每個網頁另外登記的使用者腳本程式（分兩組：0 = 腳本清單，1 = 帶最新設定值啟動的那一段；換新的時候要先拿掉舊的）。
+    /// 鍵 = (網頁, 第幾組)；值 = (第幾次, 登記編號)
+    static GM_SLOTS: RefCell<HashMap<(usize, u8), (u64, Vec<String>)>> = RefCell::new(HashMap::new());
 }
 
 /// 一次「開新視窗」的要求
@@ -366,7 +367,7 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
     }
 
     if opts.page {
-        gm_attach(core, &sink, &opts.gm_bind);
+        gm_attach(core, &sink);
         targets_attach(core, &sink);
     }
 
@@ -791,39 +792,29 @@ pub fn clear_site(w: &Wv, origins: &[String]) {
 
 /* ---------------- 使用者腳本：跟網頁裡的腳本互傳訊息 ---------------- */
 
-/// 是不是使用者腳本傳來的訊息（一定是物件，而且有 "mb" 這個欄位；其他網頁自己傳的不理）
-fn gm_like(json: &str) -> bool {
-    json.starts_with('{') && json.contains("\"mb\"")
+/// 是不是使用者腳本傳來的訊息（開頭固定；其他網頁自己傳的、程式自己頁面傳的都不理）
+fn gm_like(msg: &str) -> bool {
+    msg.starts_with("{\"cmd\":\"mb\",")
 }
 
-/// 接網頁裡的使用者腳本傳來的訊息。
-/// - 內嵌框架：用 chrome.webview.postMessage（每個框架各自接）
-/// - 最上層的網頁：不能用同一招——Tauri 自己也接了最上層的 chrome.webview 訊息，而且它遇到不是文字的訊息會回報失敗，
-///   WebView2 就不再通知後面的人。所以改用 DevTools 的「綁定函式」：網頁呼叫那個函式，程式這邊會收到通知
-///   （只加這個函式，不開 Runtime 的其他功能，網站看不出差別）
-unsafe fn gm_attach(core: &ICoreWebView2, sink: &Sink, bind: &str) {
+/// 接網頁裡的使用者腳本傳來的訊息（都是文字）。
+/// - 最上層的網頁：Tauri 自己也接了同一種訊息。腳本傳的長得像 Tauri 的內部指令但鑰匙是空的，Tauri 會直接略過
+///   （不會回任何東西到網頁上），這裡再接一次拿來用
+/// - 內嵌框架：每個框架各自接
+unsafe fn gm_attach(core: &ICoreWebView2, sink: &Sink) {
     let mut token = 0i64;
-    if !bind.is_empty() {
-        if let Ok(recv) = core.GetDevToolsProtocolEventReceiver(&HSTRING::from("Runtime.bindingCalled")) {
-            let (sink, name) = (sink.clone(), format!("\"{bind}\""));
-            let h = DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |c, args| {
-                if let Some(args) = args {
-                    let json = text(|p| args.ParameterObjectAsJson(p));
-                    if json.contains(&name) {
-                        let source = c.as_ref().map(|c| text(|p| c.Source(p))).unwrap_or_default();
-                        sink(Ev::Gm { frame: 0, source, json, wrapped: true });
-                    }
+    {
+        let sink = sink.clone();
+        let h = WebMessageReceivedEventHandler::create(Box::new(move |_c, args| {
+            if let Some(args) = args {
+                let msg = text(|p| args.TryGetWebMessageAsString(p));
+                if gm_like(&msg) {
+                    sink(Ev::Gm { frame: 0, source: text(|p| args.Source(p)), json: msg });
                 }
-                Ok(())
-            }));
-            let _ = recv.add_DevToolsProtocolEventReceived(&h, &mut token);
-            let h2 = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|r, json| {
-                crate::dlog!("[cdp] Runtime.addBinding → {:?} {}", r.is_ok(), json.chars().take(160).collect::<String>());
-                Ok(())
-            }));
-            let params = format!("{{\"name\":\"{bind}\"}}");
-            let _ = core.CallDevToolsProtocolMethod(&HSTRING::from("Runtime.addBinding"), &HSTRING::from(params), &h2);
-        }
+            }
+            Ok(())
+        }));
+        let _ = core.add_WebMessageReceived(&h, &mut token);
     }
     if let Ok(c4) = core.cast::<ICoreWebView2_4>() {
         let key = core.as_raw() as usize;
@@ -854,9 +845,9 @@ unsafe fn hook_frame(key: usize, frame: &ICoreWebView2Frame, sink: Sink, depth: 
         let sink = sink.clone();
         let h = FrameWebMessageReceivedEventHandler::create(Box::new(move |_f, args| {
             if let Some(args) = args {
-                let json = text(|p| args.WebMessageAsJson(p));
-                if gm_like(&json) {
-                    sink(Ev::Gm { frame: id, source: text(|p| args.Source(p)), json, wrapped: false });
+                let msg = text(|p| args.TryGetWebMessageAsString(p));
+                if gm_like(&msg) {
+                    sink(Ev::Gm { frame: id, source: text(|p| args.Source(p)), json: msg });
                 }
             }
             Ok(())
@@ -895,51 +886,42 @@ pub fn gm_post(w: &Wv, frame: u32, json: &str) -> bool {
     }
 }
 
-/// 這個網頁目前有哪些內嵌框架（廣播設定值變動時用）
-pub fn gm_frames(w: &Wv) -> Vec<u32> {
-    let key = w.core.as_raw() as usize;
-    FRAMES.with(|m| m.borrow().keys().filter(|(k, _)| *k == key).map(|(_, f)| *f).collect())
-}
-
-/// 換掉這個網頁「每份文件一開始就執行」的那一小段程式（帶最新的設定值啟動使用者腳本）。
-/// 之後載入的文件（含內嵌框架）才會用到新的；空字串 = 只拿掉舊的
-pub fn gm_set_boot(w: &Wv, script: &str) {
+/// 換掉這個網頁另外登記的「每份文件一開始就執行」的程式（slot：0 = 腳本清單，1 = 帶最新設定值啟動的那一段）。
+/// 之後載入的文件（含內嵌框架）才會用到新的；空的 = 只拿掉舊的。
+/// 執行順序照登記順序，所以第 0 組換了之後，第 1 組也要重新登記一次（要排在最後）
+pub fn gm_set_slot(w: &Wv, slot: u8, scripts: Vec<String>) {
     static SEQ: AtomicU64 = AtomicU64::new(0);
-    let key = w.core.as_raw() as usize;
+    let key = (w.core.as_raw() as usize, slot);
     let seq = SEQ.fetch_add(1, Ordering::SeqCst) + 1;
     unsafe {
         // 先記「現在是第幾次」：比較晚登記好的舊版要自己拿掉
-        let old = GM_BOOT.with(|m| m.borrow_mut().insert(key, (seq, String::new())));
-        if let Some((_, id)) = old {
-            if !id.is_empty() {
+        let old = GM_SLOTS.with(|m| m.borrow_mut().insert(key, (seq, Vec::new())));
+        if let Some((_, ids)) = old {
+            for id in ids {
                 let _ = w.core.RemoveScriptToExecuteOnDocumentCreated(&HSTRING::from(id));
             }
         }
-        if script.is_empty() {
-            return;
-        }
-        let core = w.core.clone();
-        let h = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(move |r, id| {
-            if r.is_err() || id.is_empty() {
-                return Ok(());
-            }
-            let keep = GM_BOOT.with(|m| {
-                let mut m = m.borrow_mut();
-                match m.get_mut(&key) {
-                    Some((cur, slot)) if *cur == seq => {
-                        *slot = id.clone();
+        for script in scripts {
+            let core = w.core.clone();
+            let h = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(move |r, id| {
+                if r.is_err() || id.is_empty() {
+                    return Ok(());
+                }
+                let keep = GM_SLOTS.with(|m| match m.borrow_mut().get_mut(&key) {
+                    Some((cur, ids)) if *cur == seq => {
+                        ids.push(id.clone());
                         true
                     }
                     _ => false,
+                });
+                if !keep {
+                    // 登記好的時候已經有更新的版本了：這一份不要
+                    let _ = core.RemoveScriptToExecuteOnDocumentCreated(&HSTRING::from(id));
                 }
-            });
-            if !keep {
-                // 登記好的時候已經有更新的版本了：這一份不要
-                let _ = core.RemoveScriptToExecuteOnDocumentCreated(&HSTRING::from(id));
-            }
-            Ok(())
-        }));
-        let _ = w.core.AddScriptToExecuteOnDocumentCreated(&HSTRING::from(script), &h);
+                Ok(())
+            }));
+            let _ = w.core.AddScriptToExecuteOnDocumentCreated(&HSTRING::from(script), &h);
+        }
     }
 }
 
@@ -947,7 +929,46 @@ pub fn gm_set_boot(w: &Wv, script: &str) {
 pub fn gm_forget(w: &Wv) {
     let key = w.core.as_raw() as usize;
     FRAMES.with(|m| m.borrow_mut().retain(|(k, _), _| *k != key));
-    GM_BOOT.with(|m| m.borrow_mut().remove(&key));
+    GM_SLOTS.with(|m| m.borrow_mut().retain(|(k, _), _| *k != key));
+}
+
+/// 這個瀏覽器在某個網址會送出的 Cookie（"a=1; b=2"；使用者腳本連到它允許的網站時帶上）。結果交給 done
+pub fn cookies(w: &Wv, url: &str, done: Box<dyn FnOnce(String) + Send>) {
+    unsafe {
+        let Ok(cm) = w.core.cast::<ICoreWebView2_2>().and_then(|c| c.CookieManager()) else {
+            done(String::new());
+            return;
+        };
+        let slot = std::sync::Arc::new(std::sync::Mutex::new(Some(done)));
+        let slot2 = slot.clone();
+        let handler = GetCookiesCompletedHandler::create(Box::new(move |_, list| {
+            let mut out = String::new();
+            if let Some(list) = list {
+                let mut n = 0u32;
+                let _ = list.Count(&mut n);
+                for i in 0..n {
+                    if let Ok(c) = list.GetValueAtIndex(i) {
+                        let (name, value) = (text(|p| c.Name(p)), text(|p| c.Value(p)));
+                        if !name.is_empty() {
+                            if !out.is_empty() {
+                                out.push_str("; ");
+                            }
+                            out.push_str(&format!("{name}={value}"));
+                        }
+                    }
+                }
+            }
+            if let Some(f) = slot2.lock().ok().and_then(|mut g| g.take()) {
+                f(out);
+            }
+            Ok(())
+        }));
+        if cm.GetCookies(&HSTRING::from(url), &handler).is_err() {
+            if let Some(f) = slot.lock().ok().and_then(|mut g| g.take()) {
+                f(String::new());
+            }
+        }
+    }
 }
 
 /* ---------------- 瀏覽器裡有哪些頁面（認出不是程式開的視窗） ---------------- */

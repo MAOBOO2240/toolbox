@@ -30,6 +30,7 @@ use tauri::{
 
 pub mod pages;
 pub mod pop;
+mod us;
 
 /// 新視窗、新分頁開的頁面
 pub const HOME: &str = webcore::NEWTAB;
@@ -104,11 +105,11 @@ mod webnative {
     pub fn gm_post(_w: &Wv, _frame: u32, _json: &str) -> bool {
         false
     }
-    pub fn gm_frames(_w: &Wv) -> Vec<u32> {
-        Vec::new()
-    }
-    pub fn gm_set_boot(_w: &Wv, _script: &str) {}
+    pub fn gm_set_slot(_w: &Wv, _slot: u8, _scripts: Vec<String>) {}
     pub fn gm_forget(_w: &Wv) {}
+    pub fn cookies(_w: &Wv, _url: &str, done: Box<dyn FnOnce(String) + Send>) {
+        done(String::new())
+    }
     pub fn close_target(_w: &Wv, _id: &str) {}
 }
 
@@ -234,7 +235,15 @@ const EXT_TABS_JS: &str = r#"(() => {
       };
     }
   } catch (_) {}
+  // 小視窗自己關掉（window.close()）：很多擴充功能是「請背景程式開分頁」之後馬上關。真的關掉的話，
+  // 瀏覽器會以為這個視窗不在了，背景程式接著要開的分頁就沒有人接（按了像沒反應）。
+  // 所以不真的關：改成通知程式把小視窗收起來，過一下子再由程式收掉
+  try {
+    window.close = () => { try { document.title = "__CLOSE_MARK__"; } catch (_) {} };
+  } catch (_) {}
 })();"#;
+/// 擴充功能的小視窗要關掉時，標題會被改成這個（見 EXT_TABS_JS）
+const EXT_CLOSE_MARK: &str = "\u{2063}\u{2063}mb-close";
 
 /* ---------------- 設定檔 ---------------- */
 
@@ -840,6 +849,8 @@ pub struct BarState {
     closed: usize,
     engine: &'static str,
     dl: DlBadge,
+    /// 有裝使用者腳本（工具列顯示「使用者腳本」按鈕）
+    scripts: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -934,6 +945,7 @@ fn bar_state(wid: &str) -> Option<BarState> {
         closed,
         engine: webcore::engine(&set.engine).name,
         dl: dl_badge(),
+        scripts: !w.incognito && us::any(),
     })
 }
 
@@ -1135,7 +1147,6 @@ fn attach_native(wv: &Webview, wid: &str, tid: &str, page: bool) {
         web_first: page && tab_of(wid, tid).is_some_and(|t| parse_web(&t.url).is_some()),
         save_passwords: set.save_passwords && !incognito,
         download_dir: download_dir(wv.app_handle()),
-        gm_bind: if page { crate::userscripts::bind_name().to_string() } else { String::new() },
     };
     with_wv(wv, move |w| webnative::attach(w, opts, sink));
 }
@@ -1240,6 +1251,7 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
     let (t1, t2, t3, t4) = (tid.to_string(), tid.to_string(), tid.to_string(), tid.to_string());
     // 新分頁不要搶走焦點（網址列要能直接打字）
     let blank = webcore::local_to_virtual(&url).is_some_and(|v| webcore::is_newtab(&v));
+    let first = url.clone();
     let mut b = WebviewBuilder::new(page_label(wid, tid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
@@ -1249,12 +1261,8 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
     if let Some(dir) = ext {
         b = b.extensions_path(dir);
     }
-    // 使用者腳本（document-start 的）：網頁一開始就跑；程式自己的頁面不跑
-    let us = crate::userscripts::start_script();
-    if !us.is_empty() {
-        let origin = webcore::ui_base().trim_end_matches('/');
-        b = b.initialization_script_for_all_frames(format!("if (location.origin !== {origin:?}) {{ {us} }}"));
-    }
+    // 使用者腳本：執行環境與每支腳本（網頁一開始就在；程式自己的頁面不跑）
+    let b = us::register(b, wid, tid, &first, incognito);
     b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
         .disable_drag_drop_handler()
@@ -1275,6 +1283,14 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
                     Some(window) => NewWindowResponse::Create { window },
                     None => NewWindowResponse::Allow,
                 };
+            }
+            // 使用者腳本（.user.js）：開安裝頁
+            if let Some(v) = us::redirect(u.as_str()).filter(|_| !is_incognito(&w3)) {
+                let (app, wid, tid) = (a3.clone(), w3.clone(), t3.clone());
+                std::thread::spawn(move || {
+                    let _ = add_tab(&app, &wid, v, true, Some(&tid));
+                });
+                return NewWindowResponse::Deny;
             }
             // 跟 Chrome 一樣：Ctrl + 點或中鍵點 = 在背景開新分頁；Shift + 點 = 開新視窗
             let (ctrl, shift, middle) = win32::click_mods();
@@ -1364,6 +1380,19 @@ fn set_opener(wid: &str, tid: &str, opener: &str) {
 /// 程式自己的頁面可以呼叫程式內部的功能，開發人員工具開在上面等於把內部整個攤開
 fn nav_check(app: &AppHandle, wid: &str, tid: &str, u: &Url) -> bool {
     if !nav_allowed(u) {
+        return false;
+    }
+    // 使用者腳本（.user.js，例如腳本網站上的「安裝」）：不直接顯示程式碼，改開安裝頁
+    if let Some(v) = us::redirect(u.as_str()).filter(|_| !is_incognito(wid)) {
+        let (app, wid, tid, target) = (app.clone(), wid.to_string(), tid.to_string(), u.to_string());
+        std::thread::spawn(move || {
+            // 這個分頁本來就是為了開這個網址才開的（還沒顯示過別的網頁）：開好安裝頁後把它收掉
+            let fresh = tab_of(&wid, &tid).is_some_and(|t| same_url(&t.url, &target) || t.url == "about:blank");
+            let _ = add_tab(&app, &wid, v, true, Some(&tid));
+            if fresh {
+                let _ = close_tab(&app, &wid, &tid);
+            }
+        });
         return false;
     }
     let own = webcore::is_app_target(u);
@@ -1481,6 +1510,7 @@ fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &taur
         }
     };
     attach_native(&made, wid, &tid, true);
+    us::booted(&made, wid, &tid);
     let ok = Arc::new(AtomicBool::new(false));
     let ok2 = ok.clone();
     with_wv(&made, move |w| ok2.store(req.adopt(w), Ordering::SeqCst));
@@ -1586,10 +1616,6 @@ fn on_page(app: &AppHandle, wid: &str, tid: &str, wv: &Webview, url: &Url, start
             apply_zoom(wv, wid, tid, s);
         }
     } else if web_url(url) && !viewing {
-        // 使用者腳本（載入完成後跑的）
-        for code in crate::userscripts::scripts_for(url.as_str()) {
-            let _ = wv.eval(&code);
-        }
         let (app2, w2, t2, u2) = (app.clone(), wid.to_string(), tid.to_string(), url.to_string());
         let _ = wv.eval_with_callback(INFO_JS, move |res| {
             let v: Value = serde_json::from_str(&res).unwrap_or_default();
@@ -1794,6 +1820,7 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
         Err(e) => Err(format!("網頁建立失敗：{e}")),
     }?;
     attach_native(&made, wid, tid, true);
+    us::booted(&made, wid, tid);
     // 靜音的分頁維持靜音
     if get(wid).is_some_and(|w| w.tabs.iter().any(|t| t.id == tid && t.muted)) {
         with_wv(&made, |w| webnative::set_muted(w, true));
@@ -1939,6 +1966,8 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
 /// after = 放在哪個分頁後面（沒有就放最後）；固定的分頁永遠在最前面
 fn add_tab(app: &AppHandle, wid: &str, url: String, activate: bool, after: Option<&str>) -> Result<String, String> {
     let url = if url.trim().is_empty() { HOME.to_string() } else { url };
+    // 使用者腳本的網址（.user.js）：開安裝頁（無痕式視窗不裝腳本，照一般網址開）
+    let url = us::redirect(&url).filter(|_| !is_incognito(wid)).unwrap_or(url);
     let tid = edit(wid, |w| {
         w.next_tab += 1;
         let tid = format!("t{}", w.next_tab);
@@ -1964,6 +1993,7 @@ fn new_tab(app: &AppHandle, wid: &str, url: Option<Url>, activate: bool, after: 
 
 /// 把分頁導到某個網址（分頁要記的網址：https://…、chrome://…、view-source:…）
 fn navigate_tab(app: &AppHandle, wid: &str, tid: &str, target: &str) {
+    let target = &us::redirect(target).filter(|_| !is_incognito(wid)).unwrap_or_else(|| target.to_string());
     let url = page_url(target);
     match app.get_webview(&page_label(wid, tid)) {
         Some(p) => {
@@ -2069,6 +2099,7 @@ fn close_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
         webcore::push_closed(&mut s.file.closed, c);
         s.dirty = true;
     }
+    us::forget(app, wid, tid);
     if let Some(p) = app.get_webview(&page_label(wid, tid)) {
         let _ = p.close();
     }
@@ -2468,6 +2499,9 @@ fn close_window(app: &AppHandle, id: &str) {
         w.incognito
     })
     .unwrap_or(false);
+    for t in get(id).map(|w| w.tabs).unwrap_or_default() {
+        us::forget(app, id, &t.id);
+    }
     if let Some(win) = app.get_window(&win_label(id)) {
         let _ = win.destroy();
     }
@@ -2477,9 +2511,10 @@ fn close_window(app: &AppHandle, id: &str) {
         let mut s = st();
         s.file.wins.retain(|w| w.id != id);
     }
-    // 最後一個視窗關了：歷史記錄馬上存檔
+    // 最後一個視窗關了：歷史記錄、使用者腳本的設定值馬上存檔
     if open_ids().is_empty() {
         flush_side(true);
+        crate::userscripts::flush(true);
     }
     emit_main(app);
 }
@@ -2807,17 +2842,7 @@ fn handle_ev(app: &AppHandle, wid: &str, tid: &str, ev: Ev) {
         Ev::CloseRequested => {
             let _ = close_tab(app, wid, tid);
         }
-        Ev::Gm { frame, source, json, wrapped } => {
-            // 最上層的網頁傳來的包在 DevTools 事件裡：拿出裡面的訊息
-            let msg = if wrapped {
-                serde_json::from_str::<Value>(&json).ok().and_then(|v| v.get("payload").and_then(|p| p.as_str()).map(str::to_string))
-            } else {
-                Some(json)
-            };
-            if let Some(msg) = msg {
-                on_gm(app, wid, tid, frame, &source, &msg);
-            }
-        }
+        Ev::Gm { frame, source, json } => us::on_msg(app, wid, tid, frame, &source, &json),
         Ev::SelfTarget(json) => {
             if let Some(id) = target_field(&json, "targetId") {
                 let mut ours = lock(&OUR_TARGETS);
@@ -2893,22 +2918,6 @@ fn on_target(app: &AppHandle, wid: &str, tid: &str, json: &str) {
             with_wv(&p, move |w| webnative::close_target(w, &id));
         }
     });
-}
-
-/* ---------------- 使用者腳本傳來的訊息 ---------------- */
-
-fn on_gm(app: &AppHandle, wid: &str, tid: &str, frame: u32, source: &str, json: &str) {
-    crate::dlog!("[gm] {wid}-{tid} 框架 {frame} 來源 {source}：{}", json.chars().take(200).collect::<String>());
-    // 查問題用：收到測試訊息就原樣回給傳的那一方（確認兩邊互傳、內嵌框架都通）
-    if crate::dbg::on() && json.contains("\"mb\":\"test\"") {
-        if let Some(p) = app.get_webview(&page_label(wid, tid)) {
-            let reply = serde_json::json!({ "mb": "test-echo", "frame": frame, "source": source }).to_string();
-            with_wv(&p, move |w| {
-                let ok = webnative::gm_post(w, frame, &reply);
-                crate::dlog!("[gm] 回給框架 {frame}：{ok}；這個網頁的框架 {:?}", webnative::gm_frames(w));
-            });
-        }
-    }
 }
 
 fn tab_of(wid: &str, tid: &str) -> Option<Tab> {
@@ -3848,14 +3857,22 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
     // 擴充功能問「目前的分頁」時，回答目前顯示的網頁（WebView2 把每個網頁當成各自的視窗，不這樣做擴充功能只會看到自己）
     // 用網頁目前真正的網址（YouTube 這類不換頁就換網址的網站，記錄的網址會舊）
     let page = active_page(app, wid).and_then(|p| p.url().ok()).map(|u| u.to_string()).or_else(|| get(wid).map(|w| w.url)).unwrap_or_default();
-    let patch = EXT_TABS_JS.replace("__PAGE_URL__", &serde_json::to_string(&page).unwrap_or_else(|_| "\"\"".into()));
+    let patch = EXT_TABS_JS.replace("__PAGE_URL__", &serde_json::to_string(&page).unwrap_or_else(|_| "\"\"".into())).replace("__CLOSE_MARK__", EXT_CLOSE_MARK);
     let ext_id = url.host_str().unwrap_or_default().to_string();
     let (a1, w1) = (app.clone(), wid.to_string());
+    let (a0, w0) = (app.clone(), wid.to_string());
+    let gen = EXT_POPUP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     let b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
         .initialization_script(&patch)
         .disable_drag_drop_handler()
+        // 小視窗的網頁自己要關掉（見 EXT_TABS_JS）：收起來
+        .on_document_title_changed(move |_wv, title| {
+            if title == EXT_CLOSE_MARK {
+                ext_popup_dismiss(&a0, &w0, gen);
+            }
+        })
         // 小視窗裡按了會開分頁的東西（控制台、選項、說明網頁…）：開在這個瀏覽器視窗的新分頁，小視窗收起來（跟 Chrome 一樣）。
         // 沒有接的話 WebView2 會直接不理，按了就像沒反應
         .on_new_window(move |u, _features| {
@@ -3866,40 +3883,51 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
             }
             NewWindowResponse::Deny
         });
-    EXT_POPUP_GEN.fetch_add(1, Ordering::SeqCst);
     let made = win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
-    // 小視窗的網頁自己關掉（window.close()，很多擴充功能按完按鈕會這樣做）：把小視窗收起來
+    // 保險：真的被關掉（沒經過上面那個通知）也把小視窗收起來
     {
         let (a2, w2) = (app.clone(), wid.to_string());
-        with_wv(&made, move |w| ext_popup_close_hook(w, a2, w2));
+        with_wv(&made, move |w| ext_popup_close_hook(w, a2, w2, gen));
     }
     *lock(&EXT_POPUP) = Some((wid.to_string(), (origin.x + x, origin.y + y, origin.x + x + w, origin.y + y + h)));
     Ok(())
 }
 
-#[cfg(windows)]
-fn ext_popup_close_hook(w: &webnative::Wv, app: AppHandle, wid: String) {
-    let gen = EXT_POPUP_GEN.load(Ordering::SeqCst);
-    webnative::on_close_requested(w, move || {
-        let (app, wid) = (app.clone(), wid.clone());
-        // 不可以在通知裡面直接動視窗
-        std::thread::spawn(move || {
-            // 先藏起來，晚一點才真的收掉：有些擴充功能是「請背景程式開分頁」之後馬上關小視窗，
-            // 那個開分頁的要求可能是通知這個小視窗的，太早收掉會漏接
+/// 擴充功能的小視窗要收掉了。先藏起來，晚一點才真的收掉：有些擴充功能是「請背景程式開分頁」之後馬上關小視窗，
+/// 那個開分頁的要求可能是通知這個小視窗的，太早收掉會漏接。gen = 是哪一次開的小視窗（這段時間又開了新的就不要動它）
+fn ext_popup_dismiss(app: &AppHandle, wid: &str, gen: u64) {
+    let (app, wid) = (app.clone(), wid.to_string());
+    // 不可以在通知裡面直接動視窗
+    std::thread::spawn(move || {
+        if EXT_POPUP_GEN.load(Ordering::SeqCst) != gen {
+            return;
+        }
+        if let Some(p) = app.get_webview(&ext_popup_label(&wid)) {
+            let _ = p.hide();
+        }
+        // 點外面要能馬上再開別的選單：「小視窗開著」的記號先拿掉
+        {
+            let mut g = lock(&EXT_POPUP);
+            if g.as_ref().is_some_and(|(w, _)| *w == wid) {
+                *g = None;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(900));
+        if EXT_POPUP_GEN.load(Ordering::SeqCst) == gen {
             if let Some(p) = app.get_webview(&ext_popup_label(&wid)) {
-                let _ = p.hide();
+                let _ = p.close();
             }
-            std::thread::sleep(Duration::from_millis(600));
-            // 這段時間又開了別的小視窗就不要動它
-            if EXT_POPUP_GEN.load(Ordering::SeqCst) == gen {
-                close_ext_popup(&app, &wid);
-            }
-        });
+        }
     });
 }
 
+#[cfg(windows)]
+fn ext_popup_close_hook(w: &webnative::Wv, app: AppHandle, wid: String, gen: u64) {
+    webnative::on_close_requested(w, move || ext_popup_dismiss(&app, &wid, gen));
+}
+
 #[cfg(not(windows))]
-fn ext_popup_close_hook(_w: &webnative::Wv, _app: AppHandle, _wid: String) {}
+fn ext_popup_close_hook(_w: &webnative::Wv, _app: AppHandle, _wid: String, _gen: u64) {}
 
 fn install_subclass(app: &AppHandle, hwnd: isize, rect: (i32, i32, u32, u32)) {
     #[cfg(windows)]
@@ -3979,6 +4007,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
     if let Some(dir) = path.parent() {
         let _ = WEB_DIR.set(dir.to_path_buf());
         crate::userscripts::init(dir.to_path_buf());
+        us::init(app);
         load_side(dir);
     }
     #[cfg(windows)]
@@ -4037,6 +4066,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                 save(&p, &f);
             }
             flush_side(false);
+            crate::userscripts::flush(false);
         }
     });
 

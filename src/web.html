@@ -140,7 +140,7 @@
     .avatar { width: 26px; height: 26px; border-radius: 50%; background: #5c6067; color: #e8eaed; display: grid; place-items: center; }
     .avatar svg { width: 18px; height: 18px; stroke-width: 2; }
     /* 視窗很窄時：先收起擴充功能的圖示，再收首頁、人像，最後收擴充功能與下載按鈕（都還在 ⋮ 選單裡） */
-    .tool.c1 .exts, .tool.c2 #home, .tool.c2 #profile, .tool.c3 #ext, .tool.c3 #dl { display: none; }
+    .tool.c1 .exts, .tool.c2 #home, .tool.c2 #profile, .tool.c3 #ext, .tool.c3 #us, .tool.c3 #dl { display: none; }
     /* 下載中的進度圈 */
     .tb .ring { position: absolute; inset: 3px; border-radius: 50%; pointer-events: none;
       background: conic-gradient(var(--accent) calc(var(--pct, 0) * 1%), rgba(168, 199, 250, 0.25) 0); -webkit-mask: radial-gradient(circle, transparent 11.5px, #000 12px); mask: radial-gradient(circle, transparent 11.5px, #000 12px); }
@@ -201,6 +201,7 @@
       <button class="oa" id="star" title="將這個分頁加入書籤"></button>
     </div>
     <div class="exts" id="exts"></div>
+    <button class="tb" id="us" title="使用者腳本" hidden></button>
     <button class="tb" id="ext" title="擴充功能"></button>
     <button class="tb" id="dl" title="下載" hidden></button>
     <button class="tb" id="profile" title="書籤與擴充功能的同步來源"><span class="avatar" id="avatar"></span></button>
@@ -251,6 +252,7 @@
       $("home").innerHTML = ICONS.home;
       $("zoomBtn").innerHTML = ICONS.zoom;
       $("ext").innerHTML = ICONS.puzzle;
+      $("us").innerHTML = ICONS.script;
       $("menu").innerHTML = ICONS.more;
       $("avatar").innerHTML = ICONS.user;
       $("bmMore").innerHTML = ICONS["chev-right"];
@@ -447,6 +449,7 @@
         setTip($("reload"), loading ? "停止載入這個網頁" : "重新載入這個網頁");
         $("reload").dataset.loading = loading ? "1" : "";
         $("home").hidden = !st.home;
+        $("us").hidden = !st.scripts;
         // 網址列左邊的圓鈕（樣子沒變就不重放）
         const chip = CHIP[st.kind] ? st.kind : "other";
         const site = $("site");
@@ -829,6 +832,7 @@
       $("zoomBtn").onclick = () => openMenu($("zoomBtn"), "zoom", "zoom");
       $("site").onclick = () => openMenu($("site"), "site", "site");
       $("ext").onclick = () => openMenu($("ext"), "ext", "ext");
+      $("us").onclick = () => openMenu($("us"), "scripts", "scripts");
       $("dl").onclick = () => cmd("dl.toggle");
       $("profile").onclick = () => openMenu($("profile"), "profile", "profile");
       $("menu").onclick = () => openMenu($("menu"), "main", "main");

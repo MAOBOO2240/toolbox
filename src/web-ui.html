@@ -660,13 +660,97 @@
         document.addEventListener("visibilitychange", () => { if (!document.hidden && veil.hidden) load(); });
       }
 
+      /* ---------- 安裝使用者腳本（開啟 .user.js 的網址時） ---------- */
+      function installScript(url) {
+        document.title = "安裝使用者腳本";
+        const ui = shell({});
+        ui.nav.remove();
+        ui.col.style.maxWidth = "760px";
+        ui.col.style.margin = "0 auto";
+        const head = el("h2", "", "安裝使用者腳本");
+        const card = el("div", "card");
+        ui.col.append(head, card);
+        const row = (label, text) => {
+          const r = el("div", "opt");
+          const tx = el("div", "tx");
+          tx.append(el("div", "", label));
+          const sm = el("small", "", text);
+          sm.style.wordBreak = "break-all";
+          sm.style.whiteSpace = "pre-wrap";
+          tx.append(sm);
+          r.append(tx);
+          return r;
+        };
+        const few = (list, n) => (list.length > n ? `${list.slice(0, n).join("\n")}\n…等 ${list.length} 個` : list.join("\n"));
+        async function load() {
+          card.innerHTML = "";
+          card.append(el("div", "emptybox", "正在讀取腳本…"));
+          let p;
+          try { p = await call("web_scripts_preview", { url }); } catch (e) {
+            card.innerHTML = "";
+            card.append(el("div", "emptybox", typeof e === "string" ? `讀不到這個腳本：${e}` : "讀不到這個腳本"));
+            const ft = el("div", "opt");
+            const again = btn("再試一次", "", "reload"), shut = btn("關閉");
+            again.onclick = load;
+            shut.onclick = () => cmd("tab.close");
+            ft.append(el("div", "tx"), again, shut);
+            card.append(ft);
+            return;
+          }
+          const m = p.meta;
+          card.innerHTML = "";
+          const top = el("div", "opt");
+          top.append(glyph("script"));
+          const tx = el("div", "tx");
+          tx.append(el("div", "", `${m.name}${m.version ? `　${m.version}` : ""}`));
+          if (m.description) tx.append(el("small", "", m.description));
+          top.append(tx);
+          card.append(top);
+          if (m.author) card.append(row("作者", m.author));
+          card.append(row("來源", p.url));
+          const where = [...(m.matches || []), ...(m.includes || [])];
+          const all = where.some((w) => /^(\*|<all_urls>|\*:\/\/\*\/\*|https?:\/\/\*\/\*)$/.test(w.trim()));
+          card.append(row("會在這些網頁執行", all ? "所有網站" : few(where, 8)));
+          const conn = m.connects || [];
+          const grants = m.grants || [];
+          if (grants.some((g) => /xmlhttprequest|download/i.test(g))) {
+            card.append(row("會連到這些網域", !conn.length || conn.includes("*") ? `任何網站${conn.filter((c) => c !== "*").length ? `（特別列出的：${few(conn.filter((c) => c !== "*"), 6).replace(/\n/g, "、")}）` : ""}` : few(conn, 10).replace(/\n/g, "、")));
+          }
+          card.append(row("安裝之後", "這支腳本會在上面那些網頁上執行，看得到、也改得了網頁的內容。只安裝你信任的來源的腳本。"));
+          const ft = el("div", "opt");
+          const state = el("div", "tx");
+          if (p.exists) state.append(el("small", "", p.installed === m.version ? `已經安裝了同一版（${p.installed || "沒有版本號"}）` : `已經安裝 ${p.installed || "沒有版本號的版本"}，會換成 ${m.version || "這一版"}`));
+          const ok = btn(p.exists ? (p.installed === m.version ? "重新安裝" : "更新") : "安裝", "fill");
+          const no = btn("取消");
+          ok.onclick = async () => {
+            ok.disabled = true;
+            try {
+              const name = await call("web_scripts_install", { url });
+              state.innerHTML = "";
+              state.append(el("small", "", `「${name}」安裝好了。已經開著的網頁重新整理後就會執行。`));
+              ok.remove();
+              no.textContent = "關閉";
+              const manage = btn("管理使用者腳本");
+              manage.onclick = () => open("chrome://extensions/");
+              ft.insertBefore(manage, no);
+              toast("安裝好了");
+            } catch (e) { ok.disabled = false; fail(e); }
+          };
+          no.onclick = () => cmd("tab.close");
+          ft.append(state, ok, no);
+          card.append(ft);
+        }
+        load();
+      }
+
       /* ---------- 擴充功能 ---------- */
       function extensions() {
+        if (P.get("s") === "install" && P.get("url")) { installScript(P.get("url")); return; }
         const ui = shell({ search: "搜尋擴充功能" });
         ui.nav.remove();
         const sync = btn("從 Chrome 重新同步", "", "sync");
         ui.right.append(sync);
-        let exts = { list: [], broken: false }, scripts = { list: [], dir: "" }, q = ui.input.value.trim().toLowerCase();
+        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true }, q = ui.input.value.trim().toLowerCase();
         ui.col.style.maxWidth = "1100px";
         ui.col.style.margin = "0 auto";
         sync.onclick = async () => {
@@ -725,16 +809,37 @@
           const head = el("h2", "", "使用者腳本");
           head.style.marginTop = "20px";
           ui.col.append(head);
-          ui.col.append(el("div", "note", "篡改猴（Tampermonkey）的腳本可以直接在這裡執行，不用另外安裝篡改猴。匯入 .user.js 或篡改猴匯出的備份（.zip）；新開的分頁才會套用。"));
+          ui.col.append(el("div", "note", "篡改猴（Tampermonkey）的腳本由這個瀏覽器自己執行，要裝在這裡才會跑（裝在篡改猴擴充功能裡的不會執行：這個瀏覽器的核心沒有讓擴充功能執行腳本的開關）。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip）。安裝、開關之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。"));
           const bar = el("div");
           bar.style.cssText = "display:flex;gap:8px;padding:0 4px 12px;flex-wrap:wrap";
-          const imp = btn("匯入腳本", "", "plus"), dir = btn("開啟腳本資料夾", "", "folder"), rel = btn("重新讀取", "", "reload");
+          const imp = btn("匯入腳本", "", "plus"), byUrl = btn("從網址安裝", "", "link"), upd = btn("檢查更新", "", "sync"), dir = btn("開啟腳本資料夾", "", "folder"), rel = btn("重新讀取", "", "reload");
           imp.onclick = async () => { try { const msg = await call("web_scripts_import"); if (msg) toast(msg); } catch (e) { fail(e); } loadScripts(); };
+          byUrl.onclick = () => dialog("從網址安裝腳本", (d, close) => {
+            const i = field(d, "腳本的網址（.user.js）", "", "https://…/….user.js");
+            footer(d, "下一步", async () => {
+              const u = i.value.trim();
+              if (!/^https?:\/\/\S+$/i.test(u)) throw "請貼上 http 或 https 開頭的網址";
+              open(`chrome://extensions/install?url=${encodeURIComponent(u)}`);
+            }, close);
+          });
+          upd.onclick = async () => {
+            upd.disabled = true;
+            try { toast(await call("web_scripts_update")); } catch (e) { fail(e); }
+            upd.disabled = false;
+            loadScripts();
+          };
           dir.onclick = () => quiet("web_scripts_open_dir");
           rel.onclick = async () => { scripts = (await quiet("web_scripts_reload")) || scripts; render(); };
-          bar.append(imp, dir, rel);
+          bar.append(imp, byUrl, upd, dir, rel);
           ui.col.append(bar);
           const sc = el("div", "card");
+          {
+            const row = el("div", "opt");
+            const tx = el("div", "tx");
+            tx.append(el("div", "", "自動更新腳本"), el("small", "", "每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的"));
+            row.append(tx, switchOf(scripts.auto_update !== false, async (on) => { await quiet("web_scripts_auto", { on }); scripts.auto_update = on; }));
+            sc.append(row);
+          }
           const sl = scripts.list.filter((s) => !q || (s.meta.name || "").toLowerCase().includes(q));
           if (!sl.length) sc.append(el("div", "emptybox", "還沒有腳本"));
           for (const s of sl) {
@@ -743,6 +848,7 @@
             const tx = el("div", "tx");
             tx.append(el("div", "", `${s.meta.name}${s.meta.version ? `　${s.meta.version}` : ""}`));
             const where = [...(s.meta.matches || []), ...(s.meta.includes || [])].slice(0, 3).join("、");
+            row.dataset.script = s.file;
             tx.append(el("small", "", s.missing && s.missing.length ? `缺少 ${s.missing.length} 個需要的檔案（按「重新讀取」再下載一次）` : where || s.meta.description || s.file));
             const x = ib("trash", "刪除");
             x.onclick = async () => { await quiet("web_scripts_delete", { file: s.file }); loadScripts(); };

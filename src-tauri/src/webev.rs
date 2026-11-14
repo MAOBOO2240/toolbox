@@ -58,8 +58,8 @@ pub enum Ev {
     /// 網頁自己呼叫 window.close()
     CloseRequested,
     /// 網頁裡的使用者腳本傳來的訊息（JSON 文字）。frame = 0 是最上層的網頁，其他是內嵌框架的編號；
-    /// source = 傳訊息的那份文件的網址；wrapped = 訊息包在 DevTools 事件的 payload 欄位裡（最上層的網頁是這樣傳的）
-    Gm { frame: u32, source: String, json: String, wrapped: bool },
+    /// source = 傳訊息的那份文件的網址
+    Gm { frame: u32, source: String, json: String },
     /// 這個網頁自己在瀏覽器裡的資料（DevTools 的 Target.getTargetInfo 回傳的 JSON 文字）
     SelfTarget(String),
     /// 瀏覽器裡多了一個頁面、分頁或背景程式（DevTools 的 Target.targetCreated 的 JSON 文字）。
@@ -85,8 +85,6 @@ pub struct Opts {
     pub save_passwords: bool,
     /// 下載要存的資料夾（空白 = 不改，用 Windows 的「下載」）
     pub download_dir: String,
-    /// 最上層的網頁傳訊息給程式用的函式名稱（每次執行都不一樣；空白 = 不用）
-    pub gm_bind: String,
 }
 
 /// 清除瀏覽資料的種類（WebView2 的 COREWEBVIEW2_BROWSING_DATA_KINDS）
