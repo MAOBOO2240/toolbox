@@ -555,6 +555,7 @@ if "extprobe" in ONLY_EARLY:
     import io
     import zipfile
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=0 --remote-allow-origins=* --mb-from=env"
+    os.environ["MAOBOO_DEBUG"] = "1"
     for root_ in ("HKLM", "HKCU"):
         for name_, mark_ in (("MAOBOO.exe", "exe"), ("*", "star")):
             r_ = subprocess.run(["reg", "add", rf"{root_}\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments", "/v", name_, "/t", "REG_SZ",
@@ -3985,8 +3986,30 @@ def extprobe_ui():
     def titles():
         return [t["title"] for t in tabs_info()]
 
-    # ---- 篡改猴的小視窗：每一項按了有沒有反應 ----
+    def pick(root, labels):
+        """小視窗裡名字含這些字的元素，挑最小的那個（才點得準）"""
+        c = [x for x in (root.walk() if root else []) if x.name and any(l in x.name for l in labels) and x.w > 0 and x.h > 0]
+        return min(c, key=lambda x: x.w * x.h) if c else None
+
+    def press(tag, root, labels, zh):
+        n = pick(root, labels)
+        if n is None:
+            log(f"  [{tag}] 小視窗裡找不到 {labels}")
+            check(f"extprobe：{zh}（找得到那一項）", False, words(root, 300))
+            return
+        before = titles()
+        click(*n.center, wait=4.5)
+        after = titles()
+        st = bar_state()
+        log(f"  [{tag}] 按了 {n.name!r}（{n.type} {n.w}x{n.h}）之後：分頁 {len(before)} → {len(after)} {after[-3:]}；小視窗還在：{bool(popup_hwnd())}；網址列：{st.get('shown')!r}")
+        check(f"extprobe：{zh}（開了分頁）", len(after) > len(before), f"{len(before)} → {len(after)}；網址列 {st.get('shown')!r}")
+        check(f"extprobe：{zh}（小視窗收起來）", not popup_hwnd())
+        shot("extprobe_" + tag)
+
+    # ---- 篡改猴的小視窗 ----
     def open_tm():
+        home()
+        click_blank(0.4)
         click_bar(EXTICON(0), wait=3.0)
         h = popup_hwnd()
         return snap(h, tries=8, limit=900) if h else None
@@ -3996,57 +4019,39 @@ def extprobe_ui():
     lines = tree_dump(root, "tm_popup_tree.txt")
     log("  篡改猴小視窗：", len(lines), "個元素；", words(root))
     check("extprobe：點工具列上的篡改猴圖示會出現小視窗", bool(popup_hwnd()), f"{[wrect(c) for c in vis_kids()]}")
-    for labels in (("Dashboard", "控制台"), ("Create a new script", "新增腳本"), ("Find new scripts", "取得新腳本"), ("Help", "說明")):
-        h = popup_hwnd()
-        root = snap(h, tries=4, limit=900) if h else open_tm()
-        n = next((x for x in (root.walk() if root else []) if x.name and any(l in x.name for l in labels) and x.w > 0 and x.h > 0), None)
-        if n is None:
-            log(f"  [{labels[0]}] 小視窗裡找不到這一項")
-            continue
-        before = titles()
-        click(*n.center, wait=4.0)
-        after = titles()
-        st = bar_state()
-        log(f"  [{labels[0]}] 按了 {n.name!r}（{n.type}）之後：分頁 {before} → {after}；小視窗還在：{bool(popup_hwnd())}；網址列：{st.get('shown')!r}")
-        check(f"extprobe：篡改猴小視窗按「{labels[1]}」有反應（開了分頁）", len(after) > len(before), f"{len(before)} → {len(after)}")
-        shot("extprobe_tm_" + labels[0].split()[0])
+    first = True
+    for tag, labels, zh in (("tm_Dashboard", ("Dashboard", "控制台"), "篡改猴小視窗按「控制台」"), ("tm_Create", ("Create a new script", "新增腳本"), "篡改猴小視窗按「新增腳本」"),
+                            ("tm_Find", ("Find new scripts", "取得新腳本"), "篡改猴小視窗按「取得新腳本」"), ("tm_Help", ("Help", "說明"), "篡改猴小視窗按「說明」")):
+        if not first:
+            root = open_tm()
+        first = False
+        press(tag, root, labels, zh)
     if popup_hwnd():
         click_blank(0.8)
-    # ---- 篡改猴的選項頁（控制台）：從工具列圖示的右鍵選單開 ----
-    home()
-    before = titles()
-    ms = open_menu(EXTICON(0), "篡改猴圖示按右鍵", button="right")
-    log("  篡改猴圖示的右鍵選單：", menu_titles(ms))
-    if ms and menu_click("選項", wait=6.0):
-        after = titles()
-        log(f"  選項：分頁 {before} → {after}；網址列：{bar_state().get('shown')!r}")
-        shot("extprobe_tm_options")
-        root = snap(page_hwnd(), tries=10, limit=5000)
-        lines = tree_dump(root, "tm_options_tree.txt")
-        log("  篡改猴控制台：", len(lines), "個元素；", words(root, 900))
-    else:
-        close_menus()
-    # ---- 其他擴充功能：小視窗打不打得開、上面寫什麼 ----
-    for nm in ():
+    # ---- 其他擴充功能：小視窗裡按一個會開分頁的東西 ----
+    for nm, labels, zh in (("AdGuard", ("Open AdGuard settings", "開啟 AdGuard 設定", "設定"), "AdGuard 小視窗按「設定」"),
+                           ("SponsorBlock", ("Options", "選項"), "SponsorBlock 小視窗按「選項」"),
+                           ("Return YouTube Dislike", ("Website", "網站"), "Return YouTube Dislike 小視窗按「網站」"),
+                           ("iCloud", ("Mail", "郵件"), "iCloud 儀表板小視窗按「郵件」")):
         home()
         click_blank(0.5)
-        before = titles()
         ms = open_menu(EXT_BTN, f"擴充功能按鈕（{nm}）")
         if not ms or not menu_click(nm, exact=False, wait=4.5):
             close_menus()
             continue
-        tag = nm.split()[0]
-        shot("extprobe_pop_" + tag)
+        tag = "pop_" + nm.split()[0]
         h = popup_hwnd()
-        root = snap(h, tries=8, limit=900) if h else None
-        tree_dump(root, f"pop_{tag}_tree.txt")
-        log(f"  [{nm}] 小視窗：{'有' if h else '沒有'}；分頁 {before} → {titles()}；選單：{menu_titles()}；文字：{words(root, 400) if h else ''}")
-        close_menus()
+        root = snap(h, tries=8, limit=1200) if h else None
+        tree_dump(root, f"{tag}_tree.txt")
+        shot("extprobe_" + tag)
+        log(f"  [{nm}] 小視窗：{'有' if h else '沒有'}；文字：{words(root, 300) if h else ''}")
+        press(tag + "_click", root, labels, zh)
         if popup_hwnd():
             click_blank(0.8)
     ensure_web_fg()
     restore_tabs(keep)
     home()
+    user32.GetAsyncKeyState(0x04)  # 剛才用中鍵關分頁：把「剛按過中鍵」的記號清掉，不然下一個開分頁的要求會被當成中鍵點的
 
 
 def s_extprobe():
@@ -4175,201 +4180,22 @@ def s_extprobe():
     T2 = "(t => ({id: t.id, w: t.windowId, a: t.active, u: t.url, pu: t.pendingUrl, st: t.status}))"
     act("tabs_create_http", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=1'}}).then({T2})")
     act("tabs_create_http_bg", f"chrome.tabs.create({{url: 'http://127.0.0.1:8765/snap.html?extcreate=bg', active: false}}).then({T2})")
+    act("tabs_create_ext", f"chrome.tabs.create({{url: chrome.runtime.getURL('options.html') + '#nav=dashboard'}}).then({T2})", settle=5)
+    act("windows_create", "chrome.windows.create({url: 'http://127.0.0.1:8765/snap.html?wincreate=1', type: 'popup', width: 420, height: 320}).then(w => ({id: w && w.id, t: w && w.type}))")
+    act("openOptionsPage", "chrome.runtime.openOptionsPage().then(() => 'ok')", settle=5)
     log("  之後的 tabs.query({})：", json.dumps(b.ev(sw, Q), ensure_ascii=False)[:3000])
 
-    # ---- 瀏覽器設定檔裡「允許使用者腳本」是怎麼記的；關掉程式改設定檔再開，會不會生效 ----
-    def prof(name):
-        return os.path.join(data_dir, "web-profile", "EBWebView", "Default", name)
-
-    def load(name):
-        try:
-            return json.load(open(prof(name), encoding="utf-8"))
-        except Exception as e:
-            log("  讀不到", name, repr(e)[:120])
-            return None
-
-    def dig(d, path):
-        for k in path.split("."):
-            if not isinstance(d, dict) or k not in d:
-                return None
-            d = d[k]
-        return d
-
-    def brief(v):
-        return {k: (x if not isinstance(x, (dict, list)) else f"<{type(x).__name__} {len(x)}>") for k, x in v.items()} if isinstance(v, dict) else v
-
-    def report(tag):
-        for name in ("Preferences", "Secure Preferences"):
-            d = load(name)
-            if d is None:
-                continue
-            ext = d.get("extensions") or {}
-            st = ext.get("settings") or {}
-            log(f"  [{tag}] {name}：頂層 {sorted(d.keys())}")
-            log(f"  [{tag}] {name}：extensions 底下 {brief(ext)}；ui={ext.get('ui')}")
-            if TM in st:
-                log(f"  [{tag}] {name} 篡改猴：", json.dumps(brief(st[TM]), ensure_ascii=False)[:1500])
-            prot = d.get("protection") or {}
-            macs = prot.get("macs") or {}
-            em = dig(macs, "extensions")
-            log(f"  [{tag}] {name} protection：{sorted(prot.keys())}；macs 頂層 {sorted(macs.keys())}；extensions 的 macs：{brief(em)}")
-            try:
-                shutil.copyfile(prof(name), os.path.join(OUT, f"prefs_{tag}_{name.replace(' ', '_')}.json"))
-            except Exception as e:
-                log("  複製不了", name, e)
-
-    def wv_alive():
-        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -match 'web-profile' } | Measure-Object | ForEach-Object { $_.Count }")
-        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout.strip()
-        try:
-            return int(out or 0)
-        except Exception:
-            return -1
-
-    def restart(tag, mutate):
-        """關掉程式（等瀏覽器元件也結束）→ 改設定檔 → 再開，回傳新的偵錯連線"""
-        global app_proc, web
-        nonlocal b
-        b.close()
-        time.sleep(12)  # 讓瀏覽器把設定寫進檔案
-        hmain = next((h for h in app_windows() if title(h) == "工具箱"), 0)
-        log(f"  [{tag}] 關掉程式（主視窗 {hmain}）")
-        subprocess.run(["taskkill", "/IM", os.path.basename(EXE), "/F"], capture_output=True)
-        for _ in range(30):
-            if wv_alive() == 0:
-                break
-            time.sleep(1)
-        log(f"  [{tag}] 瀏覽器元件還在跑的數量：", wv_alive())
-        time.sleep(1.5)
-        try:
-            mutate()
-        except Exception:
-            log(traceback.format_exc())
-        for f in ("DevToolsActivePort",):
-            try:
-                os.remove(os.path.join(data_dir, "web-profile", "EBWebView", f))
-            except Exception:
-                pass
-        app_proc = subprocess.Popen([EXE], stdout=APP_ERR, stderr=APP_ERR)
-        web = wait_for(find_web, 45)
-        log(f"  [{tag}] 重新開好了：web hwnd", web)
-        if not web:
-            log("  視窗沒有開：", [(title(h), cls(h), user32.IsWindowVisible(h)) for h in app_windows()])
-            raise RuntimeError("瀏覽器視窗沒有自己開")
-        time.sleep(8)
-        port = None
-        for _ in range(20):
-            port = next((pt for f, pt in app_cdp_ports() if "web-profile" in f.replace("\\", "/")), None)
-            if port:
-                break
-            time.sleep(1)
-        ver = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5).read().decode("utf-8", "replace"))
-        b = CDPB(ver["webSocketDebuggerUrl"])
-        return b
-
-    US = "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"
-
-    def tm_state(tag):
-        t = sw_of(TM)
-        if t is None:
-            # 背景程式睡著了：開它的小視窗叫醒
-            log(f"  [{tag}] 篡改猴的背景程式沒在跑；目標：", [(x.get("type"), x.get("url", "")[:70]) for x in b.targets() if TM in x.get("url", "")])
-            try:
-                ensure_web_fg()
-                click_bar(EXTICON(0), wait=3.0)
-                t = sw_of(TM)
-                click_blank(0.8)
-            except Exception:
-                log(traceback.format_exc())
-            if t is None:
-                log(f"  [{tag}] 叫不醒；目標：", [(x.get("type"), x.get("url", "")[:70]) for x in b.targets()])
-                return None, None
-        sid = b.attach(t["targetId"])
-        r = b.ev(sid, US)
-        log(f"  [{tag}] 篡改猴的 userScripts：", json.dumps(r, ensure_ascii=False))
-        return sid, r
-
-    report("第一次執行後")
-    # 1. 開發人員模式
-    def m1():
-        for name in ("Preferences", "Secure Preferences"):
-            d = load(name)
-            if d is None:
-                continue
-            ext = d.setdefault("extensions", {})
-            changed = False
-            if name == "Secure Preferences":
-                ext.setdefault("ui", {})["developer_mode"] = True
-                changed = True
-            for k in list(ext.keys()):
-                if "migrat" in k and "user_script" in k:
-                    log("  拿掉", name, k, ext[k])
-                    del ext[k]
-                    changed = True
-            if changed:
-                with open(prof(name), "w", encoding="utf-8") as f:
-                    json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
-
-    b = restart("開發人員模式", m1)
-    report("開發人員模式")
-    tm_state("開發人員模式")
-
-    # 2. 直接記「允許使用者腳本」
-    def m2():
-        done = []
-        for name in ("Secure Preferences", "Preferences"):
-            d = load(name)
-            if d is None:
-                continue
-            st = dig(d, "extensions.settings")
-            if isinstance(st, dict) and TM in st:
-                st[TM]["user_scripts_enabled"] = True
-                with open(prof(name), "w", encoding="utf-8") as f:
-                    json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
-                done.append(name)
-        log("  寫了 user_scripts_enabled 的檔案：", done)
-
-    b = restart("允許使用者腳本", m2)
-    report("允許使用者腳本")
-    sid, r0 = tm_state("允許使用者腳本")
-    log("  擴充功能清單（程式記的）：", [(k, v.get("loaded")) for k, v in json.load(open(os.path.join(data_dir, "web-ext.json"), encoding="utf-8")).get("exts", {}).items()])
-    ok_us = isinstance(r0, dict) and str(r0.get("get", "")).startswith("ok")
-    check("extprobe：改設定檔之後，篡改猴拿得到「使用者腳本」功能", ok_us, json.dumps(r0, ensure_ascii=False)[:200])
-    if ok_us:
-        reg = b.ev(sid, "chrome.userScripts.register([{id: 'mbprobe', matches: ['http://127.0.0.1/*'], js: [{code: \"fetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[uscript] ran ' + location.pathname + location.search))\"}], runAt: 'document_start', world: 'MAIN'}]).then(() => 'registered')")
-        log("  userScripts.register：", reg)
-        t0 = time.time()
-        ensure_web_fg()
-        chord([VK_CTRL], 0x54, wait=1.5)
-        type_text("http://127.0.0.1:8765/snap.html?uscript=1")
-        key(0x2E)
-        key(VK_ENTER)
-        time.sleep(4)
-        ran = [l for l in page_log_since(t0) if "[uscript]" in l]
-        log("  註冊的小腳本有沒有在網頁上執行：", ran)
-        check("extprobe：用「使用者腳本」功能註冊的腳本會在網頁上執行", bool(ran), f"{ran}")
-        log("  userScripts.unregister：", b.ev(sid, "chrome.userScripts.unregister({ids: ['mbprobe']}).then(() => 'ok')"))
-        shot("extprobe_us_on")
-        # 篡改猴自己的畫面上那條「請啟用允許使用者腳本」還在不在
-        try:
-            click_bar(EXTICON(0), wait=3.0)
-            h = popup_hwnd()
-            root = snap(h, tries=8, limit=900) if h else None
-            log("  篡改猴小視窗（允許之後）：", words(root, 400))
-            shot("extprobe_tm_popup_after")
-            click_blank(0.8)
-        except Exception:
-            log(traceback.format_exc())
-        # 3. 再重開一次：設定還在不在
-        b = restart("再開一次", lambda: None)
-        report("再開一次")
-        tm_state("再開一次")
     b.pump(0.5)
     log("  最後的偵錯目標：")
     tlist("最後")
     snap_state("最後")
     b.close()
     shot("extprobe_end")
+    try:
+        APP_ERR.flush()
+        log("  程式的訊息：\n" + "\n".join("    " + l for l in open(os.path.join(OUT, "app_stderr.txt"), encoding="utf-8", errors="replace").read().splitlines()[-120:]))
+    except Exception as e:
+        log("  讀不到程式的訊息", e)
 
 
 def s_notepad():
