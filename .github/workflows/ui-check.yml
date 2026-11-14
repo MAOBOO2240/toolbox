@@ -1,17 +1,17 @@
-name: UI check
+name: UI check B
 
-# Only runs on the ui-check branch. Starts the test build (the one the dev branch produced) on a real
+# Only runs on the ui-check-b branch (a second lane, so two checks can run at the same time). Starts the test build (the one the dev branch produced) on a real
 # Windows desktop, drives the browser window with mouse and keyboard, and saves screenshots and a log
 # to a results branch. Nothing is released from here.
 on:
   push:
-    branches: [ui-check]
+    branches: [ui-check-b]
 
 permissions:
   contents: write
 
 concurrency:
-  group: ui-check
+  group: ui-check-b
   cancel-in-progress: true
 
 jobs:
@@ -59,4 +59,4 @@ jobs:
           git checkout -q -b results
           git add -A
           git commit -q -m "ui-check ${GITHUB_SHA::7}" || true
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" "results:uitest-results-ui-check"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" "results:uitest-results-ui-check-b"
