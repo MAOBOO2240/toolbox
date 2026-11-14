@@ -1,0 +1,7 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>腳本測試（框架）</title>
+<script>
+  window.__pageRan = true;
+  fetch('/log?m=' + encodeURIComponent('[uspage] frame webview=' + typeof (window.chrome && window.chrome.webview) + ' extra=' + Object.getOwnPropertyNames(window).filter((n) => /^_[0-9a-f]{16}$/.test(n)).length)).catch(() => {});
+</script></head>
+<body>frame</body></html>

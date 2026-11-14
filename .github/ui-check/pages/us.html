@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>腳本測試</title>
+<script>
+  window.__pageRan = true;
+  const plog = (m) => fetch('/log?m=' + encodeURIComponent('[uspage] top ' + (location.search || '-') + ' ' + m)).catch(() => {});
+  // 網頁自己的程式：看不看得到程式跟腳本之間的通道、交接用的名稱
+  plog('webview=' + typeof (window.chrome && window.chrome.webview) + ' extra=' + Object.getOwnPropertyNames(window).filter((n) => /^_[0-9a-f]{16}$/.test(n)).length);
+</script></head>
+<body>
+<h1 id="h">腳本測試</h1>
+<iframe id="f1" src="http://localhost:8765/usframe.html" style="width:400px;height:70px"></iframe>
+<script>
+  // 還沒載入的空白框架：通道拿掉了沒、有沒有留記號；視窗被沿用的話腳本會不會跑
+  (() => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:200px;height:40px';
+    document.body.appendChild(f);
+    const w = f.contentWindow;
+    plog('blank webview=' + typeof (w.chrome && w.chrome.webview) + ' marker=' + Object.getOwnPropertyNames(w).filter((n) => /^_[0-9a-f]{16}$/.test(n)).length);
+    w.__tampered = 1;
+    f.onload = () => {
+      let reused = 'err', ran = 'err';
+      try { reused = f.contentWindow.__tampered === 1; ran = !!f.contentWindow.__us2ran; } catch (e) {}
+      plog('reuse reused=' + reused + ' innerRan=' + ran);
+    };
+    f.src = '/usinner.html';
+  })();
+</script>
+</body></html>

@@ -5,6 +5,7 @@ import ctypes.wintypes as wt
 import http.server
 import json
 import os
+import re
 import shutil
 import socketserver
 import struct
@@ -301,9 +302,42 @@ PAGE_LOG = os.path.join(OUT, "page_log.txt")
 open(PAGE_LOG, "w").close()
 
 
+# 「從網址安裝」測試用的腳本：版本可以改（測更新）
+INST = {"ver": "1.0"}
+
+
+def inst_script():
+    v = INST["ver"]
+    return ("// ==UserScript==\n// @name         安裝測試腳本\n// @version      " + v + "\n// @description  從網址安裝的測試\n"
+            "// @match        http://127.0.0.1:8765/us.html*\n// @grant        none\n// @downloadURL  http://127.0.0.1:8765/inst.user.js\n// ==/UserScript==\n"
+            "fetch('/log?m=' + encodeURIComponent('[inst] ran v=" + v + " ' + location.search));\n")
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=os.path.join(HERE, "pages"), **k)
+
+    def xecho(self, method, body):
+        """使用者腳本的連線：回報收到的方法、標頭、內容（不給跨網站許可，網頁自己連會被擋）"""
+        h = self.headers
+        out = json.dumps({"method": method, "referer": h.get("Referer"), "xtest": h.get("X-Test"), "cookie": h.get("Cookie"), "ua": h.get("User-Agent"),
+                          "ctype": h.get("Content-Type"), "body": body}, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(out)))
+        self.end_headers()
+        self.wfile.write(out)
+
+    def plain(self, body, ctype, extra=()):
+        body = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        for k, v in extra:
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
@@ -320,6 +354,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 f.write(f"{time.time():.2f} [hdr] ua={self.headers.get('User-Agent')!r} sec-ch-ua={self.headers.get('Sec-CH-UA')!r}\n")
         if u.path == "/post-echo":
             return self.echo("GET", u.query)
+        if u.path == "/xhr-echo":
+            return self.xecho("GET", "")
+        if u.path == "/xhr-stream":
+            # 一段一段送，中間停一下（沒有長度，送完就關）
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            for part in ("data: 1\n", "data: 2\n", "data: 3\n"):
+                self.wfile.write(part.encode())
+                self.wfile.flush()
+                time.sleep(0.4)
+            return
+        if u.path == "/setck":
+            return self.plain("<!doctype html><meta charset=utf-8><title>Cookie</title>ok", "text/html; charset=utf-8", [("Set-Cookie", "mbck=abc; Path=/")])
+        if u.path == "/inst.user.js":
+            return self.plain(inst_script(), "text/javascript; charset=utf-8")
         if u.path == "/dl.bin":
             body = b"x" * 300000
             self.send_response(200)
@@ -336,6 +386,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         body = self.rfile.read(n).decode("utf-8", "replace") if n else ""
         if urllib.parse.urlparse(self.path).path == "/post-echo":
             return self.echo("POST", body)
+        if urllib.parse.urlparse(self.path).path == "/xhr-echo":
+            return self.xecho("POST", body)
         self.send_response(404)
         self.end_headers()
 
@@ -427,11 +479,13 @@ with open(os.path.join(data_dir, "web.json"), "w", encoding="utf-8") as f:
 # 測試用的使用者腳本
 os.makedirs(os.path.join(data_dir, "web-scripts"), exist_ok=True)
 with open(os.path.join(data_dir, "web-scripts", "t1.user.js"), "w", encoding="utf-8") as f:
-    f.write("// ==UserScript==\n// @name 測試腳本一\n// @match http://127.0.0.1:8765/test.html*\n// @grant GM_setValue\n// ==/UserScript==\n"
+    f.write("// ==UserScript==\n// @name 測試腳本一\n// @match http://127.0.0.1:8765/test.html*\n// @grant GM_setValue\n// @grant GM_getValue\n// ==/UserScript==\n"
             "GM_setValue('n', (GM_getValue('n', 0) || 0) + 1);\nfetch('/log?m=' + encodeURIComponent('[us] end ran n=' + GM_getValue('n') + ' ' + location.pathname));\n")
 with open(os.path.join(data_dir, "web-scripts", "t2.user.js"), "w", encoding="utf-8") as f:
     f.write("// ==UserScript==\n// @name 測試腳本二\n// @match http://127.0.0.1:8765/*\n// @match http://localhost:8765/*\n// @exclude http://localhost:8765/frame.html\n// @run-at document-start\n// ==/UserScript==\n"
-            "fetch('/log?m=' + encodeURIComponent('[us] start ran ' + location.pathname + ' body=' + !!document.body));\n")
+            "window.__us2ran = true;\nfetch('/log?m=' + encodeURIComponent('[us] start ran ' + location.pathname + ' body=' + !!document.body));\n")
+for fn in os.listdir(os.path.join(HERE, "userscripts")):
+    shutil.copyfile(os.path.join(HERE, "userscripts", fn), os.path.join(data_dir, "web-scripts", fn))
 with open(os.path.join(data_dir, "web-scripts", "t3.user.js"), "w", encoding="utf-8") as f:
     f.write("// ==UserScript==\n// @name 不該跑\n// @match https://not-visited.invalid/*\n// ==/UserScript==\nfetch('http://127.0.0.1:8765/log?m=' + encodeURIComponent('[us] WRONG'));\n")
 
@@ -4078,7 +4132,7 @@ def extprobe_ui():
         press(tag + "_click", root, labels, zh)
         if popup_hwnd():
             click_blank(0.8)
-    # ---- 網頁（與內嵌框架）跟程式互傳訊息 ----
+    # ---- 一般網頁（與內嵌框架）：程式跟使用者腳本之間的通道，網頁自己看不到 ----
     t0 = time.time()
     ensure_web_fg()
     home()
@@ -4089,10 +4143,9 @@ def extprobe_ui():
     time.sleep(6)
     gl = [l.split(" ", 1)[1] for l in page_log_since(t0) if "[gm " in l]
     for l in gl:
-        log("  ", l[:500])
+        log("  ", l[:300])
     for who in ("top", "frame", "nested"):
-        check(f"extprobe：網頁傳訊息給程式、程式回得來（{who}）", any(l.startswith(f"[gm {who}] got") for l in gl), f"{[l[:80] for l in gl if l.startswith('[gm ' + who)]}")
-        check(f"extprobe：從網頁上拿掉 chrome.webview 之後，先前抓好的還能用（{who}）", sum(1 for l in gl if l.startswith(f"[gm {who}] got")) >= 2 and any(l.startswith(f"[gm {who}] ") and "after=undefined" in l for l in gl), "")
+        check(f"extprobe：網頁自己的程式看不到 chrome.webview（{who}）", any(l.startswith(f"[gm {who}] webview=undefined") for l in gl), f"{[l[:80] for l in gl if l.startswith('[gm ' + who)]}")
     shot("extprobe_gm")
     ensure_web_fg()
     restore_tabs(keep)
@@ -4263,23 +4316,57 @@ def s_extprobe():
         af = snap_state("AdGuard 自己開設定頁 之後")
         diff("AdGuard 自己開設定頁", bf, af)
         log("  AdGuard 背景程式的訊息：", b.drain(sa)[:15])
-    # 一般網頁硬要開別人的擴充功能頁面：不可以真的開出來
+    # 擴充功能各自讓網頁存取哪些檔案
+    for eid in REAL_EXTS:
+        try:
+            base_ = os.path.join(chrome_root, "Default", "Extensions", eid)
+            ver_ = sorted(os.listdir(base_))[-1]
+            man_ = json.load(open(os.path.join(base_, ver_, "manifest.json"), encoding="utf-8"))
+            log(f"  {eid} 讓網頁存取的檔案：", json.dumps(man_.get("web_accessible_resources"), ensure_ascii=False)[:600], "；選項頁：", man_.get("options_page") or (man_.get("options_ui") or {}).get("page"))
+        except Exception as e:
+            log("  讀不到 manifest", eid, repr(e)[:100])
+    # 一般網頁硬要開別人的擴充功能頁面（沒有開放給網頁的）：不可以真的開出來
+    SB = "mnjggcdmjocbbbhaepdhchncahnbgone"
     home()
     time.sleep(1.0)
     pg = next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").endswith("/test.html")), None)
     if pg is not None:
         ps = b.attach(pg["targetId"])
-        bf = snap_state("網頁開擴充功能頁面 之前")
-        r = b.call("Runtime.evaluate", {"expression": f"(() => {{ const w = window.open('chrome-extension://{TM}/options.html#nav=settings'); return String(w); }})()", "returnByValue": True, "userGesture": True}, ps)
-        log("  網頁 window.open(擴充功能頁面)：", json.dumps(r, ensure_ascii=False)[:300])
-        time.sleep(4)
-        af = snap_state("網頁開擴充功能頁面 之後")
-        diff("網頁開擴充功能頁面", bf, af)
-        st = bar_state()
-        txt = page_text()
-        log("  之後網址列：", st.get("shown"), "；畫面文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:300])
-        shot("extprobe_page_opens_ext")
-        check("extprobe：一般網頁要開擴充功能的頁面 → 看不到那個頁面的內容", "Tampermonkey" not in txt and "Installed Userscripts" not in txt, txt[:200])
+        for tag_, url_, words_ in (("SponsorBlock 選項頁", f"chrome-extension://{SB}/options/options.html", ("SponsorBlock", "Options", "選項")),
+                                   ("AdGuard 篩選記錄頁", "chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html", ("Filtering log", "AdGuard"))):
+            bf = snap_state(f"網頁開 {tag_} 之前")
+            r = b.call("Runtime.evaluate", {"expression": f"(() => {{ const w = window.open('{url_}'); return String(w); }})()", "returnByValue": True, "userGesture": True}, ps)
+            log(f"  網頁 window.open({tag_})：", json.dumps(r, ensure_ascii=False)[:300])
+            time.sleep(4)
+            af = snap_state(f"網頁開 {tag_} 之後")
+            diff(f"網頁開 {tag_}", bf, af)
+            st = bar_state()
+            txt = page_text()
+            log("  之後網址列：", st.get("shown"), "；分頁：", [t["title"] for t in tabs_info()], "；畫面文字：", " | ".join(x.strip() for x in txt.splitlines() if x.strip())[:300])
+            shot("extprobe_page_opens_ext")
+            shown_ = (st.get("shown") or "")
+            check(f"extprobe：一般網頁要開擴充功能的頁面（{tag_}）→ 看不到那個頁面的內容", not (url_.split("//")[1][:40] in shown_ and any(w_ in txt for w_ in words_)), f"{shown_!r} {txt[:200]}")
+            home()
+            time.sleep(0.8)
+    # chrome.webview.postMessage 是不是瀏覽器內建的（不經過網頁能動手腳的東西）：在程式自己的工具列頁面上看
+    bar_t = next((t for t in b.targets() if t.get("type") == "page" and "tauri.localhost/web.html" in t.get("url", "")), None)
+    if bar_t is not None:
+        bs = b.attach(bar_t["targetId"])
+        r = b.ev(bs, """(() => {
+          const wv = window.chrome && window.chrome.webview; if (!wv) return 'no webview';
+          const ts = Function.prototype.toString;
+          const seen = [];
+          const oj = JSON.stringify, ok = Object.keys;
+          JSON.stringify = function (...a) { seen.push('JSON.stringify'); return oj.apply(this, a); };
+          Object.keys = function (o) { seen.push('Object.keys'); return ok(o); };
+          Object.prototype.toJSON = function () { seen.push('toJSON'); return this; };
+          let err = '';
+          try { wv.postMessage('{"cmd":"mb","callback":0,"error":0,"payload":null,"__TAURI_INVOKE_KEY__":"","mb":"probe","d":"{}"}'); } catch (e) { err = String(e); }
+          delete Object.prototype.toJSON; JSON.stringify = oj; Object.keys = ok;
+          return { post: ts.call(wv.postMessage), add: ts.call(wv.addEventListener), proto: Object.prototype.toString.call(wv), hooked: seen, err };
+        })()""")
+        log("  chrome.webview：", json.dumps(r, ensure_ascii=False)[:600])
+        check("extprobe：chrome.webview.postMessage 是瀏覽器內建的，送文字不會經過網頁換得掉的功能", isinstance(r, dict) and "[native code]" in r.get("post", "") and not r.get("hooked"), json.dumps(r, ensure_ascii=False)[:300])
     log("  之後的 tabs.query({})：", json.dumps(b.ev(sw, Q), ensure_ascii=False)[:3000])
 
     b.pump(0.5)
@@ -4469,7 +4556,8 @@ def s_scripts():
     lines = [l for l in page_log().splitlines() if "[us]" in l]
     log("腳本記錄：", lines[-8:])
     check("使用者腳本：載入後跑的有執行", any("end ran" in l and "test.html" in l for l in lines))
-    check("使用者腳本：GM_setValue 有記住", any("end ran n=2" in l or "end ran n=3" in l for l in lines), f"{[l for l in lines if 'end ran' in l][-3:]}")
+    ns = [int(m.group(1)) for l in lines for m in [re.search(r"end ran n=(\d+)", l)] if m]
+    check("使用者腳本：GM_setValue 有記住（每載入一次加一）", len(ns) >= 2 and max(ns) >= 2 and ns == sorted(ns), f"{ns}")
     check("使用者腳本：document-start 的有執行", any("start ran /test.html" in l for l in lines))
     check("使用者腳本：@exclude 有效（內嵌框不跑）", not any("start ran /frame.html" in l for l in lines))
     check("使用者腳本：不符合的網站不跑", not any("WRONG" in l for l in lines))
@@ -4491,6 +4579,171 @@ def s_scripts():
         restore_tabs(keep)
     close_menus()
     home()
+
+
+def open_tab(url, wait=3.5):
+    """開新分頁前往某個網址"""
+    ensure_web_fg()
+    chord([VK_CTRL], 0x54, wait=1.5)
+    type_text(url)
+    key(0x2E)
+    key(VK_ENTER)
+    time.sleep(wait)
+
+
+US_BTN = E("us")
+
+
+def us_lines(t0, tag="[us4]"):
+    return [l.split(" ", 1)[1] for l in page_log_since(t0) if tag in l]
+
+
+def s_userscripts():
+    ensure_web_fg()
+    if "extprobe" in ONLY_EARLY:
+        # 擴充功能剛裝好會開一堆歡迎頁：先關掉（分頁太多時標題會被擠掉，後面認不出來）
+        restore_tabs(["t1", "t2", "t3"])
+        select_tab(0, 1.2)
+    home()
+    click_blank(0.5)
+    keep = tab_ids()
+    user32.GetAsyncKeyState(0x04)
+    base = f"http://127.0.0.1:{PORT}"
+    # 讓 localhost 先有一個 Cookie（要最上層的網頁才設得了）
+    open_tab(f"http://localhost:{PORT}/setck", 2.5)
+    t0 = time.time()
+    go(f"{base}/us.html", 8.0)
+    L, P = us_lines(t0), us_lines(t0, "[uspage]")
+    for l in L + P:
+        log("  ", l[:400])
+    shot("us_page")
+    top = next((l for l in L if l.startswith("[us4] top - start")), "")
+    check("腳本（document-start）在網頁自己的程式之前跑", "pageRan=false ready=loading" in top, top)
+    check("腳本拿得到自己的資訊；有寫 @grant 的功能才有", "handler=MAOBOO ver=1.0 types=function,undefined,undefined" in top, top)
+    check("內嵌框架（別的網站）裡也會跑，而且也在框架自己的程式之前", any(l.startswith("[us4] frame - start pageRan=false") for l in L), f"{[l[:80] for l in L if 'frame' in l]}")
+    check("網頁自己的程式看不到程式跟腳本之間的通道（最上層、框架都是）", any("[uspage] top - webview=undefined extra=0" in l for l in P) and any("[uspage] frame webview=undefined extra=0" in l for l in P), f"{P}")
+    check("腳本自己也拿不到那個通道（只能用 GM 功能）", "webview=undefined" in top, top)
+    g = next((l for l in L if "xhr get" in l), "")
+    check("GM_xmlhttpRequest：跨網站連得到（狀態、最後的網址、回應標頭）", "status=200 method=GET" in g and f"final=http://localhost:{PORT}/xhr-echo?auto=1" in g and "hdr=true" in g, g)
+    check("GM_xmlhttpRequest：腳本給的標頭（Referer、自訂的）有帶到，瀏覽器名稱跟網頁一樣", "referer=https://ref.example/ xtest=abc" in g and "ua=true" in g, g)
+    check("GM_xmlhttpRequest：@connect 有寫的網域會帶這個瀏覽器的 Cookie", "cookie=mbck=abc" in g, g)
+    po = next((l for l in L if "xhr post" in l), "")
+    check("GM_xmlhttpRequest：POST 的內容送得到、二進位回應拿得到", "status=200 bytes=true" in po and 'body={"a":"中文"} ctype=application/json' in po, po)
+    sm = next((l for l in L if "xhr stream" in l), "")
+    mm = re.search(r"chunks=(\d+)", sm)
+    check("GM_xmlhttpRequest：串流一段一段收到", "text=data: 1|data: 2|data: 3|" in sm and bool(mm) and int(mm.group(1)) >= 2, sm)
+    check("GM_xmlhttpRequest：腳本沒有允許的網域連不了", any("xhr denied ok" in l for l in L) and not any("denied??" in l for l in L), f"{[l for l in L if 'denied' in l]}")
+    check("對照：網頁自己連同一個網址會被擋（所以上面是程式代連的）", any("pagefetch blocked" in l for l in L), f"{[l for l in L if 'pagefetch' in l]}")
+    b = next((l for l in P if "blank webview" in l), "")
+    check("還沒載入的空白框架：通道也拿掉了，而且留了記號", "blank webview=undefined marker=1" in b, b)
+    r = next((l for l in P if "reuse reused" in l), "")
+    log("  空白框架接著載入同網站的網頁：", r)
+    check("空白框架的視窗被沿用的話腳本不跑（沒被沿用就照常跑）", ("reused=false innerRan=true" in r) or ("reused=true innerRan=false" in r), r)
+
+    # ---- 工具列的「使用者腳本」按鈕 ----
+    check("有裝腳本時，工具列有「使用者腳本」按鈕", rect_of(US_BTN) is not None)
+    ms = open_menu(US_BTN, "使用者腳本按鈕")
+    names = names_of(ms[0][1]) if ms else []
+    log("  選單：", menu_titles(ms), [it["texts"] for it in ms[0][1]["items"]] if ms else [])
+    shot("us_menu")
+    check("選單列出這個網頁的腳本和它登記的項目", all(any(x in n for n in names) for x in ("測試腳本四", "測試：設值", "【關】開關", "測試：開分頁", "管理使用者腳本")), f"{names}")
+    row = next((it for it in ms[0][1]["items"] if "測試腳本四" in it["t"]), None) if ms else None
+    check("選單上標出腳本正在執行", bool(row) and any("執行中" in x for x in row["texts"]), f"{row and row['texts']}")
+    t1 = time.time()
+    menu_click("測試：設值", wait=2.0)
+    L = us_lines(t1)
+    val = next((m.group(1) for l in L for m in [re.search(r"menu set (v\d+)", l)] if m), "")
+    check("點腳本的選單項目：腳本的函式有執行、選單關掉", bool(val) and not menu_wins(), f"{L}")
+    check("腳本改了設定值：同一頁的別的框架收到通知（remote=true），自己這份是 remote=false",
+          any(l.startswith("[us4] frame - change") and val in l and "remote=true" in l for l in L) and any(l.startswith("[us4] top - change") and val in l and "remote=false" in l for l in L), f"{L}")
+    ms = open_menu(US_BTN, "使用者腳本按鈕（第二次）")
+    t2 = time.time()
+    menu_click("【關】開關", wait=1.8)
+    names2 = [n for _, m in menus() for n in names_of(m)]
+    shot("us_menu_toggle")
+    check("開關類的項目（按了不關選單）：選單還在、標題跟著變", bool(menu_wins()) and any("【開】開關" in n for n in names2) and any("menu toggle on=true" in l for l in us_lines(t2)), f"{names2} {us_lines(t2)}")
+    close_menus()
+
+    # ---- 另一個分頁 ----
+    t3 = time.time()
+    open_tab(f"{base}/us.html?two=1&noxhr", 5.0)
+    L = us_lines(t3)
+    check("另一個分頁開同一個網站：一開始就拿到剛才設的值", any(l.startswith("[us4] top ?two=1&noxhr start") and f'shared="{val}"' in l for l in L), f"{[l[:160] for l in L]}")
+    ms = open_menu(US_BTN, "使用者腳本按鈕（另一個分頁）")
+    t4 = time.time()
+    menu_click("測試：設值", wait=2.5)
+    L = us_lines(t4)
+    val2 = next((m.group(1) for l in L for m in [re.search(r"menu set (v\d+)", l)] if m), "")
+    check("在這個分頁改值：另一個分頁（沒在顯示）也收到（remote=true）", bool(val2) and any(l.startswith("[us4] top - change") and val2 in l and "remote=true" in l for l in L), f"{L}")
+    # GM_openInTab
+    n0 = tab_count()
+    ms = open_menu(US_BTN, "使用者腳本按鈕（開分頁）")
+    menu_click("測試：開分頁", wait=3.5)
+    st = bar_state()
+    check("GM_openInTab：開了新分頁並切過去", tab_count() == n0 + 1 and "gmtab=1" in (st.get("shown") or ""), f"{n0} → {tab_count()} {st.get('shown')!r}")
+
+    # ---- 在選單開關腳本 ----
+    select_title("腳本測試")
+    ms = open_menu(US_BTN, "使用者腳本按鈕（開關腳本）")
+    menu_click("測試腳本四", exact=False, wait=1.5)
+    row = next((it for _, m in menus() for it in m["items"] if "測試腳本四" in it["t"]), None)
+    check("在選單點腳本的名稱：關掉（選單上標「已關閉」）", bool(row) and any("已關閉" in x for x in row["texts"]), f"{row and row['texts']}")
+    close_menus()
+    click_blank(0.5)
+    t5 = time.time()
+    key(VK_F5)
+    time.sleep(4.5)
+    check("腳本關掉後重新整理：這支不跑了，其他的照跑", not us_lines(t5) and any("[us] start ran /us.html" in l for l in page_log_since(t5)), f"{us_lines(t5)[:3]} {[l for l in page_log_since(t5) if '[us]' in l][:3]}")
+    ms = open_menu(US_BTN, "使用者腳本按鈕（再打開腳本）")
+    menu_click("測試腳本四", exact=False, wait=1.5)
+    close_menus()
+    click_blank(0.5)
+    t6 = time.time()
+    key(VK_F5)
+    time.sleep(4.5)
+    check("再打開、重新整理：又跑了", any("top" in l and "start" in l for l in us_lines(t6)), f"{us_lines(t6)[:3]}")
+
+    # ---- 從網址安裝 ----
+    go(f"{base}/inst.user.js", 5.0)
+    st, txt = bar_state(), page_text()
+    shot("us_install")
+    check("開腳本的網址（.user.js）：出現安裝畫面，不是直接顯示程式碼", "chrome://extensions/install" in (st.get("shown") or "") and "安裝使用者腳本" in txt and "安裝測試腳本" in txt and "1.0" in txt, f"{st.get('shown')!r} {txt[:300]}")
+    btn = next((n for n in find_all(page_tree(), lambda n: n.type == "ButtonControl" and n.name.strip() == "安裝")), None)
+    if btn is not None:
+        click(*btn.center, wait=3.5)
+    txt = page_text()
+    inst_file = os.path.join(data_dir, "web-scripts", "安裝測試腳本.user.js")
+    check("按「安裝」：裝好了", "安裝好了" in txt and os.path.exists(inst_file), f"{txt[:300]}")
+    t7 = time.time()
+    go(f"{base}/us.html?inst=1&noxhr", 5.0)
+    check("裝好的腳本在網頁上執行", any("[inst] ran v=1.0 ?inst=1" in l for l in page_log_since(t7)), f"{[l for l in page_log_since(t7) if '[inst]' in l]}")
+    # 更新
+    INST["ver"] = "2.0"
+    go("chrome://extensions", 3.5)
+    upd = next((n for n in find_all(page_tree(), lambda n: n.type == "ButtonControl" and "檢查更新" in n.name)), None)
+    check("擴充功能頁：有「檢查更新」「從網址安裝」「自動更新腳本」", upd is not None and "從網址安裝" in page_text() and "自動更新腳本" in page_text(), page_text()[-400:])
+    if upd is not None:
+        click(*upd.center, wait=5.0)
+    shot("us_update")
+    t8 = time.time()
+    go(f"{base}/us.html?inst=2&noxhr", 5.0)
+    check("檢查更新：換成新版，重新整理後跑的是新版", any("[inst] ran v=2.0 ?inst=2" in l for l in page_log_since(t8)), f"{[l for l in page_log_since(t8) if '[inst]' in l]}")
+    # 網頁上的連結點下去（不是打網址）：安裝畫面開在新分頁
+    n0 = tab_count()
+    link = next((n for n in find_all(page_tree(), lambda n: n.type == "HyperlinkControl" and "安裝連結" in n.name)), None)
+    if link is not None:
+        click(*link.center, wait=4.0)
+    st = bar_state()
+    check("點網頁上的腳本連結：安裝畫面開在新分頁，原本的網頁還在", link is not None and tab_count() == n0 + 1 and "chrome://extensions/install" in (st.get("shown") or ""), f"{link} {n0} → {tab_count()} {st.get('shown')!r}")
+    try:
+        vals = json.load(open(os.path.join(data_dir, "web-scripts", "values", "t4.user.js.json"), encoding="utf-8"))
+    except Exception as e:
+        vals = {"讀不到": repr(e)}
+    check("設定值有存進檔案（關掉程式再開還在）", vals.get("shared") == json.dumps(val2), f"{vals}")
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+    user32.GetAsyncKeyState(0x04)
 
 
 def s_minimize():
@@ -4545,6 +4798,7 @@ STEPS = [
     ("fullscreen", s_fullscreen),
     ("ext", s_ext),
     ("scripts", s_scripts),
+    ("userscripts", s_userscripts),
     ("login", s_login),
     ("devtools", s_devtools),
     ("refocus", s_refocus),

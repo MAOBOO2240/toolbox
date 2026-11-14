@@ -1,1 +1,1 @@
-extprobe
+scripts userscripts extprobe
