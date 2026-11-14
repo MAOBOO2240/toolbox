@@ -4530,7 +4530,7 @@ def s_extprobe():
         check("extprobe：同時開分頁時排到晚一點才開的，都開成功了", doneb == later, f"排隊 {later}、成功 {doneb}")
         unlinked = errb.count("連著的新分頁 → false") - unlinked0
         check("extprobe：同時開分頁時沒有一個改用「不連著」的方式開（都是交還給瀏覽器的新分頁）", unlinked == 0, f"{unlinked} 個")
-        log(f"  （同時開分頁時真的有排隊的：{later} 個）")
+        log(f"  （同時開分頁時真的有排隊的：{later} 個；用預先建立好的空白網頁的：{errb.count('用預先建立好的空白網頁，交還 → true')} 個（整輪累計））")
         check("extprobe：同時開分頁之後程式還有回應", responsive(web))
         restore_tabs(["t1", "t2", "t3"])
         home()
@@ -4998,6 +4998,8 @@ def s_multiopen():
     open_tab(f"{base}/us.html?multi=1&noxhr", 5.0)
     n0 = tab_count()
     later0 = stderr_text().count("這個晚一點再開")
+    spare0 = stderr_text().count("用預先建立好的空白網頁，交還 → true")
+    log("  預先建立好的空白網頁：", [l for l in stderr_text().splitlines() if l.startswith("[spare]")][-3:])
     t0 = time.time()
     btn = page_click(lambda n: n.type == "ButtonControl" and "一次開三個" in n.name, wait=10.0)
     L = [l.split(" ", 1)[1] for l in page_log_since(t0) if "[multi]" in l or "multi opened" in l]
@@ -5013,6 +5015,8 @@ def s_multiopen():
     check("三個新分頁都載入了，而且都拿得到開它的網頁（window.opener）", all(any(f"[multi] child {i} opener=true" in l for l in L) for i in (1, 2, 3)), f"{L}")
     check("網頁那邊三次都拿到開出來的視窗（沒有被當成擋掉）", any("multi opened=111" in l for l in L), f"{L}")
     check("排到晚一點才開的，後來都開成功了", done >= later, f"排隊 {later}、成功 {done}")
+    spare_used = err.count("用預先建立好的空白網頁，交還 → true") - spare0
+    check("開新分頁時用的是預先建立好的空白網頁（不用現場建立，馬上回答瀏覽器元件）", spare_used >= 1, f"{spare_used} 個")
     # 開出來的分頁裡，使用者腳本照樣會跑（補登記之後重新整理也一樣）
     t1 = time.time()
     time.sleep(7.0)
