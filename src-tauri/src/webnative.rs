@@ -79,10 +79,40 @@ pub struct NewWin {
     from_own: bool,
     /// 提出要求的那個框架的網址（擴充功能的背景程式要開分頁時沒有框架，是空的）
     source: String,
+    /// 跟 WebView2 說「晚一點才回答」時拿到的東西（回答完、或不要了，都要交回去）
+    deferral: Option<ICoreWebView2Deferral>,
 }
 
 // 只在主執行緒建立、使用（為了能放進要求 Send 的閉包裡；閉包是在主執行緒當場執行的）
 unsafe impl Send for NewWin {}
+
+/// 見 NewWin::adopter
+pub struct Adopter(ICoreWebView2NewWindowRequestedEventArgs);
+
+// 只在主執行緒使用（閉包是在主執行緒當場執行的）
+unsafe impl Send for Adopter {}
+
+impl Adopter {
+    pub fn adopt(&self, w: &Wv) -> bool {
+        unsafe {
+            let ok = self.0.SetNewWindow(&w.core).is_ok();
+            if ok {
+                let _ = self.0.SetHandled(true);
+            }
+            ok
+        }
+    }
+}
+
+impl Drop for NewWin {
+    fn drop(&mut self) {
+        if let Some(d) = self.deferral.take() {
+            unsafe {
+                let _ = d.Complete();
+            }
+        }
+    }
+}
 
 impl NewWin {
     /// 是程式自己的頁面要開的：不可以讓開出來的網頁跟它連著
@@ -99,7 +129,21 @@ impl NewWin {
     /// 開它的網頁拿得到它（回傳值不是 null）、它拿得到開它的網頁（window.opener）、
     /// 要送出的表單資料也會一起帶過去。新網頁要還沒載入過別的網址
     pub fn adopt(&self, w: &Wv) -> bool {
-        unsafe { self.args.SetNewWindow(&w.core).is_ok() }
+        self.adopter().adopt(w)
+    }
+
+    /// 可以帶進閉包裡的「交還新網頁」（這個要求本身還要留著，等交還完才算回答完）
+    pub fn adopter(&self) -> Adopter {
+        Adopter(self.args.clone())
+    }
+
+    /// 這個要求現在沒辦法處理（正在建立別的網頁）：跟 WebView2 說晚一點才回答，它會等。
+    /// 之後呼叫 adopt 把新網頁交給它；這個物件丟掉時就算回答完了。回傳有沒有成功
+    pub fn defer(&mut self) -> bool {
+        if self.deferral.is_none() {
+            self.deferral = unsafe { self.args.GetDeferral().ok() };
+        }
+        self.deferral.is_some()
     }
 }
 
@@ -356,7 +400,7 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
                     while q.len() >= 6 {
                         old.extend(q.pop_front());
                     }
-                    q.push_back(NewWin { uri, args, from_own, source });
+                    q.push_back(NewWin { uri, args, from_own, source, deferral: None });
                     old
                 });
                 drop(old);

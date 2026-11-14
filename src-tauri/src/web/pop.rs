@@ -255,6 +255,7 @@ fn ensure_window(app: &AppHandle, i: usize) -> Result<(), String> {
     if app.get_webview_window(&name).is_some() {
         return Ok(());
     }
+    let _creating = creating();
     let w = WebviewWindowBuilder::new(app, &name, WebviewUrl::App("web-menu.html".into()))
         .title("瀏覽器選單")
         .decorations(false)

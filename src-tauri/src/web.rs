@@ -98,6 +98,15 @@ mod webnative {
         pub fn adopt(&self, _w: &Wv) -> bool {
             false
         }
+        pub fn defer(&mut self) -> bool {
+            false
+        }
+    }
+    pub struct Adopter;
+    impl Adopter {
+        pub fn adopt(&self, _w: &Wv) -> bool {
+            false
+        }
     }
     pub fn take_new_window(_same: impl Fn(&str) -> bool) -> Option<NewWin> {
         None
@@ -1122,6 +1131,31 @@ fn with_wv(wv: &Webview, f: impl FnOnce(&webnative::Wv) + Send + 'static) {
 #[cfg(not(windows))]
 fn with_wv(_wv: &Webview, _f: impl FnOnce(&webnative::Wv) + Send + 'static) {}
 
+/// 同一時間只能建立一個網頁元件（WebView2）。建立的時候主執行緒會一邊等、一邊繼續處理別的訊息，
+/// 這時候如果又開始建立另一個（例如擴充功能一口氣開好幾個分頁），兩個會互相等，整個程式就卡住不動。
+/// - 背景執行緒要建立：先拿這把鎖（排隊）
+/// - 主執行緒要建立（網頁要開新視窗的當下）：拿不到就不等，改成晚一點再做（見 linked_tab）
+static CREATING: Mutex<()> = Mutex::new(());
+static MAIN_THREAD: OnceLock<std::thread::ThreadId> = OnceLock::new();
+
+/// 現在沒有人在建立網頁元件就拿到鎖；有人在建立就拿不到（不等）
+fn try_creating() -> Option<MutexGuard<'static, ()>> {
+    match CREATING.try_lock() {
+        Ok(g) => Some(g),
+        Err(std::sync::TryLockError::Poisoned(e)) => Some(e.into_inner()),
+        Err(std::sync::TryLockError::WouldBlock) => None,
+    }
+}
+
+/// 背景執行緒建立網頁元件之前拿的鎖。萬一是在主執行緒呼叫的：拿不到也不等（等了一定卡死），照舊直接建立
+fn creating() -> Option<MutexGuard<'static, ()>> {
+    if MAIN_THREAD.get().is_some_and(|t| *t == std::thread::current().id()) {
+        try_creating()
+    } else {
+        Some(lock(&CREATING))
+    }
+}
+
 /// WebView2 通知的事情先排隊，由一個背景執行緒照順序處理（不可以在通知裡面直接動視窗）
 static EVQ: OnceLock<Mutex<std::sync::mpsc::Sender<(String, String, Ev)>>> = OnceLock::new();
 
@@ -1188,11 +1222,14 @@ fn popup_window(app: &AppHandle, wid: &str, url: &Url, features: tauri::webview:
             if webcore::is_app_target(&u) {
                 return NewWindowResponse::Deny;
             }
+            // 正在建立別的網頁時不能在這裡再建立一個（會卡死）：改開成分頁
             if features.size().is_some() {
-                return match popup_window(&a2, &w2, &u, features) {
-                    Some(window) => NewWindowResponse::Create { window },
-                    None => NewWindowResponse::Deny,
-                };
+                if let Some(_creating) = try_creating() {
+                    return match popup_window(&a2, &w2, &u, features) {
+                        Some(window) => NewWindowResponse::Create { window },
+                        None => NewWindowResponse::Deny,
+                    };
+                }
             }
             if web_url(&u) {
                 let (app, wid) = (a2.clone(), w2.clone());
@@ -1278,11 +1315,14 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
             if webcore::is_app_target(&u) {
                 return NewWindowResponse::Deny;
             }
+            // 正在建立別的網頁時不能在這裡再建立一個（會卡死）：往下走，改開成連著的新分頁（晚一點開）
             if features.size().is_some() {
-                return match popup_window(&a3, &w3, &u, features) {
-                    Some(window) => NewWindowResponse::Create { window },
-                    None => NewWindowResponse::Allow,
-                };
+                if let Some(_creating) = try_creating() {
+                    return match popup_window(&a3, &w3, &u, features) {
+                        Some(window) => NewWindowResponse::Create { window },
+                        None => NewWindowResponse::Allow,
+                    };
+                }
             }
             // 使用者腳本（.user.js）：開安裝頁
             if let Some(v) = us::redirect(u.as_str()).filter(|_| !is_incognito(&w3)) {
@@ -1309,6 +1349,7 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
                 if (plain || ext_page) && same.is_none() && linkable && !req.from_own() {
                     crate::dlog!("[newwin] {w3}-{t3} 開成連著的新分頁：{u}");
                     let done = linked_tab(&a3, &w3, &t3, &u, &features, req);
+                    // （true 也可能是「排到晚一點再開」：一樣不用再另外開）
                     crate::dlog!("[newwin] 連著的新分頁 → {done}");
                     if done {
                         return NewWindowResponse::Deny;
@@ -1483,7 +1524,84 @@ fn open_devtools(app: &AppHandle, wid: &str, tid: &str) {
 /// 表單資料也帶得過去。要在主執行緒呼叫（WebView2 通知「要開新視窗」的當下）。
 /// 回傳 false = 沒辦法這樣開（呼叫的人改用原本的方式：自己開一個分頁載入那個網址）
 #[cfg(windows)]
-fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &tauri::webview::NewWindowFeatures, req: webnative::NewWin) -> bool {
+fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &tauri::webview::NewWindowFeatures, mut req: webnative::NewWin) -> bool {
+    let env = features.opener().environment.clone();
+    // 正在建立別的網頁（主執行緒一邊等一邊處理訊息時又來一個開新視窗的要求，或背景正要建立分頁）：
+    // 現在再建立一個會卡死。跟 WebView2 說這個要求晚一點才回答，排著等前一個建立完
+    let Some(creating) = try_creating() else {
+        if !req.defer() {
+            return false;
+        }
+        crate::dlog!("[newwin] {wid}：正在建立別的網頁，這個晚一點再開：{u}");
+        LINK_LATER.with(|q| q.borrow_mut().push_back(PendingLink { wid: wid.to_string(), opener: opener.to_string(), url: u.clone(), env, req }));
+        link_soon(app, 20);
+        return true;
+    };
+    let done = linked_tab_now(app, wid, opener, u, &env, &req);
+    drop(creating);
+    done
+}
+
+/// 排著等「晚一點再開」的新分頁
+#[cfg(windows)]
+struct PendingLink {
+    wid: String,
+    opener: String,
+    url: Url,
+    env: webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment,
+    req: webnative::NewWin,
+}
+
+#[cfg(windows)]
+thread_local! {
+    /// 只在主執行緒用
+    static LINK_LATER: std::cell::RefCell<std::collections::VecDeque<PendingLink>> = const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+}
+
+/// 過一下子回到主執行緒，把排著的新分頁開出來
+#[cfg(windows)]
+fn link_soon(app: &AppHandle, ms: u64) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(ms));
+        let a = app.clone();
+        let _ = app.run_on_main_thread(move || link_drain(&a));
+    });
+}
+
+/// （主執行緒）開一個排著的新分頁；還在建立別的就再等一下
+#[cfg(windows)]
+fn link_drain(app: &AppHandle) {
+    let Some(creating) = try_creating() else {
+        if LINK_LATER.with(|q| !q.borrow().is_empty()) {
+            link_soon(app, 40);
+        }
+        return;
+    };
+    let Some(p) = LINK_LATER.with(|q| q.borrow_mut().pop_front()) else { return };
+    let ok = get(&p.wid).is_some_and(|w| w.open) && linked_tab_now(app, &p.wid, &p.opener, &p.url, &p.env, &p.req);
+    drop(creating);
+    crate::dlog!("[newwin] {}：晚一點才開的 {} → {ok}", p.wid, p.url);
+    // 連不起來：一般網頁就另外開一個分頁載入（擴充功能的頁面不這樣開：要由瀏覽器決定它能不能開）
+    if !ok && web_url(&p.url) {
+        let (app2, wid, opener, url) = (app.clone(), p.wid.clone(), p.opener.clone(), p.url.to_string());
+        std::thread::spawn(move || {
+            if let Ok(new) = add_tab(&app2, &wid, url, false, Some(&opener)) {
+                set_opener(&wid, &new, &opener);
+                let _ = select_tab(&app2, &wid, &new);
+            }
+        });
+    }
+    // 這個要求到這裡算回答完了（交還了分頁，或不開了）
+    drop(p);
+    if LINK_LATER.with(|q| !q.borrow().is_empty()) {
+        link_soon(app, 10);
+    }
+}
+
+/// 真的建立連著的新分頁（要先拿到「正在建立」的鎖）
+#[cfg(windows)]
+fn linked_tab_now(app: &AppHandle, wid: &str, opener: &str, u: &Url, env: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment, req: &webnative::NewWin) -> bool {
     let Some(win) = app.get_window(&win_label(wid)) else { return false };
     let Ok(blank) = Url::parse("about:blank") else { return false };
     let incognito = is_incognito(wid);
@@ -1505,7 +1623,7 @@ fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &taur
     let size = win.inner_size().unwrap_or(PhysicalSize::new(860, 560));
     let (_, _, (pos, sz)) = geometry(wid, &win, size);
     // 一定要跟開它的網頁同一個環境、同一個設定檔，而且還沒載入過別的網址
-    let b = page_builder(app, wid, &tid, blank, None, incognito).with_environment(features.opener().environment.clone());
+    let b = page_builder(app, wid, &tid, blank, None, incognito).with_environment(env.clone());
     crate::dlog!("[newwin] {wid}-{tid}：建立網頁");
     let made = match win.add_child(b, pos, sz) {
         Ok(w) => w,
@@ -1520,7 +1638,8 @@ fn linked_tab(app: &AppHandle, wid: &str, opener: &str, u: &Url, features: &taur
     let ok = Arc::new(AtomicBool::new(false));
     let ok2 = ok.clone();
     crate::dlog!("[newwin] {wid}-{tid}：交還給瀏覽器");
-    with_wv(&made, move |w| ok2.store(req.adopt(w), Ordering::SeqCst));
+    let adopter = req.adopter();
+    with_wv(&made, move |w| ok2.store(adopter.adopt(w), Ordering::SeqCst));
     crate::dlog!("[newwin] {wid}-{tid}：交還 → {}", ok.load(Ordering::SeqCst));
     if !ok.load(Ordering::SeqCst) {
         // 交不出去：這個分頁不要了，讓呼叫的人用原本的方式開
@@ -1816,6 +1935,7 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
     // 無痕式視窗不載入擴充功能
     let ext = if incognito { None } else { ext_pending() };
     let had = ext.is_some();
+    let creating = creating();
     let made = match win.add_child(page_builder(app, wid, tid, url.clone(), ext, incognito), pos, size) {
         Ok(w) => {
             if had {
@@ -1829,7 +1949,9 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
             win.add_child(page_builder(app, wid, tid, url, None, incognito), pos, size).map_err(|e| format!("網頁建立失敗：{e}"))
         }
         Err(e) => Err(format!("網頁建立失敗：{e}")),
-    }?;
+    };
+    drop(creating);
+    let made = made?;
     attach_native(&made, wid, tid, true);
     us::booted(&made, wid, tid);
     // 靜音的分頁維持靜音
@@ -2358,7 +2480,10 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     let ((bp, bs), _, (ppos, psz)) = geometry(id, &win, size);
     // 上面：分頁列、工具列、書籤列（本機頁面）
     let bar = WebviewBuilder::new(bar_label(id), WebviewUrl::App("web.html".into())).disable_drag_drop_handler();
-    let bar = win.add_child(bar, bp, bs).map_err(|e| format!("工具列建立失敗：{e}"))?;
+    let bar = {
+        let _creating = creating();
+        win.add_child(bar, bp, bs).map_err(|e| format!("工具列建立失敗：{e}"))?
+    };
     attach_native(&bar, id, "", false);
     // 下面：目前分頁的網頁（其他分頁點到時才載入）
     let url = page_url(&cfg.url);
@@ -3894,7 +4019,10 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
             }
             NewWindowResponse::Deny
         });
-    let made = win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?;
+    let made = {
+        let _creating = creating();
+        win.add_child(b, PhysicalPosition::new(x, y), PhysicalSize::new(w as u32, h as u32)).map_err(|e| e.to_string())?
+    };
     // 保險：真的被關掉（沒經過上面那個通知）也把小視窗收起來
     {
         let (a2, w2) = (app.clone(), wid.to_string());
@@ -4015,6 +4143,8 @@ fn leave_typing(app: &AppHandle, id: &str, hwnd: isize, give_back: bool) {
 
 pub fn init(app: &AppHandle, path: PathBuf) {
     let _ = APP_HANDLE.set(app.clone());
+    // 這個函式是在主執行緒呼叫的
+    let _ = MAIN_THREAD.set(std::thread::current().id());
     if let Some(dir) = path.parent() {
         let _ = WEB_DIR.set(dir.to_path_buf());
         crate::userscripts::init(dir.to_path_buf());
