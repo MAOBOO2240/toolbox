@@ -92,15 +92,20 @@ impl NewWin {
 
 /// 拿出剛才收著的「開新視窗」要求。same(網址) = 是不是這一次的；排在它前面對不上的是過期的，丟掉
 pub fn take_new_window(same: impl Fn(&str) -> bool) -> Option<NewWin> {
-    NEWWIN.with(|q| {
+    // 過期的先收著，等放開清單之後才丟掉（丟掉時會通知 WebView2，不要在還拿著清單的時候做）
+    let mut stale = Vec::new();
+    let hit = NEWWIN.with(|q| {
         let mut q = q.borrow_mut();
         while let Some(req) = q.pop_front() {
             if same(&req.uri) {
                 return Some(req);
             }
+            stale.push(req);
         }
         None
-    })
+    });
+    drop(stale);
+    hit
 }
 
 static DL_KEY: AtomicU64 = AtomicU64::new(0);
@@ -319,14 +324,17 @@ unsafe fn attach_(controller: &ICoreWebView2Controller, core: &ICoreWebView2, op
                     let src = text(|p| c.Source(p));
                     src.is_empty() || own(&src)
                 });
-                NEWWIN.with(|q| {
+                // 沒人來拿的不要一直留著（放開清單之後才丟掉）
+                let old = NEWWIN.with(|q| {
                     let mut q = q.borrow_mut();
-                    // 沒人來拿的不要一直留著
+                    let mut old = Vec::new();
                     while q.len() >= 6 {
-                        q.pop_front();
+                        old.extend(q.pop_front());
                     }
                     q.push_back(NewWin { uri, args, from_own });
+                    old
                 });
+                drop(old);
             }
             Ok(())
         }));

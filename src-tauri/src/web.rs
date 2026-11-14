@@ -711,6 +711,10 @@ struct Rt {
     heading_own: HashSet<String>,
     /// 分頁是從哪個分頁開出來的（關掉時回到那個分頁；中途切到別的分頁就不算了）
     opener: HashMap<String, String>,
+    /// 視窗在最前面、鍵盤卻沒有在任何網頁或工具列上：連續看到幾次了（見 tick）
+    focus_lost: u8,
+    /// 上次接著鍵盤的是工具列（網址列），不是網頁
+    focus_bar: bool,
 }
 
 static RT: Mutex<Option<HashMap<String, Rt>>> = Mutex::new(None);
@@ -1247,8 +1251,10 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
                             let _ = select_tab(&app, &wid, &t);
                         }
                         None => {
-                            if let Ok(new) = add_tab(&app, &wid, u.to_string(), true, Some(&tid)) {
+                            // 先記是誰開的再切過去（切過去時只留跟它有關的那一串）
+                            if let Ok(new) = add_tab(&app, &wid, u.to_string(), false, Some(&tid)) {
                                 set_opener(&wid, &new, &tid);
+                                let _ = select_tab(&app, &wid, &new);
                             }
                         }
                     }
@@ -1835,8 +1841,17 @@ fn select_tab(app: &AppHandle, wid: &str, tid: &str) -> Result<(), String> {
     rt(|m| {
         if let Some(r) = m.get_mut(wid) {
             r.page_typing = false;
-            // 切到別的分頁了：其他分頁「是從哪個分頁開的」不再算（跟 Chrome 一樣，關掉時不會跳回去）
-            r.opener.retain(|child, _| child == tid);
+            // 切到別的分頁了：跟這個分頁無關的「是從哪個分頁開的」不再算（跟 Chrome 一樣，關掉時不會跳回去）。
+            // 這個分頁一路往上的（它是誰開的、那個又是誰開的）留著：一層一層關掉時才會一層一層回去
+            let mut chain: HashSet<String> = HashSet::new();
+            let mut cur = tid.to_string();
+            while let Some(o) = r.opener.get(&cur) {
+                if !chain.insert(cur.clone()) {
+                    break;
+                }
+                cur = o.clone();
+            }
+            r.opener.retain(|child, _| chain.contains(child));
         }
     });
     // 這個視窗正在用（它是前景視窗）：鍵盤交給新顯示的網頁，快捷鍵、捲動才會作用在它上面。
@@ -3131,6 +3146,34 @@ mod win32 {
         }
     }
 
+    /// 這個視窗的鍵盤現在在哪：0 = 不在這個視窗裡（或正在拖曳、拉大小）；1 = 在視窗本身——
+    /// 沒有任何網頁或工具列接著鍵盤，按快捷鍵、打字都不會有反應；2 = 在最上面那一排（工具列）；3 = 在下面的網頁
+    pub fn focus_where(h: isize) -> u8 {
+        unsafe {
+            let hwnd = h as HWND;
+            let tid = GetWindowThreadProcessId(hwnd, std::ptr::null_mut());
+            let mut gi: GUITHREADINFO = std::mem::zeroed();
+            gi.cbSize = std::mem::size_of::<GUITHREADINFO>() as u32;
+            if tid == 0 || GetGUIThreadInfo(tid, &mut gi) == 0 || gi.hwndFocus.is_null() || !gi.hwndMoveSize.is_null() {
+                return 0;
+            }
+            if gi.hwndFocus == hwnd {
+                return 1;
+            }
+            if IsChild(hwnd, gi.hwndFocus) == 0 {
+                return 0;
+            }
+            let (mut w, mut f): (RECT, RECT) = (std::mem::zeroed(), std::mem::zeroed());
+            GetWindowRect(hwnd, &mut w);
+            GetWindowRect(gi.hwndFocus, &mut f);
+            if f.top <= w.top + 2 {
+                2
+            } else {
+                3
+            }
+        }
+    }
+
     /// 要在主執行緒（有訊息迴圈）呼叫
     pub fn hook_foreground() {
         unsafe {
@@ -3839,6 +3882,44 @@ fn tick(app: &AppHandle) {
 
     for cfg in open {
         let id = cfg.id.clone();
+        // 這個視窗在最前面，鍵盤卻沒有在任何網頁或工具列上——從別的視窗切回來時（登入小視窗、無痕式視窗、
+        // 開發人員工具關掉，或從別的程式切回來）Windows 只把鍵盤交給視窗本身，要先點一下網頁才有反應。
+        // 連續兩次都是這樣就把鍵盤交還給上次接著的那個（網址列或目前的網頁）。遊戲在前景時不會動到鍵盤
+        #[cfg(windows)]
+        {
+            let want = rt(|m| {
+                let r = m.get_mut(&id)?;
+                if r.hwnd == 0 || fg_hwnd != r.hwnd || r.typing {
+                    r.focus_lost = 0;
+                    return None;
+                }
+                match win32::focus_where(r.hwnd) {
+                    1 => {
+                        // 一直交不回去的話，每 3 秒再試一次
+                        r.focus_lost = if r.focus_lost >= 30 { 1 } else { r.focus_lost + 1 };
+                        (r.focus_lost == 2).then_some((r.hwnd, r.focus_bar && !(r.full || r.fs)))
+                    }
+                    at => {
+                        r.focus_lost = 0;
+                        if at >= 2 {
+                            r.focus_bar = at == 2;
+                        }
+                        None
+                    }
+                }
+            });
+            if let Some((hwnd, bar)) = want {
+                let label = if bar { bar_label(&id) } else { page_label(&id, &cfg.active) };
+                if let Some(wv) = app.get_webview(&label) {
+                    let _ = app.run_on_main_thread(move || {
+                        // 這段時間使用者又切走了就不動
+                        if win32::foreground() == hwnd && win32::focus_where(hwnd) == 1 {
+                            let _ = wv.set_focus();
+                        }
+                    });
+                }
+            }
+        }
         // 先在鎖內決定要做什麼，鎖外再動視窗
         let decided = rt(|m| {
             let r = m.get_mut(&id)?;
