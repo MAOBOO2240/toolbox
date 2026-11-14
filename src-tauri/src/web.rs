@@ -166,12 +166,28 @@ const TYPING_JS: &str = r#"(() => {
     // 只看 <title> 有沒有被網頁改掉（看整個 head 的話，很多網站常常改 head，會一直觸發）
     let watched = null;
     const titleOb = new MutationObserver(() => { if (!busy) apply(); });
-    const watch = () => {
+    // 找目前的 <title>：換了一個（或剛出現、被拿掉）才重新監看
+    const find = () => {
       const t = document.querySelector("title");
-      if (t && t !== watched) { watched = t; titleOb.disconnect(); titleOb.observe(t, { childList: true, characterData: true, subtree: true }); }
-      if (!watched && document.head) new MutationObserver(watch).observe(document.head, { childList: true });
+      if (t === watched) return;
+      watched = t;
+      titleOb.disconnect();
+      if (t) { titleOb.observe(t, { childList: true, characterData: true, subtree: true }); apply(); }
     };
-    if (document.head) watch(); else document.addEventListener("DOMContentLoaded", watch, { once: true });
+    // <title> 可能晚一點才出現（X 的舊版網頁一開始沒有）、也可能被換成新的：用「同一個」監看器看 <head> 底下
+    // 有沒有增減。不能每次都再開一個新的：網頁一直往 <head> 加東西時監看器會一個變兩個、兩個變四個，
+    // 加十幾次整個網頁就卡死（X 舊版網頁停在標誌就是這個原因）
+    let headEl = null;
+    const headOb = new MutationObserver(find);
+    const watchHead = () => {
+      find();
+      const h = document.head;
+      if (!h || h === headEl) return;
+      headEl = h;
+      headOb.disconnect();
+      headOb.observe(h, { childList: true });
+    };
+    if (document.head) watchHead(); else document.addEventListener("DOMContentLoaded", watchHead, { once: true });
   }
 })();"#;
 
