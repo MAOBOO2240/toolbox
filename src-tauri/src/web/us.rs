@@ -8,6 +8,40 @@ use crate::userscripts::{self as us, Msg};
 /// 一份文件（最上層的網頁或內嵌框架）裡正在跑的腳本
 struct Doc {
     ids: Vec<String>,
+    /// 這是第幾份文件（每來一份新的就加一）：晚一點才要傳的訊息，傳之前確認還是同一份
+    seq: u64,
+    /// 文件剛開始的那一小段時間，要傳給它的訊息先收在這裡（見 settle）；None = 可以直接傳了
+    held: Option<Vec<String>>,
+}
+
+static DOC_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 文件剛開始的時候，瀏覽器元件那邊可能還沒處理完「這個分頁換成新文件了」，這時候傳訊息過去會送到舊的那份文件
+/// （等於丟了——例如腳本一開始就連線、馬上被拒絕，它永遠等不到結果）。
+/// 所以每份文件開始後的這一小段時間，要傳給它的訊息先收著，時間到了再照順序傳
+const SETTLE: Duration = Duration::from_millis(120);
+
+/// 時間到了：把收著的訊息照順序傳給那份文件（還是同一份的話），之後的就直接傳
+fn settle(app: &AppHandle, wid: &str, tid: &str, frame: u32, seq: u64) {
+    let (app, wid, tid) = (app.clone(), wid.to_string(), tid.to_string());
+    std::thread::spawn(move || {
+        std::thread::sleep(SETTLE);
+        let page = app.get_webview(&page_label(&wid, &tid));
+        // 拿著清單的時候就照順序交出去：之後才要傳的一定排在這些後面
+        tabs(|m| {
+            let Some(d) = m.get_mut(&(wid.clone(), tid.clone())).and_then(|t| t.docs.get_mut(&frame)) else { return };
+            if d.seq != seq {
+                return;
+            }
+            let held = d.held.take().unwrap_or_default();
+            let Some(page) = &page else { return };
+            for json in held {
+                with_wv(page, move |w| {
+                    webnative::gm_post(w, frame, &json);
+                });
+            }
+        });
+    });
 }
 
 /// 腳本登記的選單項目（GM_registerMenuCommand）
@@ -255,13 +289,18 @@ fn abort_xhrs(wid: &str, tid: &str, frame: Option<u32>) {
     });
 }
 
-/// 傳一則訊息給某個分頁裡的某份文件
+/// 傳一則訊息給某個分頁裡的某份文件（文件剛開始的那一小段時間先收著，見 settle）
 fn post(app: &AppHandle, wid: &str, tid: &str, frame: u32, json: String) {
-    if let Some(p) = app.get_webview(&page_label(wid, tid)) {
-        with_wv(&p, move |w| {
-            webnative::gm_post(w, frame, &json);
-        });
-    }
+    let Some(p) = app.get_webview(&page_label(wid, tid)) else { return };
+    tabs(|m| {
+        let held = m.get_mut(&(wid.to_string(), tid.to_string())).and_then(|t| t.docs.get_mut(&frame)).and_then(|d| d.held.as_mut());
+        match held {
+            Some(h) => h.push(json),
+            None => with_wv(&p, move |w| {
+                webnative::gm_post(w, frame, &json);
+            }),
+        }
+    });
 }
 
 /// 設定值變了：告訴其他也在跑這支腳本的文件（別的分頁、別的框架）
@@ -319,6 +358,7 @@ pub(super) fn on_msg(app: &AppHandle, wid: &str, tid: &str, frame: u32, source: 
             crate::dlog!("[us] {wid}-{tid} 框架 {frame} {source}：跑 {} 支腳本（設定值第 {ver} 版）", ids.len());
             // 這份文件是新的：之前那份文件留下的東西（選單、還在跑的連線）作廢
             abort_xhrs(wid, tid, if top { None } else { Some(frame) });
+            let seq = DOC_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
             tabs(|m| {
                 let t = m.entry(key).or_default();
                 if top {
@@ -328,9 +368,12 @@ pub(super) fn on_msg(app: &AppHandle, wid: &str, tid: &str, frame: u32, source: 
                 if ids.is_empty() {
                     t.docs.remove(&frame);
                 } else {
-                    t.docs.insert(frame, Doc { ids: ids.clone() });
+                    t.docs.insert(frame, Doc { ids: ids.clone(), seq, held: Some(Vec::new()) });
                 }
             });
+            if !ids.is_empty() {
+                settle(app, wid, tid, frame, seq);
+            }
             // 它啟動時拿到的設定值比較舊（在兩次更新之間載入的）：補上之後變過的；差太多就整份對一次
             if !ids.is_empty() && ver != us::values_ver() {
                 let msg = match us::changes_since(ver, &ids) {
