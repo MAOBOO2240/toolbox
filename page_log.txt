@@ -1,0 +1,8 @@
+1794685413.86 [us] start ran /test.html body=false
+1794685413.95 [test] load:890x486 dpr=1 
+1794685413.96 [us] end ran n=1 /test.html
+1794685413.96 [frame] load mb=true
+1794685417.78 [us] start ran /test.html body=false
+1794685417.79 [us] end ran n=2 /test.html
+1794685417.79 [test] load:890x486 dpr=1 
+1794685417.89 [frame] load mb=true

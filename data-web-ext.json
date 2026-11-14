@@ -1,0 +1,79 @@
+{
+  "exts": {
+    "bgnkhhnnamicmpeenaelnjfhikgbkllg": {
+      "ver": "5.5.4.64_0",
+      "dir": "b1794685405992/bgnkhhnnamicmpeenaelnjfhikgbkllg",
+      "name": "AdGuard 廣告封鎖器",
+      "off": false,
+      "loaded": true
+    },
+    "cgakmbkklpmijhckpolanjijghgfpeoa": {
+      "ver": "0.2.0_0",
+      "dir": "b1794685405992/cgakmbkklpmijhckpolanjijghgfpeoa",
+      "name": "遊戲橘子擴充元件",
+      "off": false,
+      "loaded": true
+    },
+    "dhdgffkkebhmkfjojejmpbldmpobfkfo": {
+      "ver": "5.5.1_0",
+      "dir": "b1794685405992/dhdgffkkebhmkfjojejmpbldmpobfkfo",
+      "name": "篡改猴",
+      "off": false,
+      "loaded": true
+    },
+    "eamehjingoajmedombhecpkpagoadodo": {
+      "ver": "1.0_0",
+      "dir": "b1794685405992/eamehjingoajmedombhecpkpagoadodo",
+      "name": "測試擴充功能",
+      "off": false,
+      "loaded": true
+    },
+    "fcoeoabgfenejglbffodgkkbkcdhcgfn": {
+      "ver": "1.0.107_0",
+      "dir": "b1794685405992/fcoeoabgfenejglbffodgkkbkcdhcgfn",
+      "name": "Claude",
+      "off": false,
+      "loaded": true
+    },
+    "gebbhagfogifgggkldgodflihgfeippi": {
+      "ver": "4.1.7_0",
+      "dir": "b1794685405992/gebbhagfogifgggkldgodflihgfeippi",
+      "name": "Return YouTube Dislike",
+      "off": false,
+      "loaded": true
+    },
+    "ghbmnnjooekpmoecnnnilnnbdlolhkhi": {
+      "ver": "1.112.1_0",
+      "dir": "b1794685405992/ghbmnnjooekpmoecnnnilnnbdlolhkhi",
+      "name": "Google 文件離線版",
+      "off": false,
+      "loaded": true
+    },
+    "inomeogfingihgjfjlpeplalcfajhgai": {
+      "ver": "2.1_0",
+      "dir": "b1794685405992/inomeogfingihgjfjlpeplalcfajhgai",
+      "name": "Chrome Remote Desktop",
+      "off": false,
+      "loaded": true
+    },
+    "mgojgddhfhekopdpkocobommepgdeffb": {
+      "ver": "7.5.47_0",
+      "dir": "b1794685405992/mgojgddhfhekopdpkocobommepgdeffb",
+      "name": "iCloud 儀表板",
+      "off": false,
+      "loaded": true
+    },
+    "mnjggcdmjocbbbhaepdhchncahnbgone": {
+      "ver": "6.1.6_0",
+      "dir": "b1794685405992/mnjggcdmjocbbbhaepdhchncahnbgone",
+      "name": "SponsorBlock for YouTube - 跳過贊助廣告",
+      "off": false,
+      "loaded": true
+    }
+  },
+  "pending": "",
+  "chrome_pins": [
+    "dhdgffkkebhmkfjojejmpbldmpobfkfo"
+  ],
+  "pins": null
+}

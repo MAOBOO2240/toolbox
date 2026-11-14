@@ -1,0 +1,517 @@
+
+************* Preparing the environment for Debugger Extensions Gallery repositories **************
+   ExtensionRepository : Implicit
+   UseExperimentalFeatureForNugetShare : true
+   AllowNugetExeUpdate : true
+   NonInteractiveNuget : true
+   AllowNugetMSCredentialProviderInstall : true
+   AllowParallelInitializationOfLocalRepositories : true
+
+   EnableRedirectToV8JsProvider : false
+
+   -- Configuring repositories
+      ----> Repository : LocalInstalled, Enabled: true
+      ----> Repository : UserExtensions, Enabled: true
+
+>>>>>>>>>>>>> Preparing the environment for Debugger Extensions Gallery repositories completed, duration 0.016 seconds
+
+************* Waiting for Debugger Extensions Gallery to Initialize **************
+
+>>>>>>>>>>>>> Waiting for Debugger Extensions Gallery to Initialize completed, duration 0.187 seconds
+   ----> Repository : UserExtensions, Enabled: true, Packages count: 0
+   ----> Repository : LocalInstalled, Enabled: true, Packages count: 30
+
+Microsoft (R) Windows Debugger Version 10.0.26100.9457 AMD64
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+*** wait with pending attach
+
+************* Path validation summary **************
+Response                         Time (ms)     Location
+Deferred                                       srv*C:\symcache*https://msdl.microsoft.com/download/symbols
+Symbol search path is: srv*C:\symcache*https://msdl.microsoft.com/download/symbols
+Executable search path is: 
+WARNING: Process 9396 is not attached as a debuggee
+         The process can be examined but debug events will not be received
+............................................................
+Loading unloaded module list
+.
+(24b4.2270): Wake debugger - code 80000007 (first chance)
+
++------------------------------------------------------------------------+
+| This target supports Hardware-enforced Stack Protection. A HW based    |
+| "Shadow Stack" may be available to assist in debugging and analysis.   |
+| See aka.ms/userhsp for more info.                                      |
+|                                                                        |
+| dps @ssp                                                               |
+|                                                                        |
++------------------------------------------------------------------------+
+
+ntdll!NtWaitForAlertByThreadId+0x14:
+00007ff8`09465f14 c3              ret
+0:000> cdb: Reading initial command '~*k 60; qd'
+
+.  0  Id: 24b4.2270 Suspend: 1 Teb: 000000e3`c1105000 Unfrozen "main"
+Child-SP          RetAddr               Call Site
+000000e3`c12eef68 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c12eef70 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+*** WARNING: Unable to verify checksum for D:\a\toolbox\toolbox\app\MAOBOO.exe
+000000e3`c12eefe0 00007ff7`d29ea994     KERNELBASE!WaitOnAddress+0x38
+000000e3`c12ef020 00007ff7`d2862ef1     MAOBOO+0x62a994
+000000e3`c12ef080 00007ff7`d23c1f13     MAOBOO+0x4a2ef1
+000000e3`c12ef0c0 00007ff7`d263e098     MAOBOO+0x1f13
+000000e3`c12eff00 00007ff7`d29026f9     MAOBOO+0x27e098
+000000e3`c12f0250 00007ff7`d292afe6     MAOBOO+0x5426f9
+000000e3`c12f10e0 00007ff7`d264fa07     MAOBOO+0x56afe6
+000000e3`c12f1290 00007ff7`d26325ba     MAOBOO+0x28fa07
+000000e3`c12f20c0 00007ff7`d29020cb     MAOBOO+0x2725ba
+000000e3`c12f2700 00007ff7`d292afe6     MAOBOO+0x5420cb
+000000e3`c12f3590 00007ff7`d23df08d     MAOBOO+0x56afe6
+000000e3`c12f3740 00007ff7`d26110e3     MAOBOO+0x1f08d
+000000e3`c12f3d10 00007ff7`d25bdeff     MAOBOO+0x2510e3
+000000e3`c12f4c80 00007ff7`d24fa28b     MAOBOO+0x1fdeff
+000000e3`c12f53c0 00007ff7`d263a540     MAOBOO+0x13a28b
+000000e3`c12f5580 00007ff7`d29903da     MAOBOO+0x27a540
+000000e3`c12f5620 00007fff`dc80cec8     MAOBOO+0x5d03da
+000000e3`c12f5690 00007fff`dc80cc9f     comctl32!CallNextSubclassProc+0xa8
+000000e3`c12f5720 00007ff8`072d74f6     comctl32!MasterSubclassProc+0xaf
+000000e3`c12f57c0 00007ff8`072d504d     user32!UserCallWinProcCheckWow+0x356
+000000e3`c12f5920 00007ff7`d2988dda     user32!DispatchMessageWorker+0x1dd
+000000e3`c12f59a0 00007ff7`d2667786     MAOBOO+0x5c8dda
+000000e3`c12f5a50 00007ff7`d23c4f2c     MAOBOO+0x2a7786
+000000e3`c12f5fa0 00007ff7`d263e098     MAOBOO+0x4f2c
+000000e3`c12f6de0 00007ff7`d29026f9     MAOBOO+0x27e098
+000000e3`c12f7130 00007ff7`d292afe6     MAOBOO+0x5426f9
+000000e3`c12f7fc0 00007ff7`d264fa07     MAOBOO+0x56afe6
+000000e3`c12f8170 00007ff7`d26325ba     MAOBOO+0x28fa07
+000000e3`c12f8fa0 00007ff7`d29020cb     MAOBOO+0x2725ba
+000000e3`c12f95e0 00007ff7`d292afe6     MAOBOO+0x5420cb
+000000e3`c12fa470 00007ff7`d23df08d     MAOBOO+0x56afe6
+000000e3`c12fa620 00007ff7`d26110e3     MAOBOO+0x1f08d
+000000e3`c12fabf0 00007ff7`d25bdeff     MAOBOO+0x2510e3
+000000e3`c12fbb60 00007ff7`d24fa28b     MAOBOO+0x1fdeff
+000000e3`c12fc2a0 00007ff7`d263a540     MAOBOO+0x13a28b
+000000e3`c12fc460 00007ff7`d29903da     MAOBOO+0x27a540
+000000e3`c12fc500 00007fff`dc80cec8     MAOBOO+0x5d03da
+000000e3`c12fc570 00007fff`dc80cc9f     comctl32!CallNextSubclassProc+0xa8
+000000e3`c12fc600 00007ff8`072d74f6     comctl32!MasterSubclassProc+0xaf
+000000e3`c12fc6a0 00007ff8`072d504d     user32!UserCallWinProcCheckWow+0x356
+000000e3`c12fc800 00007ff7`d23d15b5     user32!DispatchMessageWorker+0x1dd
+000000e3`c12fc880 00007ff7`d23d1667     MAOBOO+0x115b5
+000000e3`c12fc910 00007ff7`d23d7018     MAOBOO+0x11667
+000000e3`c12fc940 00007ff7`d26466db     MAOBOO+0x17018
+000000e3`c12fc9b0 00007ff7`d243ad44     MAOBOO+0x2866db
+000000e3`c12ffbe0 00007ff7`d274e425     MAOBOO+0x7ad44
+000000e3`c12ffc10 00007ff7`d29c468f     MAOBOO+0x38e425
+000000e3`c12ffc70 00007ff8`079cdd37     MAOBOO+0x60468f
+000000e3`c12ffcb0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c12ffce0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   1  Id: 24b4.2310 Suspend: 1 Teb: 000000e3`c1107000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c13ff778 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c13ff780 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c13ffa80 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c13ffab0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   2  Id: 24b4.23ec Suspend: 1 Teb: 000000e3`c1109000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c14ffbb8 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c14ffbc0 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c14ffec0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c14ffef0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   3  Id: 24b4.186c Suspend: 1 Teb: 000000e3`c110b000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c15ff818 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c15ff820 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c15ffb20 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c15ffb50 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   4  Id: 24b4.668 Suspend: 1 Teb: 000000e3`c110f000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c17ffa58 00007ff8`072fde72     win32u!NtUserGetMessage+0x14
+000000e3`c17ffa60 00007ff7`d243f4ed     user32!GetMessageW+0x22
+000000e3`c17ffac0 00007ff7`d26343ac     MAOBOO+0x7f4ed
+000000e3`c17ffb90 00007ff7`d28ccd90     MAOBOO+0x2743ac
+000000e3`c17ffc00 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c17ffca0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c17ffcd0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   5  Id: 24b4.50c Suspend: 1 Teb: 000000e3`c1111000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c18ff178 00007ff8`064338f3     ntdll!NtWaitForMultipleObjects+0x14
+000000e3`c18ff180 00007ff8`07c74b0e     KERNELBASE!WaitForMultipleObjectsEx+0x123
+(Inline Function) --------`--------     combase!WaitCoalesced+0x79
+000000e3`c18ff470 00007ff8`07c6c581     combase!CROIDTable::WorkerThreadLoop+0xae
+000000e3`c18ff6e0 00007ff8`07c6c439     combase!CRpcThread::WorkerLoop+0x4d
+000000e3`c18ff750 00007ff8`079cdd37     combase!CRpcThreadCache::RpcWorkerThreadEntry+0x29
+000000e3`c18ff780 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c18ff7b0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   6  Id: 24b4.510 Suspend: 1 Teb: 000000e3`c1113000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c19ff4a8 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c19ff4b0 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c19ff7b0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c19ff7e0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   7  Id: 24b4.17f4 Suspend: 1 Teb: 000000e3`c1115000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c1aff838 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c1aff840 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c1affb40 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c1affb70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   8  Id: 24b4.21cc Suspend: 1 Teb: 000000e3`c1117000 Unfrozen "MojoThread"
+Child-SP          RetAddr               Call Site
+000000e3`c1bff378 00007ff8`06433edc     ntdll!NtRemoveIoCompletion+0x14
+000000e3`c1bff380 00007fff`c9a40111     KERNELBASE!GetQueuedCompletionStatus+0x6c
+000000e3`c1bff3e0 00007fff`c9a3fc91     EmbeddedBrowserWebView!base::MessagePumpForIO::WaitForWork+0x121
+000000e3`c1bff490 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForIO::DoRunLoop+0x121
+000000e3`c1bff590 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c1bff600 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c1bff690 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c1bff750 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c1bff7b0 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c1bff830 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c1bff8c0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c1bff8f0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+   9  Id: 24b4.220c Suspend: 1 Teb: 000000e3`c1119000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c1cff7b8 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c1cff7c0 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c1cffac0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c1cffaf0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  10  Id: 24b4.4b0 Suspend: 1 Teb: 000000e3`c111b000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c1eff518 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c1eff520 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c1eff590 00007ff7`d28d3a21     KERNELBASE!WaitOnAddress+0x38
+000000e3`c1eff5d0 00007ff7`d260387e     MAOBOO+0x513a21
+000000e3`c1eff630 00007ff7`d24424be     MAOBOO+0x24387e
+000000e3`c1eff6e0 00007ff7`d2634acf     MAOBOO+0x824be
+000000e3`c1eff940 00007ff7`d28ccd90     MAOBOO+0x274acf
+000000e3`c1eff9b0 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c1effa50 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c1effa80 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  11  Id: 24b4.23f8 Suspend: 1 Teb: 000000e3`c111d000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c20fc458 00007ff8`072d6962     win32u!NtUserMessageCall+0x14
+000000e3`c20fc460 00007ff8`072d3327     user32!SendMessageWorker+0x382
+000000e3`c20fc510 00007ff7`d26b19b7     user32!GetWindowTextW+0x67
+000000e3`c20fc560 00007ff7`d2627046     MAOBOO+0x2f19b7
+000000e3`c20fd270 00007ff7`d2445d62     MAOBOO+0x267046
+000000e3`c20ff940 00007ff7`d25ca969     MAOBOO+0x85d62
+000000e3`c20ff970 00007ff7`d274b0fb     MAOBOO+0x20a969
+000000e3`c20ffa40 00007ff7`d24a1c20     MAOBOO+0x38b0fb
+000000e3`c20ffa70 00007ff7`d2634e1a     MAOBOO+0xe1c20
+000000e3`c20ffb60 00007ff7`d28ccd90     MAOBOO+0x274e1a
+000000e3`c20ffc50 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c20ffcf0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c20ffd20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  12  Id: 24b4.2780 Suspend: 1 Teb: 000000e3`c1121000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c24ff4d8 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c24ff4e0 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c24ff580 00007ff7`d261afa1     MAOBOO+0x52238a
+000000e3`c24ff600 00007ff7`d2445c3d     MAOBOO+0x25afa1
+000000e3`c24ffac0 00007ff7`d25ca931     MAOBOO+0x85c3d
+000000e3`c24ffaf0 00007ff7`d274b0f0     MAOBOO+0x20a931
+000000e3`c24ffbc0 00007ff7`d24a1bf8     MAOBOO+0x38b0f0
+000000e3`c24ffbf0 00007ff7`d2634d3e     MAOBOO+0xe1bf8
+000000e3`c24ffce0 00007ff7`d28ccd90     MAOBOO+0x274d3e
+000000e3`c24ffdd0 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c24ffe70 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c24ffea0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  13  Id: 24b4.8b0 Suspend: 1 Teb: 000000e3`c1123000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c26fe2d8 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c26fe2e0 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c26fe350 00007ff7`d28d3a21     KERNELBASE!WaitOnAddress+0x38
+000000e3`c26fe390 00007ff7`d2862646     MAOBOO+0x513a21
+000000e3`c26fe3f0 00007ff7`d2862440     MAOBOO+0x4a2646
+000000e3`c26fe4a0 00007ff7`d2862f1c     MAOBOO+0x4a2440
+000000e3`c26fe570 00007ff7`d2445e53     MAOBOO+0x4a2f1c
+000000e3`c26fe5a0 00007ff7`d2634e6c     MAOBOO+0x85e53
+000000e3`c26ff8f0 00007ff7`d28ccd90     MAOBOO+0x274e6c
+000000e3`c26ffa00 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c26ffaa0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c26ffad0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  14  Id: 24b4.1718 Suspend: 1 Teb: 000000e3`c1125000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c28ff898 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c28ff8a0 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c28ff940 00007ff7`d260d386     MAOBOO+0x52238a
+000000e3`c28ff9c0 00007ff7`d243f7ba     MAOBOO+0x24d386
+000000e3`c28ffa10 00007ff7`d25ca867     MAOBOO+0x7f7ba
+000000e3`c28ffa40 00007ff7`d274b0c4     MAOBOO+0x20a867
+000000e3`c28ffa70 00007ff7`d24a1b58     MAOBOO+0x38b0c4
+000000e3`c28ffaa0 00007ff7`d26343fd     MAOBOO+0xe1b58
+000000e3`c28ffaf0 00007ff7`d28ccd90     MAOBOO+0x2743fd
+000000e3`c28ffb20 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c28ffbc0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c28ffbf0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  15  Id: 24b4.1004 Suspend: 1 Teb: 000000e3`c1127000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c2aff578 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c2aff580 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c2aff5f0 00007ff7`d28d3a21     KERNELBASE!WaitOnAddress+0x38
+000000e3`c2aff630 00007ff7`d260387e     MAOBOO+0x513a21
+000000e3`c2aff690 00007ff7`d2440ccd     MAOBOO+0x24387e
+000000e3`c2aff740 00007ff7`d26347fa     MAOBOO+0x80ccd
+000000e3`c2affaa0 00007ff7`d28ccd90     MAOBOO+0x2747fa
+000000e3`c2affbb0 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c2affc50 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c2affc80 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  16  Id: 24b4.171c Suspend: 1 Teb: 000000e3`c1129000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c2cfe0f8 00007ff8`072d6962     win32u!NtUserMessageCall+0x14
+000000e3`c2cfe100 00007ff8`072d3327     user32!SendMessageWorker+0x382
+000000e3`c2cfe1b0 00007ff7`d26b19b7     user32!GetWindowTextW+0x67
+000000e3`c2cfe200 00007ff7`d2614ed3     MAOBOO+0x2f19b7
+000000e3`c2cfef10 00007ff7`d244160b     MAOBOO+0x254ed3
+000000e3`c2cff810 00007ff7`d25ca89f     MAOBOO+0x8160b
+000000e3`c2cff840 00007ff7`d274b0cf     MAOBOO+0x20a89f
+000000e3`c2cff930 00007ff7`d24a1b80     MAOBOO+0x38b0cf
+000000e3`c2cff960 00007ff7`d2634884     MAOBOO+0xe1b80
+000000e3`c2cffa60 00007ff7`d28ccd90     MAOBOO+0x274884
+000000e3`c2cffb60 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c2cffc00 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c2cffc30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  17  Id: 24b4.13a8 Suspend: 1 Teb: 000000e3`c112b000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c2eff608 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c2eff610 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c2eff6b0 00007ff7`d262df2e     MAOBOO+0x52238a
+000000e3`c2eff730 00007ff7`d24476f5     MAOBOO+0x26df2e
+000000e3`c2eff870 00007ff7`d25ca9a1     MAOBOO+0x876f5
+000000e3`c2eff8a0 00007ff7`d274b106     MAOBOO+0x20a9a1
+000000e3`c2eff970 00007ff7`d24a1c48     MAOBOO+0x38b106
+000000e3`c2eff9a0 00007ff7`d263502f     MAOBOO+0xe1c48
+000000e3`c2effa90 00007ff7`d28ccd90     MAOBOO+0x27502f
+000000e3`c2effb80 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c2effc20 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c2effc50 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  18  Id: 24b4.1490 Suspend: 1 Teb: 000000e3`c112d000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c30ff138 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c30ff140 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c30ff1e0 00007ff7`d2618f52     MAOBOO+0x52238a
+000000e3`c30ff260 00007ff7`d2441616     MAOBOO+0x258f52
+000000e3`c30ff4f0 00007ff7`d25ca8d7     MAOBOO+0x81616
+000000e3`c30ff520 00007ff7`d274b0da     MAOBOO+0x20a8d7
+000000e3`c30ff5f0 00007ff7`d24a1ba8     MAOBOO+0x38b0da
+000000e3`c30ff620 00007ff7`d26348c8     MAOBOO+0xe1ba8
+000000e3`c30ff710 00007ff7`d28ccd90     MAOBOO+0x2748c8
+000000e3`c30ff800 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c30ff8a0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c30ff8d0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  19  Id: 24b4.ec8 Suspend: 1 Teb: 000000e3`c112f000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c32ff238 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c32ff240 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c32ff2e0 00007ff7`d261ae93     MAOBOO+0x52238a
+000000e3`c32ff360 00007ff7`d2445955     MAOBOO+0x25ae93
+000000e3`c32ffaf0 00007ff7`d25ca8f9     MAOBOO+0x85955
+000000e3`c32ffb20 00007ff7`d274b0e5     MAOBOO+0x20a8f9
+000000e3`c32ffb50 00007ff7`d24a1bd0     MAOBOO+0x38b0e5
+000000e3`c32ffb80 00007ff7`d2634c76     MAOBOO+0xe1bd0
+000000e3`c32ffc70 00007ff7`d28ccd90     MAOBOO+0x274c76
+000000e3`c32ffd60 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c32ffe00 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c32ffe30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  20  Id: 24b4.c98 Suspend: 1 Teb: 000000e3`c1133000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c34ff378 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c34ff380 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c34ff3f0 00007ff7`d28d3a21     KERNELBASE!WaitOnAddress+0x38
+000000e3`c34ff430 00007ff7`d260387e     MAOBOO+0x513a21
+000000e3`c34ff490 00007ff7`d2444a69     MAOBOO+0x24387e
+000000e3`c34ff540 00007ff7`d2634b54     MAOBOO+0x84a69
+000000e3`c34ff6f0 00007ff7`d28ccd90     MAOBOO+0x274b54
+000000e3`c34ff760 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c34ff800 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c34ff830 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  21  Id: 24b4.1bdc Suspend: 1 Teb: 000000e3`c1135000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c36ff128 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c36ff130 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c36ff1a0 00007ff7`d28d3a21     KERNELBASE!WaitOnAddress+0x38
+000000e3`c36ff1e0 00007ff7`d2862646     MAOBOO+0x513a21
+000000e3`c36ff240 00007ff7`d2862440     MAOBOO+0x4a2646
+000000e3`c36ff2f0 00007ff7`d2862f1c     MAOBOO+0x4a2440
+000000e3`c36ff3c0 00007ff7`d243c4c5     MAOBOO+0x4a2f1c
+000000e3`c36ff3f0 00007ff7`d2633d8f     MAOBOO+0x7c4c5
+000000e3`c36ff660 00007ff7`d28ccd90     MAOBOO+0x273d8f
+000000e3`c36ff770 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c36ff810 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c36ff840 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  22  Id: 24b4.10e0 Suspend: 1 Teb: 000000e3`c1137000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c38ff548 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c38ff550 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c38ff5f0 00007ff7`d25e7a92     MAOBOO+0x52238a
+000000e3`c38ff670 00007ff7`d243cdf9     MAOBOO+0x227a92
+000000e3`c38ff710 00007ff7`d25ca847     MAOBOO+0x7cdf9
+000000e3`c38ff740 00007ff7`d274b0ae     MAOBOO+0x20a847
+000000e3`c38ff770 00007ff7`d24a1b1c     MAOBOO+0x38b0ae
+000000e3`c38ff7a0 00007ff7`d2633e04     MAOBOO+0xe1b1c
+000000e3`c38ff7f0 00007ff7`d28ccd90     MAOBOO+0x273e04
+000000e3`c38ff840 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c38ff8e0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c38ff910 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  23  Id: 24b4.1a20 Suspend: 1 Teb: 000000e3`c1139000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c22ff378 00007ff8`064c549f     ntdll!NtRemoveIoCompletionEx+0x14
+000000e3`c22ff380 00007ff7`d27cfc6c     KERNELBASE!GetQueuedCompletionStatusEx+0xcf
+000000e3`c22ff430 00007ff7`d27cf832     MAOBOO+0x40fc6c
+000000e3`c22ff490 00007ff7`d294cb09     MAOBOO+0x40f832
+000000e3`c22ff5b0 00007ff7`d294bd87     MAOBOO+0x58cb09
+000000e3`c22ff670 00007ff7`d294e082     MAOBOO+0x58bd87
+000000e3`c22ff710 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c22ff8c0 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c22ff9d0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c22ffa50 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c22ffaf0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c22ffb20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  24  Id: 24b4.9ac Suspend: 1 Teb: 000000e3`c113b000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c3aff788 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c3aff790 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c3aff800 00007ff7`d28ce453     KERNELBASE!WaitOnAddress+0x38
+000000e3`c3aff840 00007ff7`d294be7d     MAOBOO+0x50e453
+000000e3`c3aff890 00007ff7`d294e082     MAOBOO+0x58be7d
+000000e3`c3aff930 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c3affae0 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c3affbf0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c3affc70 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c3affd10 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3affd40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  25  Id: 24b4.20a0 Suspend: 1 Teb: 000000e3`c113d000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c3cff458 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c3cff460 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c3cff4d0 00007ff7`d28ce453     KERNELBASE!WaitOnAddress+0x38
+000000e3`c3cff510 00007ff7`d294be7d     MAOBOO+0x50e453
+000000e3`c3cff560 00007ff7`d294e082     MAOBOO+0x58be7d
+000000e3`c3cff600 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c3cff7b0 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c3cff8c0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c3cff940 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c3cff9e0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3cffa10 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  26  Id: 24b4.27b8 Suspend: 1 Teb: 000000e3`c113f000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c3eff238 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c3eff240 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c3eff2b0 00007ff7`d28ce453     KERNELBASE!WaitOnAddress+0x38
+000000e3`c3eff2f0 00007ff7`d294be7d     MAOBOO+0x50e453
+000000e3`c3eff340 00007ff7`d294e082     MAOBOO+0x58be7d
+000000e3`c3eff3e0 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c3eff590 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c3eff6a0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c3eff720 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c3eff7c0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3eff7f0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  27  Id: 24b4.24dc Suspend: 1 Teb: 000000e3`c1141000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c3fff9e8 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c3fff9f0 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c3fffae0 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c3fffb80 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c3fffbf0 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c3fffc80 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c3fffd40 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c3fffda0 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c3fffe20 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c3fffeb0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3fffee0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  28  Id: 24b4.9c0 Suspend: 1 Teb: 000000e3`c1147000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c44ff628 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c44ff630 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c44ff930 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c44ff960 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  29  Id: 24b4.25b4 Suspend: 1 Teb: 000000e3`c1149000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c45ff928 00007ff8`05678f2e     ntdll!NtRemoveIoCompletion+0x14
+000000e3`c45ff930 00007ff8`079cdd37     mswsock!SockAsyncThread+0xae
+000000e3`c45ff990 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c45ff9c0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  30  Id: 24b4.1fe8 Suspend: 1 Teb: 000000e3`c114b000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c46ff598 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c46ff5a0 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c46ff690 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c46ff730 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c46ff7a0 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c46ff830 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c46ff8f0 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c46ff950 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c46ff9d0 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c46ffa60 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c46ffa90 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  31  Id: 24b4.15fc Suspend: 1 Teb: 000000e3`c114f000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c49ffa48 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c49ffa50 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c49ffb40 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c49ffbe0 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c49ffc50 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c49ffce0 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c49ffda0 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c49ffe00 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c49ffe80 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c49fff10 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c49fff40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  32  Id: 24b4.a38 Suspend: 1 Teb: 000000e3`c1151000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c47ff738 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c47ff740 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c47ff830 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c47ff8d0 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c47ff940 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c47ff9d0 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c47ffa90 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c47ffaf0 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c47ffb70 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c47ffc00 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c47ffc30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+quit:
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\atlmfc.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\ObjectiveC.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\concurrency.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\cpp_rest.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\stl.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Data.Json.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Geolocation.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Sensors.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Media.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\windows.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\winrt.natvis'
+

@@ -1,0 +1,151 @@
+{
+  "next_id": 1,
+  "wins": [
+    {
+      "id": "w1",
+      "url": "http://127.0.0.1:8765/test.html",
+      "title": "測試頁",
+      "x": 80,
+      "y": 60,
+      "w": 900,
+      "h": 620,
+      "opacity": 100,
+      "locked": false,
+      "game_only": false,
+      "open": true,
+      "min": false,
+      "max": false,
+      "tabs": [
+        {
+          "id": "t1",
+          "url": "http://127.0.0.1:8765/test.html",
+          "title": "測試頁",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t2",
+          "url": "http://127.0.0.1:8765/snap.html",
+          "title": "短影片測試",
+          "icon": ""
+        },
+        {
+          "id": "t3",
+          "url": "https://example.com/",
+          "title": "Example",
+          "icon": ""
+        }
+      ],
+      "active": "t1",
+      "next_tab": 3
+    }
+  ],
+  "bookmarks": {
+    "bar": [
+      {
+        "id": "b1",
+        "title": "Example",
+        "url": "https://example.com/",
+        "children": []
+      },
+      {
+        "id": "b2",
+        "title": "資料夾",
+        "url": "",
+        "children": [
+          {
+            "id": "b3",
+            "title": "測試頁",
+            "url": "http://127.0.0.1:8765/test.html?bm",
+            "children": []
+          },
+          {
+            "id": "b5",
+            "title": "Example",
+            "url": "https://example.com/?bm",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "b6",
+        "title": "YouTube",
+        "url": "https://www.youtube.com/",
+        "children": [],
+        "src": "c:5"
+      },
+      {
+        "id": "b11",
+        "title": "楓之谷",
+        "url": "",
+        "children": [
+          {
+            "id": "b7",
+            "title": "官網",
+            "url": "https://maplestory.beanfun.com/",
+            "children": [],
+            "src": "c:8"
+          },
+          {
+            "id": "b9",
+            "title": "攻略",
+            "url": "",
+            "children": [
+              {
+                "id": "b8",
+                "title": "短影片",
+                "url": "http://127.0.0.1:8765/snap.html?deep",
+                "children": [],
+                "src": "c:10"
+              }
+            ],
+            "src": "c:9"
+          },
+          {
+            "id": "b10",
+            "title": "IANA",
+            "url": "https://www.iana.org/",
+            "children": [],
+            "src": "c:11"
+          }
+        ],
+        "src": "c:7"
+      }
+    ],
+    "other": [
+      {
+        "id": "b4",
+        "title": "Other",
+        "url": "https://example.org/",
+        "children": []
+      },
+      {
+        "id": "b13",
+        "title": "MDN",
+        "url": "https://developer.mozilla.org/",
+        "children": [],
+        "src": "c:14"
+      }
+    ],
+    "next_id": 15,
+    "icons": {
+      "127.0.0.1": "http://127.0.0.1:8765/favicon.ico"
+    },
+    "sync": true,
+    "profile": "",
+    "ignored": []
+  },
+  "settings": {
+    "engine": "google",
+    "suggest": true,
+    "home_button": true,
+    "home_url": "",
+    "show_bm": true,
+    "startup": "restore",
+    "ask_download": false,
+    "download_dir": "",
+    "save_passwords": true,
+    "default_zoom": 1.0,
+    "zoom": {}
+  },
+  "closed": []
+}

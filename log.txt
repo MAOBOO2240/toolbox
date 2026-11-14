@@ -1,0 +1,279 @@
+stats host blocked
+chrome profile seeded True
+game hwnd 131460 (10, 10, 1006, 749)
+測試程式是系統管理員 True
+extprobe：登錄檔 HKLM MAOBOO.exe 0 The operation completed successfully.
+extprobe：登錄檔 HKLM * 0 The operation completed successfully.
+extprobe：登錄檔 HKCU MAOBOO.exe 0 The operation completed successfully.
+extprobe：登錄檔 HKCU * 0 The operation completed successfully.
+extprobe：這台機器的 WebView2 版本 156.0.4314.58
+extprobe：放好 dhdgffkkebhmkfjojejmpbldmpobfkfo 1718930 {"name": "__MSG_extName__", "version": "5.5.1", "mv": 3, "key": true, "perms": ["notifications", "unlimitedStorage", "tabs", "idle", "webNavigation", "webRequest", "webRequestBlocking", "storage", "contextMenus", "chrome://favicon/", "clipboardWrite", "cookies", "alarms", "declarativeNetRequestWithHostAccess", "scripting", "userScripts", "offscreen"], "opt": ["downloads"], "bg": {"service_worker": "background.js"}, "action": "action.html", "options": "options.html", "side": null, "min": "120", "cs": 0}
+extprobe：放好 bgnkhhnnamicmpeenaelnjfhikgbkllg 30977016 {"name": "__MSG_name__", "version": "5.5.4.64", "mv": 3, "key": true, "perms": ["tabs", "webRequest", "webNavigation", "storage", "unlimitedStorage", "contextMenus", "cookies", "declarativeNetRequest", "declarativeNetRequestFeedback", "scripting", "userScripts"], "opt": ["privacy"], "bg": {"service_worker": "pages/background.js"}, "action": "pages/popup.html", "options": "pages/options.html", "side": null, "min": "121", "cs": 5}
+extprobe：放好 mnjggcdmjocbbbhaepdhchncahnbgone 1848477 {"name": "__MSG_fullName__", "version": "6.1.6", "mv": 3, "key": true, "perms": ["storage", "scripting", "unlimitedStorage"], "opt": null, "bg": {"service_worker": "./js/background.js"}, "action": "popup.html", "options": "options/options.html", "side": null, "min": null, "cs": 2}
+extprobe：放好 gebbhagfogifgggkldgodflihgfeippi 2303261 {"name": "__MSG_extensionName__", "version": "4.1.7", "mv": 3, "key": true, "perms": ["storage"], "opt": ["identity"], "bg": {"service_worker": "ryd.background.js"}, "action": "popup.html", "options": "popup.html", "side": null, "min": "116", "cs": 1}
+extprobe：放好 cgakmbkklpmijhckpolanjijghgfpeoa 7966 {"name": "遊戲橘子擴充元件", "version": "0.2.0", "mv": 3, "key": true, "perms": ["nativeMessaging"], "opt": null, "bg": {"service_worker": "contactclient.js"}, "action": null, "options": null, "side": null, "min": null, "cs": 1}
+extprobe：放好 mgojgddhfhekopdpkocobommepgdeffb 1223516 {"name": "__MSG_extension_name__", "version": "7.5.47", "mv": 3, "key": true, "perms": ["storage"], "opt": null, "bg": {"service_worker": "background.js"}, "action": "popup.html", "options": null, "side": null, "min": null, "cs": 0}
+extprobe：放好 fcoeoabgfenejglbffodgkkbkcdhcgfn 7430196 {"name": "Claude", "version": "1.0.107", "mv": 3, "key": true, "perms": ["sidePanel", "storage", "activeTab", "scripting", "debugger", "tabGroups", "tabs", "alarms", "notifications", "webNavigation", "declarativeNetRequestWithHostAccess", "offscreen", "nativeMessaging", "unlimitedStorage", "downloads", "identity", "favicon"], "opt": null, "bg": {"service_worker": "service-worker-loader.js", "type": "module"}, "action": null, "options": "options.html", "side": null, "min": "116", "cs": 4}
+extprobe：放好 ghbmnnjooekpmoecnnnilnnbdlolhkhi 162041 {"name": "__MSG_extName__", "version": "1.112.1", "mv": 3, "key": true, "perms": ["alarms", "storage", "unlimitedStorage", "offscreen"], "opt": null, "bg": {"service_worker": "service_worker_bin_prod.js"}, "action": null, "options": null, "side": null, "min": "88", "cs": 0}
+extprobe：放好 inomeogfingihgjfjlpeplalcfajhgai 23201 {"name": "Chrome Remote Desktop", "version": "2.1", "mv": 3, "key": true, "perms": ["nativeMessaging", "downloads"], "opt": null, "bg": {"service_worker": "event_page_binary.js"}, "action": null, "options": null, "side": null, "min": null, "cs": 0}
+extprobe：AdGuard background.js 裡的 openSettingsPage： Opens the settings tab and focuses on it if there is no open setting tab.      * Otherwise only focuses on the open setting tab.      */ static async openSettingsPage() {         let tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.settingsUrl}*`         });         if (!tab) {             tab = await browser_polyfill_default().tabs.create({                 url: PagesApiCommon.settingsUrl             });         }         await tabs_TabsApi.focus(tab);     }     /**      * Opens fullscreen user rules page window.      * If the page has been already opened, focus on window instead creating new one.      */ static async openFullscreenUserRulesPage() {         const tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.fullscreenUserRulesPageUrl}*`         });         if (tab) {             await tabs_TabsApi.focus(tab);             return;         }         const theme = settingsStorage.get(enum_SettingOption.AppearanceTheme);         const url = `${PagesApiCommon.fullscreenUserRulesPageUrl}?theme=${
+extprobe：AdGuard background.js 裡的 openSettingsPage： th new custom filter query params, passed from content script.      *      * @param message - Content script message with custom filter data.      */ openSettingsPageWithCustomFilterModal = async (message)=>{         if (!this.shouldOpenSettingsPageWithCustomFilterModal()) {             return;         }         const { url, title } = message.data;         // TODO: Use shared constants for query parameters         let optionalPart = '#filters?group=0';         if (title) {             optionalPart += `&title=${title}`;         }         optionalPart += `&subscribe=${encodeURIComponent(url)}`;         const path = PagesApiCommon.getExtensionPageUrl(OPTIONS_OUTPUT, optionalPart);         const tab = await PagesApiCommon.openTabOnSettingsPage(path);         await tabs_TabsApi.focus(tab);         // Reload option page for force modal window rerender         // TODO: track url update in frontend and remove force reloading via webextension API         await tabs_TabsApi.reload(tab.id);     };     /**      * Opens settings page with specifie
+extprobe：AdGuard background.js 裡的 static async openTab： ified path on settings page.      *      * @param url URL path to open on settings page.      *      * @returns Opened or updated Tab object.      */ static async openTabOnSettingsPage(url) {         const tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.settingsUrl}*`         });         if (!tab) {             const newTab = await browser_polyfill_default().tabs.create({                 url             });             return newTab;         }         const updatedTab = await browser_polyfill_default().tabs.update(tab.id, {             url         });         return updatedTab;     }     /**      * Opens 'Add custom filter' modal window into settings page.      * If the page has been already opened, reload it with new custom filter query params, passed from content script.      *      * @param message - Content script message with custom filter data.      */ openSettingsPageWithCustomFilterModal = async (message)=>{         if (!this.shouldOpenSettingsPageWithCustomFilterModal()) {             return;         }  
+extprobe：AdGuard background.js 裡的 static async findOne：  Tabs.QueryQueryInfoType}.      *      * @param queryInfo Browser.tabs.query argument.      *      * @returns First matched tab or undefined.      */ static async findOne(queryInfo) {         const [tab] = await browser_polyfill_default().tabs.query(queryInfo);         return tab;     }     /**      * Activates an existing tab regardless of the browser window.      *      * @param tab {@link Tabs.Tab} Data.      */ static async focus(tab) {         const { id, windowId } = tab;         await browser_polyfill_default().tabs.update(id, {             active: true         });         await WindowsApi.update(windowId, {             focused: true         });     }     /**      * Returns all opened tabs info.      *      * @returns Array of opened tabs.      */ static async getAll() {         return browser_polyfill_default().tabs.query({});     }     /**      * Returns active tab in current window.      *      * @returns Active tab info or undefined.      */ static async getActive() {         return tabs_TabsApi.findOne({             curren
+extprobe：AdGuard background.js 裡的 static async focus：  return tab;     }     /**      * Activates an existing tab regardless of the browser window.      *      * @param tab {@link Tabs.Tab} Data.      */ static async focus(tab) {         const { id, windowId } = tab;         await browser_polyfill_default().tabs.update(id, {             active: true         });         await WindowsApi.update(windowId, {             focused: true         });     }     /**      * Returns all opened tabs info.      *      * @returns Array of opened tabs.      */ static async getAll() {         return browser_polyfill_default().tabs.query({});     }     /**      * Returns active tab in current window.      *      * @returns Active tab info or undefined.      */ static async getActive() {         return tabs_TabsApi.findOne({             currentWindow: true,             active: true         });     }     /**      * Check, if page in tab is extension page.      *      * @param tab {@link Tabs.Tab} Data.      *      * @returns True if it is extension page, else returns false.      */ static isAdguardExtensionT
+extprobe：AdGuard background.js 裡的 OpenSettingsTab,： t UiApi.init();         // TODO: consider moving the following to syncInit()         message_handler_messageHandler.addListener(constants_MessageType.OpenSettingsTab, PagesApi.openSettingsPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenFilteringLog, PagesApi.openFilteringLogPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenAbuseTab, UiService.openAbusePage);         message_handler_messageHandler.addListener(constants_MessageType.OpenSiteReportTab, UiService.openSiteReportPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenThankYouPage, pagesApi.openThankYouPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenExtensionStore, pagesApi.openExtensionStorePage);         message_handler_messageHandler.addListener(constants_MessageType.OpenChromeExtensionsSettingsPage, PagesApi.openChromeExtensionsSettingsPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenExtensionDetailsPage, 
+extprobe：AdGuard background.js 裡的 settingsUrl： etadata.      */ static CHROME_WEB_STORE_HOMEPAGE_URL_PREFIX = 'https://chromewebstore.google.com/';     /**      * Settings page url.      */ static settingsUrl = PagesApiCommon.getExtensionPageUrl(OPTIONS_OUTPUT);     /**      * Filtering log page url.      */ static filteringLogUrl = PagesApiCommon.getExtensionPageUrl(FILTERING_LOG_OUTPUT);     /**      * Fullscreen user rule editor page url.      */ static fullscreenUserRulesPageUrl = PagesApiCommon.getExtensionPageUrl(FULLSCREEN_USER_RULES_OUTPUT);     /**      * Default state of popup window.      */ static defaultPopupWindowState = {         width: 1280,         height: 720,         top: 0,         left: 0     };     /**      * Zod schema for validating window state from storage.      *      * Validates either a normal window state with position and size,      * or a fullscreen window state.      */ static windowStateSchema = lib.z.union([         lib.z.object({             width: lib.z.number(),             height: lib.z.number(),             top: lib.z.number(),             l
+extprobe：AdGuard background.js 裡的 settingsUrl：  on the open setting tab.      */ static async openSettingsPage() {         let tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.settingsUrl}*`         });         if (!tab) {             tab = await browser_polyfill_default().tabs.create({                 url: PagesApiCommon.settingsUrl             });         }         await tabs_TabsApi.focus(tab);     }     /**      * Opens fullscreen user rules page window.      * If the page has been already opened, focus on window instead creating new one.      */ static async openFullscreenUserRulesPage() {         const tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.fullscreenUserRulesPageUrl}*`         });         if (tab) {             await tabs_TabsApi.focus(tab);             return;         }         const theme = settingsStorage.get(enum_SettingOption.AppearanceTheme);         const url = `${PagesApiCommon.fullscreenUserRulesPageUrl}?theme=${theme}`;         // Open a new tab without type to get it as a new tab in a new window         // with 
+web hwnd 66122
+dpi scale 1.0 screen 1024 768
+
+===== start =====
+程序：
+9396 parent=8324 MAOBOO.exe :: D:\a\toolbox\toolbox\app\MAOBOO.exe
+8856 parent=9396 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Local\com.toolbox.desktop\EBWebView"
+10048 parent=9396 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Roaming\com.toolbox.desktop\web-pro
+app_proc 9396 還在跑
+Traceback (most recent call last):
+  File "D:\a\toolbox\toolbox\.github\ui-check\run.py", line 1332, in step
+    fn()
+  File "D:\a\toolbox\toolbox\.github\ui-check\run.py", line 1550, in s_start
+    root = bar_tree()
+           ^^^^^^^^^^
+  File "D:\a\toolbox\toolbox\.github\ui-check\run.py", line 959, in bar_tree
+    _alive()
+  File "D:\a\toolbox\toolbox\.github\ui-check\run.py", line 954, in _alive
+    raise RuntimeError("程式沒有回應")
+RuntimeError: 程式沒有回應
+
+FAIL start (沒有錯誤) exception
+[start] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+
+!!!!! 程式沒有回應（start）
+程式的訊息（最後 250 行）：
+    [us] 建立 w1-t1 的網頁：登記腳本
+    __TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+    [us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 1 版）
+    __TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+    [us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+    __TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+    __TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+    [us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 2 版）
+    [newwin] uri=https://manuals.dev/extensions/icloud-dashboard/getting-started/ source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+    [newwin] w1-t1 開成連著的新分頁：https://manuals.dev/extensions/icloud-dashboard/getting-started/
+    [us] 建立 w1-t4 的網頁：登記腳本
+    [newwin] w1-t4：建立網頁
+    [newwin] uri=chrome-extension://gebbhagfogifgggkldgodflihgfeippi/changelog/4/changelog_4.1.html source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+    [newwin] w1-t1 開成連著的新分頁：chrome-extension://gebbhagfogifgggkldgodflihgfeippi/changelog/4/changelog_4.1.html
+    [us] 建立 w1-t5 的網頁：登記腳本
+    [newwin] w1-t5：建立網頁
+    [us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+    [hang] 主執行緒 6 秒沒有回應。鎖：瀏覽器資料=空 執行狀態=空 打字中的視窗=空 擴充功能小視窗=空 擴充功能清單=空 選單=空 選單剛關=空 選單建立中=空 腳本分頁=空 腳本連線=空 腳本清單=空 設定值=空 注入的程式=空 等安裝的=空 連線名額=空
+cdb： C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe
+每個執行緒停在哪裡（詳細的在 hang_stacks.txt）：
+800 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c34ff830 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  21  Id: 24b4.1bdc Suspend: 1 Teb: 000000e3`c1135000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c36ff128 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c36ff130 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c36ff1a0 00007ff7`d28d3a21     KERNELBASE!WaitOnAddress+0x38
+000000e3`c36ff1e0 00007ff7`d2862646     MAOBOO+0x513a21
+000000e3`c36ff240 00007ff7`d2862440     MAOBOO+0x4a2646
+000000e3`c36ff2f0 00007ff7`d2862f1c     MAOBOO+0x4a2440
+000000e3`c36ff3c0 00007ff7`d243c4c5     MAOBOO+0x4a2f1c
+000000e3`c36ff3f0 00007ff7`d2633d8f     MAOBOO+0x7c4c5
+000000e3`c36ff660 00007ff7`d28ccd90     MAOBOO+0x273d8f
+000000e3`c36ff770 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c36ff810 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c36ff840 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  22  Id: 24b4.10e0 Suspend: 1 Teb: 000000e3`c1137000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c38ff548 00007ff8`0642d01f     ntdll!NtWaitForSingleObject+0x14
+000000e3`c38ff550 00007ff7`d28e238a     KERNELBASE!WaitForSingleObjectEx+0xaf
+000000e3`c38ff5f0 00007ff7`d25e7a92     MAOBOO+0x52238a
+000000e3`c38ff670 00007ff7`d243cdf9     MAOBOO+0x227a92
+000000e3`c38ff710 00007ff7`d25ca847     MAOBOO+0x7cdf9
+000000e3`c38ff740 00007ff7`d274b0ae     MAOBOO+0x20a847
+000000e3`c38ff770 00007ff7`d24a1b1c     MAOBOO+0x38b0ae
+000000e3`c38ff7a0 00007ff7`d2633e04     MAOBOO+0xe1b1c
+000000e3`c38ff7f0 00007ff7`d28ccd90     MAOBOO+0x273e04
+000000e3`c38ff840 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c38ff8e0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c38ff910 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  23  Id: 24b4.1a20 Suspend: 1 Teb: 000000e3`c1139000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c22ff378 00007ff8`064c549f     ntdll!NtRemoveIoCompletionEx+0x14
+000000e3`c22ff380 00007ff7`d27cfc6c     KERNELBASE!GetQueuedCompletionStatusEx+0xcf
+000000e3`c22ff430 00007ff7`d27cf832     MAOBOO+0x40fc6c
+000000e3`c22ff490 00007ff7`d294cb09     MAOBOO+0x40f832
+000000e3`c22ff5b0 00007ff7`d294bd87     MAOBOO+0x58cb09
+000000e3`c22ff670 00007ff7`d294e082     MAOBOO+0x58bd87
+000000e3`c22ff710 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c22ff8c0 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c22ff9d0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c22ffa50 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c22ffaf0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c22ffb20 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  24  Id: 24b4.9ac Suspend: 1 Teb: 000000e3`c113b000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c3aff788 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c3aff790 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c3aff800 00007ff7`d28ce453     KERNELBASE!WaitOnAddress+0x38
+000000e3`c3aff840 00007ff7`d294be7d     MAOBOO+0x50e453
+000000e3`c3aff890 00007ff7`d294e082     MAOBOO+0x58be7d
+000000e3`c3aff930 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c3affae0 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c3affbf0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c3affc70 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c3affd10 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3affd40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  25  Id: 24b4.20a0 Suspend: 1 Teb: 000000e3`c113d000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c3cff458 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c3cff460 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c3cff4d0 00007ff7`d28ce453     KERNELBASE!WaitOnAddress+0x38
+000000e3`c3cff510 00007ff7`d294be7d     MAOBOO+0x50e453
+000000e3`c3cff560 00007ff7`d294e082     MAOBOO+0x58be7d
+000000e3`c3cff600 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c3cff7b0 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c3cff8c0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c3cff940 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c3cff9e0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3cffa10 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  26  Id: 24b4.27b8 Suspend: 1 Teb: 000000e3`c113f000 Unfrozen "tokio-rt-worker"
+Child-SP          RetAddr               Call Site
+000000e3`c3eff238 00007ff8`093352e3     ntdll!NtWaitForAlertByThreadId+0x14
+000000e3`c3eff240 00007ff8`064dfe28     ntdll!RtlWaitOnAddress+0x213
+000000e3`c3eff2b0 00007ff7`d28ce453     KERNELBASE!WaitOnAddress+0x38
+000000e3`c3eff2f0 00007ff7`d294be7d     MAOBOO+0x50e453
+000000e3`c3eff340 00007ff7`d294e082     MAOBOO+0x58be7d
+000000e3`c3eff3e0 00007ff7`d2949a24     MAOBOO+0x58e082
+000000e3`c3eff590 00007ff7`d294976f     MAOBOO+0x589a24
+000000e3`c3eff6a0 00007ff7`d28ccd90     MAOBOO+0x58976f
+000000e3`c3eff720 00007ff8`079cdd37     MAOBOO+0x50cd90
+000000e3`c3eff7c0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3eff7f0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  27  Id: 24b4.24dc Suspend: 1 Teb: 000000e3`c1141000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c3fff9e8 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c3fff9f0 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c3fffae0 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c3fffb80 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c3fffbf0 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c3fffc80 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c3fffd40 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c3fffda0 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c3fffe20 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c3fffeb0 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c3fffee0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  28  Id: 24b4.9c0 Suspend: 1 Teb: 000000e3`c1147000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c44ff628 00007ff8`09384945     ntdll!NtWaitForWorkViaWorkerFactory+0x14
+000000e3`c44ff630 00007ff8`079cdd37     ntdll!TppWorkerThread+0x375
+000000e3`c44ff930 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c44ff960 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  29  Id: 24b4.25b4 Suspend: 1 Teb: 000000e3`c1149000 Unfrozen
+Child-SP          RetAddr               Call Site
+000000e3`c45ff928 00007ff8`05678f2e     ntdll!NtRemoveIoCompletion+0x14
+000000e3`c45ff930 00007ff8`079cdd37     mswsock!SockAsyncThread+0xae
+000000e3`c45ff990 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c45ff9c0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  30  Id: 24b4.1fe8 Suspend: 1 Teb: 000000e3`c114b000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c46ff598 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c46ff5a0 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c46ff690 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c46ff730 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c46ff7a0 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c46ff830 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c46ff8f0 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c46ff950 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c46ff9d0 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c46ffa60 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c46ffa90 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  31  Id: 24b4.15fc Suspend: 1 Teb: 000000e3`c114f000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c49ffa48 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c49ffa50 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c49ffb40 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c49ffbe0 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c49ffc50 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c49ffce0 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c49ffda0 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c49ffe00 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c49ffe80 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c49fff10 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c49fff40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+
+  32  Id: 24b4.a38 Suspend: 1 Teb: 000000e3`c1151000 Unfrozen "EBWorkerThread"
+Child-SP          RetAddr               Call Site
+000000e3`c47ff738 00007fff`c9af4020     win32u!NtUserMsgWaitForMultipleObjectsEx+0x14
+000000e3`c47ff740 00007fff`c9af3d07     EmbeddedBrowserWebView!base::MessagePumpForUI::WaitForWork+0xc0
+000000e3`c47ff830 00007fff`c9af39a2     EmbeddedBrowserWebView!base::MessagePumpForUI::DoRunLoop+0x77
+000000e3`c47ff8d0 00007fff`c9b82ce1     EmbeddedBrowserWebView!base::MessagePumpWin::Run+0xa2
+000000e3`c47ff940 00007fff`c9b03e0c     EmbeddedBrowserWebView!base::sequence_manager::internal::ThreadControllerWithMessagePumpImpl::Run+0xf1
+000000e3`c47ff9d0 00007fff`c9afe5d4     EmbeddedBrowserWebView!base::RunLoop::Run+0x9c
+000000e3`c47ffa90 00007fff`c9afe6f2     EmbeddedBrowserWebView!base::Thread::Run+0x44
+000000e3`c47ffaf0 00007fff`c9af1e68     EmbeddedBrowserWebView!base::Thread::ThreadMain+0xf2
+000000e3`c47ffb70 00007ff8`079cdd37     EmbeddedBrowserWebView!base::`anonymous namespace'::ThreadFunc+0x108
+000000e3`c47ffc00 00007ff8`0933f2bc     KERNEL32!BaseThreadInitThunk+0x17
+000000e3`c47ffc30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
+quit:
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\atlmfc.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\ObjectiveC.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\concurrency.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\cpp_rest.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\stl.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Data.Json.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Geolocation.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Sensors.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Media.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\windows.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\winrt.natvis'
+
+FAIL start：程式有回應 
+
+===== scripts =====
+（程式已經沒有回應，這一步不跑）
+
+===== userscripts =====
+（程式已經沒有回應，這一步不跑）
+
+===== extprobe =====
+（程式已經沒有回應，這一步不跑）
+
+===== close =====
+（程式已經沒有回應，這一步不跑）
+
+===== 結果 =====
+FAIL start (沒有錯誤) exception
+FAIL start：程式有回應 
+0/2 passed
+
+----- page log -----
+1794685413.86 [us] start ran /test.html body=false
+1794685413.95 [test] load:890x486 dpr=1 
+1794685413.96 [us] end ran n=1 /test.html
+1794685413.96 [frame] load mb=true
+1794685417.78 [us] start ran /test.html body=false
+1794685417.79 [us] end ran n=2 /test.html
+1794685417.79 [test] load:890x486 dpr=1 
+1794685417.89 [frame] load mb=true
+
+
+----- game keys -----
+

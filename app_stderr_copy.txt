@@ -1,0 +1,18 @@
+[us] 建立 w1-t1 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 1 版）
+__TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+__TAURI_INVOKE_KEY__ expected 3N+1cG5b=0u?D9dSDNLv but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 2 版）
+[newwin] uri=https://manuals.dev/extensions/icloud-dashboard/getting-started/ source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：https://manuals.dev/extensions/icloud-dashboard/getting-started/
+[us] 建立 w1-t4 的網頁：登記腳本
+[newwin] w1-t4：建立網頁
+[newwin] uri=chrome-extension://gebbhagfogifgggkldgodflihgfeippi/changelog/4/changelog_4.1.html source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：chrome-extension://gebbhagfogifgggkldgodflihgfeippi/changelog/4/changelog_4.1.html
+[us] 建立 w1-t5 的網頁：登記腳本
+[newwin] w1-t5：建立網頁
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[hang] 主執行緒 6 秒沒有回應。鎖：瀏覽器資料=空 執行狀態=空 打字中的視窗=空 擴充功能小視窗=空 擴充功能清單=空 選單=空 選單剛關=空 選單建立中=空 腳本分頁=空 腳本連線=空 腳本清單=空 設定值=空 注入的程式=空 等安裝的=空 連線名額=空
