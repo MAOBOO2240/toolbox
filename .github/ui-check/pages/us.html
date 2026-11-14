@@ -8,6 +8,18 @@
 </script></head>
 <body>
 <h1 id="h">腳本測試</h1>
+<p><a id="inst" href="/inst.user.js" target="_blank">安裝連結</a> <button id="multi">一次開三個</button></p>
+<script>
+  document.getElementById('multi').onclick = () => {
+    const r = [];
+    for (let i = 1; i <= 3; i++) {
+      let w = null;
+      try { w = window.open('/multi.html?n=' + i); } catch (e) {}
+      r.push(w ? 1 : 0);
+    }
+    plog('multi opened=' + r.join(''));
+  };
+</script>
 <iframe id="f1" src="http://localhost:8765/usframe.html" style="width:400px;height:70px"></iframe>
 <script>
   // 還沒載入的空白框架：通道拿掉了沒、有沒有留記號；視窗被沿用的話腳本會不會跑

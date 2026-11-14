@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>連開測試</title></head>
+<body><h1>連開測試</h1>
+<script>
+  const n = new URLSearchParams(location.search).get('n');
+  let op = 'err';
+  try { op = !!window.opener; } catch (e) {}
+  fetch('/log?m=' + encodeURIComponent('[multi] child ' + n + ' opener=' + op)).catch(() => {});
+</script>
+</body></html>

@@ -1,1 +1,1 @@
-scripts userscripts extprobe
+scripts userscripts multiopen extprobe

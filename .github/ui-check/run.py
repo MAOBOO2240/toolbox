@@ -1323,6 +1323,87 @@ def hang_report(where):
             log("cdb 失敗", repr(e))
 
 
+CRASH = {"dumps": set(), "procs": 0, "pid": None}
+
+
+def crash_dirs():
+    return [os.path.join(data_dir, "web-profile", "EBWebView", "Crashpad", "reports"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.toolbox.desktop", "EBWebView", "Crashpad", "reports")]
+
+
+def dump_report(path):
+    """瀏覽器元件當掉時留下的記錄檔：看它停在哪裡"""
+    try:
+        log("當掉的記錄檔：", path, os.path.getsize(path))
+    except OSError:
+        pass
+    cdb = next((c for c in (r"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe", r"C:\Program Files\Windows Kits\10\Debuggers\x64\cdb.exe") if os.path.exists(c)), None)
+    if not cdb:
+        log("沒有 cdb")
+        return
+    for sym, to in ((r"srv*C:\symcache*https://msdl.microsoft.com/download/symbols", 480), ("", 120)):
+        try:
+            cmd = [cdb, "-z", path] + (["-y", sym] if sym else []) + ["-c", ".ecxr; kn 50; .exr -1; lm m msedge*; q"]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=to, errors="replace")
+            with open(os.path.join(OUT, "crash_" + os.path.basename(path) + (".sym" if sym else "") + ".txt"), "w", encoding="utf-8") as f:
+                f.write(r.stdout + "\n" + r.stderr)
+            log("當掉時停在哪裡" + ("（有符號）" if sym else "（沒有符號）") + "：\n" + r.stdout[-7000:])
+            return
+        except Exception as e:
+            log("cdb 失敗", repr(e))
+
+
+def web_browser_pid():
+    """瀏覽器視窗那個設定檔的瀏覽器元件（主程序）"""
+    try:
+        ps = ("Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -notmatch '--type=' -and $_.CommandLine -match 'web-profile' } | "
+              "ForEach-Object { \"$($_.ProcessId)\" }")
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60).stdout
+        return sorted(int(x) for x in out.split() if x.strip().isdigit())
+    except Exception as e:
+        return [repr(e)]
+
+
+def browser_check(name):
+    dumps = set()
+    for d in crash_dirs():
+        try:
+            dumps |= {os.path.join(d, f) for f in os.listdir(d) if f.lower().endswith(".dmp")}
+        except OSError:
+            pass
+    new = sorted(dumps - CRASH["dumps"])
+    CRASH["dumps"] |= dumps
+    lines = [l for l in stderr_text().splitlines() if l.startswith("[process]")]
+    newp = lines[CRASH["procs"]:]
+    CRASH["procs"] = len(lines)
+    pid = web_browser_pid()
+    if CRASH["pid"] is not None and pid != CRASH["pid"]:
+        log(f"（瀏覽器元件的主程序換了：{CRASH['pid']} → {pid}）")
+    CRASH["pid"] = pid
+    if new or newp:
+        log("瀏覽器元件有程序不正常結束：", newp, new)
+        for f in new[:2]:
+            dump_report(f)
+    check(name + "：瀏覽器元件沒有當掉", not new and not newp, f"{[l[:200] for l in newp[:3]]} {[os.path.basename(f) for f in new]}")
+
+
+def page_click(pred, wait=1.0):
+    """點目前網頁裡的某個元素；不在畫面上就先用滾輪捲到看得到（不然會點到網頁外面的東西）。回傳那個元素"""
+    for _ in range(14):
+        node = next((n for n in find_all(page_tree(), pred)), None)
+        if node is None:
+            return None
+        r = page_rect()
+        cx, cy = node.center
+        if r[1] + 14 <= cy <= r[3] - 14:
+            click(cx, cy, wait=wait)
+            return node
+        d = cy - (r[1] + r[3]) / 2
+        n = max(1, min(6, int(abs(d) / (100 * scale))))
+        wheel((r[0] + r[2]) / 2, (r[1] + r[3]) / 2, n if d > 0 else -n)
+    return None
+
+
 def step(name, fn):
     log(f"\n===== {name} =====")
     if HUNG["v"]:
@@ -1333,6 +1414,10 @@ def step(name, fn):
     except Exception:
         log(traceback.format_exc())
         check(name + " (沒有錯誤)", False, "exception")
+    try:
+        browser_check(name)
+    except Exception:
+        log(traceback.format_exc())
     shot(name)
     dump(web, name)
     ok = responsive(web) if user32.IsWindow(web) else True
@@ -4629,6 +4714,7 @@ def s_scripts():
     keep = tab_ids()
     t0 = time.time()
     ms = ctx_at(*PG(620, 330))
+    check("網頁上按右鍵：有出現選單（要檢視原始碼）", bool(ms), f"{menu_titles(ms)}")
     if ms and menu_click("檢視網頁原始碼", wait=3.0):
         st = bar_state()
         shot("view_source")
@@ -4783,19 +4869,17 @@ def s_userscripts():
     # 更新
     INST["ver"] = "2.0"
     go("chrome://extensions", 3.5)
-    upd = next((n for n in find_all(page_tree(), lambda n: n.type == "ButtonControl" and "檢查更新" in n.name)), None)
-    check("擴充功能頁：有「檢查更新」「從網址安裝」「自動更新腳本」", upd is not None and "從網址安裝" in page_text() and "自動更新腳本" in page_text(), page_text()[-400:])
-    if upd is not None:
-        click(*upd.center, wait=5.0)
+    txt = page_text()
+    upd = page_click(lambda n: n.type == "ButtonControl" and "檢查更新" in n.name, wait=5.0)
+    check("擴充功能頁：有「檢查更新」「從網址安裝」「自動更新腳本」", upd is not None and "從網址安裝" in txt and "自動更新腳本" in txt, txt[-400:])
     shot("us_update")
+    check("按了「檢查更新」之後，前景還是瀏覽器視窗（沒有點到別的東西）", fg() == web, f"{fg()} {title(fg())!r}")
     t8 = time.time()
     go(f"{base}/us.html?inst=2&noxhr", 5.0)
     check("檢查更新：換成新版，重新整理後跑的是新版", any("[inst] ran v=2.0 ?inst=2" in l for l in page_log_since(t8)), f"{[l for l in page_log_since(t8) if '[inst]' in l]}")
     # 網頁上的連結點下去（不是打網址）：安裝畫面開在新分頁
     n0 = tab_count()
-    link = next((n for n in find_all(page_tree(), lambda n: n.type == "HyperlinkControl" and "安裝連結" in n.name)), None)
-    if link is not None:
-        click(*link.center, wait=4.0)
+    link = page_click(lambda n: n.type == "HyperlinkControl" and "安裝連結" in n.name, wait=4.0)
     st = bar_state()
     check("點網頁上的腳本連結：安裝畫面開在新分頁，原本的網頁還在", link is not None and tab_count() == n0 + 1 and "chrome://extensions/install" in (st.get("shown") or ""), f"{link} {n0} → {tab_count()} {st.get('shown')!r}")
     try:
@@ -4803,6 +4887,45 @@ def s_userscripts():
     except Exception as e:
         vals = {"讀不到": repr(e)}
     check("設定值有存進檔案（關掉程式再開還在）", vals.get("shared") == json.dumps(val2), f"{vals}")
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+    user32.GetAsyncKeyState(0x04)
+
+
+def s_multiopen():
+    """網頁一口氣開三個新分頁：都開得出來、都跟原本的網頁連著；瀏覽器元件不會當掉、程式不會卡住"""
+    ensure_web_fg()
+    home()
+    click_blank(0.5)
+    keep = tab_ids()
+    base = f"http://127.0.0.1:{PORT}"
+    open_tab(f"{base}/us.html?multi=1&noxhr", 5.0)
+    n0 = tab_count()
+    later0 = stderr_text().count("這個晚一點再開")
+    t0 = time.time()
+    btn = page_click(lambda n: n.type == "ButtonControl" and "一次開三個" in n.name, wait=10.0)
+    L = [l.split(" ", 1)[1] for l in page_log_since(t0) if "[multi]" in l or "multi opened" in l]
+    for l in L:
+        log("  ", l[:300])
+    shot("multiopen")
+    err = stderr_text()
+    later = err.count("這個晚一點再開") - later0
+    done = len(re.findall(r"晚一點才開的 \S+ → true", err))
+    log(f"  排到晚一點才開的：{later} 個；晚一點開成功的（整輪累計）：{done} 個")
+    names = [t["title"] for t in tabs_info()]
+    check("網頁一口氣開三個新分頁：三個都開出來", btn is not None and tab_count() == n0 + 3, f"{btn} {n0} → {tab_count()} {names}")
+    check("三個新分頁都載入了，而且都拿得到開它的網頁（window.opener）", all(any(f"[multi] child {i} opener=true" in l for l in L) for i in (1, 2, 3)), f"{L}")
+    check("網頁那邊三次都拿到開出來的視窗（沒有被當成擋掉）", any("multi opened=111" in l for l in L), f"{L}")
+    check("排到晚一點才開的，後來都開成功了", done >= later, f"排隊 {later}、成功 {done}")
+    # 開出來的分頁裡，使用者腳本照樣會跑（補登記之後重新整理也一樣）
+    t1 = time.time()
+    time.sleep(7.0)
+    key(VK_F5)
+    time.sleep(4.0)
+    check("連著開出來的分頁：重新整理後使用者腳本照樣跑", any("[us] start ran /multi.html" in l for l in page_log_since(t1)), f"{[l for l in page_log_since(t1)][:5]}")
+    rel = [l for l in err.splitlines() if "載入了：補登記腳本" in l]
+    log("  補登記：", rel[-6:])
     ensure_web_fg()
     restore_tabs(keep)
     home()
@@ -4862,6 +4985,7 @@ STEPS = [
     ("ext", s_ext),
     ("scripts", s_scripts),
     ("userscripts", s_userscripts),
+    ("multiopen", s_multiopen),
     ("login", s_login),
     ("devtools", s_devtools),
     ("refocus", s_refocus),
