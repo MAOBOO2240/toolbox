@@ -4510,6 +4510,7 @@ def s_extprobe():
         n0b = tab_count()
         later0 = stderr_text().count("這個晚一點再開")
         done0 = len(re.findall(r"晚一點才開的 \S+ → true", stderr_text()))
+        unlinked0 = stderr_text().count("連著的新分頁 → false")
         t0b = time.time()
         for rnd in range(3):
             for i, (e, x) in enumerate(sess):
@@ -4527,6 +4528,9 @@ def s_extprobe():
         shot("extprobe_burst")
         check("extprobe：幾個擴充功能同時開分頁 → 每一個都開出來", bool(sess) and tab_count() == n0b + want and len(set(Lb)) == want, f"{n0b} → {tab_count()}，載入 {len(set(Lb))}／{want}")
         check("extprobe：同時開分頁時排到晚一點才開的，都開成功了", doneb == later, f"排隊 {later}、成功 {doneb}")
+        unlinked = errb.count("連著的新分頁 → false") - unlinked0
+        check("extprobe：同時開分頁時沒有一個改用「不連著」的方式開（都是交還給瀏覽器的新分頁）", unlinked == 0, f"{unlinked} 個")
+        log(f"  （同時開分頁時真的有排隊的：{later} 個）")
         check("extprobe：同時開分頁之後程式還有回應", responsive(web))
         restore_tabs(["t1", "t2", "t3"])
         home()
