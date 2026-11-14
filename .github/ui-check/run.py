@@ -5044,6 +5044,47 @@ def s_multiopen():
     user32.GetAsyncKeyState(0x04)
 
 
+def s_bundle():
+    """使用者自己的油猴整合包：從它公開的網址安裝，看它的選單、設定面板出不出得來（要連到外面，平常不跑）"""
+    ensure_web_fg()
+    if "extprobe" in ONLY_EARLY:
+        time.sleep(14)
+        restore_tabs(["t1", "t2", "t3"])
+        select_tab(0, 1.2)
+    home()
+    click_blank(0.5)
+    keep = tab_ids()
+    open_tab("https://raw.githubusercontent.com/MAOBOO2240/userscripts/main/maoboo.user.js", 10.0)
+    st, txt = bar_state(), page_text()
+    shot("bundle_install")
+    check("整合包的網址：出現安裝畫面（名稱、版本看得到）", "chrome://extensions/install" in (st.get("shown") or "") and "MAO BOO" in txt, f"{st.get('shown')!r} {txt[:300]}")
+    page_click(lambda n: n.type == "ButtonControl" and n.name.strip() in ("安裝", "更新", "重新安裝"), wait=7.0)
+    txt = page_text()
+    check("整合包：按「安裝」→ 裝好了", "安裝好了" in txt, txt[:400])
+    t0 = time.time()
+    go(f"http://127.0.0.1:{PORT}/snap.html?bundle=1", 8.0)
+    before = page_text()
+    ms = open_menu(US_BTN, "使用者腳本按鈕（整合包）")
+    names = names_of(ms[0][1]) if ms else []
+    log("  整合包的選單：", [it["texts"] for it in ms[0][1]["items"]] if ms else [])
+    shot("bundle_menu")
+    check("整合包在網頁上執行，而且登記了它的選單項目", any("MAO BOO" in n for n in names) and any("設定面板" in n for n in names), f"{names}")
+    if any("設定面板" in n for n in names):
+        menu_click("設定面板", exact=False, wait=3.5)
+    close_menus()
+    after = page_text()
+    shot("bundle_panel")
+    new_text = [l for l in after.splitlines() if l.strip() and l not in before.splitlines()]
+    log("  點了「開啟設定面板」之後網頁上多出來的字：", new_text[:25])
+    check("點整合包的「開啟設定面板」：網頁上出現它的設定面板", len(new_text) >= 3, f"{new_text[:12]}")
+    errs = [l for l in stderr_text().splitlines() if "[us]" in l and ("失敗" in l or "錯誤" in l)]
+    log("  程式這邊跟腳本有關的錯誤：", errs[-6:])
+    ensure_web_fg()
+    restore_tabs(keep)
+    home()
+    user32.GetAsyncKeyState(0x04)
+
+
 def s_minimize():
     home()
     click_bar(BTN_MIN, (W() - 115, 16), wait=1.2)
@@ -5121,6 +5162,8 @@ if "xprobe" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xprobe", s_xprobe))
 if "xuser" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("xuser", s_xuser))
+if "bundle" in ONLY:
+    STEPS.insert(len(STEPS) - 2, ("bundle", s_bundle))
 if "extprobe" in ONLY:
     STEPS.insert(len(STEPS) - 2, ("extprobe", s_extprobe))
 for name, fn in STEPS:
