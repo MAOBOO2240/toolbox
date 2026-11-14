@@ -522,6 +522,31 @@ if CHROME_SEEDED:
     shutil.copytree(os.path.join(HERE, "ext"), os.path.join(chrome_root, "Default", "Extensions", EXT_ID, "1.0_0"), dirs_exist_ok=True)
 log("chrome profile seeded", CHROME_SEEDED)
 
+# 擴充功能要連的本機程式（native messaging）：一個只登記在 Chrome 的位置、一個只登記在 Edge 的位置，看這個瀏覽器認哪一個
+try:
+    import winreg
+    nm_dir = os.path.join(os.environ["TEMP"], "mb-nmhost")
+    os.makedirs(nm_dir, exist_ok=True)
+    with open(os.path.join(nm_dir, "nmhost.py"), "w", encoding="utf-8") as f:
+        f.write("import sys, struct, json\n"
+                "raw = sys.stdin.buffer.read(4)\n"
+                "n = struct.unpack('<I', raw)[0]\n"
+                "msg = json.loads(sys.stdin.buffer.read(n).decode('utf-8'))\n"
+                "out = json.dumps({'pong': msg.get('ping'), 'from': 'host'}).encode('utf-8')\n"
+                "sys.stdout.buffer.write(struct.pack('<I', len(out)) + out)\n"
+                "sys.stdout.buffer.flush()\n")
+    with open(os.path.join(nm_dir, "nmhost.bat"), "w", encoding="utf-8") as f:
+        f.write('@echo off\r\n"' + sys.executable + '" -u "' + os.path.join(nm_dir, "nmhost.py") + '"\r\n')
+    for name, key in (("com.maoboo.uitest.chrome", r"Software\Google\Chrome\NativeMessagingHosts"), ("com.maoboo.uitest.edge", r"Software\Microsoft\Edge\NativeMessagingHosts")):
+        mf = os.path.join(nm_dir, name + ".json")
+        with open(mf, "w", encoding="utf-8") as f:
+            json.dump({"name": name, "description": "ui test", "path": os.path.join(nm_dir, "nmhost.bat"), "type": "stdio", "allowed_origins": [f"chrome-extension://{EXT_ID}/"]}, f)
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key + "\\" + name) as k:
+            winreg.SetValueEx(k, None, 0, winreg.REG_SZ, mf)
+    log("native messaging host registered", nm_dir)
+except Exception as e:
+    log("native messaging host 登記失敗", repr(e))
+
 # ---------- 開假的遊戲、開程式 ----------
 game_proc = subprocess.Popen([sys.executable, os.path.join(HERE, "game.py"), GAME_LOG])
 game = wait_for(lambda: next((h for h in top_windows() if title(h) == "MapleStory" and user32.IsWindowVisible(h)), 0), 15)
@@ -4671,9 +4696,18 @@ def s_ext():
     check("擴充功能看得到目前的網頁（active tab）", "test.html" in act and "popup.html" not in act, act[-200:])
     lf = next((l for l in page_log().splitlines() if "[ext] lastFocused:" in l), "")
     check("擴充功能看得到目前的網頁（lastFocused）", "test.html" in lf and "popup.html" not in lf, lf[-200:])
+    time.sleep(2.0)
+    nat = [l.split(" ", 1)[1] for l in page_log().splitlines() if "[ext] native" in l or "[extbg]" in l]
+    log("（查能力）擴充功能連本機的程式（native messaging）、背景程式的記錄：")
+    for l in nat:
+        log("    ", l[:400])
     click_blank(1.0)
     after2 = vis_kids()
     check("點外面：小視窗關掉", len(after2) == len(before), f"{len(after2)}")
+    ms = ctx_at(*PG(300, 330))
+    log("（查能力）網頁右鍵選單裡有沒有擴充功能加的項目：", any("測試擴充項目" in n for _, m in ms for n in names_of(m)), menu_titles(ms))
+    close_menus()
+    click_blank(0.6)
     # 固定在工具列上
     ms = open_menu(EXT_BTN, "再按擴充功能按鈕")
     if ms:
