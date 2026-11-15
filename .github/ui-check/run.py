@@ -4699,6 +4699,34 @@ def s_extprobe():
             go(f"http://127.0.0.1:{PORT}/test.html", wait=3.0)
             t7 = reload_test()
             check("兩邊是同一支腳本時：網頁上只跑一次", len([l for l in ran(t7) if "v2.0 /test.html" in l]) == 1, f"{ran(t7)}")
+            # 0b. 視窗一直開著時，Chrome 那邊有變動（存放區的記錄檔正被瀏覽器核心開著、往裡面寫），
+            #     程式自己要發現、再帶一次（它五分鐘看一次），不用按任何東西
+            try:
+                def db_sizes():
+                    """存放區裡會變動的檔案：（資料夾清單上寫的大小, 直接問檔案本身的大小）"""
+                    out = {}
+                    for ent in os.scandir(chrome_db):
+                        if ent.name.endswith(".log") or ent.name.startswith("MANIFEST"):
+                            try:
+                                out[ent.name] = (ent.stat().st_size, os.stat(ent.path).st_size)
+                            except OSError as e:
+                                out[ent.name] = repr(e)
+                    return out
+
+                n_c = len(ctm_lines())
+                before = db_sizes()
+                r = b.ev(swx(), "chrome.storage.local.set({'mb-tick-probe': 'x'.repeat(3000) + Date.now()}).then(() => 'set')")
+                time.sleep(1.0)
+                after = db_sizes()
+                log("  [Chrome 篡改猴] 存放區寫入一筆（", r, "）前後的檔案大小（資料夾清單上的, 檔案本身的）：之前", before, "之後", after)
+                t0 = time.time()
+                got = wait_for(lambda: len(ctm_lines()) > n_c, 345, step=1.0)
+                log(f"  [Chrome 篡改猴] 等了 {time.time() - t0:.0f} 秒；", ctm_lines()[n_c:][-2:], "；現在的檔案大小：", db_sizes())
+                check("Chrome 的篡改猴：視窗開著時 Chrome 那邊有變動，程式自己會發現、再帶一次（不用按任何東西）", bool(got), f"等了 {time.time() - t0:.0f} 秒 {ctm_lines()[-2:]}")
+                b.ev(swx(), "chrome.storage.local.remove('mb-tick-probe').then(() => 'removed')")
+            except Exception:
+                log(traceback.format_exc())
+                check("extprobe Chrome 的篡改猴：自己發現變動 (沒有錯誤)", False, "exception")
             subprocess.run(["cmd", "/c", "rmdir", chrome_db], capture_output=True, text=True)
             # 1. 這個瀏覽器的篡改猴的存放區（真的瀏覽器核心寫出來的資料），抄一份到假的 Chrome 設定檔裡，當成「Chrome 的篡改猴」
             log("  [Chrome 篡改猴] 放進假的 Chrome 設定檔：", copy_tm_db(chrome_db))
