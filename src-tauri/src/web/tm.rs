@@ -462,7 +462,9 @@ fn chrome_sig(dir: &Path) -> Vec<(String, u64, u128)> {
             if name == "LOCK" || name.starts_with("LOG") {
                 return None;
             }
-            let m = e.metadata().ok()?;
+            // 直接問那個檔案本身，不用資料夾清單裡附的大小：Chrome 還開著、還在往裡面寫的檔案，
+            // 資料夾清單上的大小和時間在 Windows 上可能還是舊的（要等 Chrome 關檔才更新），那樣會看不出有變動
+            let m = std::fs::metadata(e.path()).ok()?;
             let t = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis()).unwrap_or(0);
             Some((name, m.len(), t))
         })

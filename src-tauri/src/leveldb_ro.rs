@@ -408,9 +408,9 @@ fn read_once(dir: &Path) -> Result<Option<HashMap<Vec<u8>, Vec<u8>>>, String> {
                     match ty {
                         1 => {
                             let val = chunk(&rec, &mut p)?;
-                            put(&mut map, key, seq + i, Some(val));
+                            put(&mut map, key, seq.wrapping_add(i), Some(val));
                         }
-                        0 => put(&mut map, key, seq + i, None),
+                        0 => put(&mut map, key, seq.wrapping_add(i), None),
                         _ => return None,
                     }
                 }
