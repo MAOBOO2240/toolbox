@@ -4468,16 +4468,85 @@ def s_extprobe():
         for k in sorted(d1):
             if k not in d0 or d0[k][1:] != d1[k][1:]:
                 log(f"    （新的／變了）{k!r} {d1[k][0]} {d1[k][1]}：{d1[k][2]!r}")
-        # 擴充功能套件裡的一個靜態檔（manifest.json）當成頁面開：裡面能不能用擴充功能的存放區（不用執行篡改猴的程式就讀得到）
+        # 完整的內容（看有哪些欄位）
+        FULL = "chrome.storage.local.get(null).then(o => Object.keys(o).sort().filter(k => /@(meta|re|st|uid)#/.test(k)).map(k => [k, JSON.stringify(o[k])]))"
+
+        def swx():
+            t = sw_of(TM)
+            return b.attach(t["targetId"]) if t else sw
+
+        def full(tag):
+            r = b.ev(swx(), FULL, wait=40)
+            for k, v in (r if isinstance(r, list) else []):
+                log(f"    （{tag}，完整）{k!r}：{v}")
+
+        full("第一支")
+
+        # 再開一次編輯器，貼上自己的腳本（有 @require、@resource、@noframes）再存檔
+        def set_clip(text):
+            cp = os.path.join(OUT, "clip.txt")
+            with open(cp, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+            r = subprocess.run(["powershell", "-NoProfile", "-Command", f"Set-Clipboard -Value (Get-Content -Raw -Encoding UTF8 '{cp}')"], capture_output=True, text=True, timeout=90)
+            log("  [存放實驗] 放進剪貼簿：", r.returncode, (r.stderr or "")[:200])
+
+        SRC = ("// ==UserScript==\n// @name         MB Sync Test\n// @namespace    https://maoboo.test/\n// @version      1.0\n// @description  sync test\n"
+               "// @match        http://127.0.0.1:8765/*\n// @exclude      http://127.0.0.1:8765/frame.html*\n// @require      http://127.0.0.1:8765/req.js\n// @resource     css http://127.0.0.1:8765/res.css\n"
+               "// @grant        GM_setValue\n// @grant        GM_getValue\n// @run-at       document-end\n// @noframes\n// ==/UserScript==\n\n"
+               "document.documentElement.setAttribute('data-tm-sync', 'v1:' + (typeof MB_REQ));\n")
+        set_clip(SRC)
+        restore_tabs(["t1", "t2", "t3"])
+        home()
+        n0e = tab_count()
+        b.ev(swx(), "chrome.tabs.create({url: chrome.runtime.getURL('options.html') + '#nav=new-user-script+editor'}).then(() => 'ok')")
+        time.sleep(8.0)
+        log(f"  [存放實驗] 再開編輯器：分頁 {n0e} → {tab_count()}；標題 {title(web)!r}")
+        click(*PG(520, 330), wait=0.8)
+        chord([VK_CTRL], 0x41, wait=0.7)  # Ctrl+A
+        chord([VK_CTRL], 0x56, wait=1.5)  # Ctrl+V
+        shot("tm_editor_pasted")
+        chord([VK_CTRL], 0x53, wait=5.0)  # Ctrl+S
+        shot("tm_editor_saved2")
+        log(f"  [存放實驗] 貼上再存檔之後：標題 {title(web)!r}；分頁 {[t['title'] for t in tabs_info()]}")
+        d2 = dump("存了第二支（貼上的）之後", swx())
+        for k in sorted(d2):
+            if k not in d1 or d1[k][1:] != d2[k][1:]:
+                log(f"    （新的／變了）{k!r} {d2[k][0]} {d2[k][1]}：{d2[k][2][:260]!r}")
+        full("兩支")
+
+        # 擴充功能套件裡的一個靜態檔（manifest.json）當成頁面開：存放區變動時，這份文件收不收得到通知、能不能改標題
         pt = next((t for t in b.targets() if t.get("type") == "page" and "/test.html" in t.get("url", "")), None)
         if pt is not None:
             ps = b.attach(pt["targetId"])
-            for path in ("manifest.json", "_locales/en/messages.json"):
-                r = b.call("Page.navigate", {"url": f"chrome-extension://{TM}/{path}"}, session=ps, wait=15)
+            r = b.call("Page.navigate", {"url": f"chrome-extension://{TM}/manifest.json"}, session=ps, wait=15)
+            time.sleep(3.0)
+            b.pump(0.3)
+            log("  [存放實驗] manifest.json 這份文件：", json.dumps(b.ev(ps, "({head: !!document.head, html: document.documentElement.outerHTML.slice(0, 260), wv: typeof (window.chrome && window.chrome.webview), title0: document.title, ct: document.contentType, vis: document.visibilityState, sub: typeof (crypto && crypto.subtle), sec: window.isSecureContext})"), ensure_ascii=False)[:1200])
+            log("  [存放實驗] 裝上監聽：", b.ev(ps, "(window.__n = 0, chrome.storage.onChanged.addListener((c, a) => { window.__n++; window.__keys = Object.keys(c).slice(0, 6); window.__area = a; try { if (!document.head) document.documentElement.insertBefore(document.createElement('head'), document.documentElement.firstChild); document.title = 'mb-n-' + window.__n; } catch (e) { window.__err = String(e); } }), 'ok')"))
+            b.ev(swx(), "chrome.storage.local.set({'!misc.mbprobe': {origin: 'normal', value: Date.now()}}).then(() => 'set')")
+            time.sleep(2.0)
+            log("  [存放實驗] 背景程式寫了一筆之後：", json.dumps(b.ev(ps, "({n: window.__n, keys: window.__keys, area: window.__area, title: document.title, err: window.__err, head: !!document.head})"), ensure_ascii=False)[:600], "；分頁標題", [t["title"] for t in tabs_info()])
+            ot = next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").startswith(f"chrome-extension://{TM}/options.html")), None)
+            if ot is not None:
+                osx = b.attach(ot["targetId"])
+                log("  [存放實驗] 控制台的網址：", b.ev(osx, "location.href"))
+                log("  [存放實驗] 控制台裡跟啟用有關的元素：", json.dumps(b.ev(osx, "[...document.querySelectorAll('*')].filter(e => /enabl/i.test(String(e.className) + ' ' + e.id + ' ' + (e.getAttribute('name') || ''))).slice(0, 30).map(e => [e.tagName, e.id.slice(0, 70), String(e.className).slice(0, 90), (e.getAttribute('title') || '').slice(0, 40)])"), ensure_ascii=False)[:3500])
+                r = b.ev(osx, "(() => { const c = [...document.querySelectorAll('*')].filter(e => /enabler/i.test(String(e.className))); if (!c.length) return 'none'; c[c.length - 1].click(); return 'clicked ' + c.length; })()")
+                log("  [存放實驗] 點啟用開關：", r)
                 time.sleep(3.0)
-                b.pump(0.3)
-                log(f"  [存放實驗] 前往 {path} →", json.dumps((r or {}).get("result", r), ensure_ascii=False)[:200])
-                log(f"  [存放實驗] {path} 裡：", json.dumps(b.ev(ps, "({href: location.href, ct: document.contentType, st: typeof chrome.storage, rt: typeof chrome.runtime, id: chrome.runtime && chrome.runtime.id, n: (chrome.storage ? await chrome.storage.local.get(null).then(o => Object.keys(o).length, e => 'ERR ' + e.message) : -1), keys: (chrome.storage && chrome.storage.local.getKeys ? await chrome.storage.local.getKeys().then(k => k.length, e => 'ERR ' + e.message) : 'no getKeys')})"), ensure_ascii=False)[:600])
+                shot("tm_toggle")
+                log("  [存放實驗] 之後各腳本的 enabled：", json.dumps(b.ev(swx(), "chrome.storage.local.get(null).then(o => Object.keys(o).filter(k => k.includes('@meta#')).map(k => [k.slice(-8), o[k].value && o[k].value.enabled, o[k].value && o[k].value.name]))"), ensure_ascii=False)[:600])
+                log("  [存放實驗] 監聽那邊：", json.dumps(b.ev(ps, "({n: window.__n, keys: window.__keys, title: document.title})"), ensure_ascii=False)[:600])
+            else:
+                log("  [存放實驗] 找不到控制台那個分頁", [(t.get("type"), t.get("url", "")[:80]) for t in b.targets()])
+            time.sleep(4.0)
+            d3 = dump("最後", swx())
+            for k in sorted(d3):
+                if k not in d2 or d2[k][1:] != d3[k][1:]:
+                    log(f"    （新的／變了）{k!r} {d3[k][0]} {d3[k][1]}：{d3[k][2][:260]!r}")
+            full("最後")
+            log("  [存放實驗] 所有的鍵：", json.dumps(b.ev(swx(), "chrome.storage.local.get(null).then(o => Object.keys(o).sort().map(k => [k, JSON.stringify(o[k]).length]))"), ensure_ascii=False)[:4000])
+            b.ev(swx(), "chrome.storage.local.remove('!misc.mbprobe').then(() => 'ok')")
             b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html"}, session=ps, wait=15)
             time.sleep(3.0)
         restore_tabs(["t1", "t2", "t3"])
