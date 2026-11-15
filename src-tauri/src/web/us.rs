@@ -519,9 +519,13 @@ pub(super) struct Row {
     pub running: bool,
     /// 需要的檔案沒下載到
     pub broken: bool,
-    /// 篡改猴擴充功能裡的腳本（開關、刪除都在篡改猴裡做）
+    /// 這個瀏覽器的篡改猴擴充功能裡的腳本（開關、刪除都在篡改猴裡做）
     pub tm: bool,
-    /// 篡改猴裡的，但這裡已經自己裝了同名的一支：這支不執行
+    /// Chrome 的篡改猴帶過來的腳本（在 Chrome 的篡改猴裡管理；這邊可以另外關掉）
+    pub chrome: bool,
+    /// 讀過來的腳本，在它的來源那邊是關著的
+    pub src_off: bool,
+    /// 讀過來的腳本，但同名的已經有一支排在前面：這支不執行
     pub dup: bool,
     pub cmds: Vec<Cmd>,
 }
@@ -550,7 +554,7 @@ pub(super) fn rows(wid: &str, tid: &str) -> Vec<Row> {
             cmds = b;
             a
         };
-        out.push(Row { file: s.file.clone(), name: s.meta.name.clone(), off: s.off, running: run, broken: !s.missing.is_empty(), tm: s.tm, dup: s.dup, cmds: if s.off || s.dup { Vec::new() } else { mine } });
+        out.push(Row { file: s.file.clone(), name: s.meta.name.clone(), off: s.off, running: run, broken: !s.missing.is_empty(), tm: s.tm, chrome: s.chrome, src_off: s.src_off, dup: s.dup, cmds: if s.off || s.dup { Vec::new() } else { mine } });
     }
     out
 }

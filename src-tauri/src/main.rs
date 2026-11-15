@@ -11,6 +11,7 @@ mod fg;
 mod input;
 mod itemup;
 mod iconidx;
+mod leveldb_ro;
 mod license;
 mod maple_api;
 mod patches;
@@ -524,6 +525,7 @@ fn main() {
             web::web_tab_move,
             web::web_ext_list,
             web::web_tm_read,
+            web::web_tm_chrome,
             web::web_ext_sync,
             web::web_ext_toggle,
             web::web_ext_pin,

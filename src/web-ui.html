@@ -751,14 +751,15 @@
         ui.nav.remove();
         const sync = btn("從 Chrome 重新同步", "", "sync");
         ui.right.append(sync);
-        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true, tm: { ext: "", read_at: 0, count: 0, paused: false } }, q = ui.input.value.trim().toLowerCase();
+        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true, tm: { ext: "", read_at: 0, count: 0, paused: false }, chrome: { auto: true, found: false, read_at: 0, count: 0, paused: false } }, q = ui.input.value.trim().toLowerCase();
         ui.col.style.maxWidth = "1100px";
         ui.col.style.margin = "0 auto";
         sync.onclick = async () => {
           sync.disabled = true;
           try { exts = (await call("web_ext_sync")) || exts; toast("已經跟 Chrome 同步"); } catch (e) { fail(e); }
           sync.disabled = false;
-          render();
+          // Chrome 篡改猴裡的腳本這時候也帶過來了：腳本清單一起重新讀
+          await loadScripts();
         };
         function switchOf(on, fn) {
           const s = el("input", "sw");
@@ -810,7 +811,7 @@
           const head = el("h2", "", "使用者腳本");
           head.style.marginTop = "20px";
           ui.col.append(head);
-          ui.col.append(el("div", "note", "使用者腳本（篡改猴 Tampermonkey 用的那種 .user.js）由這個瀏覽器自己執行。這個瀏覽器的核心沒有「允許使用者腳本」的開關，篡改猴自己沒辦法執行腳本（它畫面上那則提示可以不用理會），所以裝在這裡的腳本、還有在篡改猴裡新增或匯入的腳本，都由這裡代為執行。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。"));
+          ui.col.append(el("div", "note", "使用者腳本（篡改猴 Tampermonkey 用的那種 .user.js）由這個瀏覽器自己執行。這個瀏覽器的核心沒有「允許使用者腳本」的開關，篡改猴自己沒辦法執行腳本（它畫面上那則提示可以不用理會），所以裝在這裡的腳本、在篡改猴裡新增或匯入的腳本、還有 Chrome 的篡改猴裡的腳本（開瀏覽器時自動帶過來），都由這裡代為執行。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。同名的腳本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。"));
           const bar = el("div");
           bar.style.cssText = "display:flex;gap:8px;padding:0 4px 12px;flex-wrap:wrap";
           const imp = btn("匯入腳本", "", "plus"), byUrl = btn("從網址安裝", "", "link"), paste = btn("貼上腳本", "", "script"), upd = btn("檢查更新", "", "sync"), dir = btn("開啟腳本資料夾", "", "folder"), rel = btn("重新讀取", "", "reload");
@@ -884,6 +885,26 @@
             }
             sc.append(row);
           }
+          // Chrome 的篡改猴裡的腳本：開瀏覽器時自動帶過來（可以關掉）
+          const ch = scripts.chrome || { auto: true, found: false, read_at: 0, count: 0, paused: false };
+          {
+            const row = el("div", "opt");
+            row.dataset.tm = "chrome";
+            const tx = el("div", "tx");
+            const when = ch.read_at ? new Date(ch.read_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+            const info = !ch.auto ? "已關閉。打開之後，開瀏覽器時會自動把 Chrome 的篡改猴裡的腳本帶過來執行。"
+              : !ch.found ? "這台電腦的 Chrome 裡沒有找到開著的篡改猴。"
+              : !ch.read_at ? "還沒帶過來。開瀏覽器時會自動帶，也可以按上面的「重新讀取」。"
+              : ch.paused ? `帶過來 ${ch.count} 支（${when}），但 Chrome 的篡改猴目前整個暫停了，所以這些腳本都不會執行。`
+              : `帶過來 ${ch.count} 支（${when}）。只讀 Chrome 的資料、不會改它；新增、編輯、刪除在 Chrome 的篡改猴裡做，這邊可以單獨把某一支關掉。`;
+            tx.append(el("div", "", "Chrome 的篡改猴裡的腳本"), el("small", "", info));
+            row.append(tx, switchOf(!!ch.auto, async (on, sw) => {
+              sw.disabled = true;
+              scripts = (await quiet("web_tm_chrome", { on })) || scripts;
+              render();
+            }));
+            sc.append(row);
+          }
           const sl = scripts.list.filter((s) => !q || (s.meta.name || "").toLowerCase().includes(q));
           if (!sl.length) sc.append(el("div", "emptybox", "還沒有腳本"));
           for (const s of sl) {
@@ -892,21 +913,27 @@
             const tx = el("div", "tx");
             const nm = el("div", "", `${s.meta.name}${s.meta.version ? `　${s.meta.version}` : ""}`);
             if (s.tm) nm.append(el("span", "tmtag", "篡改猴"));
+            if (s.chrome) nm.append(el("span", "tmtag", "Chrome 篡改猴"));
             tx.append(nm);
             const where = [...(s.meta.matches || []), ...(s.meta.includes || [])].slice(0, 3).join("、");
             row.dataset.script = s.file;
-            const sub = s.tm && s.dup ? "跟自己安裝的腳本同名，以自己安裝的為準（這支沒有執行）"
-              : s.tm && s.off ? (tm && tm.paused ? "篡改猴暫停中" : "在篡改猴裡關閉了")
+            const sub = s.dup ? "跟上面那支同名，只執行上面那支（這支沒有執行）"
+              : s.tm && s.src_off ? (tm && tm.paused ? "篡改猴暫停中" : "在篡改猴裡關閉了")
+              : s.chrome && s.src_off ? (ch.paused ? "Chrome 的篡改猴暫停中" : "在 Chrome 的篡改猴裡關閉了")
               : s.missing && s.missing.length ? `缺少 ${s.missing.length} 個需要的檔案（按「重新讀取」再下載一次）`
               : where || s.meta.description || s.file;
             tx.append(el("small", "", sub));
-            if (s.tm) {
-              // 篡改猴裡的腳本：開關、刪除都在篡改猴裡做，這裡只顯示狀態
+            if (s.tm || (s.chrome && (s.src_off || s.dup))) {
+              // 這個瀏覽器的篡改猴裡的腳本：開關、刪除都在篡改猴裡做，這裡只顯示狀態。
+              // Chrome 帶過來的：Chrome 那邊關著、或同名重複的，這邊也開不了
               const sw = switchOf(!s.off && !s.dup, () => {});
               sw.disabled = true;
-              sw.title = "在篡改猴裡開關";
+              sw.title = s.tm ? "在篡改猴裡開關" : "在 Chrome 的篡改猴裡開關";
               sw.style.opacity = "0.55";
               row.append(tx, sw);
+            } else if (s.chrome) {
+              // Chrome 帶過來的：可以單獨在這邊關掉（刪除要在 Chrome 的篡改猴裡做）
+              row.append(tx, switchOf(!s.off, async (on) => { await quiet("web_scripts_toggle", { file: s.file, on }); loadScripts(); }));
             } else {
               const x = ib("trash", "刪除");
               x.onclick = async () => { await quiet("web_scripts_delete", { file: s.file }); loadScripts(); };

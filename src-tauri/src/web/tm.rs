@@ -9,6 +9,9 @@
 //! - 從那裡把使用者的腳本讀出來（tm_read.js），交給 userscripts.rs 存一份、照平常的方式執行
 //! - 存放區一有變動（使用者在篡改猴裡新增、編輯、開關、刪除腳本），那份文件會改標題通知（tm_watch.js），這裡再讀一次
 //! 只讀不寫：不會去改篡改猴的任何資料。
+//!
+//! 另外，Chrome 裡的篡改猴（使用者平常用的那一個）裡的腳本，開瀏覽器時也會帶過來：直接讀 Chrome 資料夾裡
+//! 篡改猴的存放區（見這個檔案後面的「Chrome 的篡改猴」）。
 
 use super::*;
 use crate::userscripts as scripts;
@@ -330,7 +333,7 @@ fn finish(app: &AppHandle, r: Result<String, String>) {
     match r.and_then(|json| scripts::tm_parse(&json)) {
         Ok(read) => {
             let (n, paused) = (read.list.len(), read.paused);
-            let done = scripts::tm_apply(read);
+            let done = scripts::tm_apply(scripts::TmSrc::Here, read);
             crate::dlog!("[tm] 讀到 {n} 支腳本{}，現在有 {} 支，清單{}", if paused { "（篡改猴暫停中）" } else { "" }, done.count, if done.changed { "變了" } else { "沒變" });
             let mut st = lock(&ST);
             st.retries = 0;
@@ -412,6 +415,137 @@ pub(super) fn window_closing(app: &AppHandle, wid: &str) {
 /// 查問題用：這個檔案裡的鎖現在有沒有被佔著
 pub(super) fn lock_state() -> String {
     format!("篡改猴={}", if ST.try_lock().is_err() { "佔著" } else { "空" })
+}
+
+/* ---------------- Chrome 的篡改猴 ---------------- */
+//
+// 使用者平常在 Chrome 的篡改猴裡裝的腳本，開瀏覽器時自動帶過來（跟書籤、擴充功能從 Chrome 同步是同一個時機）。
+// Chrome 裡每個擴充功能的存放區是它設定檔資料夾裡的一個 LevelDB 資料夾（Local Extension Settings\擴充功能編號）：
+// 直接把篡改猴的那一個讀出來（leveldb_ro.rs：只開檔案來讀，不寫、不鎖、不複製，Chrome 開著也沒關係），
+// 從裡面找出腳本交給 userscripts.rs。只看篡改猴這一個資料夾，其他擴充功能的不碰；讀到的內容不會寫到別的地方、也不會印出來。
+
+struct ChromeSt {
+    /// Chrome 裡篡改猴的存放區資料夾（篡改猴在 Chrome 裡裝著、開著、有存放區才有）
+    dir: Option<PathBuf>,
+    /// 上次帶過來時那個資料夾裡的檔案（檔名、大小、修改時間）：沒變就不用再讀
+    sig: Vec<(String, u64, u128)>,
+    /// 正在讀
+    busy: bool,
+    /// 正在讀的時候又要讀：讀完再讀一次
+    again: bool,
+    /// 上次看有沒有變動是什麼時候
+    checked: Option<Instant>,
+}
+
+static CHROME: Mutex<ChromeSt> = Mutex::new(ChromeSt { dir: None, sig: Vec::new(), busy: false, again: false, checked: None });
+
+/// 跟 Chrome 同步擴充功能時回報：Chrome 裡篡改猴的存放區在哪（Chrome 裡沒有篡改猴、或它被停用了就是 None）。
+/// 有的話把裡面的腳本帶過來（在背景做，不會擋住開視窗）
+pub(super) fn chrome_found(dir: Option<PathBuf>) {
+    let dir = dir.filter(|d| d.join("CURRENT").is_file());
+    let found = dir.is_some();
+    lock(&CHROME).dir = dir;
+    scripts::chrome_set(found);
+    if found {
+        chrome_read();
+    }
+}
+
+/// 存放區資料夾裡的檔案長什麼樣子（LOCK、LOG 跟內容無關，不看）
+fn chrome_sig(dir: &Path) -> Vec<(String, u64, u128)> {
+    let mut v: Vec<(String, u64, u128)> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name == "LOCK" || name.starts_with("LOG") {
+                return None;
+            }
+            let m = e.metadata().ok()?;
+            let t = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis()).unwrap_or(0);
+            Some((name, m.len(), t))
+        })
+        .collect();
+    v.sort();
+    v
+}
+
+/// 把 Chrome 篡改猴裡的腳本帶過來（背景）。正在帶的話，等它做完再帶一次
+fn chrome_read() {
+    {
+        let mut st = lock(&CHROME);
+        if st.busy {
+            st.again = true;
+            return;
+        }
+        if st.dir.is_none() || !scripts::chrome_auto() {
+            return;
+        }
+        st.busy = true;
+        st.again = false;
+    }
+    std::thread::spawn(|| loop {
+        let dir = lock(&CHROME).dir.clone().filter(|_| scripts::chrome_auto());
+        if let Some(dir) = dir {
+            // 先記下檔案的樣子再讀：讀的當中又變了的話，下次檢查會發現、再帶一次
+            let sig = chrome_sig(&dir);
+            match crate::leveldb_ro::read_all(&dir) {
+                Ok(map) => {
+                    let read = scripts::tm_from_store(map);
+                    let (n, paused) = (read.list.len(), read.paused);
+                    let done = scripts::tm_apply(scripts::TmSrc::Chrome, read);
+                    crate::dlog!("[tm] 從 Chrome 的篡改猴帶過來 {n} 支腳本{}，現在有 {} 支，清單{}", if paused { "（Chrome 的篡改猴暫停中）" } else { "" }, done.count, if done.changed { "變了" } else { "沒變" });
+                    lock(&CHROME).sig = sig;
+                }
+                // 讀不到（Chrome 正在大量寫入、檔案壞了…）：留著上次帶過來的，下次再試
+                Err(e) => crate::dlog!("[tm] Chrome 的篡改猴讀不到：{e}"),
+            }
+        }
+        let mut st = lock(&CHROME);
+        if !std::mem::take(&mut st.again) {
+            st.busy = false;
+            break;
+        }
+    });
+}
+
+/// 有瀏覽器視窗開著時定期呼叫：Chrome 篡改猴的存放區有變動就再帶一次（五分鐘看一次，視窗一直開著也跟得上）
+pub(super) fn chrome_tick() {
+    let dir = {
+        let mut st = lock(&CHROME);
+        if st.busy || st.checked.is_some_and(|t| t.elapsed() < Duration::from_secs(300)) {
+            return;
+        }
+        st.checked = Some(Instant::now());
+        st.dir.clone()
+    };
+    let Some(dir) = dir else { return };
+    if scripts::chrome_auto() && chrome_sig(&dir) != lock(&CHROME).sig {
+        chrome_read();
+    }
+}
+
+/// 等正在帶的那一次做完（最多 secs 秒）
+pub(super) fn chrome_wait(secs: u64) {
+    let end = Instant::now() + Duration::from_secs(secs);
+    while lock(&CHROME).busy && Instant::now() < end {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// 現在就再帶一次，等它做完（擴充功能頁面的「重新讀取」）
+pub(super) fn chrome_read_wait(secs: u64) {
+    chrome_read();
+    chrome_wait(secs);
+}
+
+/// 開關「開瀏覽器時自動把 Chrome 篡改猴的腳本帶過來」；打開的話馬上帶一次
+pub(super) fn chrome_auto(on: bool) {
+    scripts::chrome_auto_set(on);
+    if on {
+        chrome_read_wait(6);
+    }
 }
 
 /* ---------------- 篡改猴自己的頁面上的說明 ---------------- */

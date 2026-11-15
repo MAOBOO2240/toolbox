@@ -4464,6 +4464,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             if any_open && last_sync.is_none_or(|t| t.elapsed() >= Duration::from_secs(5)) {
                 last_sync = Some(Instant::now());
                 let _ = import_chrome(&app1, false);
+                // Chrome 篡改猴裡的腳本有變動也跟著帶過來（它自己限制五分鐘看一次）
+                tm::chrome_tick();
             }
             let to_save = {
                 let mut s = st();
@@ -5197,6 +5199,8 @@ fn sync_extensions() -> Result<Vec<ExtInfo>, String> {
             want.insert(id, (best.path(), best.file_name().to_string_lossy().to_string(), name));
         }
     }
+    // Chrome 裡的篡改猴（裝著、開著的）：它的存放區在哪，裡面的腳本順便帶過來（見 web/tm.rs）
+    tm::chrome_found(crate::userscripts::TM_IDS.iter().find(|id| want.contains_key(**id)).map(|id| profile.join("Local Extension Settings").join(id)));
     // Chrome 裡固定在工具列上的擴充功能
     let chrome_pins: Vec<String> = ["Preferences", "Secure Preferences"]
         .iter()
@@ -5328,13 +5332,27 @@ pub async fn web_ext_sync(app: AppHandle) -> Result<ExtStatus, String> {
     let list = sync_extensions()?;
     EXT_BROKEN.store(false, Ordering::SeqCst);
     emit_exts(&app);
+    // Chrome 篡改猴裡的腳本也在這時候帶過來：等它做完，頁面接著重新讀腳本清單時就是新的
+    let _ = tauri::async_runtime::spawn_blocking(|| tm::chrome_wait(6)).await;
     Ok(ExtStatus { list, broken: false })
 }
 
 /// 現在就把篡改猴裡的腳本重新讀一次（擴充功能頁面的「重新讀取」），回傳最新的腳本清單
 #[tauri::command]
 pub async fn web_tm_read(app: AppHandle) -> crate::userscripts::ScriptsOut {
-    let _ = tauri::async_runtime::spawn_blocking(move || tm::read_wait(&app, 8)).await;
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        tm::read_wait(&app, 8);
+        // Chrome 的篡改猴也再帶一次
+        tm::chrome_read_wait(6);
+    })
+    .await;
+    crate::userscripts::web_scripts_list()
+}
+
+/// 開關「開瀏覽器時自動把 Chrome 篡改猴的腳本帶過來」，回傳最新的腳本清單
+#[tauri::command]
+pub async fn web_tm_chrome(on: bool) -> crate::userscripts::ScriptsOut {
+    let _ = tauri::async_runtime::spawn_blocking(move || tm::chrome_auto(on)).await;
     crate::userscripts::web_scripts_list()
 }
 

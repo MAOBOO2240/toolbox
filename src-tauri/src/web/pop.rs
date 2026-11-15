@@ -721,24 +721,34 @@ fn scripts_menu(wid: &str, tid: &str) -> Menu {
     }
     // 篡改猴裡的腳本：開關在篡改猴裡，點了就開它的控制台
     let tm_page = crate::userscripts::tm_ext().and_then(|id| ext_list().into_iter().find(|e| e.id == id)).map(|e| e.options).filter(|o| !o.is_empty());
-    let tm_paused = crate::userscripts::tm_paused();
+    let (tm_paused, chrome_paused) = (crate::userscripts::tm_paused(), crate::userscripts::chrome_paused());
     for r in &rows {
         let sub = if r.dup {
-            "跟自己安裝的腳本同名，以自己安裝的為準（這支沒有執行）"
-        } else if r.off {
-            if r.tm && tm_paused {
-                "篡改猴暫停中（它的小選單最上面的「已啟用」沒有打勾）"
-            } else if r.tm {
-                "在篡改猴裡關閉了"
-            } else {
-                "已關閉"
+            "跟上面那支同名，只執行上面那支（這支沒有執行）"
+        } else if r.src_off {
+            // 在它的來源那邊關著
+            match (r.chrome, if r.chrome { chrome_paused } else { tm_paused }) {
+                (true, true) => "Chrome 的篡改猴暫停中",
+                (true, false) => "在 Chrome 的篡改猴裡關閉了",
+                (false, true) => "篡改猴暫停中（它的小選單最上面的「已啟用」沒有打勾）",
+                (false, false) => "在篡改猴裡關閉了",
             }
+        } else if r.off {
+            if r.chrome { "已關閉（Chrome 篡改猴的腳本，只在這邊關）" } else { "已關閉" }
         } else if r.broken {
             "缺少需要的檔案，沒有執行（到「管理使用者腳本」按「重新讀取」）"
         } else if r.running {
-            if r.tm { "執行中（在篡改猴裡管理）" } else { "執行中" }
+            if r.tm {
+                "執行中（在篡改猴裡管理）"
+            } else if r.chrome {
+                "執行中（Chrome 篡改猴的腳本）"
+            } else {
+                "執行中"
+            }
         } else if r.tm {
             "重新整理網頁後執行（在篡改猴裡管理）"
+        } else if r.chrome {
+            "重新整理網頁後執行（Chrome 篡改猴的腳本）"
         } else {
             "重新整理網頁後執行"
         };
@@ -748,6 +758,9 @@ fn scripts_menu(wid: &str, tid: &str) -> Menu {
                 None => Act::Nothing,
             };
             m.add(Item::new(r.name.clone(), "").check(!r.off && !r.dup).sub(sub), act);
+        } else if r.chrome && (r.src_off || r.dup) {
+            // Chrome 那邊關著、或重複的：這邊開不了
+            m.add(Item::new(r.name.clone(), "").check(false).sub(sub), Act::Nothing);
         } else {
             m.add(Item::new(r.name.clone(), "").check(!r.off).sub(sub), Act::GmToggle(r.file.clone(), !r.off));
         }

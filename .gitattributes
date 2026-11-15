@@ -1,1 +1,2 @@
 docs/*.txt -text
+src-tauri/src/testdata/* binary
