@@ -4455,7 +4455,7 @@ def s_extprobe():
             return ("// ==UserScript==\n// @name         MB Sync Test\n// @namespace    https://maoboo.test/\n// @version      " + ver + "\n// @description  sync test\n"
                     "// @match        http://127.0.0.1:8765/*\n// @exclude      http://127.0.0.1:8765/us.html*\n// @require      http://127.0.0.1:8765/req.js\n// @resource     css http://127.0.0.1:8765/res.css\n"
                     "// @grant        GM_setValue\n// @grant        GM_getValue\n// @grant        GM_getResourceText\n// @run-at       document-end\n// @noframes\n// ==/UserScript==\n\n"
-                    "fetch('/log?m=' + encodeURIComponent('[tmsync] v" + ver + " ' + location.pathname + ' req=' + (typeof MB_REQ) + ' gm=' + (typeof GM_setValue) + ' res=' + (GM_getResourceText('css') || '').length));\n")
+                    "fetch('/log?m=' + encodeURIComponent('[tmsync] v" + ver + " ' + location.pathname + ' req=' + (typeof MB_REQ) + ' gm=' + (typeof GM_setValue) + ' res=' + (GM_getResourceText('css') || '').length + ' seed=' + GM_getValue('seed', '-') + ' num=' + GM_getValue('num', '-')));\n")
 
         def test_target():
             return next((t for t in b.targets() if t.get("type") == "page" and "/test.html" in t.get("url", "")), None)
@@ -4524,7 +4524,7 @@ def s_extprobe():
         t1 = reload_test()
         r1 = ran(t1)
         check("篡改猴裡的腳本：重新整理網頁後有執行", any("v1.0 /test.html" in l for l in r1), f"{r1}")
-        check("篡改猴裡的腳本：@require 的檔案、GM 功能、@resource 都有", any("req=string gm=function" in l and not l.rstrip().endswith("res=0") for l in r1), f"{r1}")
+        check("篡改猴裡的腳本：@require 的檔案、GM 功能、@resource 都有", any("req=string gm=function" in l and " res=0 " not in l for l in r1), f"{r1}")
         check("篡改猴裡的腳本：@noframes 有效（內嵌框不跑）", not any("/frame.html" in l for l in r1), f"{r1}")
 
         # 工具列的「使用者腳本」選單也列得出來
@@ -4557,11 +4557,13 @@ def s_extprobe():
             c1 = changed_n()
             log("  [篡改猴] 點啟用開關（關）：", b.ev(osx, TOGGLE))
             off = wait_for(lambda: changed_n() > c1, 15)
+            time.sleep(2.0)
             t2 = reload_test()
             check("在篡改猴裡關掉腳本：網頁上就不跑了", bool(off) and not ran(t2), f"{off} {ran(t2)} {tm_lines()[-3:]}")
             c2 = changed_n()
             log("  [篡改猴] 點啟用開關（開）：", b.ev(osx, TOGGLE))
             on = wait_for(lambda: changed_n() > c2, 15)
+            time.sleep(2.0)
             t3 = reload_test()
             check("在篡改猴裡再打開：又會跑", bool(on) and any("v1.0 /test.html" in l for l in ran(t3)), f"{on} {ran(t3)} {tm_lines()[-3:]}")
 
@@ -4580,6 +4582,13 @@ def s_extprobe():
             shot("tm_saved_v2")
             t4 = reload_test()
             check("在篡改猴裡改了腳本內容再存檔：網頁上跑的是新的內容", bool(up) and any("v2.0 /test.html" in l for l in ran(t4)), f"{up} {ran(t4)} {tm_lines()[-3:]}")
+            # 篡改猴存的設定值（從別的瀏覽器匯入備份時帶來的那種）：讀到之後帶過來，腳本用 GM_getValue 拿得到
+            n_read = len([l for l in tm_lines() if "讀到 1 支腳本" in l])
+            r = b.ev(swx(), "chrome.storage.local.set({['!extdb.@st#" + ids[-1] + "']: {origin: 'normal', value: {data: {seed: 'sfrom-tm', num: 'n42'}, ts: Date.now()}}}).then(() => 'set')")
+            got = wait_for(lambda: len([l for l in tm_lines() if "讀到 1 支腳本" in l]) > n_read, 15)
+            time.sleep(2.5)
+            t5 = reload_test()
+            check("篡改猴存的設定值會帶過來（腳本用 GM_getValue 拿得到）", bool(got) and any("seed=from-tm num=42" in l for l in ran(t5)), f"{r} {got} {ran(t5)} {tm_lines()[-3:]}")
         routed = [l for l in tm_lines() if "通知到讀取用的網頁" in l]
         log("  [篡改猴] 開新分頁的要求有沒有通知到讀取用的網頁：", routed[:6])
         log("  [篡改猴] 最後的訊息：")
