@@ -1,0 +1,382 @@
+{
+  "next_id": 1,
+  "wins": [
+    {
+      "id": "w1",
+      "url": "http://127.0.0.1:8765/test.html",
+      "title": "測試頁",
+      "x": 80,
+      "y": 60,
+      "w": 900,
+      "h": 620,
+      "opacity": 100,
+      "locked": false,
+      "game_only": false,
+      "open": false,
+      "min": false,
+      "max": false,
+      "tabs": [
+        {
+          "id": "t1",
+          "url": "http://127.0.0.1:8765/test.html",
+          "title": "測試頁",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t31",
+          "url": "http://127.0.0.1:8765/multi.html?n=b04",
+          "title": "連開測試",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t36",
+          "url": "http://127.0.0.1:8765/multi.html?n=b14",
+          "title": "連開測試",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t41",
+          "url": "http://127.0.0.1:8765/multi.html?n=b24",
+          "title": "連開測試",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t40",
+          "url": "http://127.0.0.1:8765/multi.html?n=b23",
+          "title": "連開測試",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t39",
+          "url": "http://127.0.0.1:8765/multi.html?n=b20",
+          "title": "連開測試",
+          "icon": "http://127.0.0.1:8765/favicon.ico"
+        },
+        {
+          "id": "t2",
+          "url": "http://127.0.0.1:8765/snap.html",
+          "title": "短影片測試",
+          "icon": ""
+        },
+        {
+          "id": "t3",
+          "url": "https://example.com/",
+          "title": "Example Domain",
+          "icon": ""
+        }
+      ],
+      "active": "t1",
+      "next_tab": 45
+    }
+  ],
+  "bookmarks": {
+    "bar": [
+      {
+        "id": "b1",
+        "title": "Example",
+        "url": "https://example.com/",
+        "children": []
+      },
+      {
+        "id": "b2",
+        "title": "資料夾",
+        "url": "",
+        "children": [
+          {
+            "id": "b3",
+            "title": "測試頁",
+            "url": "http://127.0.0.1:8765/test.html?bm",
+            "children": []
+          },
+          {
+            "id": "b5",
+            "title": "Example",
+            "url": "https://example.com/?bm",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "b6",
+        "title": "YouTube",
+        "url": "https://www.youtube.com/",
+        "children": [],
+        "src": "c:5"
+      },
+      {
+        "id": "b11",
+        "title": "楓之谷",
+        "url": "",
+        "children": [
+          {
+            "id": "b7",
+            "title": "官網",
+            "url": "https://maplestory.beanfun.com/",
+            "children": [],
+            "src": "c:8"
+          },
+          {
+            "id": "b9",
+            "title": "攻略",
+            "url": "",
+            "children": [
+              {
+                "id": "b8",
+                "title": "短影片",
+                "url": "http://127.0.0.1:8765/snap.html?deep",
+                "children": [],
+                "src": "c:10"
+              }
+            ],
+            "src": "c:9"
+          },
+          {
+            "id": "b10",
+            "title": "IANA",
+            "url": "https://www.iana.org/",
+            "children": [],
+            "src": "c:11"
+          }
+        ],
+        "src": "c:7"
+      }
+    ],
+    "other": [
+      {
+        "id": "b4",
+        "title": "Other",
+        "url": "https://example.org/",
+        "children": []
+      },
+      {
+        "id": "b13",
+        "title": "MDN",
+        "url": "https://developer.mozilla.org/",
+        "children": [],
+        "src": "c:14"
+      }
+    ],
+    "next_id": 15,
+    "icons": {
+      "127.0.0.1": "http://127.0.0.1:8765/favicon.ico"
+    },
+    "sync": true,
+    "profile": "",
+    "ignored": []
+  },
+  "settings": {
+    "engine": "google",
+    "suggest": true,
+    "home_button": true,
+    "home_url": "",
+    "show_bm": true,
+    "startup": "restore",
+    "ask_download": false,
+    "download_dir": "",
+    "save_passwords": true,
+    "default_zoom": 1.0,
+    "zoom": {}
+  },
+  "closed": [
+    {
+      "url": "chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html",
+      "title": "AdGuard Settings",
+      "icon": "",
+      "win": "w1",
+      "index": 7,
+      "at": 1794731458012
+    },
+    {
+      "url": "https://www.tampermonkey.net/faq.php?version=5.5.1&ext=dhdg",
+      "title": "FAQ | Tampermonkey",
+      "icon": "https://www.tampermonkey.net/favicon.ico",
+      "win": "w1",
+      "index": 6,
+      "at": 1794731459816
+    },
+    {
+      "url": "https://www.tampermonkey.net/scripts.php",
+      "title": "Userscripts | Tampermonkey",
+      "icon": "https://www.tampermonkey.net/favicon.ico",
+      "win": "w1",
+      "index": 5,
+      "at": 1794731461624
+    },
+    {
+      "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script+editor",
+      "title": "<New userscript>",
+      "icon": "",
+      "win": "w1",
+      "index": 4,
+      "at": 1794731463402
+    },
+    {
+      "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#url=&nav=dashboard",
+      "title": "Installed Userscripts",
+      "icon": "",
+      "win": "w1",
+      "index": 3,
+      "at": 1794731465166
+    },
+    {
+      "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard",
+      "title": "Installed Userscripts",
+      "icon": "",
+      "win": "w1",
+      "index": 2,
+      "at": 1794731656334
+    },
+    {
+      "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=c84a6090-13ee-4963-b2b8-0ad06b4c08d3+editor",
+      "title": "MB Sync Test",
+      "icon": "",
+      "win": "w1",
+      "index": 1,
+      "at": 1794731658093
+    },
+    {
+      "url": "chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html",
+      "title": "AdGuard Settings",
+      "icon": "",
+      "win": "w1",
+      "index": 8,
+      "at": 1794731707068
+    },
+    {
+      "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=settings",
+      "title": "Settings",
+      "icon": "",
+      "win": "w1",
+      "index": 7,
+      "at": 1794731708889
+    },
+    {
+      "url": "http://127.0.0.1:8765/snap.html?wincreate=1",
+      "title": "短影片測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 4,
+      "at": 1794731710709
+    },
+    {
+      "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard",
+      "title": "Installed Userscripts",
+      "icon": "",
+      "win": "w1",
+      "index": 3,
+      "at": 1794731712500
+    },
+    {
+      "url": "http://127.0.0.1:8765/snap.html?extcreate=bg",
+      "title": "短影片測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 2,
+      "at": 1794731714285
+    },
+    {
+      "url": "http://127.0.0.1:8765/snap.html?extcreate=1",
+      "title": "短影片測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 1,
+      "at": 1794731716068
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b01",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 15,
+      "at": 1794731745986
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b02",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 14,
+      "at": 1794731747829
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b00",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 13,
+      "at": 1794731749670
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b03",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 12,
+      "at": 1794731751550
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b12",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 11,
+      "at": 1794731753395
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b11",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 10,
+      "at": 1794731755250
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b10",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 9,
+      "at": 1794731757092
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b13",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 8,
+      "at": 1794731758924
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b21",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 7,
+      "at": 1794731760809
+    },
+    {
+      "url": "http://127.0.0.1:8765/multi.html?n=b22",
+      "title": "連開測試",
+      "icon": "http://127.0.0.1:8765/favicon.ico",
+      "win": "w1",
+      "index": 6,
+      "at": 1794731762739
+    },
+    {
+      "url": "chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html",
+      "title": "chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html",
+      "icon": "",
+      "win": "w1",
+      "index": 1,
+      "at": 1794731768749
+    },
+    {
+      "url": "chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html",
+      "title": "chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html",
+      "icon": "",
+      "win": "w1",
+      "index": 1,
+      "at": 1794731774758
+    }
+  ]
+}

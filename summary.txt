@@ -1,0 +1,4 @@
+87/90 passed
+FAIL 一開始：三個分頁、第一個是目前的 :: [{'active': False, 'pinned': False, 'title': '測試頁', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Getting Started – manuals', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Sign in or create an account | Claude.ai', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'SponsorBlock', 'w': 81.0}, {'active': True, 'pinned': False, 'title': 'Home | Tampermonkey', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Welcome to Return YouTube Dislike', 'w': 81.0}, {'active': False, 'pinned': False, 'title': '短影片測試', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 81.0}]
+FAIL 一開始：視窗標題是分頁的標題 :: 'Home | Tampermonkey'
+FAIL 一開始：網址列顯示目前的網址 :: 'tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true'

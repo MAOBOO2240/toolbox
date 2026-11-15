@@ -1,0 +1,572 @@
+[us] 建立 w1-t1 的網頁：登記腳本
+[us] 建立 w1-t4 的網頁：登記腳本
+[spare] w1-t4：預先建立好一個空白網頁
+[us] 建立 w1-t5 的網頁：登記腳本
+[spare] w1-t5：預先建立好一個空白網頁
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 1 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t4 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t5 的腳本登記：清單 false（0 段）、設定值 true
+[us] 建立 w1-t6 的網頁：登記腳本
+[spare] w1-t6：預先建立好一個空白網頁
+[us] 建立 w1-t7 的網頁：登記腳本
+[spare] w1-t7：預先建立好一個空白網頁
+[tm] w1：建立了讀取用的網頁 webtm-1
+[tm] 存放區變動的通知：{"result":{"type":"string","value":"no-storage"}}
+[tm] 讀不到篡改猴裡的腳本：no-storage
+[newwin] uri=https://manuals.dev/extensions/icloud-dashboard/getting-started/ source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：https://manuals.dev/extensions/icloud-dashboard/getting-started/
+[newwin] w1-t4：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t8 的網頁：登記腳本
+[newwin] uri=chrome-extension://gebbhagfogifgggkldgodflihgfeippi/changelog/4/changelog_4.1.html source="about:blank" user=true name="" page="about:blank"
+[newwin] w1-t4 開成連著的新分頁：chrome-extension://gebbhagfogifgggkldgodflihgfeippi/changelog/4/changelog_4.1.html
+[newwin] w1-t5：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 2 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[spare] w1-t8：預先建立好一個空白網頁
+[us] 建立 w1-t9 的網頁：登記腳本
+[newwin] uri=https://claude.ai/oauth/authorize?client_id=dae2cad8-15c5-43d2-9046-fcaecc135fa4&response_type=code&scope=user%3Aprofile+user%3Ainference+user%3Achat&redirect_uri=chrome-extension%3A%2F%2Ffcoeoabgfenejglbffodgkkbkcdhcgfn%2Foauth_callback.html&state=JbYXE8yCxOHJXbxg3JeIwgfj5BBYbqMUr5hWQ_6RYqw&code_challenge=SQDCc1RirCT-X6X6xKV2KHajb6YhHdFCn_MUqAsjle4&code_challenge_method=S256 source="about:blank" user=true name="" page="about:blank"
+[newwin] w1-t4 開成連著的新分頁：https://claude.ai/oauth/authorize?client_id=dae2cad8-15c5-43d2-9046-fcaecc135fa4&response_type=code&scope=user%3Aprofile+user%3Ainference+user%3Achat&redirect_uri=chrome-extension%3A%2F%2Ffcoeoabgfenejglbffodgkkbkcdhcgfn%2Foauth_callback.html&state=JbYXE8yCxOHJXbxg3JeIwgfj5BBYbqMUr5hWQ_6RYqw&code_challenge=SQDCc1RirCT-X6X6xKV2KHajb6YhHdFCn_MUqAsjle4&code_challenge_method=S256
+[newwin] w1-t6：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] w1-t5 載入了：補登記腳本
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t7 的腳本登記：清單 false（0 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t4 框架 0 https://manuals.dev/extensions/icloud-dashboard/getting-started/：跑 0 支腳本（設定值第 2 版）
+[spare] w1-t9：預先建立好一個空白網頁
+[us] 建立 w1-t10 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t6 框架 0 https://claude.ai/oauth/authorize?client_id=dae2cad8-15c5-43d2-9046-fcaecc135fa4&response_type=code&scope=user%3Aprofile+user%3Ainference+user%3Achat&redirect_uri=chrome-extension%3A%2F%2Ffcoeoabgfenejglbffodgkkbkcdhcgfn%2Foauth_callback.html&state=JbYXE8yCxOHJXbxg3JeIwgfj5BBYbqMUr5hWQ_6RYqw&code_challenge=SQDCc1RirCT-X6X6xKV2KHajb6YhHdFCn_MUqAsjle4&code_challenge_method=S256：跑 0 支腳本（設定值第 2 版）
+[spare] w1-t10：預先建立好一個空白網頁
+[tm] 存放區變動的通知：{"result":{"type":"string","value":"ok"}}
+[tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+[newwin] uri=chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/help/index.html source="https://claude.ai/login?selectAccount=true&from=logout&returnTo=%2Foauth%2Fauthorize%3Fclient_id%3Ddae2cad8-15c5-43d2-9046-fcaecc135fa4%26response_type%3Dcode%26scope%3Duser%253Aprofile%2Buser%253Ainference%2Buser%253Achat%26redirect_uri%3Dchrome-extension%253A%252F%252Ffcoeoabgfenejglbffodgkkbkcdhcgfn%252Foauth_callback.html%26state%3DJbYXE8yCxOHJXbxg3JeIwgfj5BBYbqMUr5hWQ_6RYqw%26code_challenge%3DSQDCc1RirCT-X6X6xKV2KHajb6YhHdFCn_MUqAsjle4%26code_challenge_method%3DS256" user=true name="" page="https://claude.ai/login?selectAccount=true&from=logout&returnTo=%2Foauth%2Fauthorize%3Fclient_id%3Ddae2cad8-15c5-43d2-9046-fcaecc135fa4%26response_type%3Dcode%26scope%3Duser%253Aprofile%2Buser%253Ainference%2Buser%253Achat%26redirect_uri%3Dchrome-extension%253A%252F%252Ffcoeoabgfenejglbffodgkkbkcdhcgfn%252Foauth_callback.html%26state%3DJbYXE8yCxOHJXbxg3JeIwgfj5BBYbqMUr5hWQ_6RYqw%26code_challenge%3DSQDCc1RirCT-X6X6xKV2KHajb6YhHdFCn_MUqAsjle4%26code_challenge_method%3DS256"
+[newwin] w1-t6 開成連著的新分頁：chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/help/index.html
+[newwin] w1-t7：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t11 的網頁：登記腳本
+[newwin] uri=https://www.tampermonkey.net/installed.php?version=5.5.1&ext=dhdg&updated=true source="chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/help/index.html" user=true name="" page="chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/help/index.html"
+[newwin] w1-t7 開成連著的新分頁：https://www.tampermonkey.net/installed.php?version=5.5.1&ext=dhdg&updated=true
+[newwin] w1-t8：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[spare] w1-t11：預先建立好一個空白網頁
+[us] 建立 w1-t12 的網頁：登記腳本
+[tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+[spare] w1-t12：預先建立好一個空白網頁
+[us] w1-t4 載入了：補登記腳本
+[us] w1-t6 載入了：補登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t8 框架 0 https://www.tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true：跑 0 支腳本（設定值第 2 版）
+[us] w1-t7 載入了：補登記腳本
+[us] w1-t8 載入了：補登記腳本
+[newwin] uri=chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/post-install.html source="https://www.tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true" user=true name="" page="https://www.tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true"
+[newwin] w1-t8 開成連著的新分頁：chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/post-install.html
+[newwin] w1-t9：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t13 的網頁：登記腳本
+[spare] w1-t13：預先建立好一個空白網頁
+[us] w1-t9 載入了：補登記腳本
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/action.html（DE36BC9BEEAA3E1D660FF1311AA85050）；是小視窗：true
+[ext] 小視窗 w1 要開 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#url=&nav=dashboard → 開成分頁
+[us] 建立 w1-t14 的網頁：登記腳本
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/action.html（F0B06DBE4959899E36133A60066B2A08）；是小視窗：true
+[ext] 小視窗 w1 要開 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script → 開成分頁
+[us] 建立 w1-t15 的網頁：登記腳本
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/action.html（A6711B60B0E7EC8657846534AA357EE7）；是小視窗：true
+[ext] 小視窗 w1 要開 https://www.tampermonkey.net/scripts.php → 開成分頁
+[us] 建立 w1-t16 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t16 框架 0 https://www.tampermonkey.net/scripts.php：跑 0 支腳本（設定值第 3 版）
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/action.html（CC2F379E15E92C45ABAADDC2452C3E05）；是小視窗：true
+[ext] 小視窗 w1 要開 https://www.tampermonkey.net/faq.php?version=5.5.1&ext=dhdg → 開成分頁
+[us] 建立 w1-t17 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t17 框架 0 https://www.tampermonkey.net/faq.php?version=5.5.1&ext=dhdg：跑 0 支腳本（設定值第 3 版）
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/popup.html（ABA36AF033FFD7B16B3D384C74F1F61B）；是小視窗：true
+[ext] 小視窗 w1 要開 chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html → 開成分頁
+[us] 建立 w1-t18 的網頁：登記腳本
+[tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/popup.html（26AE274468F33D0329F0C4576B9FF72E）；是小視窗：true
+[ext] 小視窗 w1 要開 chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html → 開成分頁
+[us] 建立 w1-t19 的網頁：登記腳本
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://gebbhagfogifgggkldgodflihgfeippi/popup.html（139EEC2A3A343A169C5DFAD00DBE7947）；是小視窗：true
+[ext] 小視窗 w1 要開 https://returnyoutubedislike.com/ → 開成分頁
+[us] 建立 w1-t20 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t20 框架 0 https://returnyoutubedislike.com/：跑 0 支腳本（設定值第 3 版）
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://mgojgddhfhekopdpkocobommepgdeffb/popup.html（B28D67A758058AD7C33727204BB82ACA）；是小視窗：true
+[ext] 小視窗 w1 要開 https://www.icloud.com/mail → 開成分頁
+[us] 建立 w1-t21 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t21 框架 0 https://www.icloud.com/mail：跑 0 支腳本（設定值第 3 版）
+[us] 建立 w1-t22 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t22 框架 0 http://127.0.0.1:8765/gm.html：跑 1 支腳本（設定值第 3 版）
+[us] w1-t22 框架 46 http://localhost:8765/gmframe.html?lvl=1：跑 1 支腳本（設定值第 3 版）
+[us] w1-t22 框架 47 http://127.0.0.1:8765/gmframe.html?lvl=2：跑 1 支腳本（設定值第 3 版）
+[us] 建立 w1-t3 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t3 框架 0 https://example.com/：跑 0 支腳本（設定值第 3 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 3 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[newwin] uri=chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script+editor source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script+editor
+[newwin] w1-t10：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] w1-t10 載入了：補登記腳本
+[tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+[tm] 讀到 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 4 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 5 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[tm] 讀到 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（5 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 6 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[tm] 讀到 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 7 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[newwin] uri=chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=c84a6090-13ee-4963-b2b8-0ad06b4c08d3+editor source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=c84a6090-13ee-4963-b2b8-0ad06b4c08d3+editor
+[newwin] w1-t11：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] w1-t11 載入了：補登記腳本
+[tm] 讀到 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 8 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[tm] 讀到 1 支腳本，現在有 1 支，清單沒變
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 11 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/action.html（111E57EACEF1A4C5ED10663B1B79B898）；是小視窗：true
+[tm] 讀到 1 支腳本（篡改猴暫停中），現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（5 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 12 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/action.html（BC7D8225F78587751A06EFF58A962BEB）；是小視窗：true
+[tm] 讀到 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 13 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 16 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 17 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變
+[tm] 讀到 0 支腳本，現在有 0 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 18 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 19 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 20 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t1 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（5 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（5 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 2 支腳本（設定值第 21 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t1 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 true（6 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 true（6 段）、設定值 true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t1 框架 0 http://127.0.0.1:8765/test.html：跑 3 支腳本（設定值第 22 版）
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] 更新 w1-t1 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t11 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t10 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t3 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t12 的腳本登記：清單 false（0 段）、設定值 true
+[us] 更新 w1-t13 的腳本登記：清單 false（0 段）、設定值 true
+[newwin] uri=http://127.0.0.1:8765/snap.html?extcreate=1 source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：http://127.0.0.1:8765/snap.html?extcreate=1
+[newwin] w1-t12：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t12 框架 0 http://127.0.0.1:8765/snap.html?extcreate=1：跑 2 支腳本（設定值第 23 版）
+[us] 建立 w1-t23 的網頁：登記腳本
+[us] w1-t12 載入了：補登記腳本
+[spare] w1-t23：預先建立好一個空白網頁
+[tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+[newwin] uri=http://127.0.0.1:8765/snap.html?extcreate=bg source="http://127.0.0.1:8765/snap.html?extcreate=1" user=true name="" page="http://127.0.0.1:8765/snap.html?extcreate=1"
+[newwin] w1-t12 開成連著的新分頁：http://127.0.0.1:8765/snap.html?extcreate=bg
+[newwin] w1-t13：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t24 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t13 框架 0 http://127.0.0.1:8765/snap.html?extcreate=bg：跑 2 支腳本（設定值第 23 版）
+[us] w1-t13 載入了：補登記腳本
+[spare] w1-t24：預先建立好一個空白網頁
+[newwin] uri=chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard source="http://127.0.0.1:8765/snap.html?extcreate=bg" user=true name="" page="http://127.0.0.1:8765/snap.html?extcreate=bg"
+[newwin] w1-t13 開成連著的新分頁：chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard
+[newwin] w1-t23：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t25 的網頁：登記腳本
+[spare] w1-t25：預先建立好一個空白網頁
+[us] w1-t23 載入了：補登記腳本
+[newwin] uri=http://127.0.0.1:8765/snap.html?wincreate=1 source="chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard" user=true name="" page="chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard"
+[newwin] w1-t23 開成連著的新分頁：http://127.0.0.1:8765/snap.html?wincreate=1
+[newwin] w1-t24：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t26 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t24 框架 0 http://127.0.0.1:8765/snap.html?wincreate=1：跑 2 支腳本（設定值第 23 版）
+[us] w1-t24 載入了：補登記腳本
+[spare] w1-t26：預先建立好一個空白網頁
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html（3E8F212A5D5503CC205028BE61458AC9）；是小視窗：false
+[cdp] Target.closeTarget → true {"success":true}
+[us] 建立 w1-t27 的網頁：登記腳本
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/popup.html（6B334BA7BB719FD11B0B0F6F3341675C）；是小視窗：true
+[ext] 小視窗 w1 要開 chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html → 開成分頁
+[us] 建立 w1-t28 的網頁：登記腳本
+[newwin] uri=chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html source="chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html" user=true name="" page="chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html"
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b01 source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b01
+[newwin] w1-t25：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b02 source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b02
+[newwin] w1-t26：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b00 source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b03 source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b00
+[us] 建立 w1-t29 的網頁：登記腳本
+[newwin] w1-t29：建立網頁
+[newwin] w1-t1 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b03
+[newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b03
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b04 source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b04
+[newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b04
+[newwin] 連著的新分頁 → true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t26 框架 0 http://127.0.0.1:8765/multi.html?n=b02：跑 2 支腳本（設定值第 23 版）
+[us] w1-t25 框架 0 http://127.0.0.1:8765/multi.html?n=b01：跑 2 支腳本（設定值第 23 版）
+[newwin] w1-t29：建立好了，掛上通知
+[newwin] w1-t29：交還給瀏覽器
+[newwin] w1-t29：交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t30 的網頁：登記腳本
+[newwin] w1-t30：建立網頁
+[us] w1-t25 載入了：補登記腳本
+[us] w1-t26 載入了：補登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t29 框架 0 http://127.0.0.1:8765/multi.html?n=b00：跑 2 支腳本（設定值第 23 版）
+[newwin] w1-t30：建立好了，掛上通知
+[newwin] w1-t30：交還給瀏覽器
+[newwin] w1-t30：交還 → true
+[newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b03 → true
+[us] 建立 w1-t31 的網頁：登記腳本
+[newwin] w1-t31：建立網頁
+[us] w1-t29 載入了：補登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t30 框架 0 http://127.0.0.1:8765/multi.html?n=b03：跑 2 支腳本（設定值第 23 版）
+[newwin] w1-t31：建立好了，掛上通知
+[newwin] w1-t31：交還給瀏覽器
+[newwin] w1-t31：交還 → true
+[newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b04 → true
+[us] 建立 w1-t32 的網頁：登記腳本
+[us] w1-t30 載入了：補登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t31 框架 0 http://127.0.0.1:8765/multi.html?n=b04：跑 2 支腳本（設定值第 23 版）
+[spare] w1-t32：預先建立好一個空白網頁
+[us] 建立 w1-t33 的網頁：登記腳本
+[us] w1-t31 載入了：補登記腳本
+[spare] w1-t33：預先建立好一個空白網頁
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b12 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+[newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b12
+[newwin] w1-t32：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b11 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+[newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b11
+[newwin] w1-t33：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b10 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b13 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b14 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+[newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b10
+[us] 建立 w1-t34 的網頁：登記腳本
+[newwin] w1-t34：建立網頁
+[newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b13
+[newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b13
+[newwin] 連著的新分頁 → true
+[newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b14
+[newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b14
+[newwin] 連著的新分頁 → true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t32 框架 0 http://127.0.0.1:8765/multi.html?n=b12：跑 2 支腳本（設定值第 23 版）
+[us] w1-t33 框架 0 http://127.0.0.1:8765/multi.html?n=b11：跑 2 支腳本（設定值第 23 版）
+[newwin] w1-t34：建立好了，掛上通知
+[newwin] w1-t34：交還給瀏覽器
+[newwin] w1-t34：交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t35 的網頁：登記腳本
+[us] w1-t33 載入了：補登記腳本
+[us] w1-t32 載入了：補登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t34 框架 0 http://127.0.0.1:8765/multi.html?n=b10：跑 2 支腳本（設定值第 23 版）
+[spare] w1-t35：預先建立好一個空白網頁
+[us] 建立 w1-t36 的網頁：登記腳本
+[us] w1-t34 載入了：補登記腳本
+[spare] w1-t36：預先建立好一個空白網頁
+[newwin] w1-t35：用預先建立好的空白網頁，交還 → true
+[newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b13 → true
+[newwin] w1-t36：用預先建立好的空白網頁，交還 → true
+[newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b14 → true
+[us] 建立 w1-t37 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t36 框架 0 http://127.0.0.1:8765/multi.html?n=b14：跑 2 支腳本（設定值第 23 版）
+[us] w1-t35 框架 0 http://127.0.0.1:8765/multi.html?n=b13：跑 2 支腳本（設定值第 23 版）
+[spare] w1-t37：預先建立好一個空白網頁
+[us] 建立 w1-t38 的網頁：登記腳本
+[us] w1-t36 載入了：補登記腳本
+[us] w1-t35 載入了：補登記腳本
+[spare] w1-t38：預先建立好一個空白網頁
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b21 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+[newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b21
+[newwin] w1-t37：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b22 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+[newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b22
+[newwin] w1-t38：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b20 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b23 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+[newwin] uri=http://127.0.0.1:8765/multi.html?n=b24 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+[newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b20
+[us] 建立 w1-t39 的網頁：登記腳本
+[newwin] w1-t39：建立網頁
+[newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b23
+[newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b23
+[newwin] 連著的新分頁 → true
+[newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b24
+[newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b24
+[newwin] 連著的新分頁 → true
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t37 框架 0 http://127.0.0.1:8765/multi.html?n=b21：跑 2 支腳本（設定值第 23 版）
+[us] w1-t38 框架 0 http://127.0.0.1:8765/multi.html?n=b22：跑 2 支腳本（設定值第 23 版）
+[newwin] w1-t39：建立好了，掛上通知
+[newwin] w1-t39：交還給瀏覽器
+[newwin] w1-t39：交還 → true
+[newwin] 連著的新分頁 → true
+[us] w1-t38 載入了：補登記腳本
+[us] 建立 w1-t40 的網頁：登記腳本
+[us] w1-t37 載入了：補登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[spare] w1-t40：預先建立好一個空白網頁
+[us] 建立 w1-t41 的網頁：登記腳本
+[us] w1-t39 框架 0 http://127.0.0.1:8765/multi.html?n=b20：跑 2 支腳本（設定值第 23 版）
+[us] w1-t39 載入了：補登記腳本
+[spare] w1-t41：預先建立好一個空白網頁
+[newwin] w1-t40：用預先建立好的空白網頁，交還 → true
+[newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b23 → true
+[newwin] w1-t41：用預先建立好的空白網頁，交還 → true
+[newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b24 → true
+[us] 建立 w1-t42 的網頁：登記腳本
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+__TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+[us] w1-t40 框架 0 http://127.0.0.1:8765/multi.html?n=b23：跑 2 支腳本（設定值第 23 版）
+[us] w1-t41 框架 0 http://127.0.0.1:8765/multi.html?n=b24：跑 2 支腳本（設定值第 23 版）
+[us] w1-t41 載入了：補登記腳本
+[us] w1-t40 載入了：補登記腳本
+[spare] w1-t42：預先建立好一個空白網頁
+[us] 建立 w1-t43 的網頁：登記腳本
+[spare] w1-t43：預先建立好一個空白網頁
+[newwin] uri=chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html
+[newwin] w1-t42：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t44 的網頁：登記腳本
+[us] w1-t42 載入了：補登記腳本
+[spare] w1-t44：預先建立好一個空白網頁
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html（41BC1B373CFF172ABB2B4B8D15E69901）；是小視窗：false
+[cdp] Target.closeTarget → true {"success":true}
+[newwin] uri=chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+[newwin] w1-t1 開成連著的新分頁：chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html
+[newwin] w1-t43：用預先建立好的空白網頁，交還 → true
+[newwin] 連著的新分頁 → true
+[us] 建立 w1-t45 的網頁：登記腳本
+[us] w1-t43 載入了：補登記腳本
+[spare] w1-t45：預先建立好一個空白網頁
+[ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html（458EFAB266D9E20C31A7141E4D66F324）；是小視窗：false
+[cdp] Target.closeTarget → true {"success":true}

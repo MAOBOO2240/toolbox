@@ -1,0 +1,820 @@
+stats host blocked
+chrome profile seeded True
+native messaging host registered C:\Users\RUNNER~1\AppData\Local\Temp\mb-nmhost
+game hwnd 262480 (10, 10, 1006, 749)
+測試程式是系統管理員 True
+extprobe：登錄檔 HKLM MAOBOO.exe 0 The operation completed successfully.
+extprobe：登錄檔 HKLM * 0 The operation completed successfully.
+extprobe：登錄檔 HKCU MAOBOO.exe 0 The operation completed successfully.
+extprobe：登錄檔 HKCU * 0 The operation completed successfully.
+extprobe：這台機器的 WebView2 版本 156.0.4314.58
+extprobe：放好 dhdgffkkebhmkfjojejmpbldmpobfkfo 1718930 {"name": "__MSG_extName__", "version": "5.5.1", "mv": 3, "key": true, "perms": ["notifications", "unlimitedStorage", "tabs", "idle", "webNavigation", "webRequest", "webRequestBlocking", "storage", "contextMenus", "chrome://favicon/", "clipboardWrite", "cookies", "alarms", "declarativeNetRequestWithHostAccess", "scripting", "userScripts", "offscreen"], "opt": ["downloads"], "bg": {"service_worker": "background.js"}, "action": "action.html", "options": "options.html", "side": null, "min": "120", "cs": 0}
+extprobe：放好 bgnkhhnnamicmpeenaelnjfhikgbkllg 30977016 {"name": "__MSG_name__", "version": "5.5.4.64", "mv": 3, "key": true, "perms": ["tabs", "webRequest", "webNavigation", "storage", "unlimitedStorage", "contextMenus", "cookies", "declarativeNetRequest", "declarativeNetRequestFeedback", "scripting", "userScripts"], "opt": ["privacy"], "bg": {"service_worker": "pages/background.js"}, "action": "pages/popup.html", "options": "pages/options.html", "side": null, "min": "121", "cs": 5}
+extprobe：放好 mnjggcdmjocbbbhaepdhchncahnbgone 1848477 {"name": "__MSG_fullName__", "version": "6.1.6", "mv": 3, "key": true, "perms": ["storage", "scripting", "unlimitedStorage"], "opt": null, "bg": {"service_worker": "./js/background.js"}, "action": "popup.html", "options": "options/options.html", "side": null, "min": null, "cs": 2}
+extprobe：放好 gebbhagfogifgggkldgodflihgfeippi 2303261 {"name": "__MSG_extensionName__", "version": "4.1.7", "mv": 3, "key": true, "perms": ["storage"], "opt": ["identity"], "bg": {"service_worker": "ryd.background.js"}, "action": "popup.html", "options": "popup.html", "side": null, "min": "116", "cs": 1}
+extprobe：放好 cgakmbkklpmijhckpolanjijghgfpeoa 7966 {"name": "遊戲橘子擴充元件", "version": "0.2.0", "mv": 3, "key": true, "perms": ["nativeMessaging"], "opt": null, "bg": {"service_worker": "contactclient.js"}, "action": null, "options": null, "side": null, "min": null, "cs": 1}
+extprobe：放好 mgojgddhfhekopdpkocobommepgdeffb 1223516 {"name": "__MSG_extension_name__", "version": "7.5.47", "mv": 3, "key": true, "perms": ["storage"], "opt": null, "bg": {"service_worker": "background.js"}, "action": "popup.html", "options": null, "side": null, "min": null, "cs": 0}
+extprobe：放好 fcoeoabgfenejglbffodgkkbkcdhcgfn 7430196 {"name": "Claude", "version": "1.0.107", "mv": 3, "key": true, "perms": ["sidePanel", "storage", "activeTab", "scripting", "debugger", "tabGroups", "tabs", "alarms", "notifications", "webNavigation", "declarativeNetRequestWithHostAccess", "offscreen", "nativeMessaging", "unlimitedStorage", "downloads", "identity", "favicon"], "opt": null, "bg": {"service_worker": "service-worker-loader.js", "type": "module"}, "action": null, "options": "options.html", "side": null, "min": "116", "cs": 4}
+extprobe：放好 ghbmnnjooekpmoecnnnilnnbdlolhkhi 162041 {"name": "__MSG_extName__", "version": "1.112.1", "mv": 3, "key": true, "perms": ["alarms", "storage", "unlimitedStorage", "offscreen"], "opt": null, "bg": {"service_worker": "service_worker_bin_prod.js"}, "action": null, "options": null, "side": null, "min": "88", "cs": 0}
+extprobe：放好 inomeogfingihgjfjlpeplalcfajhgai 23201 {"name": "Chrome Remote Desktop", "version": "2.1", "mv": 3, "key": true, "perms": ["nativeMessaging", "downloads"], "opt": null, "bg": {"service_worker": "event_page_binary.js"}, "action": null, "options": null, "side": null, "min": null, "cs": 0}
+extprobe：AdGuard background.js 裡的 openSettingsPage： Opens the settings tab and focuses on it if there is no open setting tab.      * Otherwise only focuses on the open setting tab.      */ static async openSettingsPage() {         let tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.settingsUrl}*`         });         if (!tab) {             tab = await browser_polyfill_default().tabs.create({                 url: PagesApiCommon.settingsUrl             });         }         await tabs_TabsApi.focus(tab);     }     /**      * Opens fullscreen user rules page window.      * If the page has been already opened, focus on window instead creating new one.      */ static async openFullscreenUserRulesPage() {         const tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.fullscreenUserRulesPageUrl}*`         });         if (tab) {             await tabs_TabsApi.focus(tab);             return;         }         const theme = settingsStorage.get(enum_SettingOption.AppearanceTheme);         const url = `${PagesApiCommon.fullscreenUserRulesPageUrl}?theme=${
+extprobe：AdGuard background.js 裡的 openSettingsPage： th new custom filter query params, passed from content script.      *      * @param message - Content script message with custom filter data.      */ openSettingsPageWithCustomFilterModal = async (message)=>{         if (!this.shouldOpenSettingsPageWithCustomFilterModal()) {             return;         }         const { url, title } = message.data;         // TODO: Use shared constants for query parameters         let optionalPart = '#filters?group=0';         if (title) {             optionalPart += `&title=${title}`;         }         optionalPart += `&subscribe=${encodeURIComponent(url)}`;         const path = PagesApiCommon.getExtensionPageUrl(OPTIONS_OUTPUT, optionalPart);         const tab = await PagesApiCommon.openTabOnSettingsPage(path);         await tabs_TabsApi.focus(tab);         // Reload option page for force modal window rerender         // TODO: track url update in frontend and remove force reloading via webextension API         await tabs_TabsApi.reload(tab.id);     };     /**      * Opens settings page with specifie
+extprobe：AdGuard background.js 裡的 static async openTab： ified path on settings page.      *      * @param url URL path to open on settings page.      *      * @returns Opened or updated Tab object.      */ static async openTabOnSettingsPage(url) {         const tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.settingsUrl}*`         });         if (!tab) {             const newTab = await browser_polyfill_default().tabs.create({                 url             });             return newTab;         }         const updatedTab = await browser_polyfill_default().tabs.update(tab.id, {             url         });         return updatedTab;     }     /**      * Opens 'Add custom filter' modal window into settings page.      * If the page has been already opened, reload it with new custom filter query params, passed from content script.      *      * @param message - Content script message with custom filter data.      */ openSettingsPageWithCustomFilterModal = async (message)=>{         if (!this.shouldOpenSettingsPageWithCustomFilterModal()) {             return;         }  
+extprobe：AdGuard background.js 裡的 static async findOne：  Tabs.QueryQueryInfoType}.      *      * @param queryInfo Browser.tabs.query argument.      *      * @returns First matched tab or undefined.      */ static async findOne(queryInfo) {         const [tab] = await browser_polyfill_default().tabs.query(queryInfo);         return tab;     }     /**      * Activates an existing tab regardless of the browser window.      *      * @param tab {@link Tabs.Tab} Data.      */ static async focus(tab) {         const { id, windowId } = tab;         await browser_polyfill_default().tabs.update(id, {             active: true         });         await WindowsApi.update(windowId, {             focused: true         });     }     /**      * Returns all opened tabs info.      *      * @returns Array of opened tabs.      */ static async getAll() {         return browser_polyfill_default().tabs.query({});     }     /**      * Returns active tab in current window.      *      * @returns Active tab info or undefined.      */ static async getActive() {         return tabs_TabsApi.findOne({             curren
+extprobe：AdGuard background.js 裡的 static async focus：  return tab;     }     /**      * Activates an existing tab regardless of the browser window.      *      * @param tab {@link Tabs.Tab} Data.      */ static async focus(tab) {         const { id, windowId } = tab;         await browser_polyfill_default().tabs.update(id, {             active: true         });         await WindowsApi.update(windowId, {             focused: true         });     }     /**      * Returns all opened tabs info.      *      * @returns Array of opened tabs.      */ static async getAll() {         return browser_polyfill_default().tabs.query({});     }     /**      * Returns active tab in current window.      *      * @returns Active tab info or undefined.      */ static async getActive() {         return tabs_TabsApi.findOne({             currentWindow: true,             active: true         });     }     /**      * Check, if page in tab is extension page.      *      * @param tab {@link Tabs.Tab} Data.      *      * @returns True if it is extension page, else returns false.      */ static isAdguardExtensionT
+extprobe：AdGuard background.js 裡的 OpenSettingsTab,： t UiApi.init();         // TODO: consider moving the following to syncInit()         message_handler_messageHandler.addListener(constants_MessageType.OpenSettingsTab, PagesApi.openSettingsPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenFilteringLog, PagesApi.openFilteringLogPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenAbuseTab, UiService.openAbusePage);         message_handler_messageHandler.addListener(constants_MessageType.OpenSiteReportTab, UiService.openSiteReportPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenThankYouPage, pagesApi.openThankYouPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenExtensionStore, pagesApi.openExtensionStorePage);         message_handler_messageHandler.addListener(constants_MessageType.OpenChromeExtensionsSettingsPage, PagesApi.openChromeExtensionsSettingsPage);         message_handler_messageHandler.addListener(constants_MessageType.OpenExtensionDetailsPage, 
+extprobe：AdGuard background.js 裡的 settingsUrl： etadata.      */ static CHROME_WEB_STORE_HOMEPAGE_URL_PREFIX = 'https://chromewebstore.google.com/';     /**      * Settings page url.      */ static settingsUrl = PagesApiCommon.getExtensionPageUrl(OPTIONS_OUTPUT);     /**      * Filtering log page url.      */ static filteringLogUrl = PagesApiCommon.getExtensionPageUrl(FILTERING_LOG_OUTPUT);     /**      * Fullscreen user rule editor page url.      */ static fullscreenUserRulesPageUrl = PagesApiCommon.getExtensionPageUrl(FULLSCREEN_USER_RULES_OUTPUT);     /**      * Default state of popup window.      */ static defaultPopupWindowState = {         width: 1280,         height: 720,         top: 0,         left: 0     };     /**      * Zod schema for validating window state from storage.      *      * Validates either a normal window state with position and size,      * or a fullscreen window state.      */ static windowStateSchema = lib.z.union([         lib.z.object({             width: lib.z.number(),             height: lib.z.number(),             top: lib.z.number(),             l
+extprobe：AdGuard background.js 裡的 settingsUrl：  on the open setting tab.      */ static async openSettingsPage() {         let tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.settingsUrl}*`         });         if (!tab) {             tab = await browser_polyfill_default().tabs.create({                 url: PagesApiCommon.settingsUrl             });         }         await tabs_TabsApi.focus(tab);     }     /**      * Opens fullscreen user rules page window.      * If the page has been already opened, focus on window instead creating new one.      */ static async openFullscreenUserRulesPage() {         const tab = await tabs_TabsApi.findOne({             url: `${PagesApiCommon.fullscreenUserRulesPageUrl}*`         });         if (tab) {             await tabs_TabsApi.focus(tab);             return;         }         const theme = settingsStorage.get(enum_SettingOption.AppearanceTheme);         const url = `${PagesApiCommon.fullscreenUserRulesPageUrl}?theme=${theme}`;         // Open a new tab without type to get it as a new tab in a new window         // with 
+web hwnd 66072
+dpi scale 1.0 screen 1024 768
+
+===== start =====
+程序：
+2936 parent=6884 MAOBOO.exe :: D:\a\toolbox\toolbox\app\MAOBOO.exe
+8316 parent=2936 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Local\com.toolbox.desktop\EBWebView"
+8280 parent=2936 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Roaming\com.toolbox.desktop\web-prof
+9308 parent=8280 msedgewebview2.exe :: 
+app_proc 2936 還在跑
+PASS 讀得到工具列裡的元素 <DocumentControl '瀏覽器' #RootWebArea . (80,60,980,189)>
+[start] title='新分頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS 一開始：整個視窗都是內容（沒有看不到的邊） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS 一開始：大小和上次記住的一樣（900×620） client=(80, 60, 900, 620)
+PASS 一開始：工具列高 129、網頁在它下面 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS 工具列三排的高度：分頁列 48、工具列 46、書籤列 34 [[0.0, 0.0, 900.0, 48.0], [0.0, 48.0, 900.0, 46.0], [0.0, 94.0, 900.0, 35.0]]
+FAIL 一開始：三個分頁、第一個是目前的 [{'active': False, 'pinned': False, 'title': '測試頁', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Getting Started – manuals', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Sign in or create an account | Claude.ai', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'SponsorBlock', 'w': 81.0}, {'active': True, 'pinned': False, 'title': 'Home | Tampermonkey', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Welcome to Return YouTube Dislike', 'w': 81.0}, {'active': False, 'pinned': False, 'title': '短影片測試', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 81.0}]
+FAIL 一開始：視窗標題是分頁的標題 'Home | Tampermonkey'
+bar state {'back': False, 'fwd': False, 'addr': '', 'shown': 'tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+FAIL 一開始：網址列顯示目前的網址 'tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true'
+PASS 一開始：沒有上一頁、下一頁可以按 {'back': False, 'fwd': False, 'addr': '', 'shown': 'tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS start：瀏覽器元件沒有當掉 [] []
+[start] title='Loading extension...' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS start：程式有回應 
+
+===== extprobe =====
+（找不到分頁） 測試頁 ['']
+  web-ext.json： {"exts": {"bgnkhhnnamicmpeenaelnjfhikgbkllg": {"ver": "5.5.4.64_0", "dir": "b1794731298117/bgnkhhnnamicmpeenaelnjfhikgbkllg", "name": "AdGuard 廣告封鎖器", "off": false, "loaded": true}, "cgakmbkklpmijhckpolanjijghgfpeoa": {"ver": "0.2.0_0", "dir": "b1794731298117/cgakmbkklpmijhckpolanjijghgfpeoa", "name": "遊戲橘子擴充元件", "off": false, "loaded": true}, "dhdgffkkebhmkfjojejmpbldmpobfkfo": {"ver": "5.5.1_0", "dir": "b1794731298117/dhdgffkkebhmkfjojejmpbldmpobfkfo", "name": "篡改猴", "off": false, "loaded": true}, "eamehjingoajmedombhecpkpagoadodo": {"ver": "1.0_0", "dir": "b1794731298117/eamehjingoajmedombhecpkpagoadodo", "name": "測試擴充功能", "off": false, "loaded": true}, "fcoeoabgfenejglbffodgkkbkcdhcgfn": {"ver": "1.0.107_0", "dir": "b1794731298117/fcoeoabgfenejglbffodgkkbkcdhcgfn", "name": "Claude", "off": false, "loaded": true}, "gebbhagfogifgggkldgodflihgfeippi": {"ver": "4.1.7_0", "dir": "b1794731298117/gebbhagfogifgggkldgodflihgfeippi", "name": "Return YouTube Dislike", "off": false, "loaded": true}, "ghbmnnjooekpmoecnnnilnnbdlolhkhi": {"ver": "1.112.1_0", "dir": "b1794731298117/ghbmnnjooekpmoecnnnilnnbdlolhkhi", "name": "Google 文件離線版", "off": false, "loaded": true}, "inomeogfingihgjfjlpeplalcfajhgai": {"ver": "2.1_0", "dir": "b1794731298117/inomeogfingihgjfjlpeplalcfajhgai", "name": "Chrome Remote Desktop", "off": false, "loaded": true}, "mgojgddhfhekopdpkocobommepgdeffb": {"ver": "7.5.47_0", "dir": "b1794731298117/mgojgddhfhekopdpkocobommepgdeffb", "name": "iCloud 儀表板", "off": false, "loaded": true}, "mnjggcdmjocbbbhaepdhchncahnbgone": {"ver": "6.1.6_0", "dir": "b1794731298117/mnjggcdmjocbbbhaepdhchncahnbgone", "name": "SponsorBlock for YouTube - 跳過贊助廣告", "off": false, "loaded": true}}, "pending": "", "chrome_pins": ["dhdgffkkebhmkfjojejmpbldmpobfkfo"], "pins": null}
+  一開始的分頁： ['測試頁', 'Getting Started – manuals', 'Sign in or create an account | Claude.ai', 'SponsorBlock', 'Home | Tampermonkey', 'Loading extension...', 'Welcome to Return YouTube Dislike', '短影片測試', 'Example']
+  一開始的視窗： [('', 'Shell_TrayWnd', 'explorer.exe', (0, 720, 1024, 768)), ('測試頁', 'Tauri Window', 'MAOBOO.exe', (80, 60, 980, 680)), ('工具箱', 'Tauri Window', 'MAOBOO.exe', (54, 37, 970, 690)), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe', (0, 0, 16, 16)), ('', 'Tao Thread Event Target', 'MAOBOO.exe', (0, 0, 16, 16)), ('MapleStory', 'TkTopLevel', 'python.exe', (10, 10, 1006, 749)), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe', (18, 26, 1062, 661)), ('', 'PseudoConsoleWindow', 'hosted-compute-agent', (0, 0, 0, 0)), ('', 'DummyDWMListenerWindow', 'explorer.exe', (0, 0, 0, 0)), ('', 'EdgeUiInputTopWndClass', 'explorer.exe', (15, 0, 1024, 4)), ('', 'DummyDWMListenerWindow', 'explorer.exe', (0, 0, 0, 0)), ('', 'DummyDWMListenerWindow', 'explorer.exe', (0, 0, 0, 0)), ('', 'DummyDWMListenerWindow', 'explorer.exe', (0, 0, 0, 0)), ('', 'DummyDWMListenerWindow', 'explorer.exe', (0, 0, 0, 0)), ('Program Manager', 'Progman', 'explorer.exe', (0, 0, 1024, 768))]
+  瀏覽器元件的啟動參數：
+    8316 :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Local\com.toolbox.desktop\EBWebView" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --mb-from=HKLM-exe --remote-allow-origins=* --remote-debugging-port=0 --lang=en-US --mojo-named-platform-channel-pipe=2936.4152.505326907424956378 /pfhostedapp:4a80df9eea80eb33928e5d0cfbea91aabba4ff18
+    8280 :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Roaming\com.toolbox.desktop\web-profile\EBWebView" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --embedded-browser-webview-enable-extension --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --mb-from=HKLM-exe --remote-allow-origins=* --remote-debugging-port=0 --lang=en-US --mojo-named-platform-channel-pipe=2936.4152.17564053678450882006 /pfhostedapp:3e78752ff6b65ec55ca0ac6dc4895fe9e9cd5f6b
+  一開始的分頁編號： ['t1', 't4', 't6', 't7', 't8', 't9', 't5', 't2', 't3'] ['測試頁', 'Getting Started – manuals', 'Sign in or create an account | Claude.ai', 'SponsorBlock', 'Home | Tampermonkey', 'Loading extension...', 'Welcome to Return YouTube Dislike', '短影片測試', 'Example']
+  篡改猴小視窗： 117 個元素； 工具箱：這個瀏覽器沒有「允許使用者腳本（Allow User Scripts）」開關，上面的提示不用理會。這裡的腳本由瀏覽器代為執行，存檔後重新整理網頁就生效。 | × | Please enable the `Allow User Scripts` extension setting. Click here for more info how to do this. | × | Scan the QR code to use Tampermonkey on your phone or tablet. | Learn more | Learn more | × |  | Enabled |  | Tampermonkey has no access to this page |  | Find new scripts... |  | Create a new script... |  | Please send a donation | Utilities |  |  | Dashboard |  | Help | | | Changelog | |
+PASS extprobe：點工具列上的篡改猴圖示會出現小視窗 [(430, 152, 830, 635), (85, 189, 975, 675), (80, 60, 980, 189)]
+  [tm_Dashboard] 多出來的視窗： [('Installed Userscripts', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「控制台」（沒有另外跳出瀏覽器自己的視窗） [('Installed Userscripts', 'Tauri Window', 'MAOBOO.exe')]
+  [tm_Dashboard] 按了 'Dashboard'（TextControl 67x17）之後：分頁 3 → 4 ['短影片測試', 'Example', 'Installed Userscripts']；小視窗還在：False；網址列：'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#url=&nav=dashboard'
+PASS extprobe：篡改猴小視窗按「控制台」（開了分頁） 3 → 4；網址列 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#url=&nav=dashboard'
+PASS extprobe：篡改猴小視窗按「控制台」（小視窗收起來） 
+  [tm_Create] 多出來的視窗： [('<New userscript>', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「新增腳本」（沒有另外跳出瀏覽器自己的視窗） [('<New userscript>', 'Tauri Window', 'MAOBOO.exe')]
+  [tm_Create] 按了 'Create a new script...'（TextControl 128x17）之後：分頁 4 → 5 ['Example', 'Installed Userscripts', '<New userscript>']；小視窗還在：False；網址列：'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script+editor'
+PASS extprobe：篡改猴小視窗按「新增腳本」（開了分頁） 4 → 5；網址列 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script+editor'
+PASS extprobe：篡改猴小視窗按「新增腳本」（小視窗收起來） 
+  [tm_Find] 多出來的視窗： [('Userscripts | Tampermonkey', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「取得新腳本」（沒有另外跳出瀏覽器自己的視窗） [('Userscripts | Tampermonkey', 'Tauri Window', 'MAOBOO.exe')]
+  [tm_Find] 按了 'Find new scripts...'（TextControl 110x17）之後：分頁 5 → 6 ['Installed Userscripts', '<New userscript>', 'Userscripts | Tampermonkey']；小視窗還在：False；網址列：'tampermonkey.net/scripts.php'
+PASS extprobe：篡改猴小視窗按「取得新腳本」（開了分頁） 5 → 6；網址列 'tampermonkey.net/scripts.php'
+PASS extprobe：篡改猴小視窗按「取得新腳本」（小視窗收起來） 
+  [tm_Help] 多出來的視窗： [('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('FAQ | Tampermonkey', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「說明」（沒有另外跳出瀏覽器自己的視窗） [('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('FAQ | Tampermonkey', 'Tauri Window', 'MAOBOO.exe')]
+  [tm_Help] 按了 'Help'（TextControl 29x17）之後：分頁 6 → 7 ['<New userscript>', 'Userscripts | Tampermonkey', 'FAQ | Tampermonkey']；小視窗還在：False；網址列：'tampermonkey.net/faq.php?version=5.5.1&ext=dhdg'
+PASS extprobe：篡改猴小視窗按「說明」（開了分頁） 6 → 7；網址列 'tampermonkey.net/faq.php?version=5.5.1&ext=dhdg'
+PASS extprobe：篡改猴小視窗按「說明」（小視窗收起來） 
+PASS 擴充功能按鈕（AdGuard）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+  [AdGuard] 小視窗：有；文字：Check for updates | AdGuard protection | Open AdGuard settings | Current website: | 127.0.0.1 | Blocked: 0 | Total blocked: 6 | Protection for current website | Block ads manually | Open filtering log | Report an issue | Check website security | © 2009-2026 Adguard Software Ltd
+  [pop_AdGuard_click] 多出來的視窗： [('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：AdGuard 小視窗按「設定」（沒有另外跳出瀏覽器自己的視窗） [('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe')]
+  [pop_AdGuard_click] 按了 'Open AdGuard settings'（ButtonControl 24x24）之後：分頁 7 → 8 ['Userscripts | Tampermonkey', 'FAQ | Tampermonkey', 'AdGuard Settings']；小視窗還在：False；網址列：'chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html'
+PASS extprobe：AdGuard 小視窗按「設定」（開了分頁） 7 → 8；網址列 'chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html'
+PASS extprobe：AdGuard 小視窗按「設定」（小視窗收起來） 
+PASS 擴充功能按鈕（SponsorBlock）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+  [SponsorBlock] 小視窗：有；文字：SponsorBlock | No YouTube video found. If this is incorrect, refresh the tab. | Refresh icon | Skipping is enabled | Skipping is enabled | Settings icon Options | Options | Submit | Submit | Hint: You can setup keybinds for submitting in the options | Start Segment Now | Your Work | Your Work | User
+  [pop_SponsorBlock_click] 多出來的視窗： [('Options - SponsorBlock', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：SponsorBlock 小視窗按「選項」（沒有另外跳出瀏覽器自己的視窗） [('Options - SponsorBlock', 'Tauri Window', 'MAOBOO.exe')]
+  [pop_SponsorBlock_click] 按了 'Options'（TextControl 47x16）之後：分頁 8 → 9 ['FAQ | Tampermonkey', 'AdGuard Settings', 'Options - SponsorBlock']；小視窗還在：False；網址列：'chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html'
+PASS extprobe：SponsorBlock 小視窗按「選項」（開了分頁） 8 → 9；網址列 'chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html'
+PASS extprobe：SponsorBlock 小視窗按「選項」（小視窗收起來） 
+PASS 擴充功能按鈕（Return YouTube Dislike）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+  [Return YouTube Dislike] 小視窗：有；文字：Return YouTube Dislike | Return YouTube Dislike | v4.1.7 | by Dmitry Selivanov & Community | Website | Donate | Discord | Premium features available for Patreon supporters | Login with Patreon | Dislike counts stay free for everyone. Paid extras help pay for the servers behind them: over 15 TB of da
+  [pop_Return_click] 多出來的視窗： [('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('Return YouTube Dislike', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：Return YouTube Dislike 小視窗按「網站」（沒有另外跳出瀏覽器自己的視窗） [('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('Return YouTube Dislike', 'Tauri Window', 'MAOBOO.exe')]
+  [pop_Return_click] 按了 'Website'（ButtonControl 131x36）之後：分頁 9 → 10 ['AdGuard Settings', 'Options - SponsorBlock', 'Return YouTube Dislike']；小視窗還在：False；網址列：'returnyoutubedislike.com'
+PASS extprobe：Return YouTube Dislike 小視窗按「網站」（開了分頁） 9 → 10；網址列 'returnyoutubedislike.com'
+PASS extprobe：Return YouTube Dislike 小視窗按「網站」（小視窗收起來） 
+（找不到分頁） 測試頁 ['測', '', '', '', '', '', 'FAQ | Tampermonkey', 'AdGuard Settings', 'Options - SponsorBlock', 'Return YouTube Dislike']
+PASS 擴充功能按鈕（iCloud）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+  [iCloud] 小視窗：有；文字：Dashboard | Mail Mail | Mail | Contacts Contacts | Contacts | Calendar | Calendar | Photos Photos | Photos | Drive Drive | Drive | Notes Notes | Notes | Reminders Reminders | Reminders | Pages Pages | Pages | Numbers Numbers | Numbers | Keynote Keynote | Keynote | Find My Find My | Find My |  | Cus
+  [pop_iCloud_click] 多出來的視窗： [('iCloud Mail - Apple iCloud', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：iCloud 儀表板小視窗按「郵件」（沒有另外跳出瀏覽器自己的視窗） [('iCloud Mail - Apple iCloud', 'Tauri Window', 'MAOBOO.exe')]
+  [pop_iCloud_click] 按了 'Mail'（TextControl 24x15）之後：分頁 10 → 11 ['', '', '']；小視窗還在：False；網址列：'icloud.com/mail'
+PASS extprobe：iCloud 儀表板小視窗按「郵件」（開了分頁） 10 → 11；網址列 'icloud.com/mail'
+PASS extprobe：iCloud 儀表板小視窗按「郵件」（小視窗收起來） 
+（找不到分頁） 測試頁 ['測', '', '', '', '', '', '', '', '', '', '']
+   [gm top] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+   [gm frame] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+   [gm nested] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+PASS extprobe：網頁自己的程式看不到 chrome.webview（top） ['[gm top] webview=undefined desc=null chromeDesc={"value":"object","writable":tru']
+PASS extprobe：網頁自己的程式看不到 chrome.webview（frame） ['[gm frame] webview=undefined desc=null chromeDesc={"value":"object","writable":t']
+PASS extprobe：網頁自己的程式看不到 chrome.webview（nested） ['[gm nested] webview=undefined desc=null chromeDesc={"value":"object","writable":']
+  偵錯埠檔案： C:\Users\runneradmin\AppData\Roaming\com.toolbox.desktop\web-profile\EBWebView\DevToolsActivePort 57312
+  偵錯埠檔案： C:\Users\runneradmin\AppData\Local\com.toolbox.desktop\EBWebView\DevToolsActivePort 53422
+  瀏覽器： {"Browser": "Edg/156.0.4314.58", "File-Path-Style": "windows", "Protocol-Version": "1.3", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0", "V8-Version": "15.6.12.10", "WebKit-Version": "537.36 (@7806b68d20d1c1273d5b07b4f4de18e8f5852581)", "webSocketDebuggerUrl": "ws://127.0.0.1:57312/devtools/browser/c58be781-85ca-4c60-8d24-748b3b1ccbe9"}
+  [一開始] 偵錯目標 14 個：
+      service_worker   4DF372FD att=False chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/background.js | Service Worker chrome-extension://bgnkhh
+      service_worker   A308C505 att=True chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/background.js | Service Worker chrome-extension://dhdgff
+      service_worker   DF32D152 att=False chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/service-worker-loader.js | Service Worker chrome-extension://fcoeoa
+      service_worker   3CCC1321 att=False chrome-extension://gebbhagfogifgggkldgodflihgfeippi/ryd.background.js | Service Worker chrome-extension://gebbha
+      service_worker   F9BA68F7 att=False chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/js/background.js | Service Worker chrome-extension://mnjggc
+      page             6FF5589E att=True http://127.0.0.1:8765/test.html | 測試頁
+      iframe           DCD56C16 att=True http://localhost:8765/frame.html | http://localhost:8765/frame.html
+      page             D111DC4B att=True about:blank | about:blank
+      page             DD6E5F05 att=True about:blank | about:blank
+      page             0132B060 att=True about:blank | about:blank
+      background_page  61736C05 att=False chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/offscreen.html | Offscreen Audio Player & GIF Generator
+      page             0FC8AAD8 att=True https://example.com/ | Example Domain
+      page             3E968C8E att=True chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest.json | ⁣mbtm:2
+      page             7396111E att=True about:blank | about:blank
+  [__MSG_extName__] dhdgffkkebhmkfjojejmpbldmpobfkfo service_worker： {"type": "worker", "apis": "action,alarms,clipboard,commands,contextMenus,cookies,csi,declarativeNetRequest,dom,extension,i18n,idle,loadTimes,management,notifications,offscreen,permissions,runtime,scripting,storage,tabs,webNavigation,webRequest,windows", "ver": "5.5.1", "name": "Tampermonkey", "us": "undefined", "tabs": "object", "incog": false}
+  [__MSG_name__] bgnkhhnnamicmpeenaelnjfhikgbkllg service_worker： {"type": "worker", "apis": "action,contextMenus,cookies,csi,declarativeNetRequest,dom,extension,i18n,loadTimes,management,permissions,runtime,scripting,storage,tabs,webNavigation,webRequest,windows", "ver": "5.5.4.64", "name": "AdGuard AdBlocker", "us": "undefined", "tabs": "object", "incog": false}
+  [__MSG_fullName__] mnjggcdmjocbbbhaepdhchncahnbgone service_worker： {"type": "worker", "apis": "action,contentScripts,csi,dom,extension,i18n,loadTimes,management,permissions,runtime,scripting,storage,tabs,windows", "ver": "6.1.6", "name": "SponsorBlock for YouTube - Skip Sponsorships", "us": "undefined", "tabs": "object", "incog": false}
+  [__MSG_extensionName__] gebbhagfogifgggkldgodflihgfeippi service_worker： {"type": "worker", "apis": "action,csi,dom,extension,i18n,loadTimes,management,permissions,runtime,storage,tabs,windows", "ver": "4.1.7", "name": "Return YouTube Dislike", "us": "undefined", "tabs": "object", "incog": false}
+  [遊戲橘子擴充元件] cgakmbkklpmijhckpolanjijghgfpeoa：沒有背景程式在跑
+  [__MSG_extension_name__] mgojgddhfhekopdpkocobommepgdeffb：沒有背景程式在跑
+  [Claude] fcoeoabgfenejglbffodgkkbkcdhcgfn service_worker： {"type": "worker", "apis": "action,alarms,commands,csi,debugger,declarativeNetRequest,dom,downloads,extension,i18n,identity,loadTimes,management,notifications,offscreen,permissions,runtime,scripting,sidePanel,storage,tabGroups,tabs,webNavigation,windows", "ver": "1.0.107", "name": "Claude", "us": "undefined", "tabs": "object", "incog": false}
+  [__MSG_extName__] ghbmnnjooekpmoecnnnilnnbdlolhkhi：沒有背景程式在跑
+  [Chrome Remote Desktop] inomeogfingihgjfjlpeplalcfajhgai：沒有背景程式在跑
+  篡改猴背景程式的錯誤訊息： []
+  tabs.query({})： [{"id": 2007357816, "w": 2007357814, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/test.html", "ti": "測試頁"}, {"id": 2007357826, "w": 2007357825, "a": true, "i": 0, "st": "complete", "u": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest.json", "ti": "⁣mbtm:2"}, {"id": 2007357832, "w": 2007357831, "a": true, "i": 0, "st": "complete", "u": "about:blank", "ti": "about:blank"}, {"id": 2007357834, "w": 2007357833, "a": true, "i": 0, "st": "complete", "u": "about:blank", "ti": "about:blank"}, {"id": 2007357836, "w": 2007357835, "a": true, "i": 0, "st": "complete", "u": "about:blank", "ti": "about:blank"}, {"id": 2007357838, "w": 2007357837, "a": true, "i": 0, "st": "complete", "u": "about:blank", "ti": "about:blank"}, {"id": 2007357874, "w": 2007357873, "a": true, "i": 0, "st": "complete", "u": "https://example.com/", "ti": "Example Domain"}]
+  tabs.query({active:true})： [[2007357816, 2007357814, "http://127.0.0.1:8765/test.html"], [2007357826, 2007357825, "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest"], [2007357832, 2007357831, "about:blank"], [2007357834, 2007357833, "about:blank"], [2007357836, 2007357835, "about:blank"], [2007357838, 2007357837, "about:blank"], [2007357874, 2007357873, "https://example.com/"]]
+  tabs.query({active:true,currentWindow:true})： [[2007357816, 2007357814, "http://127.0.0.1:8765/test.html"]]
+  tabs.query({active:true,lastFocusedWindow:true})： [[2007357816, 2007357814, "http://127.0.0.1:8765/test.html"]]
+  windows.getAll： [{"id": 2007357814, "f": true, "t": "popup", "s": "normal", "x": 85, "y": 189, "w": 890, "h": 486}, {"id": 2007357825, "f": false, "t": "popup", "s": "normal", "x": -16, "y": -36, "w": 32, "h": 32}, {"id": 2007357831, "f": false, "t": "popup", "s": "normal", "x": -16, "y": -36, "w": 32, "h": 32}, {"id": 2007357833, "f": false, "t": "popup", "s": "normal", "x": -16, "y": -36, "w": 32, "h": 32}, {"id": 2007357835, "f": false, "t": "popup", "s": "normal", "x": -16, "y": -36, "w": 32, "h": 32}, {"id": 2007357837, "f": false, "t": "popup", "s": "normal", "x": -16, "y": -36, "w": 32, "h": 32}, {"id": 2007357873, "f": false, "t": "popup", "s": "normal", "x": 85, "y": 189, "w": 890, "h": 486}]
+  windows.getLastFocused： {"id": 2007357814, "f": true, "t": "popup"}
+  userScripts（一開始）： {"type": "undefined", "get": "undefined"}
+  permissions： {"origins": ["<all_urls>"], "permissions": ["alarms", "clipboardWrite", "contextMenus", "cookies", "idle", "notifications", "storage", "tabs", "unlimitedStorage", "webNavigation", "webRequest", "scripting", "declarativeNetRequestWithHostAccess", "offscreen", "userScripts"]}
+  [篡改猴] 程式到目前為止的訊息：
+      [tm] w1：建立了讀取用的網頁 webtm-1
+      [tm] 存放區變動的通知：{"result":{"type":"string","value":"no-storage"}}
+      [tm] 讀不到篡改猴裡的腳本：no-storage
+      [tm] 存放區變動的通知：{"result":{"type":"string","value":"ok"}}
+      [tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+      [tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+      [tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+PASS 篡改猴：讀取用的網頁建立了、讀得到它的存放區（一開始沒有腳本） ['[tm] 讀不到篡改猴裡的腳本：no-storage', '[tm] 存放區變動的通知：{"result":{"type":"string","value":"ok"}}', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變']
+PASS 篡改猴：讀取用的網頁沒有被當成擴充功能自己開的視窗（沒有多出 manifest.json 的分頁） [] ['測試頁', '短影片測試', 'Example Domain']
+  [篡改猴] 讀取用的網頁在瀏覽器裡： [('page', 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest.json', '\u2063mbtm:2')]
+PASS 篡改猴：還沒有腳本時，網頁上沒有它的腳本在跑 []
+  [篡改猴] 開編輯器：分頁 3 → 4；標題 '<New userscript>'
+  [篡改猴] 存檔後 4.6 秒： ['[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 篡改猴：在編輯器存檔後，瀏覽器自己讀到那支腳本（不用另外做任何事） ['[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 篡改猴的頁面最下面有一行說明（不用找「允許使用者腳本」的開關） '工具箱：這個瀏覽器沒有「允許使用者腳本（Allow User Scripts）」開關，上面的提示不用理會。這裡的腳本由瀏覽器代為執行，存檔後重新整理網頁就生效。×'
+PASS 篡改猴裡的腳本：重新整理網頁後有執行 ['1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-']
+PASS 篡改猴裡的腳本：@require 的檔案、GM 功能、@resource 都有 ['1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-']
+PASS 篡改猴裡的腳本：@noframes 有效（內嵌框不跑） ['1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-']
+PASS 使用者腳本按鈕（篡改猴裡的腳本）：出現選單 [['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']]
+PASS 工具列的「使用者腳本」選單列出篡改猴裡的腳本 ['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']
+PASS 擴充功能頁面：列出篡改猴裡的腳本 '本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。\n匯入腳本\n從網址安裝\n貼上腳本\n檢查更新\n開啟腳本資料夾\n重新讀取\n自動更新腳本\n每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的\n篡改猴裡的腳本\n讀到 1 支，由這裡代為執行（08:31 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。\n開啟篡改猴\nChrome 的篡改猴裡的腳本\n這台電腦的 Chrome 裡沒有找到開著的篡改猴。\nMB Sync Test\u30001.0\n篡改猴\nhttp://127.0.0.1:8765/*\n在篡改猴裡開關\n不該跑\nhttps://not-visited.invalid/*\n刪除\n測試腳本一\nhttp://127.0.0.1:8765/test.html*\n刪除\n測試腳本二\nhttp://127.0.0.1:8765/*、http://localhost:8765/*\n刪除\n測試腳本四\u30001.0\nhttp://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*\n刪除'
+  [篡改猴] 點啟用開關（關）： clicked 2
+PASS 在篡改猴裡關掉腳本：網頁上就不跑了 True [] ['[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+  [篡改猴] 點啟用開關（開）： clicked 2
+PASS 在篡改猴裡再打開：又會跑 True ['1794731521.96 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-'] ['[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+  [篡改猴] 存放區裡的腳本編號： ['c84a6090-13ee-4963-b2b8-0ad06b4c08d3']
+  [篡改猴] 開那支腳本的編輯器：分頁 4 → 5；標題 'MB Sync Test'
+PASS 在篡改猴裡改了腳本內容再存檔：網頁上跑的是新的內容 True ['1794731541.31 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=- num=-'] ['[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 篡改猴存的設定值會帶過來（腳本用 GM_getValue 拿得到） set True ['1794731548.03 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42'] ['[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單沒變']
+  [篡改猴] 小選單按 'Enabled'（TextControl 49x17）
+  [篡改猴] 按了 Enabled（暫停）：存放區變了 1 筆
+      '!extdb.#config'：'None' → '{"origin":"normal","value":{"enabled":false}}'
+PASS 篡改猴整個暫停（小選單最上面的 Enabled 取消打勾）：它的腳本就不跑了 True [] ['[tm] 讀到 1 支腳本，現在有 1 支，清單沒變', '[tm] 讀到 1 支腳本（篡改猴暫停中），現在有 1 支，清單變了']
+  [篡改猴] 小選單按 'Enabled'（TextControl 49x17）
+  [篡改猴] 再按一次（恢復）：存放區變了 1 筆
+      '!extdb.#config'：'{"origin":"normal","value":{"enabled":false}}' → '{"origin":"normal","value":{"enabled":true}}'
+PASS 篡改猴恢復之後：腳本又會跑 True ['1794731575.85 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42'] ['[tm] 讀到 1 支腳本（篡改猴暫停中），現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+  [篡改猴] 存放區的檔案： [('000003.log', 13406), ('CURRENT', 16), ('LOG', 415), ('MANIFEST-000001', 41)]
+  [Chrome 篡改猴] 連到正在使用中的存放區： 0 Junction created for C:\Users\runneradmin\AppData\Local\Google\Chrome\User Data\Default\Local Extension Settings\dhdgffkkebhmkfjojejmpbldmpobfkfo <<===>> C:\Users\runneradmin\AppData\Roaming\com.toolb ['000003.log', 'CURRENT', 'LOCK', 'LOG', 'MANIFEST-000001']
+  [Chrome 篡改猴] ctm_live：按鈕 True； ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+PASS Chrome 的篡改猴：存放區正被瀏覽器核心開著、鎖著的時候也讀得出來 ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+PASS 兩邊是同一支腳本時：Chrome 那份只列出來、不重複執行 '匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。同名的腳本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。\n匯入腳本\n從網址安裝\n貼上腳本\n檢查更新\n開啟腳本資料夾\n重新讀取\n自動更新腳本\n每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的\n篡改猴裡的腳本\n讀到 1 支，由這裡代為執行（08:32 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。\n開啟篡改猴\nChrome 的篡改猴裡的腳本\n帶過來 1 支（08:33）。只讀 Chrome 的資料、不會改它；新增、編輯、刪除在 Chrome 的篡改猴裡做，這邊可以單獨把某一支關掉。\nMB Sync Test\u30002.0\n篡改猴\nhttp://127.0.0.1:8765/*\n在篡改猴裡開關\nMB Sync Test\u30002.0\nChrome 篡改猴\n跟上面那支同名，只執行上面那支（這支沒有執行）\n在 Chrome 的篡改猴裡開關\n不該跑\nhttps://not-visited.invalid/*\n刪除\n測試腳本一\nhttp://127.0.0.1:8765/test.html*\n刪除\n測試腳本二\nhttp://127.0.0.1:8765/*、http://localhost:8765/*\n刪除\n測試腳本四\u30001.0\nhttp://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*\n刪除'
+PASS 兩邊是同一支腳本時：網頁上只跑一次 ['1794731598.09 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+  [Chrome 篡改猴] 存放區寫入一筆（ set ）前後的檔案大小（資料夾清單上的, 檔案本身的）：之前 {'000003.log': (13406, 13406), 'MANIFEST-000001': (41, 41)} 之後 {'000003.log': (13406, 16457), 'MANIFEST-000001': (41, 41)}
+  [Chrome 篡改猴] 等了 3 秒； ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變'] ；現在的檔案大小： {'000003.log': (16457, 16457), 'MANIFEST-000001': (41, 41)}
+PASS Chrome 的篡改猴：視窗開著時 Chrome 那邊有變動，程式自己會發現、再帶一次（不用按任何東西） 等了 3 秒 ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變']
+  [Chrome 篡改猴] 放進假的 Chrome 設定檔： [('000003.log', 16491), ('CURRENT', 16), ('LOG', 415), ('MANIFEST-000001', 41)]
+PASS 這個瀏覽器的篡改猴裡刪掉那支腳本之後：改由 Chrome 帶過來的那一份執行 7 True ['1794731608.33 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42'] ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單變了']
+  [Chrome 篡改猴] ctm_ext_page：按鈕 True； ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+PASS Chrome 的篡改猴：按「從 Chrome 重新同步」把它裡面的腳本帶過來 ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+PASS 擴充功能頁面：列出 Chrome 篡改猴帶過來的腳本 '瀏覽器自己執行。這個瀏覽器的核心沒有「允許使用者腳本」的開關，篡改猴自己沒辦法執行腳本（它畫面上那則提示可以不用理會），所以裝在這裡的腳本、在篡改猴裡新增或匯入的腳本、還有 Chrome 的篡改猴裡的腳本（開瀏覽器時自動帶過來），都由這裡代為執行。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。同名的腳本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。\n匯入腳本\n從網址安裝\n貼上腳本\n檢查更新\n開啟腳本資料夾\n重新讀取\n自動更新腳本\n每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的\n篡改猴裡的腳本\n讀到 0 支，由這裡代為執行（08:33 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。\n開啟篡改猴\nChrome 的篡改猴裡的腳本\n帶過來 1 支（08:33）。只讀 Chrome 的資料、不會改它；新增、編輯、刪除在 Chrome 的篡改猴裡做，這邊可以單獨把某一支關掉。\nMB Sync Test\u30002.0\nChrome 篡改猴\nhttp://127.0.0.1:8765/*\n不該跑\nhttps://not-visited.invalid/*\n刪除\n測試腳本一\nhttp://127.0.0.1:8765/test.html*\n刪除\n測試腳本二\nhttp://127.0.0.1:8765/*、http://localhost:8765/*\n刪除\n測試腳本四\u30001.0\nhttp://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*\n刪除'
+PASS Chrome 篡改猴帶過來的腳本：有執行，設定值也帶過來了 ['1794731629.52 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+PASS Chrome 篡改猴帶過來的腳本：需要的外部檔案用篡改猴存好的那一份（原本的網址已經下載不到） ['1794731629.52 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+PASS 使用者腳本按鈕（Chrome 篡改猴的腳本）：出現選單 [['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']]
+PASS Chrome 篡改猴帶過來的腳本：可以在這邊單獨關掉 ['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本'] []
+PASS 使用者腳本按鈕（Chrome 篡改猴的腳本，再打開）：出現選單 [['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']]
+PASS Chrome 篡改猴帶過來的腳本：再打開又會跑 ['1794731652.01 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+  [Chrome 篡改猴] 程式的訊息： ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+  [篡改猴] 開新分頁的要求有沒有通知到讀取用的網頁： []
+  [篡改猴] 最後的訊息：
+      [tm] 讀到 0 支腳本，現在有 0 支，清單沒變
+      [tm] 讀到 1 支腳本，現在有 1 支，清單變了
+      [tm] 讀到 1 支腳本，現在有 1 支，清單變了
+      [tm] 讀到 1 支腳本，現在有 1 支，清單變了
+      [tm] 讀到 1 支腳本，現在有 1 支，清單變了
+      [tm] 讀到 1 支腳本，現在有 1 支，清單沒變
+      [tm] 讀到 1 支腳本（篡改猴暫停中），現在有 1 支，清單變了
+      [tm] 讀到 1 支腳本，現在有 1 支，清單變了
+      [tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了
+      [tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變
+      [tm] 讀到 0 支腳本，現在有 0 支，清單變了
+      [tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了
+  [tabs_create_http 之前] 分頁：['測試頁', '短影片測試', 'Example Domain']
+  [tabs_create_http 之前] 視窗：[('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [tabs_create_http] 回傳： "ERR Cannot read properties of undefined (reading 'id')"
+  [tabs_create_http 之後] 分頁：['測試頁', '短影片測試', '短影片測試', 'Example Domain']
+  [tabs_create_http 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('短影片測試', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [tabs_create_http] 多出來的偵錯目標： [('page', 'about:blank')] 不見的： []
+  [tabs_create_http] 分頁 3 → 4：['測試頁', '短影片測試', '短影片測試', 'Example Domain']
+  [tabs_create_http] 多出來的視窗： [('短影片測試', 'Tauri Window', 'MAOBOO.exe')]
+  [tabs_create_http_bg 之前] 分頁：['測試頁', '短影片測試', '短影片測試', 'Example Domain']
+  [tabs_create_http_bg 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('短影片測試', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [tabs_create_http_bg] 回傳： "ERR Cannot read properties of undefined (reading 'id')"
+  [tabs_create_http_bg 之後] 分頁：['測試頁', '短影片測試', '127.0.0.1:8765', '短影片測試', 'Example Domain']
+  [tabs_create_http_bg 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('短影片測試', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [tabs_create_http_bg] 多出來的偵錯目標： [('page', 'about:blank')] 不見的： []
+  [tabs_create_http_bg] 分頁 4 → 5：['測試頁', '短影片測試', '127.0.0.1:8765', '短影片測試', 'Example Domain']
+  [tabs_create_ext 之前] 分頁：['測試頁', '短影片測試', '127.0.0.1:8765', '短影片測試', 'Example Domain']
+  [tabs_create_ext 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('短影片測試', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [tabs_create_ext] 回傳： "ERR Cannot read properties of undefined (reading 'id')"
+  [tabs_create_ext 之後] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', 'Example Domain']
+  [tabs_create_ext 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('Installed Userscripts', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [tabs_create_ext] 多出來的偵錯目標： [('worker', 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/lint.js'), ('worker', 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/lint.js'), ('page', 'about:blank')] 不見的： []
+  [tabs_create_ext] 分頁 5 → 6：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', 'Example Domain']
+  [tabs_create_ext] 多出來的視窗： [('Installed Userscripts', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：擴充功能的背景程式要開它自己的頁面 → 開成分頁 5 → 6 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard'
+  [windows_create 之前] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', 'Example Domain']
+  [windows_create 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('Installed Userscripts', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [windows_create] 回傳： {}
+  [windows_create 之後] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '127.0.0.1:8765', '短影片測試', 'Example Domain']
+  [windows_create 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('短影片測試', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [windows_create] 多出來的偵錯目標： [('page', 'about:blank')] 不見的： []
+  [windows_create] 分頁 6 → 7：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '127.0.0.1:8765', '短影片測試', 'Example Domain']
+  [windows_create] 多出來的視窗： [('短影片測試', 'Tauri Window', 'MAOBOO.exe')]
+  [openOptionsPage 之前] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '127.0.0.1:8765', '短影片測試', 'Example Domain']
+  [openOptionsPage 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('短影片測試', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [openOptionsPage] 回傳： "ok"
+  [openOptionsPage 之後] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings']
+  [openOptionsPage 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('Settings', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [openOptionsPage] 多出來的偵錯目標： [('worker', 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/lint.js'), ('worker', 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/lint.js'), ('page', 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=settings')] 不見的： []
+  [openOptionsPage] 分頁 7 → 8：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings']
+  [openOptionsPage] 多出來的視窗： [('Settings', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：擴充功能的背景程式開選項頁 → 開成分頁，不是另外跳出一個視窗 7 → 8；視窗 []；網址列 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=settings'
+  AdGuard tabs.query(options)： []
+  AdGuard tabs.query({})： [[2007357816, 2007357814, true, "http://127.0.0.1:8765/test.html"], [2007357826, 2007357825, true, "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest"], [2007357836, 2007357835, true, "http://127.0.0.1:8765/snap.html?extcreate=1"], [2007357838, 2007357837, true, "http://127.0.0.1:8765/snap.html?extcreate=bg"], [2007357874, 2007357873, true, "https://example.com/"], [2007357880, 2007357879, true, "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options."], [2007357882, 2007357881, true, "http://127.0.0.1:8765/snap.html?wincreate=1"], [2007357884, 2007357883, true, "about:blank"], [2007357886, 2007357885, true, "about:blank"], [2007357890, 2007357889, true, "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options."]]
+PASS 擴充功能按鈕（AdGuard，接著偵錯）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+  [AdGuard 設定 之前] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings']
+  [AdGuard 設定 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [AdGuard 設定 之後] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings', 'AdGuard Settings']
+  [AdGuard 設定 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [AdGuard 設定] 多出來的偵錯目標： [('page', 'chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html')] 不見的： [('page', 'chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/popup.html')]
+  [AdGuard 設定] 分頁 8 → 9：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings', 'AdGuard Settings']
+  [AdGuard 設定] 多出來的視窗： [('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe')]
+  AdGuard 背景程式的訊息： ['console.error 2026-11-15T08:34:55:789: [ext.BackgroundMessageHandler.handleMessage]: an error occurred while handling message: {"handlerName":"app","type":"openSettingsTab"} error: Cannot destructure property \'id\' of \'tab\' as it is undefined.\nStack trace:\nTypeError: Cannot destructure property \'id\' of \'tab\' as it is undefined.\n    at tabs_TabsApi.focus (chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/backgro']
+  其他事件： []
+  [AdGuard 自己開設定頁 之前] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings', 'AdGuard Settings']
+  [AdGuard 自己開設定頁 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  AdGuard tabs.create(options)： {}
+  [AdGuard 自己開設定頁 之後] 分頁：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings', 'AdGuard Settings']
+  [AdGuard 自己開設定頁 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [AdGuard 自己開設定頁] 多出來的偵錯目標： [] 不見的： []
+  [AdGuard 自己開設定頁] 分頁 9 → 9：['測試頁', '短影片測試', '短影片測試', 'Installed Userscripts', '短影片測試', '短影片測試', 'Example Domain', 'Settings', 'AdGuard Settings']
+  AdGuard 背景程式的訊息： []
+  dhdgffkkebhmkfjojejmpbldmpobfkfo 讓網頁存取的檔案： null ；選項頁： options.html
+  bgnkhhnnamicmpeenaelnjfhikgbkllg 讓網頁存取的檔案： [{"resources": ["web-accessible-resources/*"], "matches": ["http://*/*", "https://*/*"], "use_dynamic_url": true}, {"resources": ["assets/fonts/Roboto-Flex-Regular.woff2"], "matches": ["http://*/*", "https://*/*"], "use_dynamic_url": true}] ；選項頁： pages/options.html
+  mnjggcdmjocbbbhaepdhchncahnbgone 讓網頁存取的檔案： [{"resources": ["icons/LogoSponsorBlocker256px.png", "icons/IconSponsorBlocker256px.png", "icons/PlayerStartIconSponsorBlocker.svg", "icons/PlayerStopIconSponsorBlocker.svg", "icons/PlayerUploadIconSponsorBlocker.svg", "icons/PlayerUploadFailedIconSponsorBlocker.svg", "icons/PlayerCancelSegmentIconSponsorBlocker.svg", "icons/clipboard.svg", "icons/settings.svg", "icons/pencil.svg", "icons/check.svg", "icons/check-smaller.svg", "icons/upvote.png", "icons/downvote.png", "icons/thumbs_down.svg", "icons/thumbs_down_locked.svg", "icons/thumbs_up.svg", "icons/help.svg", "icons/report.png", "icons/cl ；選項頁： options/options.html
+  gebbhagfogifgggkldgodflihgfeippi 讓網頁存取的檔案： [{"resources": ["ryd.script.js", "menu-fixer.js", "comments-bridge.js"], "matches": ["*://*.youtube.com/*"]}] ；選項頁： popup.html
+  cgakmbkklpmijhckpolanjijghgfpeoa 讓網頁存取的檔案： null ；選項頁： None
+  mgojgddhfhekopdpkocobommepgdeffb 讓網頁存取的檔案： null ；選項頁： None
+  fcoeoabgfenejglbffodgkkbkcdhcgfn 讓網頁存取的檔案： [{"matches": ["https://*.claude.ai/*", "https://claude.ai/*"], "resources": ["assets/onboarding-prompts-CJtFEMjA.js", "assets/content-script.ts-C6lrM1Zv.js"], "use_dynamic_url": false}, {"matches": ["<all_urls>"], "resources": ["assets/accessibility-tree.js-BFkNxN9Z.js", "assets/cursor-motion.js-uBhCC_Vx.js", "assets/agent-visual-indicator.js-CrSVcjfK.js"], "use_dynamic_url": false}, {"matches": ["https://meet.google.com/*"], "resources": ["assets/meet-add-claude.ts-opMRu5ex.js"], "use_dynamic_url": false}] ；選項頁： options.html
+  ghbmnnjooekpmoecnnnilnnbdlolhkhi 讓網頁存取的檔案： [{"matches": ["<all_urls>"], "resources": ["page_embed_script.js"]}] ；選項頁： None
+  inomeogfingihgjfjlpeplalcfajhgai 讓網頁存取的檔案： null ；選項頁： None
+  同時開分頁的擴充功能： ['bgnkhhnnamicmpeenaelnjfhikgbkllg', 'dhdgffkkebhmkfjojejmpbldmpobfkfo', 'fcoeoabgfenejglbffodgkkbkcdhcgfn', 'gebbhagfogifgggkldgodflihgfeippi', 'mnjggcdmjocbbbhaepdhchncahnbgone']
+  同時開分頁：要開 15 個；分頁 3 → 18；載入的 15 個；排到晚一點才開的 6 個、其中開成功 6 個
+PASS extprobe：幾個擴充功能同時開分頁 → 每一個都開出來 3 → 18，載入 15／15
+PASS extprobe：同時開分頁時排到晚一點才開的，都開成功了 排隊 6、成功 6
+PASS extprobe：同時開分頁時沒有一個改用「不連著」的方式開（都是交還給瀏覽器的新分頁） 0 個
+  （同時開分頁時真的有排隊的：6 個；用預先建立好的空白網頁的：22 個（整輪累計））
+PASS extprobe：同時開分頁之後程式還有回應 
+  [網頁開 SponsorBlock 選項頁 之前] 分頁：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  [網頁開 SponsorBlock 選項頁 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  網頁 window.open(SponsorBlock 選項頁)： {"id": 128, "result": {"result": {"type": "string", "value": "[object Window]"}}, "sessionId": "68B4D3FF3166E40E8F1ABB522F229959"}
+  [網頁開 SponsorBlock 選項頁 之後] 分頁：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  [網頁開 SponsorBlock 選項頁 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [網頁開 SponsorBlock 選項頁] 多出來的偵錯目標： [('page', 'about:blank')] 不見的： [('page', 'about:blank')]
+  [網頁開 SponsorBlock 選項頁] 分頁 8 → 8：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  之後網址列： 127.0.0.1:8765/test.html ；分頁： ['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain'] ；畫面文字： type here | frame input | popup | blank link | blank link | empty area | fullscreen
+PASS extprobe：一般網頁要開擴充功能的頁面（SponsorBlock 選項頁）→ 看不到那個頁面的內容 '127.0.0.1:8765/test.html' type here
+frame input
+popup
+blank link
+blank link
+empty area
+fullscreen
+  [網頁開 AdGuard 篩選記錄頁 之前] 分頁：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  [網頁開 AdGuard 篩選記錄頁 之前] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  網頁 window.open(AdGuard 篩選記錄頁)： {"id": 131, "result": {"result": {"type": "string", "value": "[object Window]"}}, "sessionId": "68B4D3FF3166E40E8F1ABB522F229959"}
+  [網頁開 AdGuard 篩選記錄頁 之後] 分頁：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  [網頁開 AdGuard 篩選記錄頁 之後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  [網頁開 AdGuard 篩選記錄頁] 多出來的偵錯目標： [('page', 'about:blank')] 不見的： [('page', 'about:blank')]
+  [網頁開 AdGuard 篩選記錄頁] 分頁 8 → 8：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  之後網址列： 127.0.0.1:8765/test.html ；分頁： ['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain'] ；畫面文字： type here | frame input | popup | blank link | blank link | empty area | fullscreen
+PASS extprobe：一般網頁要開擴充功能的頁面（AdGuard 篩選記錄頁）→ 看不到那個頁面的內容 '127.0.0.1:8765/test.html' type here
+frame input
+popup
+blank link
+blank link
+empty area
+fullscreen
+  之後的 tabs.query({})： [{"id": 2007357816, "w": 2007357814, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/test.html", "ti": "測試頁"}, {"id": 2007357826, "w": 2007357825, "a": true, "i": 0, "st": "complete", "u": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest.json", "ti": "⁣mbtm:10"}, {"id": 2007357874, "w": 2007357873, "a": true, "i": 0, "st": "complete", "u": "https://example.com/", "ti": "Example Domain"}, {"id": 2007357900, "w": 2007357899, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/multi.html?n=b04", "ti": "連開測試"}, {"id": 2007357910, "w": 2007357909, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/multi.html?n=b14", "ti": "連開測試"}, {"id": 2007357916, "w": 2007357915, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/multi.html?n=b20", "ti": "連開測試"}, {"id": 2007357918, "w": 2007357917, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/multi.html?n=b23", "ti": "連開測試"}, {"id": 2007357920, "w": 2007357919, "a": true, "i": 0, "st": "complete", "u": "http://127.0.0.1:8765/multi.html?n=b24", "ti": "連開測試"}, {"id": 2007357927, "w": 2007357926, "a": true, "i": 0, "st": "complete", "u": "about:blank", "ti": "about:blank"}, {"id": 2007357930, "w": 2007357929, "a": true, "i": 0, "st": "complete", "u": "about:blank", "ti": "about:blank"}]
+  最後的偵錯目標：
+  [最後] 偵錯目標 18 個：
+      service_worker   4DF372FD att=True chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/background.js | Service Worker chrome-extension://bgnkhh
+      service_worker   A308C505 att=True chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/background.js | Service Worker chrome-extension://dhdgff
+      service_worker   DF32D152 att=True chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/service-worker-loader.js | Service Worker chrome-extension://fcoeoa
+      service_worker   3CCC1321 att=True chrome-extension://gebbhagfogifgggkldgodflihgfeippi/ryd.background.js | Service Worker chrome-extension://gebbha
+      service_worker   F9BA68F7 att=True chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/js/background.js | Service Worker chrome-extension://mnjggc
+      page             728E5043 att=True about:blank | about:blank
+      page             502905F0 att=True http://127.0.0.1:8765/multi.html?n=b14 | 連開測試
+      background_page  61736C05 att=False chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/offscreen.html | Offscreen Audio Player & GIF Generator
+      background_page  0A0B8786 att=False chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/offscreen.html | chrome-extension://dhdgffkkebhmkfjojejmp
+      page             0FC8AAD8 att=True https://example.com/ | Example Domain
+      page             0CAC802C att=True about:blank | about:blank
+      page             0CF18ECA att=True http://127.0.0.1:8765/multi.html?n=b20 | 連開測試
+      page             3E968C8E att=True chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest.json | ⁣mbtm:10
+      page             6FF5589E att=True http://127.0.0.1:8765/test.html | 測試頁
+      iframe           A26BD2BF att=True http://localhost:8765/frame.html | http://localhost:8765/frame.html
+      page             ABBC5765 att=True http://127.0.0.1:8765/multi.html?n=b24 | 連開測試
+      page             A2370E2D att=True http://127.0.0.1:8765/multi.html?n=b04 | 連開測試
+      page             9BD2AEB5 att=True http://127.0.0.1:8765/multi.html?n=b23 | 連開測試
+  [最後] 分頁：['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+  [最後] 視窗：[('', 'Shell_TrayWnd', 'explorer.exe'), ('測試頁', 'Tauri Window', 'MAOBOO.exe'), ('工具箱', 'Tauri Window', 'MAOBOO.exe'), ('com.toolbox.desktop-siw', 'com.toolbox.desktop-sic', 'MAOBOO.exe'), ('', 'Tao Thread Event Target', 'MAOBOO.exe'), ('MapleStory', 'TkTopLevel', 'python.exe'), ('C:\\ProgramData\\GitHub\\HostedComputeAgent\\hosted-compute-agent', 'CASCADIA_HOSTING_WINDOW_CLASS', 'WindowsTerminal.exe'), ('', 'PseudoConsoleWindow', 'hosted-compute-agent'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'EdgeUiInputTopWndClass', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe'), ('', 'DummyDWMListenerWindow', 'explorer.exe')]
+  程式的訊息：
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b12 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+    [newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b12
+    [newwin] w1-t32：用預先建立好的空白網頁，交還 → true
+    [newwin] 連著的新分頁 → true
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b11 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+    [newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b11
+    [newwin] w1-t33：用預先建立好的空白網頁，交還 → true
+    [newwin] 連著的新分頁 → true
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b10 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b13 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b14 source="http://127.0.0.1:8765/multi.html?n=b04" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b04"
+    [newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b10
+    [us] 建立 w1-t34 的網頁：登記腳本
+    [newwin] w1-t34：建立網頁
+    [newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b13
+    [newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b13
+    [newwin] 連著的新分頁 → true
+    [newwin] w1-t31 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b14
+    [newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b14
+    [newwin] 連著的新分頁 → true
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    [us] w1-t32 框架 0 http://127.0.0.1:8765/multi.html?n=b12：跑 2 支腳本（設定值第 23 版）
+    [us] w1-t33 框架 0 http://127.0.0.1:8765/multi.html?n=b11：跑 2 支腳本（設定值第 23 版）
+    [newwin] w1-t34：建立好了，掛上通知
+    [newwin] w1-t34：交還給瀏覽器
+    [newwin] w1-t34：交還 → true
+    [newwin] 連著的新分頁 → true
+    [us] 建立 w1-t35 的網頁：登記腳本
+    [us] w1-t33 載入了：補登記腳本
+    [us] w1-t32 載入了：補登記腳本
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    [us] w1-t34 框架 0 http://127.0.0.1:8765/multi.html?n=b10：跑 2 支腳本（設定值第 23 版）
+    [spare] w1-t35：預先建立好一個空白網頁
+    [us] 建立 w1-t36 的網頁：登記腳本
+    [us] w1-t34 載入了：補登記腳本
+    [spare] w1-t36：預先建立好一個空白網頁
+    [newwin] w1-t35：用預先建立好的空白網頁，交還 → true
+    [newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b13 → true
+    [newwin] w1-t36：用預先建立好的空白網頁，交還 → true
+    [newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b14 → true
+    [us] 建立 w1-t37 的網頁：登記腳本
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    [us] w1-t36 框架 0 http://127.0.0.1:8765/multi.html?n=b14：跑 2 支腳本（設定值第 23 版）
+    [us] w1-t35 框架 0 http://127.0.0.1:8765/multi.html?n=b13：跑 2 支腳本（設定值第 23 版）
+    [spare] w1-t37：預先建立好一個空白網頁
+    [us] 建立 w1-t38 的網頁：登記腳本
+    [us] w1-t36 載入了：補登記腳本
+    [us] w1-t35 載入了：補登記腳本
+    [spare] w1-t38：預先建立好一個空白網頁
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b21 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+    [newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b21
+    [newwin] w1-t37：用預先建立好的空白網頁，交還 → true
+    [newwin] 連著的新分頁 → true
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b22 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+    [newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b22
+    [newwin] w1-t38：用預先建立好的空白網頁，交還 → true
+    [newwin] 連著的新分頁 → true
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b20 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b23 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+    [newwin] uri=http://127.0.0.1:8765/multi.html?n=b24 source="http://127.0.0.1:8765/multi.html?n=b14" user=true name="" page="http://127.0.0.1:8765/multi.html?n=b14"
+    [newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b20
+    [us] 建立 w1-t39 的網頁：登記腳本
+    [newwin] w1-t39：建立網頁
+    [newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b23
+    [newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b23
+    [newwin] 連著的新分頁 → true
+    [newwin] w1-t36 開成連著的新分頁：http://127.0.0.1:8765/multi.html?n=b24
+    [newwin] w1：正在建立別的網頁，這個晚一點再開：http://127.0.0.1:8765/multi.html?n=b24
+    [newwin] 連著的新分頁 → true
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    [us] w1-t37 框架 0 http://127.0.0.1:8765/multi.html?n=b21：跑 2 支腳本（設定值第 23 版）
+    [us] w1-t38 框架 0 http://127.0.0.1:8765/multi.html?n=b22：跑 2 支腳本（設定值第 23 版）
+    [newwin] w1-t39：建立好了，掛上通知
+    [newwin] w1-t39：交還給瀏覽器
+    [newwin] w1-t39：交還 → true
+    [newwin] 連著的新分頁 → true
+    [us] w1-t38 載入了：補登記腳本
+    [us] 建立 w1-t40 的網頁：登記腳本
+    [us] w1-t37 載入了：補登記腳本
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    [spare] w1-t40：預先建立好一個空白網頁
+    [us] 建立 w1-t41 的網頁：登記腳本
+    [us] w1-t39 框架 0 http://127.0.0.1:8765/multi.html?n=b20：跑 2 支腳本（設定值第 23 版）
+    [us] w1-t39 載入了：補登記腳本
+    [spare] w1-t41：預先建立好一個空白網頁
+    [newwin] w1-t40：用預先建立好的空白網頁，交還 → true
+    [newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b23 → true
+    [newwin] w1-t41：用預先建立好的空白網頁，交還 → true
+    [newwin] w1：晚一點才開的 http://127.0.0.1:8765/multi.html?n=b24 → true
+    [us] 建立 w1-t42 的網頁：登記腳本
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    __TAURI_INVOKE_KEY__ expected t9NLs=LvheVYcp?qJ9os but received 
+    [us] w1-t40 框架 0 http://127.0.0.1:8765/multi.html?n=b23：跑 2 支腳本（設定值第 23 版）
+    [us] w1-t41 框架 0 http://127.0.0.1:8765/multi.html?n=b24：跑 2 支腳本（設定值第 23 版）
+    [us] w1-t41 載入了：補登記腳本
+    [us] w1-t40 載入了：補登記腳本
+    [spare] w1-t42：預先建立好一個空白網頁
+    [us] 建立 w1-t43 的網頁：登記腳本
+    [spare] w1-t43：預先建立好一個空白網頁
+    [newwin] uri=chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+    [newwin] w1-t1 開成連著的新分頁：chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html
+    [newwin] w1-t42：用預先建立好的空白網頁，交還 → true
+    [newwin] 連著的新分頁 → true
+    [us] 建立 w1-t44 的網頁：登記腳本
+    [us] w1-t42 載入了：補登記腳本
+    [spare] w1-t44：預先建立好一個空白網頁
+    [ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html（41BC1B373CFF172ABB2B4B8D15E69901）；是小視窗：false
+    [cdp] Target.closeTarget → true {"success":true}
+    [newwin] uri=chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html source="http://127.0.0.1:8765/test.html" user=true name="" page="http://127.0.0.1:8765/test.html"
+    [newwin] w1-t1 開成連著的新分頁：chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html
+    [newwin] w1-t43：用預先建立好的空白網頁，交還 → true
+    [newwin] 連著的新分頁 → true
+    [us] 建立 w1-t45 的網頁：登記腳本
+    [us] w1-t43 載入了：補登記腳本
+    [spare] w1-t45：預先建立好一個空白網頁
+    [ext] 瀏覽器裡多了一個不是程式開的頁面 chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/filtering-log.html（458EFAB266D9E20C31A7141E4D66F324）；是小視窗：false
+    [cdp] Target.closeTarget → true {"success":true}
+PASS extprobe：瀏覽器元件沒有當掉 [] []
+[extprobe] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS extprobe：程式有回應 
+
+===== close =====
+PASS 按關閉：視窗關掉 
+PASS 關閉後：記住是關著的、分頁都還在 open=False tabs=['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+PASS 關掉瀏覽器視窗後：主程式還在、有回應 main=197000
+（瀏覽器元件的主程序換了：[8280] → []）
+PASS close：瀏覽器元件沒有當掉 [] []
+[close] window gone
+PASS close：程式有回應 
+
+===== 結果 =====
+PASS 讀得到工具列裡的元素 <DocumentControl '瀏覽器' #RootWebArea . (80,60,980,189)>
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS 一開始：整個視窗都是內容（沒有看不到的邊） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS 一開始：大小和上次記住的一樣（900×620） client=(80, 60, 900, 620)
+PASS 一開始：工具列高 129、網頁在它下面 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS 工具列三排的高度：分頁列 48、工具列 46、書籤列 34 [[0.0, 0.0, 900.0, 48.0], [0.0, 48.0, 900.0, 46.0], [0.0, 94.0, 900.0, 35.0]]
+FAIL 一開始：三個分頁、第一個是目前的 [{'active': False, 'pinned': False, 'title': '測試頁', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Getting Started – manuals', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Sign in or create an account | Claude.ai', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'SponsorBlock', 'w': 81.0}, {'active': True, 'pinned': False, 'title': 'Home | Tampermonkey', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Welcome to Return YouTube Dislike', 'w': 81.0}, {'active': False, 'pinned': False, 'title': '短影片測試', 'w': 81.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 81.0}]
+FAIL 一開始：視窗標題是分頁的標題 'Home | Tampermonkey'
+FAIL 一開始：網址列顯示目前的網址 'tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true'
+PASS 一開始：沒有上一頁、下一頁可以按 {'back': False, 'fwd': False, 'addr': '', 'shown': 'tampermonkey.net/index.php?version=5.5.1&ext=dhdg&updated=true', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS start：瀏覽器元件沒有當掉 [] []
+PASS start：程式有回應 
+PASS extprobe：點工具列上的篡改猴圖示會出現小視窗 [(430, 152, 830, 635), (85, 189, 975, 675), (80, 60, 980, 189)]
+PASS extprobe：篡改猴小視窗按「控制台」（沒有另外跳出瀏覽器自己的視窗） [('Installed Userscripts', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「控制台」（開了分頁） 3 → 4；網址列 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#url=&nav=dashboard'
+PASS extprobe：篡改猴小視窗按「控制台」（小視窗收起來） 
+PASS extprobe：篡改猴小視窗按「新增腳本」（沒有另外跳出瀏覽器自己的視窗） [('<New userscript>', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「新增腳本」（開了分頁） 4 → 5；網址列 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=new-user-script+editor'
+PASS extprobe：篡改猴小視窗按「新增腳本」（小視窗收起來） 
+PASS extprobe：篡改猴小視窗按「取得新腳本」（沒有另外跳出瀏覽器自己的視窗） [('Userscripts | Tampermonkey', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「取得新腳本」（開了分頁） 5 → 6；網址列 'tampermonkey.net/scripts.php'
+PASS extprobe：篡改猴小視窗按「取得新腳本」（小視窗收起來） 
+PASS extprobe：篡改猴小視窗按「說明」（沒有另外跳出瀏覽器自己的視窗） [('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('FAQ | Tampermonkey', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：篡改猴小視窗按「說明」（開了分頁） 6 → 7；網址列 'tampermonkey.net/faq.php?version=5.5.1&ext=dhdg'
+PASS extprobe：篡改猴小視窗按「說明」（小視窗收起來） 
+PASS 擴充功能按鈕（AdGuard）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+PASS extprobe：AdGuard 小視窗按「設定」（沒有另外跳出瀏覽器自己的視窗） [('AdGuard Settings', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：AdGuard 小視窗按「設定」（開了分頁） 7 → 8；網址列 'chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/options.html'
+PASS extprobe：AdGuard 小視窗按「設定」（小視窗收起來） 
+PASS 擴充功能按鈕（SponsorBlock）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+PASS extprobe：SponsorBlock 小視窗按「選項」（沒有另外跳出瀏覽器自己的視窗） [('Options - SponsorBlock', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：SponsorBlock 小視窗按「選項」（開了分頁） 8 → 9；網址列 'chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/options/options.html'
+PASS extprobe：SponsorBlock 小視窗按「選項」（小視窗收起來） 
+PASS 擴充功能按鈕（Return YouTube Dislike）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+PASS extprobe：Return YouTube Dislike 小視窗按「網站」（沒有另外跳出瀏覽器自己的視窗） [('', 'Chrome_WidgetWin_1', 'msedgewebview2.exe'), ('Return YouTube Dislike', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：Return YouTube Dislike 小視窗按「網站」（開了分頁） 9 → 10；網址列 'returnyoutubedislike.com'
+PASS extprobe：Return YouTube Dislike 小視窗按「網站」（小視窗收起來） 
+PASS 擴充功能按鈕（iCloud）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+PASS extprobe：iCloud 儀表板小視窗按「郵件」（沒有另外跳出瀏覽器自己的視窗） [('iCloud Mail - Apple iCloud', 'Tauri Window', 'MAOBOO.exe')]
+PASS extprobe：iCloud 儀表板小視窗按「郵件」（開了分頁） 10 → 11；網址列 'icloud.com/mail'
+PASS extprobe：iCloud 儀表板小視窗按「郵件」（小視窗收起來） 
+PASS extprobe：網頁自己的程式看不到 chrome.webview（top） ['[gm top] webview=undefined desc=null chromeDesc={"value":"object","writable":tru']
+PASS extprobe：網頁自己的程式看不到 chrome.webview（frame） ['[gm frame] webview=undefined desc=null chromeDesc={"value":"object","writable":t']
+PASS extprobe：網頁自己的程式看不到 chrome.webview（nested） ['[gm nested] webview=undefined desc=null chromeDesc={"value":"object","writable":']
+PASS 篡改猴：讀取用的網頁建立了、讀得到它的存放區（一開始沒有腳本） ['[tm] 讀不到篡改猴裡的腳本：no-storage', '[tm] 存放區變動的通知：{"result":{"type":"string","value":"ok"}}', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變']
+PASS 篡改猴：讀取用的網頁沒有被當成擴充功能自己開的視窗（沒有多出 manifest.json 的分頁） [] ['測試頁', '短影片測試', 'Example Domain']
+PASS 篡改猴：還沒有腳本時，網頁上沒有它的腳本在跑 []
+PASS 篡改猴：在編輯器存檔後，瀏覽器自己讀到那支腳本（不用另外做任何事） ['[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 篡改猴的頁面最下面有一行說明（不用找「允許使用者腳本」的開關） '工具箱：這個瀏覽器沒有「允許使用者腳本（Allow User Scripts）」開關，上面的提示不用理會。這裡的腳本由瀏覽器代為執行，存檔後重新整理網頁就生效。×'
+PASS 篡改猴裡的腳本：重新整理網頁後有執行 ['1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-']
+PASS 篡改猴裡的腳本：@require 的檔案、GM 功能、@resource 都有 ['1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-']
+PASS 篡改猴裡的腳本：@noframes 有效（內嵌框不跑） ['1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-']
+PASS 使用者腳本按鈕（篡改猴裡的腳本）：出現選單 [['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']]
+PASS 工具列的「使用者腳本」選單列出篡改猴裡的腳本 ['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']
+PASS 擴充功能頁面：列出篡改猴裡的腳本 '本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。\n匯入腳本\n從網址安裝\n貼上腳本\n檢查更新\n開啟腳本資料夾\n重新讀取\n自動更新腳本\n每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的\n篡改猴裡的腳本\n讀到 1 支，由這裡代為執行（08:31 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。\n開啟篡改猴\nChrome 的篡改猴裡的腳本\n這台電腦的 Chrome 裡沒有找到開著的篡改猴。\nMB Sync Test\u30001.0\n篡改猴\nhttp://127.0.0.1:8765/*\n在篡改猴裡開關\n不該跑\nhttps://not-visited.invalid/*\n刪除\n測試腳本一\nhttp://127.0.0.1:8765/test.html*\n刪除\n測試腳本二\nhttp://127.0.0.1:8765/*、http://localhost:8765/*\n刪除\n測試腳本四\u30001.0\nhttp://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*\n刪除'
+PASS 在篡改猴裡關掉腳本：網頁上就不跑了 True [] ['[tm] 讀到 0 支腳本，現在有 0 支，清單沒變', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 在篡改猴裡再打開：又會跑 True ['1794731521.96 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-'] ['[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 在篡改猴裡改了腳本內容再存檔：網頁上跑的是新的內容 True ['1794731541.31 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=- num=-'] ['[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS 篡改猴存的設定值會帶過來（腳本用 GM_getValue 拿得到） set True ['1794731548.03 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42'] ['[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單沒變']
+PASS 篡改猴整個暫停（小選單最上面的 Enabled 取消打勾）：它的腳本就不跑了 True [] ['[tm] 讀到 1 支腳本，現在有 1 支，清單沒變', '[tm] 讀到 1 支腳本（篡改猴暫停中），現在有 1 支，清單變了']
+PASS 篡改猴恢復之後：腳本又會跑 True ['1794731575.85 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42'] ['[tm] 讀到 1 支腳本（篡改猴暫停中），現在有 1 支，清單變了', '[tm] 讀到 1 支腳本，現在有 1 支，清單變了']
+PASS Chrome 的篡改猴：存放區正被瀏覽器核心開著、鎖著的時候也讀得出來 ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+PASS 兩邊是同一支腳本時：Chrome 那份只列出來、不重複執行 '匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。同名的腳本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。\n匯入腳本\n從網址安裝\n貼上腳本\n檢查更新\n開啟腳本資料夾\n重新讀取\n自動更新腳本\n每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的\n篡改猴裡的腳本\n讀到 1 支，由這裡代為執行（08:32 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。\n開啟篡改猴\nChrome 的篡改猴裡的腳本\n帶過來 1 支（08:33）。只讀 Chrome 的資料、不會改它；新增、編輯、刪除在 Chrome 的篡改猴裡做，這邊可以單獨把某一支關掉。\nMB Sync Test\u30002.0\n篡改猴\nhttp://127.0.0.1:8765/*\n在篡改猴裡開關\nMB Sync Test\u30002.0\nChrome 篡改猴\n跟上面那支同名，只執行上面那支（這支沒有執行）\n在 Chrome 的篡改猴裡開關\n不該跑\nhttps://not-visited.invalid/*\n刪除\n測試腳本一\nhttp://127.0.0.1:8765/test.html*\n刪除\n測試腳本二\nhttp://127.0.0.1:8765/*、http://localhost:8765/*\n刪除\n測試腳本四\u30001.0\nhttp://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*\n刪除'
+PASS 兩邊是同一支腳本時：網頁上只跑一次 ['1794731598.09 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+PASS Chrome 的篡改猴：視窗開著時 Chrome 那邊有變動，程式自己會發現、再帶一次（不用按任何東西） 等了 3 秒 ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變']
+PASS 這個瀏覽器的篡改猴裡刪掉那支腳本之後：改由 Chrome 帶過來的那一份執行 7 True ['1794731608.33 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42'] ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變', '[tm] 讀到 0 支腳本，現在有 0 支，清單變了']
+PASS Chrome 的篡改猴：按「從 Chrome 重新同步」把它裡面的腳本帶過來 ['[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單沒變', '[tm] 從 Chrome 的篡改猴帶過來 1 支腳本，現在有 1 支，清單變了']
+PASS 擴充功能頁面：列出 Chrome 篡改猴帶過來的腳本 '瀏覽器自己執行。這個瀏覽器的核心沒有「允許使用者腳本」的開關，篡改猴自己沒辦法執行腳本（它畫面上那則提示可以不用理會），所以裝在這裡的腳本、在篡改猴裡新增或匯入的腳本、還有 Chrome 的篡改猴裡的腳本（開瀏覽器時自動帶過來），都由這裡代為執行。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。同名的腳本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。\n匯入腳本\n從網址安裝\n貼上腳本\n檢查更新\n開啟腳本資料夾\n重新讀取\n自動更新腳本\n每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的\n篡改猴裡的腳本\n讀到 0 支，由這裡代為執行（08:33 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。\n開啟篡改猴\nChrome 的篡改猴裡的腳本\n帶過來 1 支（08:33）。只讀 Chrome 的資料、不會改它；新增、編輯、刪除在 Chrome 的篡改猴裡做，這邊可以單獨把某一支關掉。\nMB Sync Test\u30002.0\nChrome 篡改猴\nhttp://127.0.0.1:8765/*\n不該跑\nhttps://not-visited.invalid/*\n刪除\n測試腳本一\nhttp://127.0.0.1:8765/test.html*\n刪除\n測試腳本二\nhttp://127.0.0.1:8765/*、http://localhost:8765/*\n刪除\n測試腳本四\u30001.0\nhttp://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*\n刪除'
+PASS Chrome 篡改猴帶過來的腳本：有執行，設定值也帶過來了 ['1794731629.52 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+PASS Chrome 篡改猴帶過來的腳本：需要的外部檔案用篡改猴存好的那一份（原本的網址已經下載不到） ['1794731629.52 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+PASS 使用者腳本按鈕（Chrome 篡改猴的腳本）：出現選單 [['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']]
+PASS Chrome 篡改猴帶過來的腳本：可以在這邊單獨關掉 ['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本'] []
+PASS 使用者腳本按鈕（Chrome 篡改猴的腳本，再打開）：出現選單 [['使用者腳本', 'MB Sync Test', '測試腳本一', '測試腳本二', '管理使用者腳本']]
+PASS Chrome 篡改猴帶過來的腳本：再打開又會跑 ['1794731652.01 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42']
+PASS extprobe：擴充功能的背景程式要開它自己的頁面 → 開成分頁 5 → 6 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=dashboard'
+PASS extprobe：擴充功能的背景程式開選項頁 → 開成分頁，不是另外跳出一個視窗 7 → 8；視窗 []；網址列 'chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=settings'
+PASS 擴充功能按鈕（AdGuard，接著偵錯）：出現選單 [['擴充功能', 'AdGuard 廣告封鎖器', 'Chrome Remote Desktop', 'Claude', 'Google 文件離線版', 'iCloud 儀表板', 'Return YouTube Dislike', 'SponsorBlock for YouTube - 跳過贊助廣告', '測試擴充功能', '篡改猴', '遊戲橘子擴充元件', '管理擴充功能']]
+PASS extprobe：幾個擴充功能同時開分頁 → 每一個都開出來 3 → 18，載入 15／15
+PASS extprobe：同時開分頁時排到晚一點才開的，都開成功了 排隊 6、成功 6
+PASS extprobe：同時開分頁時沒有一個改用「不連著」的方式開（都是交還給瀏覽器的新分頁） 0 個
+PASS extprobe：同時開分頁之後程式還有回應 
+PASS extprobe：一般網頁要開擴充功能的頁面（SponsorBlock 選項頁）→ 看不到那個頁面的內容 '127.0.0.1:8765/test.html' type here
+frame input
+popup
+blank link
+blank link
+empty area
+fullscreen
+PASS extprobe：一般網頁要開擴充功能的頁面（AdGuard 篩選記錄頁）→ 看不到那個頁面的內容 '127.0.0.1:8765/test.html' type here
+frame input
+popup
+blank link
+blank link
+empty area
+fullscreen
+PASS extprobe：瀏覽器元件沒有當掉 [] []
+PASS extprobe：程式有回應 
+PASS 按關閉：視窗關掉 
+PASS 關閉後：記住是關著的、分頁都還在 open=False tabs=['測試頁', '連開測試', '連開測試', '連開測試', '連開測試', '連開測試', '短影片測試', 'Example Domain']
+PASS 關掉瀏覽器視窗後：主程式還在、有回應 main=197000
+PASS close：瀏覽器元件沒有當掉 [] []
+PASS close：程式有回應 
+87/90 passed
+
+----- page log -----
+1794731304.15 [us] start ran /test.html body=false
+1794731304.22 [us] end ran n=1 /test.html
+1794731304.22 [test] load:890x486 dpr=1 
+1794731304.24 [frame] load mb=true
+1794731308.52 [extbg] bg started
+1794731308.54 [extbg] menu created err=
+1794731309.48 [test] vis:hidden
+1794731309.77 [us] start ran /test.html body=false
+1794731309.82 [test] load:890x486 dpr=1 
+1794731309.82 [us] end ran n=2 /test.html
+1794731310.50 [frame] load mb=true
+1794731314.78 [test] vis:visible
+1794731342.77 [test] vis:hidden
+1794731347.84 [test] vis:visible
+1794731353.87 [test] vis:hidden
+1794731358.94 [test] vis:visible
+1794731364.97 [test] vis:hidden
+1794731370.16 [test] vis:visible
+1794731376.19 [test] vis:hidden
+1794731381.33 [test] vis:visible
+1794731390.62 [test] vis:hidden
+1794731395.75 [test] vis:visible
+1794731405.17 [test] vis:hidden
+1794731410.39 [test] vis:visible
+1794731419.71 [test] vis:hidden
+1794731424.83 [test] vis:visible
+1794731434.22 [test] vis:hidden
+1794731439.27 [test] vis:visible
+1794731440.84 [test] vis:hidden
+1794731444.40 [us] start ran /gm.html body=false
+1794731444.44 [gm top] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+1794731444.51 [us] start ran /gmframe.html body=false
+1794731444.53 [gm frame] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+1794731444.57 [us] start ran /gmframe.html body=false
+1794731444.58 [gm nested] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+1794731467.19 [test] vis:visible
+1794731470.76 [us] start ran /test.html body=false
+1794731470.78 [test] load:890x486 dpr=1 
+1794731470.78 [us] end ran n=3 /test.html
+1794731470.83 [frame] load mb=true
+1794731475.28 [test] vis:hidden
+1794731490.65 [us] start ran /test.html body=false
+1794731490.67 [test] load:890x486 dpr=1 
+1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731490.67 [us] end ran n=4 /test.html
+1794731490.72 [frame] load mb=true
+1794731495.03 [test] vis:visible
+1794731509.33 [us] start ran /test.html body=false
+1794731509.37 [us] end ran n=5 /test.html
+1794731509.37 [test] load:890x486 dpr=1 
+1794731509.38 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731509.46 [frame] load mb=true
+1794731514.93 [us] start ran /test.html body=false
+1794731514.95 [test] load:890x486 dpr=1 
+1794731514.95 [us] end ran n=6 /test.html
+1794731515.02 [frame] load mb=true
+1794731521.95 [us] start ran /test.html body=false
+1794731521.96 [test] load:890x486 dpr=1 
+1794731521.96 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731521.97 [us] end ran n=7 /test.html
+1794731522.02 [frame] load mb=true
+1794731526.46 [test] vis:hidden
+1794731541.30 [us] start ran /test.html body=false
+1794731541.31 [test] load:890x486 dpr=1 
+1794731541.31 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731541.31 [us] end ran n=8 /test.html
+1794731541.38 [frame] load mb=true
+1794731548.02 [us] start ran /test.html body=false
+1794731548.03 [test] load:890x486 dpr=1 
+1794731548.03 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731548.03 [us] end ran n=9 /test.html
+1794731548.08 [frame] load mb=true
+1794731552.41 [test] vis:visible
+1794731562.72 [us] start ran /test.html body=false
+1794731562.74 [test] load:890x486 dpr=1 
+1794731562.74 [us] end ran n=10 /test.html
+1794731562.80 [frame] load mb=true
+1794731575.83 [us] start ran /test.html body=false
+1794731575.85 [test] load:890x486 dpr=1 
+1794731575.85 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731575.86 [us] end ran n=11 /test.html
+1794731575.92 [frame] load mb=true
+1794731595.07 [us] start ran /test.html body=false
+1794731595.13 [test] load:890x486 dpr=1 
+1794731595.13 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731595.13 [us] end ran n=12 /test.html
+1794731595.21 [frame] load mb=true
+1794731598.09 [us] start ran /test.html body=false
+1794731598.09 [test] load:890x486 dpr=1 
+1794731598.09 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731598.09 [us] end ran n=13 /test.html
+1794731598.16 [frame] load mb=true
+1794731608.33 [us] start ran /test.html body=false
+1794731608.33 [test] load:890x486 dpr=1 
+1794731608.33 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731608.33 [us] end ran n=14 /test.html
+1794731608.38 [frame] load mb=true
+1794731626.50 [us] start ran /test.html body=false
+1794731626.55 [test] load:890x486 dpr=1 
+1794731626.56 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731626.56 [us] end ran n=15 /test.html
+1794731626.63 [frame] load mb=true
+1794731629.52 [us] start ran /test.html body=false
+1794731629.52 [test] load:890x486 dpr=1 
+1794731629.52 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731629.53 [us] end ran n=16 /test.html
+1794731629.60 [frame] load mb=true
+1794731640.80 [us] start ran /test.html body=false
+1794731640.83 [test] load:890x486 dpr=1 
+1794731640.83 [us] end ran n=17 /test.html
+1794731640.90 [frame] load mb=true
+1794731652.00 [us] start ran /test.html body=false
+1794731652.01 [test] load:890x486 dpr=1 
+1794731652.01 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731652.01 [us] end ran n=18 /test.html
+1794731652.08 [frame] load mb=true
+1794731660.01 [test] vis:hidden
+1794731660.05 [us] start ran /snap.html body=false
+1794731660.24 [snap] load h=486
+1794731660.24 [tmsync] v2.0 /snap.html req=string gm=function res=21 seed=from-tm num=42
+1794731664.67 [us] start ran /snap.html body=false
+1794731664.68 [snap] load h=486
+1794731664.68 [tmsync] v2.0 /snap.html req=string gm=function res=21 seed=from-tm num=42
+1794731675.23 [us] start ran /snap.html body=false
+1794731675.24 [tmsync] v2.0 /snap.html req=string gm=function res=21 seed=from-tm num=42
+1794731675.24 [snap] load h=486
+1794731686.87 [test] vis:visible
+1794731696.11 [test] vis:hidden
+1794731718.08 [test] vis:visible
+1794731720.52 [test] vis:hidden
+1794731720.86 [us] start ran /multi.html body=false
+1794731720.86 [multi] child b01 opener=false
+1794731720.87 [multi] child b02 opener=false
+1794731720.87 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731720.88 [us] start ran /multi.html body=false
+1794731720.89 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731721.20 [us] start ran /multi.html body=false
+1794731721.26 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731721.26 [multi] child b00 opener=false
+1794731721.54 [us] start ran /multi.html body=false
+1794731721.54 [multi] child b03 opener=false
+1794731721.55 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731721.82 [us] start ran /multi.html body=false
+1794731721.92 [multi] child b04 opener=false
+1794731722.00 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731727.94 [multi] child b11 opener=false
+1794731727.94 [multi] child b12 opener=false
+1794731727.94 [us] start ran /multi.html body=false
+1794731727.94 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731727.94 [us] start ran /multi.html body=false
+1794731727.95 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731728.27 [us] start ran /multi.html body=false
+1794731728.30 [multi] child b10 opener=false
+1794731728.30 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731728.98 [multi] child b14 opener=false
+1794731728.98 [multi] child b13 opener=false
+1794731728.99 [us] start ran /multi.html body=false
+1794731728.99 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731728.99 [us] start ran /multi.html body=false
+1794731728.99 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.33 [multi] child b22 opener=false
+1794731735.34 [multi] child b21 opener=false
+1794731735.34 [us] start ran /multi.html body=false
+1794731735.34 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.34 [us] start ran /multi.html body=false
+1794731735.34 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.74 [us] start ran /multi.html body=false
+1794731735.90 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.90 [multi] child b20 opener=false
+1794731736.56 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731736.56 [us] start ran /multi.html body=false
+1794731736.57 [multi] child b23 opener=false
+1794731736.57 [multi] child b24 opener=false
+1794731736.57 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731736.57 [us] start ran /multi.html body=false
+1794731764.88 [test] vis:visible
+1794731768.05 [test] vis:hidden
+1794731768.81 [test] vis:visible
+1794731774.04 [test] vis:hidden
+1794731774.82 [test] vis:visible
+1794731781.41 [test] vis:hidden
+
+
+----- game keys -----
+

@@ -1,0 +1,17 @@
+// ==UserScript==
+// @name         MB Sync Test
+// @namespace    https://maoboo.test/
+// @version      2.0
+// @description  sync test
+// @match        http://127.0.0.1:8765/*
+// @exclude      http://127.0.0.1:8765/us.html*
+// @require      http://127.0.0.1:8765/req.js
+// @resource     css http://127.0.0.1:8765/res.css
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_getResourceText
+// @run-at       document-end
+// @noframes
+// ==/UserScript==
+
+fetch('/log?m=' + encodeURIComponent('[tmsync] v2.0 ' + location.pathname + ' req=' + (typeof MB_REQ) + ' gm=' + (typeof GM_setValue) + ' res=' + (GM_getResourceText('css') || '').length + ' seed=' + GM_getValue('seed', '-') + ' num=' + GM_getValue('num', '-')));

@@ -1,0 +1,181 @@
+1794731304.15 [us] start ran /test.html body=false
+1794731304.22 [us] end ran n=1 /test.html
+1794731304.22 [test] load:890x486 dpr=1 
+1794731304.24 [frame] load mb=true
+1794731308.52 [extbg] bg started
+1794731308.54 [extbg] menu created err=
+1794731309.48 [test] vis:hidden
+1794731309.77 [us] start ran /test.html body=false
+1794731309.82 [test] load:890x486 dpr=1 
+1794731309.82 [us] end ran n=2 /test.html
+1794731310.50 [frame] load mb=true
+1794731314.78 [test] vis:visible
+1794731342.77 [test] vis:hidden
+1794731347.84 [test] vis:visible
+1794731353.87 [test] vis:hidden
+1794731358.94 [test] vis:visible
+1794731364.97 [test] vis:hidden
+1794731370.16 [test] vis:visible
+1794731376.19 [test] vis:hidden
+1794731381.33 [test] vis:visible
+1794731390.62 [test] vis:hidden
+1794731395.75 [test] vis:visible
+1794731405.17 [test] vis:hidden
+1794731410.39 [test] vis:visible
+1794731419.71 [test] vis:hidden
+1794731424.83 [test] vis:visible
+1794731434.22 [test] vis:hidden
+1794731439.27 [test] vis:visible
+1794731440.84 [test] vis:hidden
+1794731444.40 [us] start ran /gm.html body=false
+1794731444.44 [gm top] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+1794731444.51 [us] start ran /gmframe.html body=false
+1794731444.53 [gm frame] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+1794731444.57 [us] start ran /gmframe.html body=false
+1794731444.58 [gm nested] webview=undefined desc=null chromeDesc={"value":"object","writable":true,"enumerable":true,"configurable":true}
+1794731467.19 [test] vis:visible
+1794731470.76 [us] start ran /test.html body=false
+1794731470.78 [test] load:890x486 dpr=1 
+1794731470.78 [us] end ran n=3 /test.html
+1794731470.83 [frame] load mb=true
+1794731475.28 [test] vis:hidden
+1794731490.65 [us] start ran /test.html body=false
+1794731490.67 [test] load:890x486 dpr=1 
+1794731490.67 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731490.67 [us] end ran n=4 /test.html
+1794731490.72 [frame] load mb=true
+1794731495.03 [test] vis:visible
+1794731509.33 [us] start ran /test.html body=false
+1794731509.37 [us] end ran n=5 /test.html
+1794731509.37 [test] load:890x486 dpr=1 
+1794731509.38 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731509.46 [frame] load mb=true
+1794731514.93 [us] start ran /test.html body=false
+1794731514.95 [test] load:890x486 dpr=1 
+1794731514.95 [us] end ran n=6 /test.html
+1794731515.02 [frame] load mb=true
+1794731521.95 [us] start ran /test.html body=false
+1794731521.96 [test] load:890x486 dpr=1 
+1794731521.96 [tmsync] v1.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731521.97 [us] end ran n=7 /test.html
+1794731522.02 [frame] load mb=true
+1794731526.46 [test] vis:hidden
+1794731541.30 [us] start ran /test.html body=false
+1794731541.31 [test] load:890x486 dpr=1 
+1794731541.31 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=- num=-
+1794731541.31 [us] end ran n=8 /test.html
+1794731541.38 [frame] load mb=true
+1794731548.02 [us] start ran /test.html body=false
+1794731548.03 [test] load:890x486 dpr=1 
+1794731548.03 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731548.03 [us] end ran n=9 /test.html
+1794731548.08 [frame] load mb=true
+1794731552.41 [test] vis:visible
+1794731562.72 [us] start ran /test.html body=false
+1794731562.74 [test] load:890x486 dpr=1 
+1794731562.74 [us] end ran n=10 /test.html
+1794731562.80 [frame] load mb=true
+1794731575.83 [us] start ran /test.html body=false
+1794731575.85 [test] load:890x486 dpr=1 
+1794731575.85 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731575.86 [us] end ran n=11 /test.html
+1794731575.92 [frame] load mb=true
+1794731595.07 [us] start ran /test.html body=false
+1794731595.13 [test] load:890x486 dpr=1 
+1794731595.13 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731595.13 [us] end ran n=12 /test.html
+1794731595.21 [frame] load mb=true
+1794731598.09 [us] start ran /test.html body=false
+1794731598.09 [test] load:890x486 dpr=1 
+1794731598.09 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731598.09 [us] end ran n=13 /test.html
+1794731598.16 [frame] load mb=true
+1794731608.33 [us] start ran /test.html body=false
+1794731608.33 [test] load:890x486 dpr=1 
+1794731608.33 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731608.33 [us] end ran n=14 /test.html
+1794731608.38 [frame] load mb=true
+1794731626.50 [us] start ran /test.html body=false
+1794731626.55 [test] load:890x486 dpr=1 
+1794731626.56 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731626.56 [us] end ran n=15 /test.html
+1794731626.63 [frame] load mb=true
+1794731629.52 [us] start ran /test.html body=false
+1794731629.52 [test] load:890x486 dpr=1 
+1794731629.52 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731629.53 [us] end ran n=16 /test.html
+1794731629.60 [frame] load mb=true
+1794731640.80 [us] start ran /test.html body=false
+1794731640.83 [test] load:890x486 dpr=1 
+1794731640.83 [us] end ran n=17 /test.html
+1794731640.90 [frame] load mb=true
+1794731652.00 [us] start ran /test.html body=false
+1794731652.01 [test] load:890x486 dpr=1 
+1794731652.01 [tmsync] v2.0 /test.html req=string gm=function res=21 seed=from-tm num=42
+1794731652.01 [us] end ran n=18 /test.html
+1794731652.08 [frame] load mb=true
+1794731660.01 [test] vis:hidden
+1794731660.05 [us] start ran /snap.html body=false
+1794731660.24 [snap] load h=486
+1794731660.24 [tmsync] v2.0 /snap.html req=string gm=function res=21 seed=from-tm num=42
+1794731664.67 [us] start ran /snap.html body=false
+1794731664.68 [snap] load h=486
+1794731664.68 [tmsync] v2.0 /snap.html req=string gm=function res=21 seed=from-tm num=42
+1794731675.23 [us] start ran /snap.html body=false
+1794731675.24 [tmsync] v2.0 /snap.html req=string gm=function res=21 seed=from-tm num=42
+1794731675.24 [snap] load h=486
+1794731686.87 [test] vis:visible
+1794731696.11 [test] vis:hidden
+1794731718.08 [test] vis:visible
+1794731720.52 [test] vis:hidden
+1794731720.86 [us] start ran /multi.html body=false
+1794731720.86 [multi] child b01 opener=false
+1794731720.87 [multi] child b02 opener=false
+1794731720.87 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731720.88 [us] start ran /multi.html body=false
+1794731720.89 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731721.20 [us] start ran /multi.html body=false
+1794731721.26 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731721.26 [multi] child b00 opener=false
+1794731721.54 [us] start ran /multi.html body=false
+1794731721.54 [multi] child b03 opener=false
+1794731721.55 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731721.82 [us] start ran /multi.html body=false
+1794731721.92 [multi] child b04 opener=false
+1794731722.00 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731727.94 [multi] child b11 opener=false
+1794731727.94 [multi] child b12 opener=false
+1794731727.94 [us] start ran /multi.html body=false
+1794731727.94 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731727.94 [us] start ran /multi.html body=false
+1794731727.95 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731728.27 [us] start ran /multi.html body=false
+1794731728.30 [multi] child b10 opener=false
+1794731728.30 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731728.98 [multi] child b14 opener=false
+1794731728.98 [multi] child b13 opener=false
+1794731728.99 [us] start ran /multi.html body=false
+1794731728.99 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731728.99 [us] start ran /multi.html body=false
+1794731728.99 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.33 [multi] child b22 opener=false
+1794731735.34 [multi] child b21 opener=false
+1794731735.34 [us] start ran /multi.html body=false
+1794731735.34 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.34 [us] start ran /multi.html body=false
+1794731735.34 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.74 [us] start ran /multi.html body=false
+1794731735.90 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731735.90 [multi] child b20 opener=false
+1794731736.56 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731736.56 [us] start ran /multi.html body=false
+1794731736.57 [multi] child b23 opener=false
+1794731736.57 [multi] child b24 opener=false
+1794731736.57 [tmsync] v2.0 /multi.html req=string gm=function res=21 seed=from-tm num=42
+1794731736.57 [us] start ran /multi.html body=false
+1794731764.88 [test] vis:visible
+1794731768.05 [test] vis:hidden
+1794731768.81 [test] vis:visible
+1794731774.04 [test] vis:hidden
+1794731774.82 [test] vis:visible
+1794731781.41 [test] vis:hidden

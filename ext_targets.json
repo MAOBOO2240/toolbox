@@ -1,0 +1,144 @@
+[
+ {
+  "targetId": "4DF372FDDD2D55B560844E9DB3736CF5",
+  "type": "service_worker",
+  "title": "Service Worker chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/background.js",
+  "url": "chrome-extension://bgnkhhnnamicmpeenaelnjfhikgbkllg/pages/background.js",
+  "attached": false,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 9628
+ },
+ {
+  "targetId": "A308C505CA1193300EA342A83D57AB04",
+  "type": "service_worker",
+  "title": "Service Worker chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/background.js",
+  "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/background.js",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 2632
+ },
+ {
+  "targetId": "DF32D152F601EA11AC1923149237A5E2",
+  "type": "service_worker",
+  "title": "Service Worker chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/service-worker-loader.js",
+  "url": "chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/service-worker-loader.js",
+  "attached": false,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 0
+ },
+ {
+  "targetId": "3CCC1321B9E481B643315961EF004B5E",
+  "type": "service_worker",
+  "title": "Service Worker chrome-extension://gebbhagfogifgggkldgodflihgfeippi/ryd.background.js",
+  "url": "chrome-extension://gebbhagfogifgggkldgodflihgfeippi/ryd.background.js",
+  "attached": false,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 5884
+ },
+ {
+  "targetId": "F9BA68F7ED505B77A124738322EC2D45",
+  "type": "service_worker",
+  "title": "Service Worker chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/js/background.js",
+  "url": "chrome-extension://mnjggcdmjocbbbhaepdhchncahnbgone/js/background.js",
+  "attached": false,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 3212
+ },
+ {
+  "targetId": "6FF5589E0239DE21FF0A40A9DC44D57E",
+  "type": "page",
+  "title": "測試頁",
+  "url": "http://127.0.0.1:8765/test.html",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 8004
+ },
+ {
+  "targetId": "DCD56C16ABDB793BE71EBC7BE1EDA8CA",
+  "type": "iframe",
+  "title": "http://localhost:8765/frame.html",
+  "url": "http://localhost:8765/frame.html",
+  "attached": true,
+  "parentId": "6FF5589E0239DE21FF0A40A9DC44D57E",
+  "canAccessOpener": false,
+  "parentFrameId": "6FF5589E0239DE21FF0A40A9DC44D57E",
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 9568
+ },
+ {
+  "targetId": "D111DC4B664E5C4CBBA7EA839C7F82D2",
+  "type": "page",
+  "title": "about:blank",
+  "url": "about:blank",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 7588
+ },
+ {
+  "targetId": "DD6E5F05CE49FBED4C01502BBCF8CF3D",
+  "type": "page",
+  "title": "about:blank",
+  "url": "about:blank",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 5172
+ },
+ {
+  "targetId": "0132B060E38E70B0741947D7AD39FA20",
+  "type": "page",
+  "title": "about:blank",
+  "url": "about:blank",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 1248
+ },
+ {
+  "targetId": "61736C058FF820E2D429B56EDB0A49F6",
+  "type": "background_page",
+  "title": "Offscreen Audio Player & GIF Generator",
+  "url": "chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/offscreen.html",
+  "attached": false,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 4276
+ },
+ {
+  "targetId": "0FC8AAD8A9E1B7D698C259240DBD0CAD",
+  "type": "page",
+  "title": "Example Domain",
+  "url": "https://example.com/",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 7212
+ },
+ {
+  "targetId": "3E968C8EE9C74CFE96A1367B58F67C8D",
+  "type": "page",
+  "title": "⁣mbtm:2",
+  "url": "chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/manifest.json",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 2632
+ },
+ {
+  "targetId": "7396111EEA9F211E5860C145AA2A49C3",
+  "type": "page",
+  "title": "about:blank",
+  "url": "about:blank",
+  "attached": true,
+  "canAccessOpener": false,
+  "browserContextId": "29D22B0D4BF0EA502388ADEF03E39D68",
+  "pid": 5552
+ }
+]
