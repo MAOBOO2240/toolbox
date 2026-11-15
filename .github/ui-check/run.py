@@ -4434,126 +4434,162 @@ def s_extprobe():
     log("  userScripts（一開始）：", json.dumps(b.ev(sw, "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"), ensure_ascii=False))
     log("  permissions：", json.dumps(b.ev(sw, "chrome.permissions.getAll()"), ensure_ascii=False)[:900])
 
-    # ---- （實驗）篡改猴把腳本存在哪裡、長什麼樣子（要讓瀏覽器自己去執行篡改猴裡的腳本，得先讀得到） ----
+    # ---- 篡改猴裡的腳本：瀏覽器讀過來代為執行（這個瀏覽器核心沒有「允許使用者腳本」開關，篡改猴自己跑不了） ----
     try:
-        DUMP = ("chrome.storage.local.get(null).then(o => Object.keys(o).sort().map(k => { const v = o[k]; const t = typeof v === 'string' ? v : JSON.stringify(v); "
-                "return [k, typeof v, t == null ? -1 : t.length, t == null ? '' : t.slice(0, 700)]; }))")
-
-        def dump(tag, sess):
-            d = b.ev(sess, DUMP, wait=40)
-            if not isinstance(d, list):
-                log(f"  [存放實驗] {tag}：讀不到", str(d)[:300])
-                return {}
-            log(f"  [存放實驗] {tag}：chrome.storage.local 有 {len(d)} 筆")
-            return {k: (ty, n, head) for k, ty, n, head in d}
-
-        d0 = dump("一開始", sw)
-        for k in sorted(d0)[:80]:
-            log(f"    {k!r} {d0[k][0]} {d0[k][1]}：{d0[k][2][:160]!r}")
-        log("  [存放實驗] 其他存放的地方：", json.dumps(b.ev(sw, "({idb: indexedDB.databases ? await indexedDB.databases().then(x => x.map(d => d.name + ':' + d.version)) : 'no', sync: await chrome.storage.sync.get(null).then(o => Object.keys(o).length, e => 'ERR ' + e.message), session: chrome.storage.session ? await chrome.storage.session.get(null).then(o => Object.keys(o).slice(0, 30), e => 'ERR ' + e.message) : 'no', getKeys: typeof chrome.storage.local.getKeys, onChanged: typeof chrome.storage.onChanged})"), ensure_ascii=False)[:900])
-        # 在篡改猴的編輯器存一支新腳本（跟使用者按「新增腳本」再存檔一樣）
-        restore_tabs(["t1", "t2", "t3"])
-        home()
-        n0e = tab_count()
-        b.ev(sw, "chrome.tabs.create({url: chrome.runtime.getURL('options.html') + '#nav=new-user-script+editor'}).then(() => 'ok')")
-        time.sleep(8.0)
-        log(f"  [存放實驗] 開編輯器：分頁 {n0e} → {tab_count()}；網址列 {bar_state().get('shown')!r}；標題 {title(web)!r}")
-        click(*PG(520, 330), wait=0.8)
-        chord([VK_CTRL], 0x53, wait=3.5)  # Ctrl+S
-        shot("tm_editor_saved")
-        log(f"  [存放實驗] 存檔之後：標題 {title(web)!r}；其他視窗 {[title(h) for h in top_windows() if user32.IsWindowVisible(h) and pid_of(h) == pid_of(web)][:8]}")
-        t2 = sw_of(TM)
-        sw = b.attach(t2["targetId"]) if t2 else sw
-        d1 = dump("存了一支新腳本之後", sw)
-        for k in sorted(d1):
-            if k not in d0 or d0[k][1:] != d1[k][1:]:
-                log(f"    （新的／變了）{k!r} {d1[k][0]} {d1[k][1]}：{d1[k][2]!r}")
-        # 完整的內容（看有哪些欄位）
-        FULL = "chrome.storage.local.get(null).then(o => Object.keys(o).sort().filter(k => /@(meta|re|st|uid)#/.test(k)).map(k => [k, JSON.stringify(o[k])]))"
+        def tm_lines():
+            return [l.strip() for l in stderr_text().splitlines() if "[tm]" in l]
 
         def swx():
             t = sw_of(TM)
             return b.attach(t["targetId"]) if t else sw
 
-        def full(tag):
-            r = b.ev(swx(), FULL, wait=40)
-            for k, v in (r if isinstance(r, list) else []):
-                log(f"    （{tag}，完整）{k!r}：{v}")
-
-        full("第一支")
-
-        # 再開一次編輯器，貼上自己的腳本（有 @require、@resource、@noframes）再存檔
         def set_clip(text):
             cp = os.path.join(OUT, "clip.txt")
             with open(cp, "w", encoding="utf-8", newline="\n") as f:
                 f.write(text)
             r = subprocess.run(["powershell", "-NoProfile", "-Command", f"Set-Clipboard -Value (Get-Content -Raw -Encoding UTF8 '{cp}')"], capture_output=True, text=True, timeout=90)
-            log("  [存放實驗] 放進剪貼簿：", r.returncode, (r.stderr or "")[:200])
+            if r.returncode:
+                log("  [篡改猴] 放進剪貼簿失敗：", r.returncode, (r.stderr or "")[:200])
 
-        SRC = ("// ==UserScript==\n// @name         MB Sync Test\n// @namespace    https://maoboo.test/\n// @version      1.0\n// @description  sync test\n"
-               "// @match        http://127.0.0.1:8765/*\n// @exclude      http://127.0.0.1:8765/frame.html*\n// @require      http://127.0.0.1:8765/req.js\n// @resource     css http://127.0.0.1:8765/res.css\n"
-               "// @grant        GM_setValue\n// @grant        GM_getValue\n// @run-at       document-end\n// @noframes\n// ==/UserScript==\n\n"
-               "document.documentElement.setAttribute('data-tm-sync', 'v1:' + (typeof MB_REQ));\n")
-        set_clip(SRC)
+        def tm_src(ver):
+            return ("// ==UserScript==\n// @name         MB Sync Test\n// @namespace    https://maoboo.test/\n// @version      " + ver + "\n// @description  sync test\n"
+                    "// @match        http://127.0.0.1:8765/*\n// @exclude      http://127.0.0.1:8765/us.html*\n// @require      http://127.0.0.1:8765/req.js\n// @resource     css http://127.0.0.1:8765/res.css\n"
+                    "// @grant        GM_setValue\n// @grant        GM_getValue\n// @grant        GM_getResourceText\n// @run-at       document-end\n// @noframes\n// ==/UserScript==\n\n"
+                    "fetch('/log?m=' + encodeURIComponent('[tmsync] v" + ver + " ' + location.pathname + ' req=' + (typeof MB_REQ) + ' gm=' + (typeof GM_setValue) + ' res=' + (GM_getResourceText('css') || '').length));\n")
+
+        def test_target():
+            return next((t for t in b.targets() if t.get("type") == "page" and "/test.html" in t.get("url", "")), None)
+
+        def reload_test(wait=4.0):
+            """測試頁重新整理，回傳重新整理前的時間"""
+            t = time.time()
+            pt = test_target()
+            if pt is None:
+                log("  [篡改猴] 找不到測試頁", [(x.get("type"), x.get("url", "")[:70]) for x in b.targets()])
+                return t
+            b.call("Page.reload", {"ignoreCache": True}, session=b.attach(pt["targetId"]), wait=15)
+            time.sleep(wait)
+            return t
+
+        def ran(t):
+            return [l for l in page_log_since(t) if "[tmsync]" in l]
+
+        def changed_n():
+            return len([l for l in tm_lines() if "清單變了" in l])
+
+        def options_target():
+            return next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").startswith(f"chrome-extension://{TM}/options.html")), None)
+
+        def paste_and_save():
+            click(*PG(520, 330), wait=0.8)
+            chord([VK_CTRL], 0x41, wait=0.7)  # Ctrl+A
+            chord([VK_CTRL], 0x56, wait=1.5)  # Ctrl+V
+            chord([VK_CTRL], 0x53, wait=1.0)  # Ctrl+S
+
         restore_tabs(["t1", "t2", "t3"])
         home()
-        n0e = tab_count()
+        log("  [篡改猴] 程式到目前為止的訊息：")
+        for l in tm_lines()[-10:]:
+            log("     ", l)
+        check("篡改猴：讀取用的網頁建立了、讀得到它的存放區（一開始沒有腳本）", any("讀到 0 支腳本" in l for l in tm_lines()), f"{tm_lines()[-5:]}")
+        stray = [l.strip() for l in stderr_text().splitlines() if "manifest.json" in l and "不是程式開的頁面" in l]
+        check("篡改猴：讀取用的網頁沒有被當成擴充功能自己開的視窗（沒有多出 manifest.json 的分頁）", not stray and not any("manifest" in t["title"].lower() for t in tabs_info()), f"{stray[:2]} {[t['title'] for t in tabs_info()]}")
+        hs = [t for t in b.targets() if t.get("url", "").endswith("/manifest.json")]
+        log("  [篡改猴] 讀取用的網頁在瀏覽器裡：", [(t.get("type"), t.get("url", "")[:90], t.get("title", "")[:30]) for t in hs])
+        t0 = reload_test()
+        check("篡改猴：還沒有腳本時，網頁上沒有它的腳本在跑", not ran(t0), f"{ran(t0)}")
+
+        # 在篡改猴的編輯器貼上一支腳本、存檔（跟使用者按「新增腳本」、貼上、Ctrl+S 一樣）
+        set_clip(tm_src("1.0"))
+        n0e, c0 = tab_count(), changed_n()
         b.ev(swx(), "chrome.tabs.create({url: chrome.runtime.getURL('options.html') + '#nav=new-user-script+editor'}).then(() => 'ok')")
         time.sleep(8.0)
-        log(f"  [存放實驗] 再開編輯器：分頁 {n0e} → {tab_count()}；標題 {title(web)!r}")
-        click(*PG(520, 330), wait=0.8)
-        chord([VK_CTRL], 0x41, wait=0.7)  # Ctrl+A
-        chord([VK_CTRL], 0x56, wait=1.5)  # Ctrl+V
-        shot("tm_editor_pasted")
-        chord([VK_CTRL], 0x53, wait=5.0)  # Ctrl+S
-        shot("tm_editor_saved2")
-        log(f"  [存放實驗] 貼上再存檔之後：標題 {title(web)!r}；分頁 {[t['title'] for t in tabs_info()]}")
-        d2 = dump("存了第二支（貼上的）之後", swx())
-        for k in sorted(d2):
-            if k not in d1 or d1[k][1:] != d2[k][1:]:
-                log(f"    （新的／變了）{k!r} {d2[k][0]} {d2[k][1]}：{d2[k][2][:260]!r}")
-        full("兩支")
+        log(f"  [篡改猴] 開編輯器：分頁 {n0e} → {tab_count()}；標題 {title(web)!r}")
+        t_save = time.time()
+        paste_and_save()
+        got = wait_for(lambda: changed_n() > c0, 25)
+        log(f"  [篡改猴] 存檔後 {time.time() - t_save:.1f} 秒：", tm_lines()[-4:])
+        time.sleep(2.5)
+        shot("tm_saved")
+        check("篡改猴：在編輯器存檔後，瀏覽器自己讀到那支腳本（不用另外做任何事）", bool(got) and any("讀到 1 支腳本" in l for l in tm_lines()), f"{tm_lines()[-4:]}")
+        ot = options_target()
+        osx = b.attach(ot["targetId"]) if ot else None
+        if osx:
+            note = b.ev(osx, "(() => { const e = document.getElementById('mb-tm-note'); return e ? e.textContent : null; })()")
+            check("篡改猴的頁面最下面有一行說明（不用找「允許使用者腳本」的開關）", isinstance(note, str) and "允許使用者腳本" in note, f"{note!r}")
+        else:
+            check("篡改猴的頁面最下面有一行說明（不用找「允許使用者腳本」的開關）", False, "找不到篡改猴的分頁")
 
-        # 擴充功能套件裡的一個靜態檔（manifest.json）當成頁面開：存放區變動時，這份文件收不收得到通知、能不能改標題
-        pt = next((t for t in b.targets() if t.get("type") == "page" and "/test.html" in t.get("url", "")), None)
-        if pt is not None:
-            ps = b.attach(pt["targetId"])
-            r = b.call("Page.navigate", {"url": f"chrome-extension://{TM}/manifest.json"}, session=ps, wait=15)
-            time.sleep(3.0)
-            b.pump(0.3)
-            log("  [存放實驗] manifest.json 這份文件：", json.dumps(b.ev(ps, "({head: !!document.head, html: document.documentElement.outerHTML.slice(0, 260), wv: typeof (window.chrome && window.chrome.webview), title0: document.title, ct: document.contentType, vis: document.visibilityState, sub: typeof (crypto && crypto.subtle), sec: window.isSecureContext})"), ensure_ascii=False)[:1200])
-            log("  [存放實驗] 裝上監聽：", b.ev(ps, "(window.__n = 0, chrome.storage.onChanged.addListener((c, a) => { window.__n++; window.__keys = Object.keys(c).slice(0, 6); window.__area = a; try { if (!document.head) document.documentElement.insertBefore(document.createElement('head'), document.documentElement.firstChild); document.title = 'mb-n-' + window.__n; } catch (e) { window.__err = String(e); } }), 'ok')"))
-            b.ev(swx(), "chrome.storage.local.set({'!misc.mbprobe': {origin: 'normal', value: Date.now()}}).then(() => 'set')")
+        # 測試頁重新整理：腳本有跑；@require、@resource、GM 功能都在；內嵌框不跑（@noframes）
+        t1 = reload_test()
+        r1 = ran(t1)
+        check("篡改猴裡的腳本：重新整理網頁後有執行", any("v1.0 /test.html" in l for l in r1), f"{r1}")
+        check("篡改猴裡的腳本：@require 的檔案、GM 功能、@resource 都有", any("req=string gm=function" in l and not l.rstrip().endswith("res=0") for l in r1), f"{r1}")
+        check("篡改猴裡的腳本：@noframes 有效（內嵌框不跑）", not any("/frame.html" in l for l in r1), f"{r1}")
+
+        # 工具列的「使用者腳本」選單也列得出來
+        home()
+        try:
+            ms = open_menu(US_BTN, "使用者腳本按鈕（篡改猴裡的腳本）")
+            names = [n for _, m in ms for n in names_of(m)]
+            check("工具列的「使用者腳本」選單列出篡改猴裡的腳本", any("MB Sync Test" in n for n in names), f"{names}")
+            shot("tm_us_menu")
+            close_menus()
+            click_blank(0.5)
+        except Exception:
+            log(traceback.format_exc())
+            check("工具列的「使用者腳本」選單列出篡改猴裡的腳本", False, "exception")
+
+        # 擴充功能頁面：標示「篡改猴」、有那支腳本
+        try:
+            go("chrome://extensions/", wait=3.5)
+            txt = page_text() or ""
+            check("擴充功能頁面：列出篡改猴裡的腳本", "篡改猴裡的腳本" in txt and "MB Sync Test" in txt, f"{txt[-500:]!r}")
+            shot("tm_ext_page")
+            go(f"http://127.0.0.1:{PORT}/test.html", wait=3.0)
+        except Exception:
+            log(traceback.format_exc())
+            check("擴充功能頁面：列出篡改猴裡的腳本", False, "exception")
+
+        # 在篡改猴的控制台關掉那支腳本 → 不跑；再打開 → 又跑
+        TOGGLE = "(() => { const c = [...document.querySelectorAll('.enabler')]; if (!c.length) return 'none'; c[c.length - 1].click(); return 'clicked ' + c.length; })()"
+        if osx:
+            c1 = changed_n()
+            log("  [篡改猴] 點啟用開關（關）：", b.ev(osx, TOGGLE))
+            off = wait_for(lambda: changed_n() > c1, 15)
+            t2 = reload_test()
+            check("在篡改猴裡關掉腳本：網頁上就不跑了", bool(off) and not ran(t2), f"{off} {ran(t2)} {tm_lines()[-3:]}")
+            c2 = changed_n()
+            log("  [篡改猴] 點啟用開關（開）：", b.ev(osx, TOGGLE))
+            on = wait_for(lambda: changed_n() > c2, 15)
+            t3 = reload_test()
+            check("在篡改猴裡再打開：又會跑", bool(on) and any("v1.0 /test.html" in l for l in ran(t3)), f"{on} {ran(t3)} {tm_lines()[-3:]}")
+
+        # 改內容：開那支腳本的編輯器，貼上新的版本、存檔 → 重新整理後跑的是新的
+        ids = b.ev(swx(), "chrome.storage.local.get(null).then(o => Object.keys(o).filter(k => k.includes('@source#')).map(k => k.split('#').pop()))")
+        log("  [篡改猴] 存放區裡的腳本編號：", ids)
+        if isinstance(ids, list) and ids:
+            set_clip(tm_src("2.0"))
+            c3, n1e = changed_n(), tab_count()
+            b.ev(swx(), "chrome.tabs.create({url: chrome.runtime.getURL('options.html') + '#nav=" + ids[-1] + "+editor'}).then(() => 'ok')")
+            time.sleep(8.0)
+            log(f"  [篡改猴] 開那支腳本的編輯器：分頁 {n1e} → {tab_count()}；標題 {title(web)!r}")
+            paste_and_save()
+            up = wait_for(lambda: changed_n() > c3, 25)
             time.sleep(2.0)
-            log("  [存放實驗] 背景程式寫了一筆之後：", json.dumps(b.ev(ps, "({n: window.__n, keys: window.__keys, area: window.__area, title: document.title, err: window.__err, head: !!document.head})"), ensure_ascii=False)[:600], "；分頁標題", [t["title"] for t in tabs_info()])
-            ot = next((t for t in b.targets() if t.get("type") == "page" and t.get("url", "").startswith(f"chrome-extension://{TM}/options.html")), None)
-            if ot is not None:
-                osx = b.attach(ot["targetId"])
-                log("  [存放實驗] 控制台的網址：", b.ev(osx, "location.href"))
-                log("  [存放實驗] 控制台裡跟啟用有關的元素：", json.dumps(b.ev(osx, "[...document.querySelectorAll('*')].filter(e => /enabl/i.test(String(e.className) + ' ' + e.id + ' ' + (e.getAttribute('name') || ''))).slice(0, 30).map(e => [e.tagName, e.id.slice(0, 70), String(e.className).slice(0, 90), (e.getAttribute('title') || '').slice(0, 40)])"), ensure_ascii=False)[:3500])
-                r = b.ev(osx, "(() => { const c = [...document.querySelectorAll('*')].filter(e => /enabler/i.test(String(e.className))); if (!c.length) return 'none'; c[c.length - 1].click(); return 'clicked ' + c.length; })()")
-                log("  [存放實驗] 點啟用開關：", r)
-                time.sleep(3.0)
-                shot("tm_toggle")
-                log("  [存放實驗] 之後各腳本的 enabled：", json.dumps(b.ev(swx(), "chrome.storage.local.get(null).then(o => Object.keys(o).filter(k => k.includes('@meta#')).map(k => [k.slice(-8), o[k].value && o[k].value.enabled, o[k].value && o[k].value.name]))"), ensure_ascii=False)[:600])
-                log("  [存放實驗] 監聽那邊：", json.dumps(b.ev(ps, "({n: window.__n, keys: window.__keys, title: document.title})"), ensure_ascii=False)[:600])
-            else:
-                log("  [存放實驗] 找不到控制台那個分頁", [(t.get("type"), t.get("url", "")[:80]) for t in b.targets()])
-            time.sleep(4.0)
-            d3 = dump("最後", swx())
-            for k in sorted(d3):
-                if k not in d2 or d2[k][1:] != d3[k][1:]:
-                    log(f"    （新的／變了）{k!r} {d3[k][0]} {d3[k][1]}：{d3[k][2][:260]!r}")
-            full("最後")
-            log("  [存放實驗] 所有的鍵：", json.dumps(b.ev(swx(), "chrome.storage.local.get(null).then(o => Object.keys(o).sort().map(k => [k, JSON.stringify(o[k]).length]))"), ensure_ascii=False)[:4000])
-            b.ev(swx(), "chrome.storage.local.remove('!misc.mbprobe').then(() => 'ok')")
-            b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html"}, session=ps, wait=15)
-            time.sleep(3.0)
+            shot("tm_saved_v2")
+            t4 = reload_test()
+            check("在篡改猴裡改了腳本內容再存檔：網頁上跑的是新的內容", bool(up) and any("v2.0 /test.html" in l for l in ran(t4)), f"{up} {ran(t4)} {tm_lines()[-3:]}")
+        routed = [l for l in tm_lines() if "通知到讀取用的網頁" in l]
+        log("  [篡改猴] 開新分頁的要求有沒有通知到讀取用的網頁：", routed[:6])
+        log("  [篡改猴] 最後的訊息：")
+        for l in tm_lines()[-12:]:
+            log("     ", l)
         restore_tabs(["t1", "t2", "t3"])
         home()
     except Exception:
         log(traceback.format_exc())
-        check("extprobe 存放實驗 (沒有錯誤)", False, "exception")
+        check("extprobe 篡改猴裡的腳本 (沒有錯誤)", False, "exception")
 
     # ---- 擴充功能要開分頁、視窗時會怎樣 ----
     def act(tag, expr, settle=3.5):
