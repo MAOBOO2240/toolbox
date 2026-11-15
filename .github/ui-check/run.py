@@ -4434,61 +4434,57 @@ def s_extprobe():
     log("  userScripts（一開始）：", json.dumps(b.ev(sw, "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"), ensure_ascii=False))
     log("  permissions：", json.dumps(b.ev(sw, "chrome.permissions.getAll()"), ensure_ascii=False)[:900])
 
-    # ---- （實驗）瀏覽器核心自己的「擴充功能管理頁」在這裡開不開得出來？開得出來的話，
-    #      篡改猴要的「允許使用者腳本」開關就可以從那裡打開（跟 Chrome 的做法一樣） ----
+    # ---- （實驗）篡改猴把腳本存在哪裡、長什麼樣子（要讓瀏覽器自己去執行篡改猴裡的腳本，得先讀得到） ----
     try:
-        US_Q = "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"
+        DUMP = ("chrome.storage.local.get(null).then(o => Object.keys(o).sort().map(k => { const v = o[k]; const t = typeof v === 'string' ? v : JSON.stringify(v); "
+                "return [k, typeof v, t == null ? -1 : t.length, t == null ? '' : t.slice(0, 700)]; }))")
+
+        def dump(tag, sess):
+            d = b.ev(sess, DUMP, wait=40)
+            if not isinstance(d, list):
+                log(f"  [存放實驗] {tag}：讀不到", str(d)[:300])
+                return {}
+            log(f"  [存放實驗] {tag}：chrome.storage.local 有 {len(d)} 筆")
+            return {k: (ty, n, head) for k, ty, n, head in d}
+
+        d0 = dump("一開始", sw)
+        for k in sorted(d0)[:80]:
+            log(f"    {k!r} {d0[k][0]} {d0[k][1]}：{d0[k][2][:160]!r}")
+        log("  [存放實驗] 其他存放的地方：", json.dumps(b.ev(sw, "({idb: indexedDB.databases ? await indexedDB.databases().then(x => x.map(d => d.name + ':' + d.version)) : 'no', sync: await chrome.storage.sync.get(null).then(o => Object.keys(o).length, e => 'ERR ' + e.message), session: chrome.storage.session ? await chrome.storage.session.get(null).then(o => Object.keys(o).slice(0, 30), e => 'ERR ' + e.message) : 'no', getKeys: typeof chrome.storage.local.getKeys, onChanged: typeof chrome.storage.onChanged})"), ensure_ascii=False)[:900])
+        # 在篡改猴的編輯器存一支新腳本（跟使用者按「新增腳本」再存檔一樣）
+        restore_tabs(["t1", "t2", "t3"])
+        home()
+        n0e = tab_count()
+        b.ev(sw, "chrome.tabs.create({url: chrome.runtime.getURL('options.html') + '#nav=new-user-script+editor'}).then(() => 'ok')")
+        time.sleep(8.0)
+        log(f"  [存放實驗] 開編輯器：分頁 {n0e} → {tab_count()}；網址列 {bar_state().get('shown')!r}；標題 {title(web)!r}")
+        click(*PG(520, 330), wait=0.8)
+        chord([VK_CTRL], 0x53, wait=3.5)  # Ctrl+S
+        shot("tm_editor_saved")
+        log(f"  [存放實驗] 存檔之後：標題 {title(web)!r}；其他視窗 {[title(h) for h in top_windows() if user32.IsWindowVisible(h) and pid_of(h) == pid_of(web)][:8]}")
+        t2 = sw_of(TM)
+        sw = b.attach(t2["targetId"]) if t2 else sw
+        d1 = dump("存了一支新腳本之後", sw)
+        for k in sorted(d1):
+            if k not in d0 or d0[k][1:] != d1[k][1:]:
+                log(f"    （新的／變了）{k!r} {d1[k][0]} {d1[k][1]}：{d1[k][2]!r}")
+        # 擴充功能套件裡的一個靜態檔（manifest.json）當成頁面開：裡面能不能用擴充功能的存放區（不用執行篡改猴的程式就讀得到）
         pt = next((t for t in b.targets() if t.get("type") == "page" and "/test.html" in t.get("url", "")), None)
-        log("  [管理頁實驗] 用來實驗的分頁：", pt and (pt.get("targetId"), pt.get("url")))
         if pt is not None:
             ps = b.attach(pt["targetId"])
-            INFO = "({href: location.href, title: document.title, dp: typeof chrome.developerPrivate, mg: typeof chrome.management, keys: (typeof chrome === 'object' ? Object.keys(chrome).join(',') : 'no chrome'), text: ((document.body && document.body.innerText) || '').slice(0, 400)})"
-            for url in ("edge://version/", "edge://extensions/", "chrome://extensions/", f"edge://extensions/?id={TM}"):
-                r = b.call("Page.navigate", {"url": url}, session=ps, wait=15)
-                time.sleep(4.0)
-                b.pump(0.5)
-                log(f"  [管理頁實驗] 前往 {url} →", json.dumps((r or {}).get("result", r), ensure_ascii=False)[:300])
-                log(f"  [管理頁實驗] {url} 的內容：", json.dumps(b.ev(ps, INFO), ensure_ascii=False)[:900])
-                log(f"  [管理頁實驗] 網址列：{bar_state().get('shown')!r}；視窗標題：{title(web)!r}")
-                shot("usperm_" + re.sub(r"[^a-z]+", "_", url)[:24])
-            has_dp = b.ev(ps, "typeof chrome.developerPrivate")
-            log("  [管理頁實驗] 管理頁有沒有管理用的功能：", has_dp)
-            if has_dp == "object":
-                GET = f"chrome.developerPrivate.getExtensionInfo('{TM}').then(i => ({{name: i.name, state: i.state, location: i.location, us: i.userScriptsAccess, incog: i.incognitoAccess, dev: i.type}}))"
-                log("  [管理頁實驗] 篡改猴目前的設定：", json.dumps(b.ev(ps, GET), ensure_ascii=False)[:600])
-                log("  [管理頁實驗] profile：", json.dumps(b.ev(ps, "chrome.developerPrivate.getProfileConfiguration()"), ensure_ascii=False)[:400])
-                r = b.ev(ps, f"chrome.developerPrivate.updateExtensionConfiguration({{extensionId: '{TM}', userScriptsAccess: true}}).then(() => 'ok')")
-                log("  [管理頁實驗] 打開「允許使用者腳本」→", json.dumps(r, ensure_ascii=False)[:300])
-                time.sleep(2.0)
-                log("  [管理頁實驗] 打開之後的設定：", json.dumps(b.ev(ps, GET), ensure_ascii=False)[:600])
-            # 回到測試頁
+            for path in ("manifest.json", "_locales/en/messages.json"):
+                r = b.call("Page.navigate", {"url": f"chrome-extension://{TM}/{path}"}, session=ps, wait=15)
+                time.sleep(3.0)
+                b.pump(0.3)
+                log(f"  [存放實驗] 前往 {path} →", json.dumps((r or {}).get("result", r), ensure_ascii=False)[:200])
+                log(f"  [存放實驗] {path} 裡：", json.dumps(b.ev(ps, "({href: location.href, ct: document.contentType, st: typeof chrome.storage, rt: typeof chrome.runtime, id: chrome.runtime && chrome.runtime.id, n: (chrome.storage ? await chrome.storage.local.get(null).then(o => Object.keys(o).length, e => 'ERR ' + e.message) : -1), keys: (chrome.storage && chrome.storage.local.getKeys ? await chrome.storage.local.getKeys().then(k => k.length, e => 'ERR ' + e.message) : 'no getKeys')})"), ensure_ascii=False)[:600])
             b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html"}, session=ps, wait=15)
             time.sleep(3.0)
-            # 篡改猴的背景程式可能重新啟動了：重新接上
-            t2 = sw_of(TM)
-            sw2 = b.attach(t2["targetId"]) if t2 else None
-            after = b.ev(sw2, US_Q) if sw2 else "沒有背景程式"
-            log("  [管理頁實驗] 打開之後，篡改猴的 userScripts：", json.dumps(after, ensure_ascii=False))
-            ok_us = isinstance(after, dict) and str(after.get("get", "")).startswith("ok")
-            check("（實驗）從瀏覽器核心自己的管理頁打開「允許使用者腳本」之後，篡改猴可以登記腳本了", ok_us, f"{after}")
-            if ok_us:
-                # 真的登記一支、重新整理測試頁，看它有沒有跑
-                t0u = time.time()
-                REG = ("chrome.userScripts.register([{id: 'mbprobe', matches: ['http://127.0.0.1/*'], runAt: 'document_start', world: 'MAIN', "
-                       "js: [{code: \"fetch('http://127.0.0.1:" + str(PORT) + "/log?m=' + encodeURIComponent('[tmus] ran ' + location.pathname)).catch(() => {})\"}]}]).then(() => 'ok')")
-                log("  [管理頁實驗] 用 userScripts 登記一支腳本 →", json.dumps(b.ev(sw2, REG), ensure_ascii=False)[:300])
-                b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html?tmus=1"}, session=ps, wait=15)
-                time.sleep(4.0)
-                ran = [l for l in page_log_since(t0u) if "[tmus] ran" in l]
-                check("（實驗）用 userScripts 登記的腳本在網頁上執行了", bool(ran), f"{ran}")
-                log("  [管理頁實驗] 拿掉那支腳本 →", json.dumps(b.ev(sw2, "chrome.userScripts.unregister({ids: ['mbprobe']}).then(() => 'ok')"), ensure_ascii=False)[:200])
-                b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html"}, session=ps, wait=15)
-                time.sleep(2.5)
-                # 之後的檢查用新接上的那個
-                sw = sw2
+        restore_tabs(["t1", "t2", "t3"])
+        home()
     except Exception:
         log(traceback.format_exc())
-        check("extprobe 管理頁實驗 (沒有錯誤)", False, "exception")
+        check("extprobe 存放實驗 (沒有錯誤)", False, "exception")
 
     # ---- 擴充功能要開分頁、視窗時會怎樣 ----
     def act(tag, expr, settle=3.5):
