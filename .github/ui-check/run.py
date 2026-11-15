@@ -300,6 +300,15 @@ VK_PLUS, VK_MINUS = 0xBB, 0xBD
 # ---------- 本機測試網頁（記錄網頁送來的訊息） ----------
 PAGE_LOG = os.path.join(OUT, "page_log.txt")
 open(PAGE_LOG, "w").close()
+# 好幾個網頁同時回報時，測試用的伺服器是好幾條執行緒一起往這個檔案後面加：Windows 上「加在後面」不是一次做完的，
+# 兩條同時加會互相蓋掉一行（網頁明明回報了，紀錄裡卻沒有）。所以一次只讓一條寫
+PAGE_LOG_LOCK = threading.Lock()
+
+
+def page_log_add(line):
+    with PAGE_LOG_LOCK:
+        with open(PAGE_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{time.time():.2f} {line}\n")
 
 
 # 「從網址安裝」測試用的腳本：版本可以改（測更新）
@@ -343,15 +352,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/log":
             m = urllib.parse.parse_qs(u.query).get("m", [""])[0]
-            with open(PAGE_LOG, "a", encoding="utf-8") as f:
-                f.write(f"{time.time():.2f} {m}\n")
+            page_log_add(m)
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             return
         if u.path == "/login.html":
-            with open(PAGE_LOG, "a", encoding="utf-8") as f:
-                f.write(f"{time.time():.2f} [hdr] ua={self.headers.get('User-Agent')!r} sec-ch-ua={self.headers.get('Sec-CH-UA')!r}\n")
+            page_log_add(f"[hdr] ua={self.headers.get('User-Agent')!r} sec-ch-ua={self.headers.get('Sec-CH-UA')!r}")
         if u.path == "/post-echo":
             return self.echo("GET", u.query)
         if u.path == "/xhr-echo":
