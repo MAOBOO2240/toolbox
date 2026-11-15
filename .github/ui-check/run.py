@@ -4591,7 +4591,7 @@ def s_extprobe():
             time.sleep(2.5)
             t5 = reload_test()
             check("篡改猴存的設定值會帶過來（腳本用 GM_getValue 拿得到）", bool(got) and any("seed=from-tm num=42" in l for l in ran(t5)), f"{r} {got} {ran(t5)} {tm_lines()[-3:]}")
-        # （查能力）篡改猴小選單最上面的「Enabled」（整個篡改猴暫停）：按了之後它的存放區哪裡變了
+        # 篡改猴小選單最上面的「Enabled」取消打勾（整個篡改猴暫停）：它的腳本就不跑；再打勾又會跑
         try:
             KEYS = "chrome.storage.local.get(null).then(o => Object.fromEntries(Object.keys(o).map(k => [k, JSON.stringify(o[k])])))"
 
@@ -4617,26 +4617,34 @@ def s_extprobe():
                 ch = [k for k in sorted(set(a) | set(c)) if a.get(k) != c.get(k)]
                 log(f"  [篡改猴] {tag}：存放區變了 {len(ch)} 筆")
                 for k in ch:
-                    log(f"      {k!r}：{str(a.get(k))[:500]!r} → {str(c.get(k))[:500]!r}")
+                    log(f"      {k!r}：{str(a.get(k))[:300]!r} → {str(c.get(k))[:300]!r}")
 
             k0 = b.ev(swx(), KEYS, wait=40)
+            c5 = changed_n()
             if popup_click(("Enabled", "已啟用")):
+                paused = wait_for(lambda: changed_n() > c5, 15)
                 shot("tm_popup_paused")
                 time.sleep(2.0)
                 k1 = b.ev(swx(), KEYS, wait=40)
                 kdiff("按了 Enabled（暫停）", k0, k1)
-                log("  [篡改猴] 暫停之後程式的訊息：", tm_lines()[-2:])
                 t6 = reload_test()
-                log("  [篡改猴] 整個篡改猴暫停之後，網頁上：", ran(t6))
+                check("篡改猴整個暫停（小選單最上面的 Enabled 取消打勾）：它的腳本就不跑了", bool(paused) and not ran(t6), f"{paused} {ran(t6)} {tm_lines()[-2:]}")
+                c6 = changed_n()
                 popup_click(("Enabled", "Disabled", "已啟用", "已停用"))
+                resumed = wait_for(lambda: changed_n() > c6, 15)
                 shot("tm_popup_resumed")
                 time.sleep(2.0)
                 k2 = b.ev(swx(), KEYS, wait=40)
                 kdiff("再按一次（恢復）", k1, k2)
+                t7 = reload_test()
+                check("篡改猴恢復之後：腳本又會跑", bool(resumed) and any("v2.0 /test.html" in l for l in ran(t7)), f"{resumed} {ran(t7)} {tm_lines()[-2:]}")
+            else:
+                check("篡改猴整個暫停（小選單最上面的 Enabled 取消打勾）：它的腳本就不跑了", False, "小選單裡找不到 Enabled")
             if popup_hwnd():
                 click_blank(0.8)
         except Exception:
             log(traceback.format_exc())
+            check("extprobe 篡改猴整個暫停 (沒有錯誤)", False, "exception")
         routed = [l for l in tm_lines() if "通知到讀取用的網頁" in l]
         log("  [篡改猴] 開新分頁的要求有沒有通知到讀取用的網頁：", routed[:6])
         log("  [篡改猴] 最後的訊息：")
