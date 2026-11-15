@@ -1,0 +1,490 @@
+1794730505.04 [extbg] menu created err=
+1794730505.05 [extbg] bg started
+1794730505.15 [us] start ran /test.html body=false
+1794730505.29 [frame] load mb=true
+1794730505.34 [test] load:890x486 dpr=1 
+1794730505.39 [us] end ran n=1 /test.html
+1794730511.65 [test] resize:1024x599
+1794730512.80 [test] resize:890x486
+1794730513.97 [test] resize:1024x599
+1794730515.14 [test] resize:890x486
+1794730516.33 [test] resize:1024x599
+1794730517.75 [test] vis:hidden
+1794730517.77 [us] start ran /snap.html body=false
+1794730517.82 [snap] load h=599
+1794730518.31 [snap] after-resize slide:1 h=599
+1794730519.39 [test] vis:visible
+1794730521.18 [test] resize:890x486
+1794730523.28 [test] vis:hidden
+1794730523.77 [snap] after-resize slide:1 h=486
+1794730526.14 [snap] slide:1
+1794730526.74 [snap] slide:2
+1794730527.90 [snap] slide:3
+1794730529.06 [snap] slide:4
+1794730531.09 [snap] after-resize slide:4 h=599
+1794730533.50 [snap] after-resize slide:4 h=486
+1794730537.37 [snap] after-resize slide:4 h=599
+1794730539.30 [snap] after-resize slide:4 h=486
+1794730542.99 [snap] after-resize slide:4 h=599
+1794730545.88 [snap] after-resize slide:4 h=486
+1794730547.71 [test] vis:visible
+1794730547.72 [test] resize:1024x599
+1794730547.72 [test] resize:890x486
+1794730573.82 [test] vis:hidden
+1794730573.83 [us] start ran /snap.html body=false
+1794730573.83 [snap] load h=486
+1794730576.65 [us] end ran n=2 /test.html
+1794730579.73 [test] vis:hidden
+1794730584.12 [us] start ran /test.html body=false
+1794730584.15 [test] load:890x486 dpr=1 ?new
+1794730584.15 [us] end ran n=3 /test.html
+1794730584.17 [frame] load mb=true
+1794730590.26 [test] vis:visible
+1794730590.27 [test] vis:hidden
+1794730602.21 [test] vis:hidden
+1794730602.22 [us] start ran /snap.html body=false
+1794730602.22 [snap] load h=486
+1794730605.17 [us] end ran n=4 /test.html
+1794730611.65 [us] end ran n=5 /test.html
+1794730613.97 [test] vis:hidden
+1794730613.99 [us] start ran /test.html body=false
+1794730613.99 [test] load:890x486 dpr=1 
+1794730613.99 [us] end ran n=6 /test.html
+1794730614.03 [frame] load mb=true
+1794730635.83 [test] resize:809x442
+1794730637.56 [test] resize:890x486
+1794730645.54 [test] vis:hidden
+1794730647.66 [test] vis:visible
+1794730649.67 [test] vis:visible
+1794730649.67 [test] vis:hidden
+1794730653.50 [us] start ran /test.html body=false
+1794730653.51 [test] load:890x486 dpr=1 
+1794730653.51 [us] end ran n=7 /test.html
+1794730653.55 [frame] load mb=true
+1794730662.72 [test] title typing=true
+1794730664.38 [test] title typing=false
+1794730668.28 [test] vis:hidden
+1794730668.33 [us] start ran /test.html body=false
+1794730668.36 [test] load:890x486 dpr=1 
+1794730668.36 [us] end ran n=8 /test.html
+1794730668.38 [frame] load mb=true
+1794730677.84 [test] vis:visible
+1794730685.90 [test] vis:hidden
+1794730692.07 [test] vis:visible
+1794730694.09 [test] vis:hidden
+1794730699.85 [test] vis:visible
+1794730701.89 [test] vis:hidden
+1794730707.73 [test] vis:visible
+1794730709.80 [test] vis:hidden
+1794730715.78 [test] vis:visible
+1794730717.82 [test] vis:hidden
+1794730723.74 [test] vis:visible
+1794730725.77 [test] vis:hidden
+1794730734.45 [test] vis:visible
+1794730736.49 [test] vis:hidden
+1794730741.15 [us] start ran /snap.html body=false
+1794730741.17 [snap] load h=486
+1794730744.09 [test] vis:visible
+1794730746.11 [test] vis:visible
+1794730746.11 [test] vis:hidden
+1794730749.27 [test] vis:hidden
+1794730752.94 [us] start ran /snap.html body=false
+1794730752.96 [snap] load h=486
+1794730755.69 [test] vis:visible
+1794730757.45 [test] vis:hidden
+1794730757.53 [us] start ran /snap.html body=false
+1794730757.53 [snap] load h=486
+1794730760.54 [test] vis:visible
+1794730761.76 [test] vis:hidden
+1794730762.91 [test] vis:visible
+1794730764.12 [test] vis:hidden
+1794730765.61 [test] vis:visible
+1794730767.11 [test] vis:hidden
+1794730767.13 [us] start ran /snap.html body=false
+1794730767.15 [snap] load h=486
+1794730769.19 [test] vis:visible
+1794730771.14 [test] vis:visible
+1794730771.15 [test] vis:hidden
+1794730775.24 [test] resize:809x442
+1794730778.23 [test] resize:890x486
+1794730781.70 [us] start ran /test.html body=false
+1794730781.71 [test] load:890x486 dpr=1 
+1794730781.71 [us] end ran n=9 /test.html
+1794730781.75 [frame] load mb=true
+1794730784.49 [test] resize:890x520
+1794730785.92 [test] resize:890x486
+1794730792.00 [test] vis:visible
+1794730792.00 [test] resize:890x520
+1794730792.00 [test] resize:890x486
+1794730792.07 [test] vis:hidden
+1794730792.44 [snap] after-resize slide:4 h=486
+1794730792.48 [snap] after-resize slide:4 h=486
+1794730796.66 [test] vis:visible
+1794730796.68 [test] vis:hidden
+1794730798.98 [test] vis:hidden
+1794730801.61 [test] vis:visible
+1794730803.62 [test] vis:visible
+1794730803.63 [test] vis:hidden
+1794730811.65 [test] vis:hidden
+1794730811.66 [us] start ran /snap.html body=false
+1794730811.67 [snap] load h=486
+1794730814.94 [us] end ran n=10 /test.html
+1794730819.46 [us] end ran n=11 /test.html
+1794730881.19 [test] vis:hidden
+1794730883.17 [test] vis:visible
+1794730893.94 [test] vis:hidden
+1794730897.00 [test] vis:visible
+1794730899.07 [test] vis:visible
+1794730899.08 [test] vis:hidden
+1794730909.46 [snap] load h=486
+1794730935.75 [test] vis:hidden
+1794730938.75 [test] vis:visible
+1794730940.25 [test] vis:hidden
+1794730940.26 [test] vis:visible
+1794730943.38 [test] title typing=true
+1794730944.48 [test] input:h
+1794730944.66 [test] input:he
+1794730944.66 [test] input:hel
+1794730944.67 [test] input:hell
+1794730944.73 [test] input:hello
+1794730945.74 [test] title typing=false
+1794730947.21 [test] title typing=true
+1794730948.31 [test] input:hellox
+1794730948.37 [test] input:helloxy
+1794730949.15 [test] title typing=false
+1794730950.04 [test] message {"__mbTyping":true}
+1794730950.04 [frame] focus hasFocus=true
+1794730950.04 [frame] pointerdown f hasFocus=false mb=true
+1794730950.04 [test] title typing=true
+1794730950.12 [frame] blur
+1794730950.12 [test] message {"__mbTyping":false}
+1794730950.13 [frame] window blur
+1794730950.13 [test] title typing=false
+1794730950.13 [test] title typing=true
+1794730950.13 [test] message {"__mbTyping":true}
+1794730950.13 [frame] focus hasFocus=true
+1794730951.14 [frame] input:f
+1794730951.19 [frame] input:fr
+1794730952.48 [test] message {"__mbTyping":false}
+1794730952.48 [frame] blur
+1794730952.48 [frame] window blur
+1794730952.48 [frame] window blur
+1794730953.36 [test] title typing=true
+1794730954.61 [test] title typing=false
+1794730955.79 [test] title typing=true
+1794730956.88 [test] input:helloxyw
+1794730957.90 [test] title typing=false
+1794730964.26 [test] vis:hidden
+1794730964.27 [us] start ran /snap.html body=false
+1794730964.28 [snap] load h=486
+1794730973.25 [us] end ran n=12 /test.html
+1794730975.87 [test] vis:hidden
+1794730982.14 [us] start ran /snap.html body=false
+1794730982.15 [snap] load h=486
+1794730985.07 [test] vis:visible
+1794730987.11 [test] vis:hidden
+1794730987.11 [test] vis:visible
+1794730993.01 [test] vis:hidden
+1794730996.88 [test] vis:visible
+1794730998.91 [test] vis:visible
+1794730998.91 [test] vis:hidden
+1794731002.06 [us] start ran /test.html body=false
+1794731002.07 [us] end ran n=13 /test.html
+1794731002.07 [test] load:890x486 dpr=1 
+1794731002.11 [frame] load mb=true
+1794731010.33 [popup] opened opener=true
+1794731012.72 [popup] input:p
+1794731012.78 [popup] input:pp
+1794731016.94 [test] vis:hidden
+1794731020.88 [us] start ran /notitle.html body=false
+1794731020.88 [notitle] start
+1794731021.74 [notitle] done steps=40 total=863ms max=22ms
+1794731024.63 [notitle] input:n
+1794731024.69 [notitle] input:nt
+1794731028.50 [test] vis:visible
+1794731030.52 [test] vis:visible
+1794731030.52 [test] vis:hidden
+1794731040.65 [test] vis:hidden
+1794731043.06 [snap] after-resize slide:4 h=487
+1794731043.31 [snap] after-resize slide:4 h=487
+1794731043.32 [snap] after-resize slide:4 h=487
+1794731045.84 [snap] after-resize slide:4 h=363
+1794731050.27 [snap] after-resize slide:4 h=362
+1794731050.44 [snap] after-resize slide:4 h=362
+1794731052.89 [snap] after-resize slide:4 h=486
+1794731054.37 [test] resize:568x290
+1794731054.37 [test] vis:visible
+1794731054.37 [test] resize:890x486
+1794731056.47 [test] fullscreen on
+1794731056.47 [test] fullscreenchange true 890x486
+1794731056.52 [test] resize:1920x1080
+1794731058.66 [test] fullscreenchange false 1920x1080
+1794731058.70 [test] resize:890x486
+1794731061.92 [test] resize:1920x1080
+1794731064.32 [test] resize:1920x959
+1794731066.70 [test] resize:1920x1080
+1794731068.36 [test] resize:890x486
+1794731073.66 [test] vis:visible
+1794731073.66 [test] resize:568x290
+1794731073.66 [test] resize:890x486
+1794731073.79 [ext] opened
+1794731073.80 [ext] active:["http://127.0.0.1:8765/test.html"]
+1794731073.80 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+1794731073.80 [ext] all:[["http://127.0.0.1:8765/test.html",true,1415744614],["about:blank",true,1415744617],["about:blank",true,1415744619],["about:blank",true,1415744621],["about:blank",true,1415744623],["http://127.0.0.1:8765/snap.html",true,1415744625],["https://example.com/",true,1415744627],["http://127.0.0.1:8765/test.html?new",true,1415744629],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,1415744684]]
+1794731073.93 [ext] native com.maoboo.uitest.chrome → {"pong":"com.maoboo.uitest.chrome","from":"host"} err=
+1794731073.94 [ext] native com.maoboo.uitest.edge → {"pong":"com.maoboo.uitest.edge","from":"host"} err=
+1794731074.10 [snap] after-resize slide:4 h=486
+1794731074.14 [snap] after-resize slide:4 h=486
+1794731081.93 [extbg] bg started
+1794731081.93 [extbg] menu clicked mbtest
+1794731089.77 [ext] all:[["http://127.0.0.1:8765/test.html",true,1415744614],["about:blank",true,1415744617],["about:blank",true,1415744619],["about:blank",true,1415744621],["about:blank",true,1415744623],["http://127.0.0.1:8765/snap.html",true,1415744625],["https://example.com/",true,1415744627],["http://127.0.0.1:8765/test.html?new",true,1415744629],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,1415744686]]
+1794731089.77 [ext] opened
+1794731089.78 [ext] active:["http://127.0.0.1:8765/test.html"]
+1794731089.78 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+1794731089.90 [ext] native com.maoboo.uitest.chrome → {"pong":"com.maoboo.uitest.chrome","from":"host"} err=
+1794731089.90 [ext] native com.maoboo.uitest.edge → {"pong":"com.maoboo.uitest.edge","from":"host"} err=
+1794731099.38 [test] vis:hidden
+1794731106.72 [test] vis:visible
+1794731109.94 [test] vis:hidden
+1794731113.44 [us] start ran /setck body=false
+1794731119.02 [us] start ran /us.html body=false
+1794731119.04 [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731119.05 [uspage] top - webview=undefined extra=0
+1794731119.07 [uspage] top - blank webview=undefined marker=1
+1794731119.10 [us] start ran /usframe.html body=false
+1794731119.10 [us4] frame - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731119.10 [uspage] frame webview=undefined extra=0
+1794731119.22 [us4] top - pagefetch blocked
+1794731119.22 [us] start ran /usinner.html body=false
+1794731119.22 [us4] top - xhr denied ok
+1794731119.23 [uspage] top - reuse reused=false innerRan=true
+1794731121.05 [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+1794731121.05 [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+1794731122.25 [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+1794731129.76 [us4] top - menu set v1794731129752
+1794731129.76 [us4] top - change new="v1794731129752" remote=false
+1794731129.76 [us4] frame - change new="v1794731129752" remote=true
+1794731133.71 [us4] top - menu toggle on=true
+1794731141.55 [us4] top ?two=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731141.55 [us] start ran /us.html body=false
+1794731141.56 [uspage] top ?two=1&noxhr webview=undefined extra=0
+1794731141.56 [uspage] top ?two=1&noxhr blank webview=undefined marker=1
+1794731141.63 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731141.63 [uspage] top ?two=1&noxhr reuse reused=false innerRan=true
+1794731141.63 [us] start ran /usinner.html body=false
+1794731141.63 [us] start ran /usframe.html body=false
+1794731141.63 [uspage] frame webview=undefined extra=0
+1794731148.40 [us4] top ?two=1&noxhr menu set v1794731148389
+1794731148.40 [us4] top ?two=1&noxhr change new="v1794731148389" remote=false
+1794731148.40 [us4] frame - change new="v1794731148389" remote=true
+1794731148.40 [us4] top - change new="v1794731148389" remote=true
+1794731148.40 [us4] frame - change new="v1794731148389" remote=true
+1794731153.01 [us4] top ?two=1&noxhr menu tab
+1794731153.27 [us] start ran /snap.html body=false
+1794731153.29 [snap] load h=486
+1794731163.96 [us] start ran /us.html body=false
+1794731163.96 [uspage] top - webview=undefined extra=0
+1794731163.99 [uspage] top - blank webview=undefined marker=1
+1794731164.02 [us] start ran /usframe.html body=false
+1794731164.03 [uspage] frame webview=undefined extra=0
+1794731164.03 [us] start ran /usinner.html body=false
+1794731164.04 [uspage] top - reuse reused=false innerRan=true
+1794731173.58 [us4] top - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731173.59 [us] start ran /us.html body=false
+1794731173.60 [uspage] top - webview=undefined extra=0
+1794731173.60 [uspage] top - blank webview=undefined marker=1
+1794731173.65 [us4] top - pagefetch blocked
+1794731173.65 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731173.65 [us] start ran /usinner.html body=false
+1794731173.65 [uspage] top - reuse reused=false innerRan=true
+1794731173.65 [us] start ran /usframe.html body=false
+1794731173.66 [uspage] frame webview=undefined extra=0
+1794731173.70 [us4] top - xhr denied ok
+1794731175.59 [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+1794731175.59 [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+1794731176.79 [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+1794731194.87 [us4] top ?inst=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731194.88 [uspage] top ?inst=1&noxhr webview=undefined extra=0
+1794731194.88 [us] start ran /us.html body=false
+1794731194.88 [uspage] top ?inst=1&noxhr blank webview=undefined marker=1
+1794731194.94 [inst] ran v=1.0 ?inst=1&noxhr
+1794731194.95 [uspage] top ?inst=1&noxhr reuse reused=false innerRan=true
+1794731194.95 [us] start ran /usinner.html body=false
+1794731194.96 [us] start ran /usframe.html body=false
+1794731194.96 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731194.96 [uspage] frame webview=undefined extra=0
+1794731216.26 [us] start ran /us.html body=false
+1794731216.27 [us4] top ?inst=2&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731216.28 [uspage] top ?inst=2&noxhr webview=undefined extra=0
+1794731216.28 [uspage] top ?inst=2&noxhr blank webview=undefined marker=1
+1794731216.34 [inst] ran v=2.0 ?inst=2&noxhr
+1794731216.35 [us] start ran /usframe.html body=false
+1794731216.35 [uspage] top ?inst=2&noxhr reuse reused=false innerRan=true
+1794731216.35 [us] start ran /usinner.html body=false
+1794731216.36 [uspage] frame webview=undefined extra=0
+1794731216.36 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731234.00 [test] vis:visible
+1794731234.02 [test] vis:hidden
+1794731237.24 [test] vis:hidden
+1794731241.73 [us4] top ?multi=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731241.74 [us] start ran /us.html body=false
+1794731241.75 [uspage] top ?multi=1&noxhr webview=undefined extra=0
+1794731241.78 [uspage] top ?multi=1&noxhr blank webview=undefined marker=1
+1794731241.80 [us] start ran /usframe.html body=false
+1794731241.81 [inst] ran v=2.0 ?multi=1&noxhr
+1794731241.81 [us] start ran /usinner.html body=false
+1794731241.82 [uspage] frame webview=undefined extra=0
+1794731241.82 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731241.82 [uspage] top ?multi=1&noxhr reuse reused=false innerRan=true
+1794731247.27 [uspage] top ?multi=1&noxhr multi opened=111
+1794731247.64 [multi] child 1 opener=true
+1794731247.66 [multi] child 3 opener=true
+1794731247.66 [multi] child 2 opener=true
+1794731265.00 [us] start ran /multi.html body=false
+1794731265.01 [multi] child 3 opener=true
+1794731271.19 [uspage] top ?multi=1&noxhr both top=1
+1794731271.40 [uspage] frame both frame=1
+1794731271.40 [multi] child 4 opener=true
+1794731271.53 [us] start ran /multi.html body=false
+1794731271.54 [multi] child 5 opener=true
+1794731271.54 [us] start ran /multi.html body=false
+1794731290.20 [test] vis:visible
+1794731292.20 [test] vis:visible
+1794731292.21 [test] vis:hidden
+1794731294.59 [test] vis:hidden
+1794731297.85 [hdr] ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0' sec-ch-ua='"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"'
+1794731297.93 [us] start ran /login.html body=false
+1794731297.93 [login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]
+1794731301.59 [login] b1 open=window
+1794731301.61 [pop b1] loaded opener=true name=lp1 hist=1 size=480x420
+1794731302.62 [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""}
+1794731302.79 [login] b1 closed=true cookie=login_b1=1
+1794731308.74 [login] b2 open=window
+1794731308.80 [provider] loaded origin=http://localhost:8765 opener=true
+1794731309.56 [pop b2] loaded opener=true name=lp2 hist=2 size=480x420
+1794731310.54 [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""}
+1794731310.73 [login] b2 closed=true cookie=login_b1=1; login_b2=1
+1794731315.91 [login] b6 open=window
+1794731316.32 [pop b6] loaded opener=true name=lp6 hist=1 size=480x420
+1794731317.32 [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""}
+1794731317.50 [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+1794731323.20 [login] b8 open=window
+1794731323.23 [pop b8] loaded opener=true name=lp8 hist=1 size=480x420
+1794731326.40 [pop b8] input:a
+1794731326.46 [pop b8] input:ab
+1794731327.83 [us] start ran /snap.html body=false
+1794731327.84 [snap] load h=486
+1794731333.02 [login] c8 called close
+1794731333.19 [login] b8 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+1794731339.16 [login] b3 open=window
+1794731339.32 [pop b3] loaded opener=true name= hist=1 size=890x486
+1794731340.28 [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""}
+1794731340.33 [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+1794731346.60 [login] b4 open=window
+1794731347.76 [us] start ran /login-pop.html body=false
+1794731347.77 [pop b4] loaded opener=true name= hist=1 size=890x486
+1794731348.76 [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""}
+1794731348.82 [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+1794731354.28 [us] start ran /post-echo body=false
+1794731354.29 [post] method=POST body=v=hello opener=false
+1794731362.67 [pop b7a] loaded opener=true name=same7 hist=1 size=890x486
+1794731364.74 [login] b7 w1=true w2=true same=true
+1794731364.77 [us] start ran /login-pop.html body=false
+1794731364.77 [pop b7b] loaded opener=true name=same7 hist=2 size=890x486
+1794731372.46 [us] start ran /login-pop.html body=false
+1794731372.49 [pop a1] loaded opener=false name= hist=1 size=890x486
+1794731380.35 [pop a2] loaded opener=true name= hist=1 size=890x486
+1794731394.43 [hdr] ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0' sec-ch-ua='"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"'
+1794731394.53 [login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]
+1794731397.91 [login] b1 open=window
+1794731397.93 [pop b1] loaded opener=true name=lp1 hist=1 size=480x420
+1794731398.93 [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""}
+1794731399.11 [login] b1 closed=true cookie=login_b1=1
+1794731404.66 [login] b3 open=window
+1794731404.81 [pop b3] loaded opener=true name= hist=1 size=890x486
+1794731405.73 [pop b3] posted
+1794731405.73 [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""}
+1794731405.74 [login] b3 closed=true cookie=login_b1=1; login_b3=1
+1794731412.43 [test] vis:visible
+1794731414.10 [test] vis:visible
+1794731414.11 [test] vis:hidden
+1794731422.42 [test] vis:hidden
+1794731447.53 [test] vis:visible
+1794731461.82 [test] vis:hidden
+1794731470.02 [us] start ran /snap.html body=false
+1794731470.03 [snap] load h=486
+1794731483.44 [test] vis:visible
+1794731485.48 [test] vis:visible
+1794731485.49 [test] vis:hidden
+1794731496.28 [snap] load h=486
+1794731502.02 [test] vis:hidden
+1794731504.13 [test] vis:visible
+1794731506.15 [test] vis:visible
+1794731506.17 [test] vis:hidden
+1794731508.44 [test] vis:hidden
+1794731511.70 [hdr] ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0' sec-ch-ua='"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"'
+1794731511.78 [us] start ran /login.html body=false
+1794731511.79 [login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]
+1794731515.29 [login] b1 open=window
+1794731515.31 [pop b1] loaded opener=true name=lp1 hist=1 size=480x420
+1794731516.32 [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""}
+1794731516.48 [login] b1 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+1794731526.12 [test] vis:visible
+1794731528.14 [test] vis:visible
+1794731528.15 [test] vis:hidden
+1794731533.14 [test] vis:hidden
+1794731535.22 [test] vis:visible
+1794731537.23 [test] vis:visible
+1794731537.24 [test] vis:hidden
+1794731541.86 [test] vis:hidden
+1794731543.94 [test] vis:visible
+1794731545.96 [test] vis:visible
+1794731545.97 [test] vis:hidden
+1794731595.04 [test] vis:hidden
+1794731606.78 [test] vis:visible
+1794731611.15 [us] start ran /tip.html body=false
+1794731611.16 [tip] load
+1794731614.71 [tip] over a1 path
+1794731614.76 [tip] over a1 svg
+1794731614.77 [tip] over a1 path
+1794731617.60 [tip] over a2 BUTTON
+1794731620.47 [tip] over a3 svg
+1794731623.38 [tip] over a4 BUTTON
+1794731626.26 [tip] over a5 path
+1794731626.29 [tip] over a5 svg
+1794731626.33 [tip] over a5 path
+1794731629.16 [tip] over a6 BUTTON
+1794731632.04 [tip] over b1 path
+1794731632.07 [tip] over b1 svg
+1794731632.11 [tip] over b1 path
+1794731634.94 [tip] over b2 svg
+1794731637.83 [tip] over b3 svg
+1794731640.73 [tip] over b4 svg
+1794731643.62 [tip] over b5 BUTTON
+1794731646.52 [tip] over a1 path
+1794731646.55 [tip] over a1 svg
+1794731646.58 [tip] over a1 path
+1794731650.50 [tip] over a4 BUTTON
+1794731654.49 [tip] over a5 path
+1794731654.52 [tip] over a5 svg
+1794731654.54 [tip] over a5 path
+1794731658.35 [tip] over go BUTTON
+1794731658.47 [tip] churn start
+1794731660.07 [tip] over c1 BUTTON
+1794731662.97 [tip] over c2 path
+1794731662.99 [tip] over c2 svg
+1794731663.02 [tip] over c2 path
+1794731663.22 [tip] over c2 path
+1794731663.47 [tip] over c2 path
+1794731663.72 [tip] over c2 path
+1794731663.97 [tip] over c2 path
+1794731664.22 [tip] over c2 path
+1794731664.47 [tip] over c2 path
+1794731664.72 [tip] over c2 path
+1794731664.97 [tip] over c2 path
+1794731668.89 [us] start ran /test.html body=false
+1794731668.92 [test] load:890x486 dpr=1 
+1794731668.92 [us] end ran n=14 /test.html
+1794731668.96 [frame] load mb=true
+1794731675.98 [test] resize:150x1
+1794731677.22 [test] resize:890x486

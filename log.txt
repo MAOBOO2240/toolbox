@@ -1,0 +1,2218 @@
+stats host blocked
+chrome profile seeded True
+native messaging host registered C:\Users\RUNNER~1\AppData\Local\Temp\mb-nmhost
+game hwnd 131416 (10, 10, 1006, 749)
+測試程式是系統管理員 True
+web hwnd 66080
+dpi scale 1.0 screen 1024 768
+
+===== start =====
+程序：
+9464 parent=9836 MAOBOO.exe :: D:\a\toolbox\toolbox\app\MAOBOO.exe
+6464 parent=9464 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Local\com.toolbox.desktop\EBWebView"
+3800 parent=9464 msedgewebview2.exe :: "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\156.0.4314.58\msedgewebview2.exe" --embedded-browser-webview=1 --webview-exe-name=MAOBOO.exe --webview-exe-version=1.0.0 --user-data-dir="C:\Users\runneradmin\AppData\Roaming\com.toolbox.desktop\web-prof
+app_proc 9464 還在跑
+PASS 讀得到工具列裡的元素 <DocumentControl '瀏覽器' #RootWebArea . (80,60,980,189)>
+[start] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS 一開始：整個視窗都是內容（沒有看不到的邊） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS 一開始：大小和上次記住的一樣（900×620） client=(80, 60, 900, 620)
+PASS 一開始：工具列高 129、網頁在它下面 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS 工具列三排的高度：分頁列 48、工具列 46、書籤列 34 [[0.0, 0.0, 900.0, 48.0], [0.0, 48.0, 900.0, 46.0], [0.0, 94.0, 900.0, 35.0]]
+PASS 一開始：三個分頁、第一個是目前的 [{'active': True, 'pinned': False, 'title': '測試頁', 'w': 216.0}, {'active': False, 'pinned': False, 'title': '短影片測試', 'w': 216.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 216.0}]
+PASS 一開始：視窗標題是分頁的標題 '測試頁'
+bar state {'back': False, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 一開始：網址列顯示目前的網址 '127.0.0.1:8765/test.html'
+PASS 一開始：沒有上一頁、下一頁可以按 {'back': False, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS start：瀏覽器元件沒有當掉 [] []
+[start] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS start：程式有回應 
+
+===== chrome_sync =====
+書籤列 ['Example', '資料夾', 'YouTube', '楓之谷']
+PASS 書籤列：原本的書籤還在 ['Example', '資料夾', 'YouTube', '楓之谷']
+PASS 書籤列：打開視窗時自動帶進 Chrome 的書籤 ['Example', '資料夾', 'YouTube', '楓之谷']
+PASS 書籤列右邊有「所有書籤」 
+web-ext.json {"exts": {"eamehjingoajmedombhecpkpagoadodo": {"ver": "1.0_0", "dir": "b1794730502913/eamehjingoajmedombhecpkpagoadodo", "name": "測試擴充功能", "off": false, "loaded": true}}, "pending": "", "chrome_pins": [], "pins": null}
+PASS 擴充功能：打開視窗時自動從 Chrome 同步 {'ver': '1.0_0', 'dir': 'b1794730502913/eamehjingoajmedombhecpkpagoadodo', 'name': '測試擴充功能', 'off': False, 'loaded': True}
+PASS chrome_sync：瀏覽器元件沒有當掉 [] []
+[chrome_sync] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS chrome_sync：程式有回應 
+
+===== max_button =====
+按之前的前景視窗 66080 '測試頁' web 66080 game 131416
+web 視窗出現後 8.1 秒
+第 1 次按放到最大：0.37 秒 前景 66080
+第 1 次按還原：0.37 秒
+第 2 次按放到最大：0.37 秒 前景 66080
+第 2 次按還原：0.37 秒
+第 3 次按放到最大：0.38 秒 前景 66080
+PASS 按放到最大按鈕：視窗放到最大 before=(80, 60, 980, 680) after=(-8, -8, 1032, 728)
+PASS 放到最大後：工具列在最上面、網頁在下面 [(0, 121, 1024, 720), (0, 0, 1024, 121)]
+PASS 放到最大後：網頁貼齊左右下（不留邊）、分頁列變矮 page=(0, 121, 1024, 720) client=(0, 0, 1024, 720)
+PASS 放到最大時點螢幕最上緣：點得到分頁 title=短影片測試
+PASS 放到最大時點螢幕最上緣：切回第一個分頁 title=測試頁
+PASS max_button：瀏覽器元件沒有當掉 [] []
+[max_button] title='測試頁' rect=(-8, -8, 1032, 728) client=(0, 0, 1024, 720) zoomed=True iconic=False
+    child WRY_WEBVIEW visible=False rect=(0, 121, 1024, 720)
+    child WRY_WEBVIEW visible=False rect=(-96, -96, -64, -64)
+    child WRY_WEBVIEW visible=False rect=(-96, -96, -64, -64)
+    child WRY_WEBVIEW visible=False rect=(-96, -96, -64, -64)
+    child WRY_WEBVIEW visible=False rect=(-96, -96, -64, -64)
+    child WRY_WEBVIEW visible=True rect=(0, 121, 1024, 720)
+    child WRY_WEBVIEW visible=True rect=(0, 0, 1024, 121)
+PASS max_button：程式有回應 
+
+===== restore_button =====
+PASS 再按一次：還原 (80, 60, 980, 680)
+PASS 還原後：大小回到原本的（900×620） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS restore_button：瀏覽器元件沒有當掉 [] []
+[restore_button] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS restore_button：程式有回應 
+
+===== snap_resize =====
+PASS 切到短影片分頁 短影片測試
+捲動後是第 4 張
+放大、還原之後： [4, 4]
+PASS 短影片頁面：捲動有換到下一張 4
+PASS 短影片頁面：放大、還原後還是同一張 捲動後=4 之後=[4, 4]
+PASS snap_resize：瀏覽器元件沒有當掉 [] []
+[snap_resize] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS snap_resize：程式有回應 
+
+===== double_click =====
+PASS 按兩下分頁列空白處：放到最大 (-8, -8, 1032, 728)
+PASS 再按兩下：還原 (80, 60, 980, 680)
+PASS double_click：瀏覽器元件沒有當掉 [] []
+[double_click] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS double_click：程式有回應 
+
+===== drag_snap =====
+PASS 拖到螢幕頂端：放到最大 (-8, -8, 1032, 728)
+PASS 放到最大時往下拖：還原成原本大小 before=(80, 60, 980, 680) after=(-148, 132, 752, 752)
+PASS 拖完視窗後點分頁：分頁列有跟著更新 active=2 before=[{'active': False, 'pinned': False, 'title': '測試頁', 'w': 216.0}, {'active': True, 'pinned': False, 'title': '短影片測試', 'w': 216.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 216.0}]
+[moved back] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS 用別的程式移動視窗：網頁跟著放好 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS drag_snap：瀏覽器元件沒有當掉 [] []
+[drag_snap] title='短影片測試' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS drag_snap：程式有回應 
+
+===== tabs =====
+PASS 點第三個分頁：切過去 active=2 title=Example Domain
+PASS 切換分頁：只有一個網頁顯示 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS 切回第一個分頁 測試頁
+PASS 拖曳分頁：順序換了 ['短影片測試', '測試頁', 'Example Domain']
+PASS 拖曳分頁：拖回原本的順序 ['測試頁', '短影片測試', 'Example Domain']
+PASS tabs：瀏覽器元件沒有當掉 [] []
+[tabs] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS tabs：程式有回應 
+
+===== bm_menu =====
+PASS 點書籤資料夾：出現選單 [['測試頁', 'Example']]
+PASS 書籤資料夾：裡面的書籤都列出來 [['測試頁', 'Example']]
+PASS 書籤資料夾：選單貼在資料夾下面 元素下緣=(168..239, 182) 選單=(168, 182, 368, 262)
+PASS 點外面：選單關掉 
+PASS 選單關掉後程式有回應 
+PASS 點所有書籤：出現選單 [['Other', 'MDN']]
+PASS 所有書籤：選單貼在按鈕下面、靠右對齊 元素下緣=(892..974, 181) 選單=(774, 181, 974, 261)
+所有書籤 [['Other', 'MDN']]
+PASS 再點一次所有書籤：選單關掉 
+PASS 所有書籤操作後程式有回應 
+PASS 點 Chrome 同步來的資料夾：出現選單 [['官網', '攻略', 'IANA']]
+PASS 楓之谷：官網、攻略、IANA [['官網', '攻略', 'IANA']]
+PASS 滑到裡面的資料夾：打開下一層 [['官網', '攻略', 'IANA'], ['短影片']]
+PASS 下一層開在右邊、緊貼著 (326, 182, 526, 294) (523, 214, 723, 262)
+PASS 滑鼠移進下一層：選單都還開著 2
+PASS 點最裡面的書籤：選單全部關掉 0
+PASS 點最裡面的書籤：在目前分頁打開 短影片測試 ['1794730573.82 [test] vis:hidden', '1794730573.83 [us] start ran /snap.html body=false', '1794730573.83 [snap] load h=486']
+PASS 按上一頁：回到測試頁 測試頁
+PASS bm_menu：瀏覽器元件沒有當掉 [] []
+[bm_menu] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS bm_menu：程式有回應 
+
+===== new_tab =====
+PASS 按 +：多一個分頁、標題是新分頁 3 → 4 title='新分頁'
+PASS 按 +：網址列可以直接打字 {'back': False, 'fwd': False, 'addr': '', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': False, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 新分頁輸入網址：有載入 snap.html body=false
+1794730573.83 [snap] load h=486
+1794730576.65 [us] end ran n=2 /test.html
+1794730579.73 [test] vis:hidden
+1794730584.12 [us] start ran /test.html body=false
+1794730584.15 [test] load:890x486 dpr=1 ?new
+1794730584.15 [us] end ran n=3 /test.html
+1794730584.17 [frame] load mb=true
+
+PASS 新分頁輸入網址：標題換成網頁的 測試頁
+PASS 剛逛到的網頁按右鍵：可以上一頁、不能下一頁（跟工具列的箭頭一樣） 選單 back_off=False fwd_off=True 工具列=True,False
+PASS new_tab：瀏覽器元件沒有當掉 [] []
+[new_tab] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS new_tab：程式有回應 
+
+===== omnibox =====
+PASS 點網址列：游標進去、整個網址選起來 value='http://127.0.0.1:8765/test.html' selected='http://127.0.0.1:8765/test.html'
+PASS 點網址列：顯示完整網址（有 http://） 'http://127.0.0.1:8765/test.html'
+PASS 網址列打字：下面出現建議 [['短影片測試', '127', '測試頁', '短影片測試', '測試頁', '測試頁', '127 hours', '1275 pennsylvania ave nw']]
+PASS 建議清單：貼在網址列下面、一樣寬 pill=[157.0, 54.0, 586.0, 34.0] menu=(237, 152, 823, 454)
+建議 [['短影片測試', '- ', '127.0.0.1:8765/snap.html?deep'], ['127', '- ', 'Google 搜尋'], ['測試頁', '- ', '127.0.0.1:8765/test.html'], ['短影片測試', '- ', '127.0.0.1:8765/snap.html'], ['測試頁', '- ', '127.0.0.1:8765/test.html?new'], ['測試頁', '- ', '127.0.0.1:8765/test.html?bm'], ['127 hours', '- ', 'Google 搜尋'], ['1275 pennsylvania ave nw', '- ', 'Google 搜尋']]
+PASS 建議清單：有逛過的網頁（127.0.0.1） [['短影片測試', '- ', '127.0.0.1:8765/snap.html?deep'], ['127', '- ', 'Google 搜尋'], ['測試頁', '- ', '127.0.0.1:8765/test.html'], ['短影片測試', '- ', '127.0.0.1:8765/snap.html'], ['測試頁', '- ', '127.0.0.1:8765/test.html?new'], ['測試頁', '- ', '127.0.0.1:8765/test.html?bm'], ['127 hours', '- ', 'Google 搜尋'], ['1275 pennsylvania ave nw', '- ', 'Google 搜尋']]
+向下鍵 (0, '127.0.0.1:8765/snap.html?deep') (1, '127', ['127', '- ', 'Google 搜尋']) (2, '127.0.0.1:8765/test.html', ['測試頁', '- ', '127.0.0.1:8765/test.html'])
+PASS 按向下鍵：一個一個往下選，網址列換成選到的那一個 (0, '127.0.0.1:8765/snap.html?deep') (1, '127', ['127', '- ', 'Google 搜尋']) (2, '127.0.0.1:8765/test.html', ['測試頁', '- ', '127.0.0.1:8765/test.html'])
+PASS 按 Esc：建議關掉 {'back': False, 'fwd': True, 'addr': '127', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 再按 Esc：網址列回到目前的網址、游標離開 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 打網址（沒打 http://）按 Enter：前往 短影片測試 ['1794730602.22 [us] start ran /snap.html body=false', '1794730602.22 [snap] load h=486']
+PASS 前往後：可以按上一頁 {'back': True, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/snap.html?omni', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 前往後：選單都關了、游標離開網址列 {'back': True, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/snap.html?omni', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 按上一頁：回到測試頁、可以按下一頁 測試頁 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 按下一頁：又到短影片 短影片測試
+PASS 上一頁按右鍵：出現選單 [['測試頁', '顯示完整記錄']]
+上一頁的清單 [['測試頁', '顯示完整記錄']]
+PASS 上一頁的清單：有測試頁 [['測試頁', '顯示完整記錄']]
+PASS 點清單裡的測試頁：回去了 測試頁
+PASS 按重新載入：網頁重新載入 ['1794730613.99 [us] end ran n=6 /test.html', '1794730614.03 [frame] load mb=true']
+PASS omnibox：瀏覽器元件沒有當掉 [] []
+[omnibox] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS omnibox：程式有回應 
+
+===== main_menu =====
+PASS 按右上角的 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS ⋮ 選單：項目和順序 ['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']
+⋮ 選單每一列的文字 [['新分頁', 'Ctrl+T'], ['新視窗', 'Ctrl+N'], ['新增無痕式視窗', 'Ctrl+Shift+N'], ['歷史記錄'], ['下載', 'Ctrl+J'], ['書籤和清單'], ['擴充功能'], ['刪除瀏覽資料…', 'Ctrl+Shift+Del'], ['縮放', '100%'], ['列印…', 'Ctrl+P'], ['尋找…', 'Ctrl+F'], ['儲存及分享'], ['更多工具'], ['設定'], ['結束']]
+PASS ⋮ 選單：開在按鈕下面、靠右對齊 元素下緣=(940..974, 148) 選單=(711, 148, 974, 684)
+PASS ⋮ 選單：整個在螢幕裡 (711, 148, 974, 684) screen=1024x768
+PASS 滑到「歷史記錄」：打開下一層 [['歷史記錄', '最近關閉的分頁', '沒有最近關閉的分頁（不能按）']]
+「歷史記錄」的下一層 ['歷史記錄', '最近關閉的分頁', '沒有最近關閉的分頁（不能按）']
+PASS 「歷史記錄」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (514, 253, 714, 368)
+PASS 滑到「書籤和清單」：打開下一層 [['將這個分頁加入書籤…', '將所有分頁加入書籤…', '顯示書籤列', '書籤管理員', 'Example', '資料夾', 'YouTube', '楓之谷', '所有書籤']]
+「書籤和清單」的下一層 ['將這個分頁加入書籤…', '將所有分頁加入書籤…', '顯示書籤列', '書籤管理員', 'Example', '資料夾', 'YouTube', '楓之谷', '所有書籤']
+PASS 「書籤和清單」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (454, 317, 714, 648)
+PASS 滑到「擴充功能」：打開下一層 [['管理擴充功能', '從 Chrome 重新同步']]
+「擴充功能」的下一層 ['管理擴充功能', '從 Chrome 重新同步']
+PASS 「擴充功能」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (514, 349, 714, 429)
+PASS 滑到「儲存及分享」：打開下一層 [['另存網頁為…', '複製連結', '用 Chrome 開啟']]
+「儲存及分享」的下一層 ['另存網頁為…', '複製連結', '用 Chrome 開啟']
+PASS 「儲存及分享」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (508, 531, 714, 652)
+PASS 滑到「更多工具」：打開下一層 [['工作管理員', '檢視網頁原始碼', '開發人員工具', '清除這個網站的資料（Cookie、登入狀態）']]
+「更多工具」的下一層 ['工作管理員', '檢視網頁原始碼', '開發人員工具', '清除這個網站的資料（Cookie、登入狀態）']
+PASS 「更多工具」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (404, 563, 714, 716)
+PASS 滑到沒有下一層的項目：下一層關掉 1
+PASS 書籤和清單 → 楓之谷 → 攻略：一層一層打開 [['將這個分頁加入書籤…', '將所有分頁加入書籤…', '顯示書籤列', '書籤管理員', 'Example', '資料夾', 'YouTube', '楓之谷', '所有書籤'], ['官網', '攻略', 'IANA'], ['短影片']]
+PASS 好幾層選單：裡面的不會蓋到外面的 [(711, 148, 974, 684), (454, 317, 714, 648), (257, 559, 457, 671), (60, 591, 260, 639)] 重疊=[]
+縮放那一排 (['縮放', '100%'], ['縮小', '放大', '全螢幕 (F11)'])
+PASS ⋮ 選單按放大：變 110%、選單還開著、網址列出現縮放圖示 pct=110% {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '縮放：110%', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS ⋮ 選單按縮小：回到 100% pct=100%
+PASS 點網頁：選單全部關掉 0
+PASS 再按 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 選單開著時再按 ⋮：關掉 0
+PASS 再按 ⋮（要點新分頁）：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS ⋮ → 新分頁：多一個分頁、選單關掉 4 → 5
+PASS main_menu：瀏覽器元件沒有當掉 [] []
+[main_menu] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS main_menu：程式有回應 
+
+===== context =====
+PASS 網頁按右鍵：出現選單 [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+網頁右鍵選單 [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 網頁右鍵選單：上一頁、下一頁、重新載入、另存新檔、列印、檢視網頁原始碼 ['上一頁', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']
+PASS 網頁右鍵選單：上一頁／下一頁能不能按，跟工具列的箭頭一致 選單 back_off=True fwd_off=False 工具列=False,True
+PASS 網頁右鍵選單：開在滑鼠的位置（下面放不下就往上開） (385, 220, 585, 519) mouse=(385,519)
+PASS 右鍵 → 重新載入：網頁重新載入、選單關掉 ['1794730653.51 [us] end ran n=7 /test.html', '1794730653.55 [frame] load mb=true']
+PASS 連結按右鍵：出現選單 [['在新分頁中開啟連結', '在新視窗中開啟連結', '在無痕式視窗中開啟連結', '另存連結為…', '複製連結網址', '測試擴充項目', '檢查']]
+連結右鍵選單 [['在新分頁中開啟連結', '在新視窗中開啟連結', '在無痕式視窗中開啟連結', '另存連結為…', '複製連結網址', '測試擴充項目', '檢查']]
+PASS 連結右鍵選單：在新分頁／新視窗／無痕式視窗開啟、複製連結網址 ['在新分頁中開啟連結', '在新視窗中開啟連結', '在無痕式視窗中開啟連結', '另存連結為…', '複製連結網址', '測試擴充項目', '檢查']
+PASS 右鍵 → 在新分頁中開啟連結：多一個分頁、留在原本的分頁 4 → 5 active=0
+PASS 輸入框按右鍵：出現選單 [['表情符號', 'Import passwords', '復原（不能按）', '重做（不能按）', '剪下（不能按）', '複製（不能按）', '貼上（不能按）', '以純文字貼上（不能按）', '全選（不能按）', 'Writing direction', '測試擴充項目', 'More tools', '檢查']]
+輸入框右鍵選單 [['表情符號', 'Import passwords', '復原（不能按）', '重做（不能按）', '剪下（不能按）', '複製（不能按）', '貼上（不能按）', '以純文字貼上（不能按）', '全選（不能按）', 'Writing direction', '測試擴充項目', 'More tools', '檢查']]
+PASS 輸入框右鍵選單：剪下、複製、貼上、全選 ['表情符號', 'Import passwords', '復原', '重做', '剪下', '複製', '貼上', '以純文字貼上', '全選', 'Writing direction', '測試擴充項目', 'More tools', '檢查']
+PASS 分頁按右鍵：出現選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+分頁右鍵選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 分頁右鍵選單：新分頁、重新載入、複製、固定、靜音、關閉、關閉其他分頁、關閉右側分頁 ['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']
+PASS 分頁右鍵 → 複製：多一個一樣的分頁（在它右邊、切過去） [('測試頁', False), ('測試頁', True), ('短影片測試', False), ('Example Domain', False), ('測試頁', False)]
+PASS 複製出來的分頁按右鍵：出現選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 分頁右鍵 → 固定：排到最前面、變窄只剩圖示 [('測', True, 40.0), ('測試頁', False, 152.0), ('短影片測試', False, 152.0), ('Example Domain', False, 152.0), ('測試頁', False, 152.0)]
+PASS 固定的分頁按右鍵：出現選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '取消固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+固定的分頁右鍵選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '取消固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 取消固定：變回一般分頁 [('測試頁', False), ('測試頁', False), ('短影片測試', False), ('Example Domain', False), ('測試頁', False)]
+PASS 按分頁上的 ×：關掉那個分頁 4
+PASS 分頁列空白處按右鍵：出現選單 [['新分頁', '重新開啟已關閉的分頁', '將所有分頁加入書籤…', '工作管理員']]
+分頁列空白處右鍵選單 [['新分頁', '重新開啟已關閉的分頁', '將所有分頁加入書籤…', '工作管理員']]
+PASS 書籤按右鍵：出現選單 [['在新分頁中開啟', '在新視窗中開啟', '在無痕式視窗中開啟', '重新命名…', '刪除', '顯示書籤列', '書籤管理員']]
+書籤右鍵選單 [['在新分頁中開啟', '在新視窗中開啟', '在無痕式視窗中開啟', '重新命名…', '刪除', '顯示書籤列', '書籤管理員']]
+PASS 書籤右鍵選單：在新分頁／新視窗／無痕式視窗開啟、重新命名、刪除、書籤管理員 ['在新分頁中開啟', '在新視窗中開啟', '在無痕式視窗中開啟', '重新命名…', '刪除', '顯示書籤列', '書籤管理員']
+PASS context：瀏覽器元件沒有當掉 [] []
+[context] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS context：程式有回應 
+
+===== internal_pages =====
+PASS chrome://history：打得開、標題是「歷史記錄」 title='歷史記錄'
+PASS chrome://history：網址列顯示 chrome://history 'chrome://history/' chip='MAOBOO'
+chrome://history 內容： 歷史記錄 | 歷史記錄 | 搜尋歷史記錄 | 歷史記錄 | 刪除瀏覽資料 | 今天 - 2026年11月15日星期日 | 今天 - 2026年11月15日星期日 | 上午8:17 | 測 | 測試頁 | 127.0.0.1 | 上午8:16 | 測 | 測試頁 | 127.0.0.1 | 上午8:16 | 短 | 短影片測試 | 127.0.0.1 | 上午8:16 | 測 | 測試頁 | 127.0.0.1 | 上午8:16 | 短 | 短影片測試 | 127.0.0.1 | 上午8:16 | 測 | 測試頁 | 127.0.0.1 | 上午8:16 | 測 | 測試頁 | 127.0.0.1 | 上午8:16 | 短 | 短影片測試 | 127.0.0.1 | 上午8:15 | Example Domain | example.com | 上午8:15 | 短 | 短影片測試 | 127.0.0.1 | 上午8:15 | 測 | 測試頁 | 127.0.0.1
+PASS chrome://history：內容有 ['測試頁'] 歷史記錄 歷史記錄 搜尋歷史記錄 歷史記錄 刪除瀏覽資料 今天 - 2026年11月15日星期日 今天 - 2026年11月15日星期日 上午8:17 測 測試頁 127.0.0.1 上午8:16 測 測試頁 127.0.0.1 上午8:16 短 短影片測試 127.0.0.1 上午8:16 測 測試頁 127.0.0.1 上午8:16 短 短影片測試 127.0.0.1 上午8:16 測 測試頁
+PASS chrome://downloads：打得開、標題是「下載」 title='下載'
+PASS chrome://downloads：網址列顯示 chrome://downloads 'chrome://downloads/' chip='MAOBOO'
+chrome://downloads 內容： 下載 | 下載 | 搜尋下載記錄 | 全部清除 | 下載的檔案會顯示在這裡
+PASS chrome://downloads：內容有 [] 下載 下載 搜尋下載記錄 全部清除 下載的檔案會顯示在這裡
+PASS chrome://bookmarks：打得開、標題是「書籤」 title='書籤'
+PASS chrome://bookmarks：網址列顯示 chrome://bookmarks 'chrome://bookmarks/' chip='MAOBOO'
+chrome://bookmarks 內容： 書籤 | 書籤 | 搜尋書籤 | 新增書籤 | 新增資料夾 | 書籤列 | 資料夾 | 楓之谷 | 攻略 | 所有書籤 | 書籤列 | Example | https://example.com/ | 資料夾 | 2 個項目 | YouTube | https://www.youtube.com/ | 楓之谷 | 3 個項目
+PASS chrome://bookmarks：內容有 ['資料夾', 'Example'] 書籤 書籤 搜尋書籤 新增書籤 新增資料夾 書籤列 資料夾 楓之谷 攻略 所有書籤 書籤列 Example https://example.com/ 資料夾 2 個項目 YouTube https://www.youtube.com/ 楓之谷 3 個項目
+PASS chrome://extensions：打得開、標題是「擴充功能」 title='擴充功能'
+PASS chrome://extensions：網址列顯示 chrome://extensions 'chrome://extensions/' chip='MAOBOO'
+chrome://extensions 內容： 擴充功能 | 擴充功能 | 搜尋擴充功能 | 從 Chrome 重新同步 | 擴充功能 | 擴充功能 | 這裡的擴充功能是從這台電腦的 Chrome 同步來的，每次開啟瀏覽器都會自動同步。要安裝新的或移除：在 Chrome 裡操作，這裡會跟著變。開啟或關閉後，重新開啟瀏覽器視窗才會生效。 | 測試擴充功能 | 版本 1.0 | ID：eamehjingoajmedombhecpkpagoadodo | 固定在工具列 | 使用者腳本 | 使用者腳本 | 使用者腳本（篡改猴 Tampermonkey 用的那種 .user.js）由這個瀏覽器自己執行。這個瀏覽器的核心沒有「允許使用者腳本」的開關，篡改猴自己沒辦法執行腳本（它畫面上那則提示可以不用理會），所以裝在這裡的腳本、在篡改猴裡新增或匯入的腳本、還有 Chrome 的篡改猴裡的腳本（開瀏覽器時自動帶過來），都由這裡代為執行。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。同名的腳本只會執行一支：自己裝在這裡的優先，再來是這個瀏覽器的篡改猴，最後是 Chrome 的篡改猴。 | 匯入腳本 | 從網址安裝 | 貼上腳本 | 檢查更新 | 開啟腳本資料夾 | 重新讀取 | 自動更新腳本 | 每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的 | Chrome 的篡改猴裡的腳本 | 這台電腦的 Chrome 裡沒有找到開
+PASS chrome://extensions：內容有 ['測試腳本一'] 擴充功能 擴充功能 搜尋擴充功能 從 Chrome 重新同步 擴充功能 擴充功能 這裡的擴充功能是從這台電腦的 Chrome 同步來的，每次開啟瀏覽器都會自動同步。要安裝新的或移除：在 Chrome 裡操作，這裡會跟著變。開啟或關閉後，重新開啟瀏覽器視窗才會生效。 測試擴充功能 版本 1.0 ID：eamehjingoajmedombhecpkpagoadodo 固定在工具列 使用者腳本 使用者腳
+PASS chrome://settings：打得開、標題是「設定」 title='設定'
+PASS chrome://settings：網址列顯示 chrome://settings 'chrome://settings/' chip='MAOBOO'
+chrome://settings 內容： 設定 | 設定 | 搜尋設定 | 你與同步來源 | 外觀 | 搜尋引擎 | 自動填入和密碼 | 下載 | 隱私權和安全性 | 關於 | 你與同步來源 | 你與同步來源 | Chrome 使用者 | 書籤和擴充功能從這台電腦的 Chrome 同步過來；每次開啟瀏覽器都會自動同步，Chrome 裡有變動也會跟著更新。 | 手動同步 | 馬上跟 Chrome 同步一次書籤與擴充功能。 | 立即同步 | Google 帳戶同步 | 這個瀏覽器不能登入 Google 帳戶來同步（那是 Chrome 才有的功能）；書籤和擴充功能是直接讀這台電腦上 Chrome 的資料。 | 外觀 | 外觀 | 顯示首頁按鈕 | 新分頁 | 首頁的網址 | 按首頁按鈕要開的網頁。 | 空白 = 新分頁 | 顯示書籤列 | 網頁縮放 | 所有網站預設的縮放；個別網站用 Ctrl + 滾輪或 Ctrl + 加減號調整後會各自記住。 | 搜尋引擎 | 搜尋引擎 | 網址列使用的搜尋引擎 | 改善搜尋建議 | 在網址列打字時，把打的字傳給預設的搜尋引擎來取得建議（跟 Chrome 一樣）。關掉後只會用這台電腦上的歷史記錄和書籤。無痕式視窗不會傳送。 | 自動填入和密碼 | 自動填入和密碼 | 詢問是否儲存密碼 | 登入網站時詢問要不要記住密碼，之後自動填入。密碼只存在這台電腦的瀏覽器資料裡。 | 下載 | 下載 | 位置 | Windows 的「下載」資料夾 | 變更 | 下載記錄 | 查看下載過的檔案。 | 開啟下載頁 | 隱私權和安全性 | 隱私權和安全性 | 刪除瀏覽資料 | 刪除歷史記錄、Cookie、快取
+PASS chrome://settings：內容有 ['搜尋引擎'] 設定 設定 搜尋設定 你與同步來源 外觀 搜尋引擎 自動填入和密碼 下載 隱私權和安全性 關於 你與同步來源 你與同步來源 Chrome 使用者 書籤和擴充功能從這台電腦的 Chrome 同步過來；每次開啟瀏覽器都會自動同步，Chrome 裡有變動也會跟著更新。 手動同步 馬上跟 Chrome 同步一次書籤與擴充功能。 立即同步 Google 帳戶同步 這個瀏覽器不能登入 Google 帳戶來同步
+PASS 設定 → 關掉「顯示首頁按鈕」：工具列上的首頁按鈕不見；再打開就回來 原本=True 關掉後不見=True 再打開=True
+新分頁內容： MAOBOO | 在 Google 搜尋或輸入網址 | 測 測試頁 | 測 | 測試頁 | E Example Domain | E | Example Domain
+PASS 新分頁頁面中間的搜尋框：打網址按 Enter 會前往 短影片測試
+PASS internal_pages：瀏覽器元件沒有當掉 [] []
+[internal_pages] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS internal_pages：程式有回應 
+
+===== shortcuts =====
+PASS Ctrl+T：開新分頁、可以直接打網址 5 {'back': False, 'fwd': False, 'addr': '', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': False, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 新分頁打網址：前往 短影片測試
+PASS Ctrl+W：關掉目前的分頁 4
+PASS Ctrl+Shift+T：重新開啟剛關掉的分頁 5 短影片測試
+PASS Ctrl+Tab／Ctrl+Shift+Tab：切到下一個／上一個分頁 4 → 0 → 4
+PASS Ctrl+1／Ctrl+9：第一個／最後一個分頁 0 4
+PASS Ctrl+W 之後馬上 Ctrl+Shift+T：又開回來（鍵盤沒有掉） 5
+PASS 關掉多的分頁：回到原本的數量 4
+PASS Ctrl+L：游標到網址列 {'back': False, 'fwd': True, 'addr': 'http://127.0.0.1:8765/test.html', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS Ctrl + 加號：放大到 110%，網址列出現縮放圖示 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '縮放：110%', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS Ctrl+0：回到 100%，縮放圖示消失 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS F5：重新載入 ['1794730781.71 [us] end ran n=9 /test.html', '1794730781.75 [frame] load mb=true']
+PASS Ctrl+Shift+B：書籤列收起來（網頁往上 34）、再按一次回來 189 → 155 → 189
+PASS Ctrl+D：加入書籤、出現小視窗、星星變實心 [['已加入書籤', '測試頁（不能按）', '127.0.0.1:8765/test.html（不能按）', '重新命名…', '書籤管理員', '移除']] {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': True, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+加入書籤的小視窗 [['已加入書籤', '測試頁（不能按）', '127.0.0.1:8765/test.html（不能按）', '重新命名…', '書籤管理員', '移除']]
+PASS 小視窗按移除：書籤拿掉、星星變回空心 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS Ctrl+H：在新分頁開「歷史記錄」 歷史記錄 5
+PASS Ctrl+J：在新分頁開「下載」 下載 5
+Ctrl+F 之後的前景視窗 590604 '' msedgewebview2.exe
+PASS Alt+←／Alt+→：上一頁／下一頁 測試頁 → 短影片測試
+PASS shortcuts：瀏覽器元件沒有當掉 [] []
+[shortcuts] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS shortcuts：程式有回應 
+
+===== bubbles =====
+PASS 頭像（Chrome 使用者）：出現選單 [['同步來源：這台電腦的 Chrome', '測試使用者', '書籤與擴充功能每次開啟瀏覽器都會自動同步。', '立即同步']]
+頭像（Chrome 使用者） [['同步來源：這台電腦的 Chrome', '測試使用者', '書籤與擴充功能每次開啟瀏覽器都會自動同步。', '立即同步']]
+PASS 頭像（Chrome 使用者）：開在按鈕下面 元素下緣=(904..938, 148) 選單=(638, 148, 938, 317)
+PASS 頭像（Chrome 使用者）：選單開著時按鈕是按下去的樣子 tb open
+PASS 頭像（Chrome 使用者）：點外面關掉 
+PASS 頭像（Chrome 使用者）：選單關了，按鈕恢復原樣 tb
+PASS 網址列左邊的圓鈕（網站資訊）：出現選單 [['127.0.0.1', '你與這個網站的連線不安全（不能按）', '請勿在這個網站輸入密碼、信用卡這類機密資訊。（不能按）', '複製網址', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+網址列左邊的圓鈕（網站資訊） [['127.0.0.1', '你與這個網站的連線不安全（不能按）', '請勿在這個網站輸入密碼、信用卡這類機密資訊。（不能按）', '複製網址', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 網址列左邊的圓鈕（網站資訊）：開在按鈕下面 元素下緣=(242..266, 143) 選單=(242, 143, 568, 346)
+PASS 網址列左邊的圓鈕（網站資訊）：選單開著時按鈕是按下去的樣子 chip open
+PASS 網址列左邊的圓鈕（網站資訊）：點外面關掉 
+PASS 網址列左邊的圓鈕（網站資訊）：選單關了，按鈕恢復原樣 chip
+PASS 左上角的搜尋分頁：出現選單 [['開啟的分頁', '測試頁', '短影片測試', 'Example Domain', '測試頁', '最近關閉', '下載', '歷史記錄', '短影片測試', '短影片測試', '設定', '設定', '擴充功能', '書籤']]
+左上角的搜尋分頁 [['開啟的分頁', '測試頁', '短影片測試', 'Example Domain', '測試頁', '最近關閉', '下載', '歷史記錄', '短影片測試', '短影片測試', '設定', '設定', '擴充功能', '書籤']]
+PASS 左上角的搜尋分頁：開在按鈕下面 元素下緣=(86..114, 101) 選單=(86, 101, 386, 719)
+PASS 左上角的搜尋分頁：選單開著時按鈕是按下去的樣子 tsb open
+PASS 左上角的搜尋分頁：點外面關掉 
+PASS 左上角的搜尋分頁：選單關了，按鈕恢復原樣 tsb
+PASS 擴充功能（拼圖）：出現選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+擴充功能（拼圖） [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 擴充功能（拼圖）：開在按鈕下面 元素下緣=(868..902, 148) 選單=(602, 148, 902, 281)
+PASS 擴充功能（拼圖）：選單開著時按鈕是按下去的樣子 tb open
+PASS 擴充功能（拼圖）：點外面關掉 
+PASS 擴充功能（拼圖）：選單關了，按鈕恢復原樣 tb
+（網址列左邊的圓鈕）滑鼠停著時的提示文字視窗： [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))]
+PASS 網址列左邊的圓鈕：滑鼠停著時會跳出提示文字（確認抓得到） [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))]
+PASS 網址列左邊的圓鈕：提示文字出來之後才按，選單打開時提示文字收起來 按之前=[('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))] 按之後=[]
+PASS 網址列左邊的圓鈕：一移過去就按，選單打開後提示文字不會跳出來 []
+PASS 網址列左邊的圓鈕：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來 []
+PASS 網址列左邊的圓鈕：選單關了之後再停上去，提示文字照常出現 [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))]
+（⋮）滑鼠停著時的提示文字視窗： [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))]
+PASS ⋮：滑鼠停著時會跳出提示文字（確認抓得到） [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))]
+PASS ⋮：提示文字出來之後才按，選單打開時提示文字收起來 按之前=[('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))] 按之後=[]
+PASS ⋮：一移過去就按，選單打開後提示文字不會跳出來 []
+PASS ⋮：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來 []
+PASS ⋮：選單關了之後再停上去，提示文字照常出現 [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))]
+（搜尋分頁）滑鼠停著時的提示文字視窗： [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))]
+PASS 搜尋分頁：滑鼠停著時會跳出提示文字（確認抓得到） [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))]
+PASS 搜尋分頁：提示文字出來之後才按，選單打開時提示文字收起來 按之前=[('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))] 按之後=[]
+PASS 搜尋分頁：一移過去就按，選單打開後提示文字不會跳出來 []
+PASS 搜尋分頁：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來 []
+PASS 搜尋分頁：選單關了之後再停上去，提示文字照常出現 [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))]
+PASS 搜尋分頁：出現選單 [['開啟的分頁', '測試頁', '短影片測試', 'Example Domain', '測試頁', '最近關閉', '下載', '歷史記錄', '短影片測試', '短影片測試', '設定', '設定', '擴充功能', '書籤']]
+PASS 搜尋分頁 → 點清單裡的分頁：切過去 短影片測試
+PASS bubbles：瀏覽器元件沒有當掉 [] []
+[bubbles] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS bubbles：程式有回應 
+
+===== download =====
+PASS 下載檔案：存到「下載」資料夾 C:\Users\runneradmin\Downloads\ui-check.bin exists=True
+PASS 下載檔案：工具列出現下載按鈕、分頁留在原本的網頁 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True} 測試頁
+下載後的視窗 [('測試頁', (80, 60, 980, 680)), ('工具箱', (54, 37, 970, 690)), ('com.toolbox.desktop-siw', (0, 0, 16, 16)), ('', (0, 0, 16, 16))]
+PASS chrome://downloads：列出剛下載的檔案 下載 下載 搜尋下載記錄 全部清除 今天 - 2026年11月15日星期日 今天 - 2026年11月15日星期日 ui-check.bin http://127.0.0.1:8765/dl.bin http://127.0.0.1:8765/dl.bin 在資料夾中顯示 在資料夾中顯示 從清單中移除
+PASS download：瀏覽器元件沒有當掉 [] []
+[download] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS download：程式有回應 
+
+===== incognito =====
+PASS Ctrl+Shift+N：開無痕式視窗 [('新分頁 - 無痕模式', (110, 90, 1010, 710))]
+PASS 無痕式視窗：分頁列上有「無痕模式」的標示、沒有頭像 <GroupControl '' #inco .inco (776,101,864,127)> ['無痕模式']
+PASS 無痕式視窗：可以逛網頁 短影片測試 - 無痕模式
+PASS 無痕式視窗：不會存進設定檔 ['w1']
+PASS 無痕式視窗：按 × 關掉 
+PASS 無痕式視窗逛的網頁：歷史記錄裡沒有 
+PASS incognito：瀏覽器元件沒有當掉 [] []
+[incognito] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS incognito：程式有回應 
+
+===== new_window =====
+PASS Ctrl+N：開新視窗（新分頁） [('新分頁', (110, 90, 1010, 710))]
+PASS 新視窗：跟原本的一樣大、位置錯開一點 (110, 90, 1010, 710) (80, 60, 980, 680)
+PASS 新視窗：游標在它自己的網址列，原本那個視窗的網址列沒有被動到 新=True 舊=False fg=197446 w2=197446
+PASS 兩個視窗時按 F10：選單開在按的那個視窗 選單=[(741, 178, 1004, 714)] 新視窗的⋮=<ButtonControl '自訂及管理' #menu .tb open (970,144,1004,178)>
+PASS 按 Esc：選單關掉 0
+PASS 兩個視窗時按 Ctrl+L：只有按的那個視窗的網址列有游標 新=True 舊=False fg=197446
+PASS 新視窗：按 × 關掉 
+PASS new_window：瀏覽器元件沒有當掉 [] []
+[new_window] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS new_window：程式有回應 
+
+===== game =====
+遊戲要點的位置 (50, 70) game (10, 10, 1006, 749) web (80, 60, 980, 680)
+PASS 點遊戲：遊戲在前景 fg=131416 game=131416
+PASS 遊戲在前景：web 視窗在遊戲上面 z=[196734, 66080, 131416, 262628, 131472, 459206]
+PASS 點網頁空白處：鍵盤還在遊戲 fg=131416
+PASS 點網頁空白處：web 視窗還在遊戲上面 
+PASS 遊戲在前景時點 web 的按鈕：第一下就有作用 4 → 5
+PASS 遊戲在前景時按 +：新分頁可以直接打網址（鍵盤先借給網址列） fg=66080 {'back': False, 'fwd': False, 'addr': '', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': False, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 按 + 之後滑鼠移出 web：鍵盤還給遊戲 fg=131416
+PASS 中鍵關掉分頁 4
+PASS 再點遊戲：遊戲在前景 fg=131416
+PASS 按 A：遊戲收到 key:a
+
+PASS 點網頁輸入框：鍵盤交給 web fg=66080
+PASS 在輸入框打字：網頁收到 sible
+1794730943.38 [test] title typing=true
+1794730944.48 [test] input:h
+1794730944.66 [test] input:he
+1794730944.66 [test] input:hel
+1794730944.67 [test] input:hell
+1794730944.73 [test] input:hello
+
+PASS 按 Enter：鍵盤還給遊戲 fg=131416
+PASS 按 B：遊戲收到 
+PASS 打字中滑鼠移出 web：鍵盤還給遊戲 fg=131416
+PASS 點內嵌框裡的輸入框：鍵盤交給 web fg=66080
+PASS 內嵌框打字：收到 
+PASS 再點網頁輸入框：鍵盤交給 web fg=66080
+PASS 打字中點遊戲：遊戲在前景 fg=131416
+PASS 點遊戲後再點輸入框：鍵盤又交給 web fg=66080
+PASS 再打字：網頁收到  blur
+1794730953.36 [test] title typing=true
+1794730954.61 [test] title typing=false
+1794730955.79 [test] title typing=true
+1794730956.88 [test] input:helloxyw
+
+PASS 再按 Enter：鍵盤還給遊戲 fg=131416
+PASS 遊戲在前景時點網址列：鍵盤交給 web、游標在網址列 fg=66080 {'back': False, 'fwd': True, 'addr': 'http://127.0.0.1:8765/test.html', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': True, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 在網址列打字：字進網址列、遊戲沒收到 '127.0.0.1:8765/snap.html?game' keys=''
+PASS 網址列按 Enter：前往網頁 短影片測試
+PASS 網址列按 Enter：鍵盤還給遊戲 fg=131416
+PASS 按 C：遊戲收到 key:a
+key:b
+key:c
+
+PASS 再點網址列：鍵盤交給 web fg=66080
+PASS 網址列按 Esc：鍵盤還給遊戲 fg=131416
+PASS 點網址列後改點網頁：鍵盤還給遊戲 fg=131416
+PASS 遊戲在前景時按上一頁：回到測試頁、鍵盤還在遊戲 測試頁 fg=131416
+PASS 遊戲在前景時點新分頁中間的搜尋框：鍵盤交給 web fg=66080
+PASS 在搜尋框打網址按 Enter：前往、遊戲沒收到那些字 短影片測試 keys=''
+PASS 搜尋框按 Enter 之後：鍵盤還給遊戲 fg=131416
+PASS 遊戲在前景時按 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 遊戲在前景時開選單：鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時：選單在遊戲上面 z=[66190, 196734, 66080, 131416, 262628, 131472]
+PASS 遊戲在前景時滑到有下一層的項目：打開下一層 2
+PASS 遊戲在前景時 ⋮ → 新分頁：有開、選單關掉、可以直接打網址 5 fg=66080
+PASS ⋮ → 新分頁之後滑鼠移出 web：鍵盤還給遊戲 fg=131416
+PASS 按 D：遊戲收到 key:a
+key:b
+key:c
+key:Escape
+key:d
+
+PASS 遊戲在前景時網頁按右鍵：出現選單、鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時右鍵 → 重新載入：有作用、鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時點書籤資料夾：出現選單 [['測試頁', 'Example']]
+PASS 遊戲在前景時開書籤資料夾：鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時點網頁關選單：關掉、鍵盤還在遊戲 fg=131416
+PASS 再開一次選單：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 選單開著時點遊戲：選單關掉、遊戲在前景 0 fg=131416
+PASS 登入小視窗：開成另一個視窗 [('登入小視窗', (52, 52, 488, 391))]
+PASS 登入小視窗：可以打字 d ran n=13 /test.html
+1794731002.07 [test] load:890x486 dpr=1 
+1794731002.11 [frame] load mb=true
+1794731010.33 [popup] opened opener=true
+1794731012.72 [popup] input:p
+1794731012.78 [popup] input:pp
+
+PASS game：瀏覽器元件沒有當掉 [] []
+[game] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS game：程式有回應 
+
+===== notitle =====
+叫 web 視窗到前景： True fg 66080 '測試頁'
+  網頁回報： ['[notitle] start', '[notitle] done steps=40 total=863ms max=22ms']
+PASS 沒有標題又一直往 <head> 加東西的網頁：沒有卡死（40 次都做完） [notitle] start | [notitle] done steps=40 total=863ms max=22ms
+PASS 沒有標題的網頁：每一步都不慢 1794731021.74 [notitle] done steps=40 total=863ms max=22ms
+PASS 沒有標題的網頁：之後才設的標題出現在分頁上 ['測試頁', '短影片測試', 'Example Domain', '測試頁', '晚到的標題']
+PASS 沒有標題的網頁：畫面有更新到最後 type here | done
+PASS 標題晚到的網頁：點遊戲，遊戲在前景 fg=131416 game=131416
+PASS 標題晚到的網頁：點輸入框，鍵盤交給 web fg=66080
+PASS 標題晚到的網頁：打字網頁收到 ['[notitle] input:n', '[notitle] input:nt']
+PASS 標題晚到的網頁：按 Enter 鍵盤還給遊戲 fg=131416
+叫 web 視窗到前景： True fg 66080 '晚到的標題'
+PASS notitle：瀏覽器元件沒有當掉 [] []
+[notitle] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS notitle：程式有回應 
+
+===== notepad =====
+PASS 記事本在前景時可以蓋住 web 視窗 fg=525090 np=525090
+PASS 點 web 視窗：變成前景（一般視窗） fg=66080
+PASS notepad：瀏覽器元件沒有當掉 [] []
+[notepad] title='測試頁' rect=(80, 60, 980, 680) client=(80, 60, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=False rect=(-16, -36, 16, -4)
+    child WRY_WEBVIEW visible=True rect=(85, 189, 975, 675)
+    child WRY_WEBVIEW visible=True rect=(80, 60, 980, 189)
+PASS notepad：程式有回應 
+
+===== dpi =====
+縮放比例資訊 ((23663, 0, 0), 0, 0, 1)
+可用解析度 [(640, 480), (800, 600), (1024, 768), (1152, 864), (1280, 720), (1280, 800), (1280, 1024), (1366, 768), (1440, 900), (1600, 900), (1600, 1200), (1680, 1050), (1920, 1080)]
+改解析度 (1920, 1080) 結果 0
+[改解析度後] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+改解析度後的縮放比例資訊 ((23663, 0, 0), 0, 0, 3) 螢幕 1920 1080 None
+改縮放比例 0 DPI 96 → 120
+[dpi up] title='短影片測試' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(156, 245, 1044, 698)
+    child WRY_WEBVIEW visible=False rect=(156, 245, 1044, 698)
+    child WRY_WEBVIEW visible=True rect=(156, 245, 1044, 698)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(156, 245, 1044, 698)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 245)
+PASS 縮放比例改變後：視窗還看得到 
+PASS 縮放比例改變後：工具列和網頁位置正確 dpi=120 [(156, 245, 1044, 698), (150, 84, 1050, 245)]
+PASS 縮放比例改變後：短影片還是同一張 [4, 4, 4, 4] 原本=4
+PASS 縮放比例改變後：程式有回應 
+PASS 縮放比例 125% 時按 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 縮放比例 125% 時：選單還是貼在按鈕下面 元素下緣=(1000..1043, 194) 選單=(714, 194, 1043, 864)
+PASS 縮放比例 125% 時：選單跟著放大 現在寬=329 100% 時寬=263.0
+縮放比例改回來 DPI 96
+[dpi back] title='短影片測試' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS 縮放比例改回來：工具列和網頁位置正確 dpi=96 [(155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS 縮放比例改回來：短影片還是同一張 [4, 4, 4]
+PASS dpi：瀏覽器元件沒有當掉 [] []
+[dpi] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS dpi：程式有回應 
+
+===== fullscreen =====
+PASS 影片全螢幕：視窗蓋滿整個螢幕 (0, 0, 1920, 1080) screen=1920x1080
+PASS 影片全螢幕：工具列藏起來、網頁蓋滿 [(0, 0, 1920, 1080)]
+PASS 影片全螢幕：網頁收到 68x290
+1794731054.37 [test] vis:visible
+1794731054.37 [test] resize:890x486
+1794731056.47 [test] fullscreen on
+1794731056.47 [test] fullscreenchange true 890x486
+1794731056.52 [test] resize:1920x1080
+
+PASS 按 Esc：回到原本的大小 (150, 84, 1050, 704) before=(150, 84, 1050, 704)
+PASS 按 Esc：工具列回來 [(155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS F11：視窗蓋滿整個螢幕、工具列藏起來 (0, 0, 1920, 1080) [(0, 0, 1920, 1080)]
+PASS F11 時滑鼠移到螢幕最上面：工具列滑出來 [(0, 121, 1920, 1080), (0, 0, 1920, 121)]
+PASS F11 時滑鼠移開：工具列又藏起來 [(0, 0, 1920, 1080)]
+PASS 再按 F11：回到原本的大小、工具列回來 (150, 84, 1050, 704) before=(150, 84, 1050, 704) [(155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS fullscreen：瀏覽器元件沒有當掉 [] []
+[fullscreen] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS fullscreen：程式有回應 
+
+===== ext =====
+PASS 按擴充功能按鈕：出現選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+擴充功能選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 擴充功能選單：列出 Chrome 同步來的擴充功能 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 點擴充功能：小視窗蓋在網頁上 [(536, 176, 936, 659), (155, 213, 1045, 699), (150, 84, 1050, 213)]
+ext log: ['1794731073.79 [ext] opened', '1794731073.80 [ext] active:["http://127.0.0.1:8765/test.html"]', '1794731073.80 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]', '1794731073.80 [ext] all:[["http://127.0.0.1:8765/test.html",true,1415744614],["about:blank",true,1415744617],["about:blank",true,1415744619],["about:blank",true,1415744621],["about:blank",true,1415744623],["http://127.0.0.1:8765/snap.html",true,1415744625],["https://example.com/",true,1415744627],["http://127.0.0.1:8765/test.html?new",true,1415744629],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,1415744684]]', '1794731073.93 [ext] native com.maoboo.uitest.chrome → {"pong":"com.maoboo.uitest.chrome","from":"host"} err=', '1794731073.94 [ext] native com.maoboo.uitest.edge → {"pong":"com.maoboo.uitest.edge","from":"host"} err=']
+PASS 擴充功能看得到目前的網頁（active tab） 1794731073.80 [ext] active:["http://127.0.0.1:8765/test.html"]
+PASS 擴充功能看得到目前的網頁（lastFocused） 1794731073.80 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+（查能力）擴充功能連本機的程式（native messaging）、背景程式的記錄：
+     [extbg] menu created err=
+     [extbg] bg started
+     [ext] native com.maoboo.uitest.chrome → {"pong":"com.maoboo.uitest.chrome","from":"host"} err=
+     [ext] native com.maoboo.uitest.edge → {"pong":"com.maoboo.uitest.edge","from":"host"} err=
+PASS 點外面：小視窗關掉 2
+（查能力）網頁右鍵選單裡有沒有擴充功能加的項目： True [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 網頁右鍵選單：有擴充功能加的項目 [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 點右鍵選單裡擴充功能加的項目：擴充功能有收到 ['1794731081.93 [extbg] menu clicked mbtest']
+PASS 再按擴充功能按鈕：出現選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+固定按鈕 <ButtonControl '固定在工具列上' # .rb (860,221,888,250)> ['固定在工具列上', '更多動作']
+PASS 擴充功能按圖釘：固定到工具列上 1
+PASS 點工具列上固定的擴充功能：開它的小視窗 [(464, 176, 864, 659), (155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS 固定的擴充功能按右鍵：出現選單 [['測試擴充功能（不能按）', '開啟擴充功能選單', '取消固定', '停用（重新開啟視窗後生效）', '管理擴充功能']]
+固定的擴充功能右鍵選單 [['測試擴充功能（不能按）', '開啟擴充功能選單', '取消固定', '停用（重新開啟視窗後生效）', '管理擴充功能']]
+PASS 取消固定：工具列上的圖示拿掉 
+PASS ext：瀏覽器元件沒有當掉 [] []
+[ext] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS ext：程式有回應 
+
+===== scripts =====
+腳本記錄： ['1794730814.94 [us] end ran n=10 /test.html', '1794730819.46 [us] end ran n=11 /test.html', '1794730964.27 [us] start ran /snap.html body=false', '1794730973.25 [us] end ran n=12 /test.html', '1794730982.14 [us] start ran /snap.html body=false', '1794731002.06 [us] start ran /test.html body=false', '1794731002.07 [us] end ran n=13 /test.html', '1794731020.88 [us] start ran /notitle.html body=false']
+PASS 使用者腳本：載入後跑的有執行 
+PASS 使用者腳本：GM_setValue 有記住（每載入一次加一） [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+PASS 使用者腳本：document-start 的有執行 
+PASS 使用者腳本：@exclude 有效（內嵌框不跑） 
+PASS 使用者腳本：不符合的網站不跑 
+PASS 網頁上按右鍵：有出現選單（要檢視原始碼） [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 右鍵 → 檢視網頁原始碼：在新分頁打開，網址列是 view-source: 開頭 'view-source:http://127.0.0.1:8765/test.html' 'view-source:127.0.0.1:8765/test.html' {'back': False, 'fwd': False, 'addr': '', 'shown': 'view-source:http://127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': False, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 檢視原始碼的分頁：沒有星星（不能加書籤） {'back': False, 'fwd': False, 'addr': '', 'shown': 'view-source:http://127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': False, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 檢視原始碼的頁面：不跑使用者腳本 []
+PASS 檢視原始碼的分頁：記的網址是 view-source: 開頭 ['http://127.0.0.1:8765/test.html', 'view-source:http://127.0.0.1:8765/test.html', 'http://127.0.0.1:8765/snap.html', 'https://example.com/', 'http://127.0.0.1:8765/test.html?new']
+PASS scripts：瀏覽器元件沒有當掉 [] []
+[scripts] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS scripts：程式有回應 
+
+===== userscripts =====
+   [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+   [us4] frame - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+   [us4] top - pagefetch blocked
+   [us4] top - xhr denied ok
+   [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+   [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+   [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+   [uspage] top - webview=undefined extra=0
+   [uspage] top - blank webview=undefined marker=1
+   [uspage] frame webview=undefined extra=0
+   [uspage] top - reuse reused=false innerRan=true
+PASS 腳本（document-start）在網頁自己的程式之前跑 [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+PASS 腳本拿得到自己的資訊；有寫 @grant 的功能才有 [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+PASS 內嵌框架（別的網站）裡也會跑，而且也在框架自己的程式之前 ['[us4] frame - start pageRan=false ready=loading webview=undefined shared=null ha']
+PASS 網頁自己的程式看不到程式跟腳本之間的通道（最上層、框架都是） ['[uspage] top - webview=undefined extra=0', '[uspage] top - blank webview=undefined marker=1', '[uspage] frame webview=undefined extra=0', '[uspage] top - reuse reused=false innerRan=true']
+PASS 腳本自己也拿不到那個通道（只能用 GM 功能） [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+PASS GM_xmlhttpRequest：跨網站連得到（狀態、最後的網址、回應標頭） [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+PASS GM_xmlhttpRequest：腳本給的標頭（Referer、自訂的）有帶到，瀏覽器名稱跟網頁一樣 [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+PASS GM_xmlhttpRequest：@connect 有寫的網域會帶這個瀏覽器的 Cookie [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+PASS GM_xmlhttpRequest：POST 的內容送得到、二進位回應拿得到 [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+PASS GM_xmlhttpRequest：串流一段一段收到 [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+PASS GM_xmlhttpRequest：腳本沒有允許的網域連不了 ['[us4] top - xhr denied ok']
+PASS 對照：網頁自己連同一個網址會被擋（所以上面是程式代連的） ['[us4] top - pagefetch blocked']
+PASS 還沒載入的空白框架：通道也拿掉了，而且留了記號 [uspage] top - blank webview=undefined marker=1
+  空白框架接著載入同網站的網頁： [uspage] top - reuse reused=false innerRan=true
+PASS 空白框架的視窗被沿用的話腳本不跑（沒被沿用就照常跑） [uspage] top - reuse reused=false innerRan=true
+PASS 有裝腳本時，工具列有「使用者腳本」按鈕 
+PASS 使用者腳本按鈕：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+  選單： [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']] [['使用者腳本'], ['測試腳本二', '執行中'], ['測試腳本四', '執行中'], ['測試：設值', '把共用的值改掉'], ['【關】開關'], ['測試：開分頁'], ['管理使用者腳本']]
+PASS 選單列出這個網頁的腳本和它登記的項目 ['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']
+PASS 選單上標出腳本正在執行 ['測試腳本四', '執行中']
+PASS 點腳本的選單項目：腳本的函式有執行、選單關掉 ['[us4] top - menu set v1794731129752', '[us4] top - change new="v1794731129752" remote=false', '[us4] frame - change new="v1794731129752" remote=true']
+PASS 腳本改了設定值：同一頁的別的框架收到通知（remote=true），自己這份是 remote=false ['[us4] top - menu set v1794731129752', '[us4] top - change new="v1794731129752" remote=false', '[us4] frame - change new="v1794731129752" remote=true']
+PASS 使用者腳本按鈕（第二次）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 開關類的項目（按了不關選單）：選單還在、標題跟著變 ['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【開】開關', '測試：開分頁', '管理使用者腳本'] ['[us4] top - menu toggle on=true']
+PASS 另一個分頁開同一個網站：一開始就拿到剛才設的值 ['[us4] top ?two=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined', '[us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined']
+PASS 使用者腳本按鈕（另一個分頁）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 在這個分頁改值：另一個分頁（沒在顯示）也收到（remote=true） ['[us4] top ?two=1&noxhr menu set v1794731148389', '[us4] top ?two=1&noxhr change new="v1794731148389" remote=false', '[us4] frame - change new="v1794731148389" remote=true', '[us4] top - change new="v1794731148389" remote=true', '[us4] frame - change new="v1794731148389" remote=true']
+PASS 使用者腳本按鈕（開分頁）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS GM_openInTab：開了新分頁並切過去 6 → 7 '127.0.0.1:8765/snap.html?gmtab=1'
+PASS 使用者腳本按鈕（開關腳本）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【開】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 在選單點腳本的名稱：關掉（選單上標「已關閉」） ['測試腳本四', '已關閉']
+PASS 腳本關掉後重新整理：這支不跑了，其他的照跑 [] ['1794731163.96 [us] start ran /us.html body=false', '1794731164.02 [us] start ran /usframe.html body=false', '1794731164.03 [us] start ran /usinner.html body=false']
+PASS 使用者腳本按鈕（再打開腳本）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '管理使用者腳本']]
+PASS 再打開、重新整理：又跑了 ['[us4] top - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined', '[us4] top - pagefetch blocked', '[us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined']
+PASS 開腳本的網址（.user.js）：出現安裝畫面，不是直接顯示程式碼 'chrome://extensions/install?url=http%3A%2F%2F127.0.0.1%3A8765%2Finst.user.js' 擴充功能
+擴充功能
+安裝使用者腳本
+安裝使用者腳本
+安裝測試腳本　1.0
+從網址安裝的測試
+來源
+http://127.0.0.1:8765/inst.user.js
+會在這些網頁執行
+http://127.0.0.1:8765/us.html*
+安裝之後
+這支腳本會在上面那些網頁上執行，看得到、也改得了網頁的內容。只安裝你信任的來源的腳本。
+安裝
+取消
+PASS 按「安裝」：裝好了 擴充功能
+擴充功能
+安裝使用者腳本
+安裝使用者腳本
+安裝測試腳本　1.0
+從網址安裝的測試
+來源
+http://127.0.0.1:8765/inst.user.js
+會在這些網頁執行
+http://127.0.0.1:8765/us.html*
+安裝之後
+這支腳本會在上面那些網頁上執行，看得到、也改得了網頁的內容。只安裝你信任的來源的腳本。
+「安裝測試腳本」安裝好了。已經開著的網頁重新整理後就會執行。
+管理使用者腳本
+關閉
+PASS 裝好的腳本在網頁上執行 ['1794731194.94 [inst] ran v=1.0 ?inst=1&noxhr']
+PASS 擴充功能頁：有「檢查更新」「從網址安裝」「自動更新腳本」 覽器的篡改猴，最後是 Chrome 的篡改猴。
+匯入腳本
+從網址安裝
+貼上腳本
+檢查更新
+開啟腳本資料夾
+重新讀取
+自動更新腳本
+每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的
+Chrome 的篡改猴裡的腳本
+這台電腦的 Chrome 裡沒有找到開著的篡改猴。
+不該跑
+https://not-visited.invalid/*
+刪除
+安裝測試腳本　1.0
+http://127.0.0.1:8765/us.html*
+刪除
+測試腳本一
+http://127.0.0.1:8765/test.html*
+刪除
+測試腳本二
+http://127.0.0.1:8765/*、http://localhost:8765/*
+刪除
+測試腳本四　1.0
+http://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*
+刪除
+PASS 按了「檢查更新」之後，前景還是瀏覽器視窗（沒有點到別的東西） 66080 '擴充功能'
+PASS 檢查更新：換成新版，重新整理後跑的是新版 ['1794731216.34 [inst] ran v=2.0 ?inst=2&noxhr']
+PASS 點網頁上的腳本連結：安裝畫面開在新分頁，原本的網頁還在 <HyperlinkControl '安裝連結' #inst . (163,300,227,318)> 7 → 8 'chrome://extensions/install?url=http%3A%2F%2F127.0.0.1%3A8765%2Finst.user.js'
+PASS 設定值有存進檔案（關掉程式再開還在） {'shared': '"v1794731148389"'}
+PASS userscripts：瀏覽器元件沒有當掉 [] []
+[userscripts] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS userscripts：程式有回應 
+
+===== multiopen =====
+  預先建立好的空白網頁： []
+   [uspage] top ?multi=1&noxhr multi opened=111
+   [multi] child 1 opener=true
+   [multi] child 3 opener=true
+   [multi] child 2 opener=true
+  排到晚一點才開的：0 個；晚一點開成功的（整輪累計）：0 個
+PASS 網頁一口氣開三個新分頁：三個都開出來 <ButtonControl '一次開三個' #multi . (231,297,314,321)> 5 → 8 ['測試頁', '短影片測試', 'Example Domain', '測試頁', '腳本測試', '127.0.0.1:8765', '127.0.0.1:8765', '127.0.0.1:8765']
+PASS 三個新分頁都載入了，而且都拿得到開它的網頁（window.opener） ['[uspage] top ?multi=1&noxhr multi opened=111', '[multi] child 1 opener=true', '[multi] child 3 opener=true', '[multi] child 2 opener=true']
+PASS 網頁那邊三次都拿到開出來的視窗（沒有被當成擋掉） ['[uspage] top ?multi=1&noxhr multi opened=111', '[multi] child 1 opener=true', '[multi] child 3 opener=true', '[multi] child 2 opener=true']
+PASS 排到晚一點才開的，後來都開成功了 排隊 0、成功 0
+PASS 連著開出來的分頁：重新整理後使用者腳本照樣跑 ['1794731265.00 [us] start ran /multi.html body=false', '1794731265.01 [multi] child 3 opener=true']
+  補登記： []
+   [uspage] top ?multi=1&noxhr both top=1
+   [uspage] frame both frame=1
+   [multi] child 4 opener=true
+   [multi] child 5 opener=true
+  兩邊同時開：排到晚一點才開的 0 個
+PASS 網頁和內嵌框架同時各開一個新分頁：兩個都開出來、都載入了 <ButtonControl '兩邊同時開' #both . (317,297,401,321)> 8 → 10 ['[uspage] top ?multi=1&noxhr both top=1', '[uspage] frame both frame=1', '[multi] child 4 opener=true', '[multi] child 5 opener=true']
+PASS 同時開新分頁之後：排隊的都開成功了 0
+PASS multiopen：瀏覽器元件沒有當掉 [] []
+[multiopen] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS multiopen：程式有回應 
+
+===== login =====
+  瀏覽器報給網站的身分： ['[hdr] ua=\'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0\' sec-ch-ua=\'"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"\'', '[login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]']
+PASS 登入小視窗：跟開它的網頁連得上 [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗：登入結果送得回原本的網頁 [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗：登入完自己關掉，原本的網頁也知道 留下的視窗=[] [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗：裡面記住的登入狀態，原本的網頁讀得到 [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗（先到別的網站再轉回來）：跟開它的網頁連得上 [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先到別的網站再轉回來）：登入結果送得回原本的網頁 [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先到別的網站再轉回來）：登入完自己關掉，原本的網頁也知道 留下的視窗=[] [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先到別的網站再轉回來）：裡面記住的登入狀態，原本的網頁讀得到 [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先開空白再前往）：跟開它的網頁連得上 [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗（先開空白再前往）：登入結果送得回原本的網頁 [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗（先開空白再前往）：登入完自己關掉，原本的網頁也知道 留下的視窗=[] [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗（先開空白再前往）：裡面記住的登入狀態，原本的網頁讀得到 [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗：開成另一個視窗、在最前面 [('登入', (234, 234, 730, 693))] fg=1966874
+PASS 登入小視窗：可以直接打字 [login] b8 open=window | [pop b8] loaded opener=true name=lp8 hist=1 size=480x420 | [pop b8] input:a | [pop b8] input:ab
+PASS 登入小視窗裡會開新視窗的連結（說明、忘記密碼這類）：點了有打開 分頁 5→6，視窗 1→1
+PASS 登入小視窗裡的連結：開在原本那個瀏覽器視窗的新分頁，那個視窗到最前面、小視窗還在 分頁 5→6 fg=66080 web=66080 目前='短影片測試'
+PASS 原本的網頁可以把登入小視窗關掉 關了=True [login] b8 open=window | [pop b8] loaded opener=true name=lp8 hist=1 size=480x420 | [pop b8] input:a | [pop b8] input:ab | [us] start ran /snap.html body=false | [snap] load h=486 | [login] c8 called close | [login] b8 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 開成新分頁的登入頁：網站拿得到開出來的分頁（不會以為被擋掉） [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+PASS 開成新分頁的登入頁：跟開它的網頁連得上、登入結果送得回來 [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+PASS 開成新分頁的登入頁：登入完分頁自己關掉、回到原本的分頁 分頁 5→5 目前='登入測試' [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+PASS 開成新分頁的登入頁（先開空白再前往）：網站拿得到開出來的分頁（不會以為被擋掉） [login] b4 open=window | [us] start ran /login-pop.html body=false | [pop b4] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""} | [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+PASS 開成新分頁的登入頁（先開空白再前往）：跟開它的網頁連得上、登入結果送得回來 [login] b4 open=window | [us] start ran /login-pop.html body=false | [pop b4] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""} | [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+PASS 開成新分頁的登入頁（先開空白再前往）：登入完分頁自己關掉、回到原本的分頁 分頁 5→5 目前='登入測試' [login] b4 open=window | [us] start ran /login-pop.html body=false | [pop b4] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""} | [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+PASS 送表單到新分頁：資料有送到 分頁 5→6 [us] start ran /post-echo body=false | [post] method=POST body=v=hello opener=false
+PASS 同一個名字的視窗開兩次：用同一個分頁（不會開兩個） 分頁 5→6 [pop b7a] loaded opener=true name=same7 hist=1 size=890x486 | [login] b7 w1=true w2=true same=true | [us] start ran /login-pop.html body=false | [pop b7b] loaded opener=true name=same7 hist=2 size=890x486
+PASS 一般的「開新分頁」連結：開新分頁，新分頁碰不到原本的網頁 分頁 5→6 [us] start ran /login-pop.html body=false | [pop a1] loaded opener=false name= hist=1 size=890x486
+PASS 指定要連著的連結（rel=opener）：新分頁拿得到原本的網頁 分頁 5→6 [pop a2] loaded opener=true name= hist=1 size=890x486
+PASS 無痕式視窗裡的登入小視窗：連得上、結果送得回來、自己關掉 留下的視窗=[] [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 無痕式視窗裡的登入小視窗：用無痕的資料（讀得到自己存的、讀不到一般視窗的登入狀態） [login] b1 closed=true cookie=login_b1=1
+PASS 無痕式視窗裡開成新分頁的登入頁：連得上、結果送得回來、自己關掉 [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [pop b3] posted | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b3=1
+PASS login：瀏覽器元件沒有當掉 [] []
+[login] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS login：程式有回應 
+
+===== devtools =====
+  原本就有的 WebView2 視窗： []
+PASS 一般網頁按 F12：打開開發人員工具（另一個視窗） [('DevTools - 127.0.0.1:8765/test.html', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 開發人員工具開著時：瀏覽器視窗還在、有回應 
+PASS 開發人員工具：關得掉 []
+PASS 開過開發人員工具的分頁前往「設定」：改開在新分頁，原本的分頁留在網頁上 [('測試頁', False), ('設定', True), ('短影片測試', False), ('Example Domain', False), ('測試頁', False)]
+  設定頁面的標題： <TextControl '設定' # . (217,228,261,262)>
+PASS 「設定」（程式自己的頁面）按 F12、Ctrl+Shift+I：不會打開開發人員工具 網址列上按 F12=True 頁面上按 F12=True Ctrl+Shift+I=True []
+PASS 「設定」按右鍵：沒有「檢查」 ['上一頁', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目']
+PASS ⋮（設定頁面上）：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 「設定」頁面上：⋮ → 更多工具 →「開發人員工具」不能按 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束'], ['工作管理員', '檢視網頁原始碼（不能按）', '開發人員工具（不能按）', '清除這個網站的資料（Cookie、登入狀態）（不能按）']]
+PASS 一般網頁按右鍵：最後一項是「檢查」 ['上一頁', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']
+PASS 右鍵 → 檢查：打開開發人員工具 [('DevTools - 127.0.0.1:8765/test.html', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS ⋮（要開開發人員工具）：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS ⋮ → 更多工具：有「開發人員工具」，一般網頁上可以按 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束'], ['工作管理員', '檢視網頁原始碼', '開發人員工具', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS ⋮ → 更多工具 → 開發人員工具：打開 [('DevTools - 127.0.0.1:8765/test.html', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 新分頁（程式自己的頁面）按 F12：不會打開開發人員工具 []
+PASS 從新分頁前往一般網頁之後按 F12：打得開 [('DevTools - 127.0.0.1:8765/snap.html?devtools', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+叫 web 視窗到前景： True fg 66080 '短影片測試'
+PASS 開發人員工具開著時按上一頁要回到新分頁：原本的分頁留在網頁上，新分頁另外開 [('測試頁', False), ('短影片測試', False), ('Example Domain', False), ('測試頁', False), ('短影片測試', False), ('新分頁', True)] 工具視窗=[('DevTools - 127.0.0.1:8765/snap.html?devtools', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 開發人員工具這一步結束：沒有留下工具視窗、分頁回到原本的樣子 [] 分頁 4/4
+PASS devtools：瀏覽器元件沒有當掉 [] []
+[devtools] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS devtools：程式有回應 
+
+===== refocus =====
+  [一開始（剛點過網頁）] 前景=66080（'測試頁'） web=66080 ok=1 active=(66080, 'Tauri Window', (150, 84, 1050, 704), 'MAOBOO.exe') focus=(66138, 'Chrome_WidgetWin_1', (155, 213, 1045, 699), 'msedgewebview2.exe')
+  無痕式視窗關掉了： True
+  [無痕式視窗關掉] 前景=66080（'測試頁'） web=66080 ok=1 active=(66080, 'Tauri Window', (150, 84, 1050, 704), 'MAOBOO.exe') focus=(66138, 'Chrome_WidgetWin_1', (155, 213, 1045, 699), 'msedgewebview2.exe')
+PASS 無痕式視窗關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 4→5
+  登入小視窗留下的視窗： []
+  [登入小視窗自己關掉] 前景=66080（'登入測試'） web=66080 ok=1 active=(66080, 'Tauri Window', (150, 84, 1050, 704), 'MAOBOO.exe') focus=(459396, 'Chrome_WidgetWin_1', (155, 213, 1045, 699), 'msedgewebview2.exe')
+PASS 登入小視窗自己關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 5→6
+  [開發人員工具關掉] 前景=66080（'測試頁'） web=66080 ok=1 active=(66080, 'Tauri Window', (150, 84, 1050, 704), 'MAOBOO.exe') focus=(66138, 'Chrome_WidgetWin_1', (155, 213, 1045, 699), 'msedgewebview2.exe')
+PASS 開發人員工具關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 4→5
+  切到遊戲： True
+  [切到別的程式再切回來] 前景=66080（'測試頁'） web=66080 ok=1 active=(66080, 'Tauri Window', (150, 84, 1050, 704), 'MAOBOO.exe') focus=(66138, 'Chrome_WidgetWin_1', (155, 213, 1045, 699), 'msedgewebview2.exe')
+PASS 切到別的程式再切回來：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 4→5
+PASS refocus：瀏覽器元件沒有當掉 [] []
+[refocus] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS refocus：程式有回應 
+
+===== tips =====
+PASS 網址列左邊的圓鈕：不管停在哪裡（正中間的線條上也一樣）都會跳出提示文字 {(0, 0): True, (-6, -6): True, (6, 6): True, (-8, 0): True, (8, 0): True, (0, -9): True, (0, 9): True, (3, 0): True, (-1, 2): True, (1, -4): True}
+PASS 工具列每個按鈕、分頁、書籤：停在正中間都會跳出提示文字 {'上一頁': True, '下一頁': True, '重新載入': True, '首頁': True, '星星': True, '擴充功能': True, '頭像': True, '⋮': True, '搜尋分頁': True, '新分頁': True, '最小化': True, '最大化': True, '關閉': True, '書籤': True, '所有書籤': True, '分頁': True, '分頁的 ×': True}
+PASS 網址列的文字上：沒有提示文字 
+  目前分頁： 2 {'back': False, 'fwd': False, 'addr': '', 'shown': 'example.com', 'focus': '', 'zoom': '', 'star': True, 'starOn': True, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+  [site@Example] name='查看網站資訊' cls='chip ' en=True rect=(312, 143, 336, 167) kids=[] HelpText='查看網站資訊' AcceleratorKey='' ItemStatus='' legacy name='查看網站資訊' desc='' help='查看網站資訊'
+  [site@Example] 滑鼠 (595, 115) 底下：TextControl name='Example Domain' cls='' id=''
+  [site@Example] 停在 (324, 155)：00111111  [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (334, 170, 422, 195))]
+  目前分頁： 1 {'back': False, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/snap.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+  [site@短影片] name='查看網站資訊' cls='chip ' en=True rect=(312, 143, 336, 167) kids=[] HelpText='查看網站資訊' AcceleratorKey='' ItemStatus='' legacy name='查看網站資訊' desc='' help='查看網站資訊'
+  [site@短影片] 滑鼠 (433, 115) 底下：TextControl name='短影片測試' cls='' id=''
+  [site@短影片] 停在 (324, 155)：00111111  [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (334, 170, 422, 195))]
+  [page a1] 0000000
+  [page a2] 0011111
+  [page a3] 0011111
+  [page a4] 0000000
+  [page a5] 0000000
+  [page a6] 0011111
+  [page b1] 0000000
+  [page b2] 0011111
+  [page b3] 0011111
+  [page b4] 0011111
+  [page b5] 0011111
+  [page a1 補一個滑鼠訊息] 補之前=0 有送出=True 補之後=0
+  [page a4 補一個滑鼠訊息] 補之前=0 有送出=True 補之後=0
+  [page a5 補一個滑鼠訊息] 補之前=0 有送出=True 補之後=0
+  WebView2 本身： {'a1': False, 'a2': True, 'a3': True, 'a4': False, 'a5': False, 'a6': True, 'b1': False, 'b2': True, 'b3': True, 'b4': True, 'b5': True}
+PASS （對照）網頁裡照做的按鈕：圖示不單獨接滑鼠的那兩個，停在線條上提示文字會出現 {'a1': False, 'a2': True, 'a3': True, 'a4': False, 'a5': False, 'a6': True, 'b1': False, 'b2': True, 'b3': True, 'b4': True, 'b5': True}
+  [page c1] 0011111
+  [page c2] 0000000
+  一直換圖示： {'c1': True, 'c2': False}
+  [site_end] 停在 (324, 155)：00111111  [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (334, 170, 422, 195))]
+PASS tips：瀏覽器元件沒有當掉 [] []
+[tips] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS tips：程式有回應 
+
+===== minimize =====
+PASS 按縮小：縮到工作列 
+PASS 從工作列還原 
+PASS 還原後：大小沒變 rect=(150, 84, 1050, 704) client=(150, 84, 900, 620)
+PASS minimize：瀏覽器元件沒有當掉 [] []
+[minimize] title='測試頁' rect=(150, 84, 1050, 704) client=(150, 84, 900, 620) zoomed=False iconic=False
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(54, -12, 86, 20)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=False rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(155, 213, 1045, 699)
+    child WRY_WEBVIEW visible=True rect=(150, 84, 1050, 213)
+PASS minimize：程式有回應 
+
+===== close =====
+PASS 按關閉：視窗關掉 
+PASS 關閉後：記住是關著的、分頁都還在 open=False tabs=['測試頁', '短影片測試', 'Example Domain', '測試頁']
+PASS 關掉瀏覽器視窗後：主程式還在、有回應 main=262628
+（瀏覽器元件的主程序換了：[3800] → []）
+PASS close：瀏覽器元件沒有當掉 [] []
+[close] window gone
+PASS close：程式有回應 
+
+===== 結果 =====
+PASS 讀得到工具列裡的元素 <DocumentControl '瀏覽器' #RootWebArea . (80,60,980,189)>
+PASS 一開始：看得到工具列和網頁 2 個可見子視窗
+PASS 一開始：整個視窗都是內容（沒有看不到的邊） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS 一開始：大小和上次記住的一樣（900×620） client=(80, 60, 900, 620)
+PASS 一開始：工具列高 129、網頁在它下面 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS 工具列三排的高度：分頁列 48、工具列 46、書籤列 34 [[0.0, 0.0, 900.0, 48.0], [0.0, 48.0, 900.0, 46.0], [0.0, 94.0, 900.0, 35.0]]
+PASS 一開始：三個分頁、第一個是目前的 [{'active': True, 'pinned': False, 'title': '測試頁', 'w': 216.0}, {'active': False, 'pinned': False, 'title': '短影片測試', 'w': 216.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 216.0}]
+PASS 一開始：視窗標題是分頁的標題 '測試頁'
+PASS 一開始：網址列顯示目前的網址 '127.0.0.1:8765/test.html'
+PASS 一開始：沒有上一頁、下一頁可以按 {'back': False, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS start：瀏覽器元件沒有當掉 [] []
+PASS start：程式有回應 
+PASS 書籤列：原本的書籤還在 ['Example', '資料夾', 'YouTube', '楓之谷']
+PASS 書籤列：打開視窗時自動帶進 Chrome 的書籤 ['Example', '資料夾', 'YouTube', '楓之谷']
+PASS 書籤列右邊有「所有書籤」 
+PASS 擴充功能：打開視窗時自動從 Chrome 同步 {'ver': '1.0_0', 'dir': 'b1794730502913/eamehjingoajmedombhecpkpagoadodo', 'name': '測試擴充功能', 'off': False, 'loaded': True}
+PASS chrome_sync：瀏覽器元件沒有當掉 [] []
+PASS chrome_sync：程式有回應 
+PASS 按放到最大按鈕：視窗放到最大 before=(80, 60, 980, 680) after=(-8, -8, 1032, 728)
+PASS 放到最大後：工具列在最上面、網頁在下面 [(0, 121, 1024, 720), (0, 0, 1024, 121)]
+PASS 放到最大後：網頁貼齊左右下（不留邊）、分頁列變矮 page=(0, 121, 1024, 720) client=(0, 0, 1024, 720)
+PASS 放到最大時點螢幕最上緣：點得到分頁 title=短影片測試
+PASS 放到最大時點螢幕最上緣：切回第一個分頁 title=測試頁
+PASS max_button：瀏覽器元件沒有當掉 [] []
+PASS max_button：程式有回應 
+PASS 再按一次：還原 (80, 60, 980, 680)
+PASS 還原後：大小回到原本的（900×620） rect=(80, 60, 980, 680) client=(80, 60, 900, 620)
+PASS restore_button：瀏覽器元件沒有當掉 [] []
+PASS restore_button：程式有回應 
+PASS 切到短影片分頁 短影片測試
+PASS 短影片頁面：捲動有換到下一張 4
+PASS 短影片頁面：放大、還原後還是同一張 捲動後=4 之後=[4, 4]
+PASS snap_resize：瀏覽器元件沒有當掉 [] []
+PASS snap_resize：程式有回應 
+PASS 按兩下分頁列空白處：放到最大 (-8, -8, 1032, 728)
+PASS 再按兩下：還原 (80, 60, 980, 680)
+PASS double_click：瀏覽器元件沒有當掉 [] []
+PASS double_click：程式有回應 
+PASS 拖到螢幕頂端：放到最大 (-8, -8, 1032, 728)
+PASS 放到最大時往下拖：還原成原本大小 before=(80, 60, 980, 680) after=(-148, 132, 752, 752)
+PASS 拖完視窗後點分頁：分頁列有跟著更新 active=2 before=[{'active': False, 'pinned': False, 'title': '測試頁', 'w': 216.0}, {'active': True, 'pinned': False, 'title': '短影片測試', 'w': 216.0}, {'active': False, 'pinned': False, 'title': 'Example', 'w': 216.0}]
+PASS 用別的程式移動視窗：網頁跟著放好 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS drag_snap：瀏覽器元件沒有當掉 [] []
+PASS drag_snap：程式有回應 
+PASS 點第三個分頁：切過去 active=2 title=Example Domain
+PASS 切換分頁：只有一個網頁顯示 [(85, 189, 975, 675), (80, 60, 980, 189)]
+PASS 切回第一個分頁 測試頁
+PASS 拖曳分頁：順序換了 ['短影片測試', '測試頁', 'Example Domain']
+PASS 拖曳分頁：拖回原本的順序 ['測試頁', '短影片測試', 'Example Domain']
+PASS tabs：瀏覽器元件沒有當掉 [] []
+PASS tabs：程式有回應 
+PASS 點書籤資料夾：出現選單 [['測試頁', 'Example']]
+PASS 書籤資料夾：裡面的書籤都列出來 [['測試頁', 'Example']]
+PASS 書籤資料夾：選單貼在資料夾下面 元素下緣=(168..239, 182) 選單=(168, 182, 368, 262)
+PASS 點外面：選單關掉 
+PASS 選單關掉後程式有回應 
+PASS 點所有書籤：出現選單 [['Other', 'MDN']]
+PASS 所有書籤：選單貼在按鈕下面、靠右對齊 元素下緣=(892..974, 181) 選單=(774, 181, 974, 261)
+PASS 再點一次所有書籤：選單關掉 
+PASS 所有書籤操作後程式有回應 
+PASS 點 Chrome 同步來的資料夾：出現選單 [['官網', '攻略', 'IANA']]
+PASS 楓之谷：官網、攻略、IANA [['官網', '攻略', 'IANA']]
+PASS 滑到裡面的資料夾：打開下一層 [['官網', '攻略', 'IANA'], ['短影片']]
+PASS 下一層開在右邊、緊貼著 (326, 182, 526, 294) (523, 214, 723, 262)
+PASS 滑鼠移進下一層：選單都還開著 2
+PASS 點最裡面的書籤：選單全部關掉 0
+PASS 點最裡面的書籤：在目前分頁打開 短影片測試 ['1794730573.82 [test] vis:hidden', '1794730573.83 [us] start ran /snap.html body=false', '1794730573.83 [snap] load h=486']
+PASS 按上一頁：回到測試頁 測試頁
+PASS bm_menu：瀏覽器元件沒有當掉 [] []
+PASS bm_menu：程式有回應 
+PASS 按 +：多一個分頁、標題是新分頁 3 → 4 title='新分頁'
+PASS 按 +：網址列可以直接打字 {'back': False, 'fwd': False, 'addr': '', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': False, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 新分頁輸入網址：有載入 snap.html body=false
+1794730573.83 [snap] load h=486
+1794730576.65 [us] end ran n=2 /test.html
+1794730579.73 [test] vis:hidden
+1794730584.12 [us] start ran /test.html body=false
+1794730584.15 [test] load:890x486 dpr=1 ?new
+1794730584.15 [us] end ran n=3 /test.html
+1794730584.17 [frame] load mb=true
+
+PASS 新分頁輸入網址：標題換成網頁的 測試頁
+PASS 剛逛到的網頁按右鍵：可以上一頁、不能下一頁（跟工具列的箭頭一樣） 選單 back_off=False fwd_off=True 工具列=True,False
+PASS new_tab：瀏覽器元件沒有當掉 [] []
+PASS new_tab：程式有回應 
+PASS 點網址列：游標進去、整個網址選起來 value='http://127.0.0.1:8765/test.html' selected='http://127.0.0.1:8765/test.html'
+PASS 點網址列：顯示完整網址（有 http://） 'http://127.0.0.1:8765/test.html'
+PASS 網址列打字：下面出現建議 [['短影片測試', '127', '測試頁', '短影片測試', '測試頁', '測試頁', '127 hours', '1275 pennsylvania ave nw']]
+PASS 建議清單：貼在網址列下面、一樣寬 pill=[157.0, 54.0, 586.0, 34.0] menu=(237, 152, 823, 454)
+PASS 建議清單：有逛過的網頁（127.0.0.1） [['短影片測試', '- ', '127.0.0.1:8765/snap.html?deep'], ['127', '- ', 'Google 搜尋'], ['測試頁', '- ', '127.0.0.1:8765/test.html'], ['短影片測試', '- ', '127.0.0.1:8765/snap.html'], ['測試頁', '- ', '127.0.0.1:8765/test.html?new'], ['測試頁', '- ', '127.0.0.1:8765/test.html?bm'], ['127 hours', '- ', 'Google 搜尋'], ['1275 pennsylvania ave nw', '- ', 'Google 搜尋']]
+PASS 按向下鍵：一個一個往下選，網址列換成選到的那一個 (0, '127.0.0.1:8765/snap.html?deep') (1, '127', ['127', '- ', 'Google 搜尋']) (2, '127.0.0.1:8765/test.html', ['測試頁', '- ', '127.0.0.1:8765/test.html'])
+PASS 按 Esc：建議關掉 {'back': False, 'fwd': True, 'addr': '127', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 再按 Esc：網址列回到目前的網址、游標離開 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 打網址（沒打 http://）按 Enter：前往 短影片測試 ['1794730602.22 [us] start ran /snap.html body=false', '1794730602.22 [snap] load h=486']
+PASS 前往後：可以按上一頁 {'back': True, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/snap.html?omni', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 前往後：選單都關了、游標離開網址列 {'back': True, 'fwd': False, 'addr': '', 'shown': '127.0.0.1:8765/snap.html?omni', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 按上一頁：回到測試頁、可以按下一頁 測試頁 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 按下一頁：又到短影片 短影片測試
+PASS 上一頁按右鍵：出現選單 [['測試頁', '顯示完整記錄']]
+PASS 上一頁的清單：有測試頁 [['測試頁', '顯示完整記錄']]
+PASS 點清單裡的測試頁：回去了 測試頁
+PASS 按重新載入：網頁重新載入 ['1794730613.99 [us] end ran n=6 /test.html', '1794730614.03 [frame] load mb=true']
+PASS omnibox：瀏覽器元件沒有當掉 [] []
+PASS omnibox：程式有回應 
+PASS 按右上角的 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS ⋮ 選單：項目和順序 ['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']
+PASS ⋮ 選單：開在按鈕下面、靠右對齊 元素下緣=(940..974, 148) 選單=(711, 148, 974, 684)
+PASS ⋮ 選單：整個在螢幕裡 (711, 148, 974, 684) screen=1024x768
+PASS 滑到「歷史記錄」：打開下一層 [['歷史記錄', '最近關閉的分頁', '沒有最近關閉的分頁（不能按）']]
+PASS 「歷史記錄」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (514, 253, 714, 368)
+PASS 滑到「書籤和清單」：打開下一層 [['將這個分頁加入書籤…', '將所有分頁加入書籤…', '顯示書籤列', '書籤管理員', 'Example', '資料夾', 'YouTube', '楓之谷', '所有書籤']]
+PASS 「書籤和清單」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (454, 317, 714, 648)
+PASS 滑到「擴充功能」：打開下一層 [['管理擴充功能', '從 Chrome 重新同步']]
+PASS 「擴充功能」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (514, 349, 714, 429)
+PASS 滑到「儲存及分享」：打開下一層 [['另存網頁為…', '複製連結', '用 Chrome 開啟']]
+PASS 「儲存及分享」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (508, 531, 714, 652)
+PASS 滑到「更多工具」：打開下一層 [['工作管理員', '檢視網頁原始碼', '開發人員工具', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 「更多工具」的下一層：緊貼在旁邊、整個在螢幕裡 (711, 148, 974, 684) (404, 563, 714, 716)
+PASS 滑到沒有下一層的項目：下一層關掉 1
+PASS 書籤和清單 → 楓之谷 → 攻略：一層一層打開 [['將這個分頁加入書籤…', '將所有分頁加入書籤…', '顯示書籤列', '書籤管理員', 'Example', '資料夾', 'YouTube', '楓之谷', '所有書籤'], ['官網', '攻略', 'IANA'], ['短影片']]
+PASS 好幾層選單：裡面的不會蓋到外面的 [(711, 148, 974, 684), (454, 317, 714, 648), (257, 559, 457, 671), (60, 591, 260, 639)] 重疊=[]
+PASS ⋮ 選單按放大：變 110%、選單還開著、網址列出現縮放圖示 pct=110% {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '縮放：110%', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS ⋮ 選單按縮小：回到 100% pct=100%
+PASS 點網頁：選單全部關掉 0
+PASS 再按 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 選單開著時再按 ⋮：關掉 0
+PASS 再按 ⋮（要點新分頁）：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS ⋮ → 新分頁：多一個分頁、選單關掉 4 → 5
+PASS main_menu：瀏覽器元件沒有當掉 [] []
+PASS main_menu：程式有回應 
+PASS 網頁按右鍵：出現選單 [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 網頁右鍵選單：上一頁、下一頁、重新載入、另存新檔、列印、檢視網頁原始碼 ['上一頁', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']
+PASS 網頁右鍵選單：上一頁／下一頁能不能按，跟工具列的箭頭一致 選單 back_off=True fwd_off=False 工具列=False,True
+PASS 網頁右鍵選單：開在滑鼠的位置（下面放不下就往上開） (385, 220, 585, 519) mouse=(385,519)
+PASS 右鍵 → 重新載入：網頁重新載入、選單關掉 ['1794730653.51 [us] end ran n=7 /test.html', '1794730653.55 [frame] load mb=true']
+PASS 連結按右鍵：出現選單 [['在新分頁中開啟連結', '在新視窗中開啟連結', '在無痕式視窗中開啟連結', '另存連結為…', '複製連結網址', '測試擴充項目', '檢查']]
+PASS 連結右鍵選單：在新分頁／新視窗／無痕式視窗開啟、複製連結網址 ['在新分頁中開啟連結', '在新視窗中開啟連結', '在無痕式視窗中開啟連結', '另存連結為…', '複製連結網址', '測試擴充項目', '檢查']
+PASS 右鍵 → 在新分頁中開啟連結：多一個分頁、留在原本的分頁 4 → 5 active=0
+PASS 輸入框按右鍵：出現選單 [['表情符號', 'Import passwords', '復原（不能按）', '重做（不能按）', '剪下（不能按）', '複製（不能按）', '貼上（不能按）', '以純文字貼上（不能按）', '全選（不能按）', 'Writing direction', '測試擴充項目', 'More tools', '檢查']]
+PASS 輸入框右鍵選單：剪下、複製、貼上、全選 ['表情符號', 'Import passwords', '復原', '重做', '剪下', '複製', '貼上', '以純文字貼上', '全選', 'Writing direction', '測試擴充項目', 'More tools', '檢查']
+PASS 分頁按右鍵：出現選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 分頁右鍵選單：新分頁、重新載入、複製、固定、靜音、關閉、關閉其他分頁、關閉右側分頁 ['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']
+PASS 分頁右鍵 → 複製：多一個一樣的分頁（在它右邊、切過去） [('測試頁', False), ('測試頁', True), ('短影片測試', False), ('Example Domain', False), ('測試頁', False)]
+PASS 複製出來的分頁按右鍵：出現選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 分頁右鍵 → 固定：排到最前面、變窄只剩圖示 [('測', True, 40.0), ('測試頁', False, 152.0), ('短影片測試', False, 152.0), ('Example Domain', False, 152.0), ('測試頁', False, 152.0)]
+PASS 固定的分頁按右鍵：出現選單 [['在右側開啟新分頁', '將分頁移至新視窗', '重新載入', '複製', '取消固定', '將網站設為靜音', '關閉', '關閉其他分頁', '關閉右側分頁', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 取消固定：變回一般分頁 [('測試頁', False), ('測試頁', False), ('短影片測試', False), ('Example Domain', False), ('測試頁', False)]
+PASS 按分頁上的 ×：關掉那個分頁 4
+PASS 分頁列空白處按右鍵：出現選單 [['新分頁', '重新開啟已關閉的分頁', '將所有分頁加入書籤…', '工作管理員']]
+PASS 書籤按右鍵：出現選單 [['在新分頁中開啟', '在新視窗中開啟', '在無痕式視窗中開啟', '重新命名…', '刪除', '顯示書籤列', '書籤管理員']]
+PASS 書籤右鍵選單：在新分頁／新視窗／無痕式視窗開啟、重新命名、刪除、書籤管理員 ['在新分頁中開啟', '在新視窗中開啟', '在無痕式視窗中開啟', '重新命名…', '刪除', '顯示書籤列', '書籤管理員']
+PASS context：瀏覽器元件沒有當掉 [] []
+PASS context：程式有回應 
+PASS chrome://history：打得開、標題是「歷史記錄」 title='歷史記錄'
+PASS chrome://history：網址列顯示 chrome://history 'chrome://history/' chip='MAOBOO'
+PASS chrome://history：內容有 ['測試頁'] 歷史記錄 歷史記錄 搜尋歷史記錄 歷史記錄 刪除瀏覽資料 今天 - 2026年11月15日星期日 今天 - 2026年11月15日星期日 上午8:17 測 測試頁 127.0.0.1 上午8:16 測 測試頁 127.0.0.1 上午8:16 短 短影片測試 127.0.0.1 上午8:16 測 測試頁 127.0.0.1 上午8:16 短 短影片測試 127.0.0.1 上午8:16 測 測試頁
+PASS chrome://downloads：打得開、標題是「下載」 title='下載'
+PASS chrome://downloads：網址列顯示 chrome://downloads 'chrome://downloads/' chip='MAOBOO'
+PASS chrome://downloads：內容有 [] 下載 下載 搜尋下載記錄 全部清除 下載的檔案會顯示在這裡
+PASS chrome://bookmarks：打得開、標題是「書籤」 title='書籤'
+PASS chrome://bookmarks：網址列顯示 chrome://bookmarks 'chrome://bookmarks/' chip='MAOBOO'
+PASS chrome://bookmarks：內容有 ['資料夾', 'Example'] 書籤 書籤 搜尋書籤 新增書籤 新增資料夾 書籤列 資料夾 楓之谷 攻略 所有書籤 書籤列 Example https://example.com/ 資料夾 2 個項目 YouTube https://www.youtube.com/ 楓之谷 3 個項目
+PASS chrome://extensions：打得開、標題是「擴充功能」 title='擴充功能'
+PASS chrome://extensions：網址列顯示 chrome://extensions 'chrome://extensions/' chip='MAOBOO'
+PASS chrome://extensions：內容有 ['測試腳本一'] 擴充功能 擴充功能 搜尋擴充功能 從 Chrome 重新同步 擴充功能 擴充功能 這裡的擴充功能是從這台電腦的 Chrome 同步來的，每次開啟瀏覽器都會自動同步。要安裝新的或移除：在 Chrome 裡操作，這裡會跟著變。開啟或關閉後，重新開啟瀏覽器視窗才會生效。 測試擴充功能 版本 1.0 ID：eamehjingoajmedombhecpkpagoadodo 固定在工具列 使用者腳本 使用者腳
+PASS chrome://settings：打得開、標題是「設定」 title='設定'
+PASS chrome://settings：網址列顯示 chrome://settings 'chrome://settings/' chip='MAOBOO'
+PASS chrome://settings：內容有 ['搜尋引擎'] 設定 設定 搜尋設定 你與同步來源 外觀 搜尋引擎 自動填入和密碼 下載 隱私權和安全性 關於 你與同步來源 你與同步來源 Chrome 使用者 書籤和擴充功能從這台電腦的 Chrome 同步過來；每次開啟瀏覽器都會自動同步，Chrome 裡有變動也會跟著更新。 手動同步 馬上跟 Chrome 同步一次書籤與擴充功能。 立即同步 Google 帳戶同步 這個瀏覽器不能登入 Google 帳戶來同步
+PASS 設定 → 關掉「顯示首頁按鈕」：工具列上的首頁按鈕不見；再打開就回來 原本=True 關掉後不見=True 再打開=True
+PASS 新分頁頁面中間的搜尋框：打網址按 Enter 會前往 短影片測試
+PASS internal_pages：瀏覽器元件沒有當掉 [] []
+PASS internal_pages：程式有回應 
+PASS Ctrl+T：開新分頁、可以直接打網址 5 {'back': False, 'fwd': False, 'addr': '', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': False, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 新分頁打網址：前往 短影片測試
+PASS Ctrl+W：關掉目前的分頁 4
+PASS Ctrl+Shift+T：重新開啟剛關掉的分頁 5 短影片測試
+PASS Ctrl+Tab／Ctrl+Shift+Tab：切到下一個／上一個分頁 4 → 0 → 4
+PASS Ctrl+1／Ctrl+9：第一個／最後一個分頁 0 4
+PASS Ctrl+W 之後馬上 Ctrl+Shift+T：又開回來（鍵盤沒有掉） 5
+PASS 關掉多的分頁：回到原本的數量 4
+PASS Ctrl+L：游標到網址列 {'back': False, 'fwd': True, 'addr': 'http://127.0.0.1:8765/test.html', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS Ctrl + 加號：放大到 110%，網址列出現縮放圖示 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '縮放：110%', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS Ctrl+0：回到 100%，縮放圖示消失 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS F5：重新載入 ['1794730781.71 [us] end ran n=9 /test.html', '1794730781.75 [frame] load mb=true']
+PASS Ctrl+Shift+B：書籤列收起來（網頁往上 34）、再按一次回來 189 → 155 → 189
+PASS Ctrl+D：加入書籤、出現小視窗、星星變實心 [['已加入書籤', '測試頁（不能按）', '127.0.0.1:8765/test.html（不能按）', '重新命名…', '書籤管理員', '移除']] {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': True, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS 小視窗按移除：書籤拿掉、星星變回空心 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': False, 'chip': '查看網站資訊', 'bm': True}
+PASS Ctrl+H：在新分頁開「歷史記錄」 歷史記錄 5
+PASS Ctrl+J：在新分頁開「下載」 下載 5
+PASS Alt+←／Alt+→：上一頁／下一頁 測試頁 → 短影片測試
+PASS shortcuts：瀏覽器元件沒有當掉 [] []
+PASS shortcuts：程式有回應 
+PASS 頭像（Chrome 使用者）：出現選單 [['同步來源：這台電腦的 Chrome', '測試使用者', '書籤與擴充功能每次開啟瀏覽器都會自動同步。', '立即同步']]
+PASS 頭像（Chrome 使用者）：開在按鈕下面 元素下緣=(904..938, 148) 選單=(638, 148, 938, 317)
+PASS 頭像（Chrome 使用者）：選單開著時按鈕是按下去的樣子 tb open
+PASS 頭像（Chrome 使用者）：點外面關掉 
+PASS 頭像（Chrome 使用者）：選單關了，按鈕恢復原樣 tb
+PASS 網址列左邊的圓鈕（網站資訊）：出現選單 [['127.0.0.1', '你與這個網站的連線不安全（不能按）', '請勿在這個網站輸入密碼、信用卡這類機密資訊。（不能按）', '複製網址', '用 Chrome 開啟', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS 網址列左邊的圓鈕（網站資訊）：開在按鈕下面 元素下緣=(242..266, 143) 選單=(242, 143, 568, 346)
+PASS 網址列左邊的圓鈕（網站資訊）：選單開著時按鈕是按下去的樣子 chip open
+PASS 網址列左邊的圓鈕（網站資訊）：點外面關掉 
+PASS 網址列左邊的圓鈕（網站資訊）：選單關了，按鈕恢復原樣 chip
+PASS 左上角的搜尋分頁：出現選單 [['開啟的分頁', '測試頁', '短影片測試', 'Example Domain', '測試頁', '最近關閉', '下載', '歷史記錄', '短影片測試', '短影片測試', '設定', '設定', '擴充功能', '書籤']]
+PASS 左上角的搜尋分頁：開在按鈕下面 元素下緣=(86..114, 101) 選單=(86, 101, 386, 719)
+PASS 左上角的搜尋分頁：選單開著時按鈕是按下去的樣子 tsb open
+PASS 左上角的搜尋分頁：點外面關掉 
+PASS 左上角的搜尋分頁：選單關了，按鈕恢復原樣 tsb
+PASS 擴充功能（拼圖）：出現選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 擴充功能（拼圖）：開在按鈕下面 元素下緣=(868..902, 148) 選單=(602, 148, 902, 281)
+PASS 擴充功能（拼圖）：選單開著時按鈕是按下去的樣子 tb open
+PASS 擴充功能（拼圖）：點外面關掉 
+PASS 擴充功能（拼圖）：選單關了，按鈕恢復原樣 tb
+PASS 網址列左邊的圓鈕：滑鼠停著時會跳出提示文字（確認抓得到） [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))]
+PASS 網址列左邊的圓鈕：提示文字出來之後才按，選單打開時提示文字收起來 按之前=[('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))] 按之後=[]
+PASS 網址列左邊的圓鈕：一移過去就按，選單打開後提示文字不會跳出來 []
+PASS 網址列左邊的圓鈕：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來 []
+PASS 網址列左邊的圓鈕：選單關了之後再停上去，提示文字照常出現 [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (264, 146, 352, 171))]
+PASS ⋮：滑鼠停著時會跳出提示文字（確認抓得到） [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))]
+PASS ⋮：提示文字出來之後才按，選單打開時提示文字收起來 按之前=[('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))] 按之後=[]
+PASS ⋮：一移過去就按，選單打開後提示文字不會跳出來 []
+PASS ⋮：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來 []
+PASS ⋮：選單關了之後再停上去，提示文字照常出現 [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (948, 146, 1024, 171))]
+PASS 搜尋分頁：滑鼠停著時會跳出提示文字（確認抓得到） [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))]
+PASS 搜尋分頁：提示文字出來之後才按，選單打開時提示文字收起來 按之前=[('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))] 按之後=[]
+PASS 搜尋分頁：一移過去就按，選單打開後提示文字不會跳出來 []
+PASS 搜尋分頁：選單開著時滑鼠移開再移回按鈕，提示文字不會跳出來 []
+PASS 搜尋分頁：選單關了之後再停上去，提示文字照常出現 [('Chrome_WidgetWin_1', 'msedgewebview2.exe', '', (110, 102, 174, 127))]
+PASS 搜尋分頁：出現選單 [['開啟的分頁', '測試頁', '短影片測試', 'Example Domain', '測試頁', '最近關閉', '下載', '歷史記錄', '短影片測試', '短影片測試', '設定', '設定', '擴充功能', '書籤']]
+PASS 搜尋分頁 → 點清單裡的分頁：切過去 短影片測試
+PASS bubbles：瀏覽器元件沒有當掉 [] []
+PASS bubbles：程式有回應 
+PASS 下載檔案：存到「下載」資料夾 C:\Users\runneradmin\Downloads\ui-check.bin exists=True
+PASS 下載檔案：工具列出現下載按鈕、分頁留在原本的網頁 {'back': False, 'fwd': True, 'addr': '', 'shown': '127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': True, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True} 測試頁
+PASS chrome://downloads：列出剛下載的檔案 下載 下載 搜尋下載記錄 全部清除 今天 - 2026年11月15日星期日 今天 - 2026年11月15日星期日 ui-check.bin http://127.0.0.1:8765/dl.bin http://127.0.0.1:8765/dl.bin 在資料夾中顯示 在資料夾中顯示 從清單中移除
+PASS download：瀏覽器元件沒有當掉 [] []
+PASS download：程式有回應 
+PASS Ctrl+Shift+N：開無痕式視窗 [('新分頁 - 無痕模式', (110, 90, 1010, 710))]
+PASS 無痕式視窗：分頁列上有「無痕模式」的標示、沒有頭像 <GroupControl '' #inco .inco (776,101,864,127)> ['無痕模式']
+PASS 無痕式視窗：可以逛網頁 短影片測試 - 無痕模式
+PASS 無痕式視窗：不會存進設定檔 ['w1']
+PASS 無痕式視窗：按 × 關掉 
+PASS 無痕式視窗逛的網頁：歷史記錄裡沒有 
+PASS incognito：瀏覽器元件沒有當掉 [] []
+PASS incognito：程式有回應 
+PASS Ctrl+N：開新視窗（新分頁） [('新分頁', (110, 90, 1010, 710))]
+PASS 新視窗：跟原本的一樣大、位置錯開一點 (110, 90, 1010, 710) (80, 60, 980, 680)
+PASS 新視窗：游標在它自己的網址列，原本那個視窗的網址列沒有被動到 新=True 舊=False fg=197446 w2=197446
+PASS 兩個視窗時按 F10：選單開在按的那個視窗 選單=[(741, 178, 1004, 714)] 新視窗的⋮=<ButtonControl '自訂及管理' #menu .tb open (970,144,1004,178)>
+PASS 按 Esc：選單關掉 0
+PASS 兩個視窗時按 Ctrl+L：只有按的那個視窗的網址列有游標 新=True 舊=False fg=197446
+PASS 新視窗：按 × 關掉 
+PASS new_window：瀏覽器元件沒有當掉 [] []
+PASS new_window：程式有回應 
+PASS 點遊戲：遊戲在前景 fg=131416 game=131416
+PASS 遊戲在前景：web 視窗在遊戲上面 z=[196734, 66080, 131416, 262628, 131472, 459206]
+PASS 點網頁空白處：鍵盤還在遊戲 fg=131416
+PASS 點網頁空白處：web 視窗還在遊戲上面 
+PASS 遊戲在前景時點 web 的按鈕：第一下就有作用 4 → 5
+PASS 遊戲在前景時按 +：新分頁可以直接打網址（鍵盤先借給網址列） fg=66080 {'back': False, 'fwd': False, 'addr': '', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': False, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 按 + 之後滑鼠移出 web：鍵盤還給遊戲 fg=131416
+PASS 中鍵關掉分頁 4
+PASS 再點遊戲：遊戲在前景 fg=131416
+PASS 按 A：遊戲收到 key:a
+
+PASS 點網頁輸入框：鍵盤交給 web fg=66080
+PASS 在輸入框打字：網頁收到 sible
+1794730943.38 [test] title typing=true
+1794730944.48 [test] input:h
+1794730944.66 [test] input:he
+1794730944.66 [test] input:hel
+1794730944.67 [test] input:hell
+1794730944.73 [test] input:hello
+
+PASS 按 Enter：鍵盤還給遊戲 fg=131416
+PASS 按 B：遊戲收到 
+PASS 打字中滑鼠移出 web：鍵盤還給遊戲 fg=131416
+PASS 點內嵌框裡的輸入框：鍵盤交給 web fg=66080
+PASS 內嵌框打字：收到 
+PASS 再點網頁輸入框：鍵盤交給 web fg=66080
+PASS 打字中點遊戲：遊戲在前景 fg=131416
+PASS 點遊戲後再點輸入框：鍵盤又交給 web fg=66080
+PASS 再打字：網頁收到  blur
+1794730953.36 [test] title typing=true
+1794730954.61 [test] title typing=false
+1794730955.79 [test] title typing=true
+1794730956.88 [test] input:helloxyw
+
+PASS 再按 Enter：鍵盤還給遊戲 fg=131416
+PASS 遊戲在前景時點網址列：鍵盤交給 web、游標在網址列 fg=66080 {'back': False, 'fwd': True, 'addr': 'http://127.0.0.1:8765/test.html', 'shown': '', 'focus': 'addr', 'zoom': '', 'star': True, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 在網址列打字：字進網址列、遊戲沒收到 '127.0.0.1:8765/snap.html?game' keys=''
+PASS 網址列按 Enter：前往網頁 短影片測試
+PASS 網址列按 Enter：鍵盤還給遊戲 fg=131416
+PASS 按 C：遊戲收到 key:a
+key:b
+key:c
+
+PASS 再點網址列：鍵盤交給 web fg=66080
+PASS 網址列按 Esc：鍵盤還給遊戲 fg=131416
+PASS 點網址列後改點網頁：鍵盤還給遊戲 fg=131416
+PASS 遊戲在前景時按上一頁：回到測試頁、鍵盤還在遊戲 測試頁 fg=131416
+PASS 遊戲在前景時點新分頁中間的搜尋框：鍵盤交給 web fg=66080
+PASS 在搜尋框打網址按 Enter：前往、遊戲沒收到那些字 短影片測試 keys=''
+PASS 搜尋框按 Enter 之後：鍵盤還給遊戲 fg=131416
+PASS 遊戲在前景時按 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 遊戲在前景時開選單：鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時：選單在遊戲上面 z=[66190, 196734, 66080, 131416, 262628, 131472]
+PASS 遊戲在前景時滑到有下一層的項目：打開下一層 2
+PASS 遊戲在前景時 ⋮ → 新分頁：有開、選單關掉、可以直接打網址 5 fg=66080
+PASS ⋮ → 新分頁之後滑鼠移出 web：鍵盤還給遊戲 fg=131416
+PASS 按 D：遊戲收到 key:a
+key:b
+key:c
+key:Escape
+key:d
+
+PASS 遊戲在前景時網頁按右鍵：出現選單、鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時右鍵 → 重新載入：有作用、鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時點書籤資料夾：出現選單 [['測試頁', 'Example']]
+PASS 遊戲在前景時開書籤資料夾：鍵盤還在遊戲 fg=131416
+PASS 遊戲在前景時點網頁關選單：關掉、鍵盤還在遊戲 fg=131416
+PASS 再開一次選單：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 選單開著時點遊戲：選單關掉、遊戲在前景 0 fg=131416
+PASS 登入小視窗：開成另一個視窗 [('登入小視窗', (52, 52, 488, 391))]
+PASS 登入小視窗：可以打字 d ran n=13 /test.html
+1794731002.07 [test] load:890x486 dpr=1 
+1794731002.11 [frame] load mb=true
+1794731010.33 [popup] opened opener=true
+1794731012.72 [popup] input:p
+1794731012.78 [popup] input:pp
+
+PASS game：瀏覽器元件沒有當掉 [] []
+PASS game：程式有回應 
+PASS 沒有標題又一直往 <head> 加東西的網頁：沒有卡死（40 次都做完） [notitle] start | [notitle] done steps=40 total=863ms max=22ms
+PASS 沒有標題的網頁：每一步都不慢 1794731021.74 [notitle] done steps=40 total=863ms max=22ms
+PASS 沒有標題的網頁：之後才設的標題出現在分頁上 ['測試頁', '短影片測試', 'Example Domain', '測試頁', '晚到的標題']
+PASS 沒有標題的網頁：畫面有更新到最後 type here | done
+PASS 標題晚到的網頁：點遊戲，遊戲在前景 fg=131416 game=131416
+PASS 標題晚到的網頁：點輸入框，鍵盤交給 web fg=66080
+PASS 標題晚到的網頁：打字網頁收到 ['[notitle] input:n', '[notitle] input:nt']
+PASS 標題晚到的網頁：按 Enter 鍵盤還給遊戲 fg=131416
+PASS notitle：瀏覽器元件沒有當掉 [] []
+PASS notitle：程式有回應 
+PASS 記事本在前景時可以蓋住 web 視窗 fg=525090 np=525090
+PASS 點 web 視窗：變成前景（一般視窗） fg=66080
+PASS notepad：瀏覽器元件沒有當掉 [] []
+PASS notepad：程式有回應 
+PASS 縮放比例改變後：視窗還看得到 
+PASS 縮放比例改變後：工具列和網頁位置正確 dpi=120 [(156, 245, 1044, 698), (150, 84, 1050, 245)]
+PASS 縮放比例改變後：短影片還是同一張 [4, 4, 4, 4] 原本=4
+PASS 縮放比例改變後：程式有回應 
+PASS 縮放比例 125% 時按 ⋮：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 縮放比例 125% 時：選單還是貼在按鈕下面 元素下緣=(1000..1043, 194) 選單=(714, 194, 1043, 864)
+PASS 縮放比例 125% 時：選單跟著放大 現在寬=329 100% 時寬=263.0
+PASS 縮放比例改回來：工具列和網頁位置正確 dpi=96 [(155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS 縮放比例改回來：短影片還是同一張 [4, 4, 4]
+PASS dpi：瀏覽器元件沒有當掉 [] []
+PASS dpi：程式有回應 
+PASS 影片全螢幕：視窗蓋滿整個螢幕 (0, 0, 1920, 1080) screen=1920x1080
+PASS 影片全螢幕：工具列藏起來、網頁蓋滿 [(0, 0, 1920, 1080)]
+PASS 影片全螢幕：網頁收到 68x290
+1794731054.37 [test] vis:visible
+1794731054.37 [test] resize:890x486
+1794731056.47 [test] fullscreen on
+1794731056.47 [test] fullscreenchange true 890x486
+1794731056.52 [test] resize:1920x1080
+
+PASS 按 Esc：回到原本的大小 (150, 84, 1050, 704) before=(150, 84, 1050, 704)
+PASS 按 Esc：工具列回來 [(155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS F11：視窗蓋滿整個螢幕、工具列藏起來 (0, 0, 1920, 1080) [(0, 0, 1920, 1080)]
+PASS F11 時滑鼠移到螢幕最上面：工具列滑出來 [(0, 121, 1920, 1080), (0, 0, 1920, 121)]
+PASS F11 時滑鼠移開：工具列又藏起來 [(0, 0, 1920, 1080)]
+PASS 再按 F11：回到原本的大小、工具列回來 (150, 84, 1050, 704) before=(150, 84, 1050, 704) [(155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS fullscreen：瀏覽器元件沒有當掉 [] []
+PASS fullscreen：程式有回應 
+PASS 按擴充功能按鈕：出現選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 擴充功能選單：列出 Chrome 同步來的擴充功能 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 點擴充功能：小視窗蓋在網頁上 [(536, 176, 936, 659), (155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS 擴充功能看得到目前的網頁（active tab） 1794731073.80 [ext] active:["http://127.0.0.1:8765/test.html"]
+PASS 擴充功能看得到目前的網頁（lastFocused） 1794731073.80 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+PASS 點外面：小視窗關掉 2
+PASS 網頁右鍵選單：有擴充功能加的項目 [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 點右鍵選單裡擴充功能加的項目：擴充功能有收到 ['1794731081.93 [extbg] menu clicked mbtest']
+PASS 再按擴充功能按鈕：出現選單 [['擴充功能', '測試擴充功能', '管理擴充功能']]
+PASS 擴充功能按圖釘：固定到工具列上 1
+PASS 點工具列上固定的擴充功能：開它的小視窗 [(464, 176, 864, 659), (155, 213, 1045, 699), (150, 84, 1050, 213)]
+PASS 固定的擴充功能按右鍵：出現選單 [['測試擴充功能（不能按）', '開啟擴充功能選單', '取消固定', '停用（重新開啟視窗後生效）', '管理擴充功能']]
+PASS 取消固定：工具列上的圖示拿掉 
+PASS ext：瀏覽器元件沒有當掉 [] []
+PASS ext：程式有回應 
+PASS 使用者腳本：載入後跑的有執行 
+PASS 使用者腳本：GM_setValue 有記住（每載入一次加一） [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+PASS 使用者腳本：document-start 的有執行 
+PASS 使用者腳本：@exclude 有效（內嵌框不跑） 
+PASS 使用者腳本：不符合的網站不跑 
+PASS 網頁上按右鍵：有出現選單（要檢視原始碼） [['上一頁（不能按）', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']]
+PASS 右鍵 → 檢視網頁原始碼：在新分頁打開，網址列是 view-source: 開頭 'view-source:http://127.0.0.1:8765/test.html' 'view-source:127.0.0.1:8765/test.html' {'back': False, 'fwd': False, 'addr': '', 'shown': 'view-source:http://127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': False, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 檢視原始碼的分頁：沒有星星（不能加書籤） {'back': False, 'fwd': False, 'addr': '', 'shown': 'view-source:http://127.0.0.1:8765/test.html', 'focus': '', 'zoom': '', 'star': False, 'starOn': False, 'dl': True, 'chip': '查看網站資訊', 'bm': True}
+PASS 檢視原始碼的頁面：不跑使用者腳本 []
+PASS 檢視原始碼的分頁：記的網址是 view-source: 開頭 ['http://127.0.0.1:8765/test.html', 'view-source:http://127.0.0.1:8765/test.html', 'http://127.0.0.1:8765/snap.html', 'https://example.com/', 'http://127.0.0.1:8765/test.html?new']
+PASS scripts：瀏覽器元件沒有當掉 [] []
+PASS scripts：程式有回應 
+PASS 腳本（document-start）在網頁自己的程式之前跑 [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+PASS 腳本拿得到自己的資訊；有寫 @grant 的功能才有 [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+PASS 內嵌框架（別的網站）裡也會跑，而且也在框架自己的程式之前 ['[us4] frame - start pageRan=false ready=loading webview=undefined shared=null ha']
+PASS 網頁自己的程式看不到程式跟腳本之間的通道（最上層、框架都是） ['[uspage] top - webview=undefined extra=0', '[uspage] top - blank webview=undefined marker=1', '[uspage] frame webview=undefined extra=0', '[uspage] top - reuse reused=false innerRan=true']
+PASS 腳本自己也拿不到那個通道（只能用 GM 功能） [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+PASS GM_xmlhttpRequest：跨網站連得到（狀態、最後的網址、回應標頭） [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+PASS GM_xmlhttpRequest：腳本給的標頭（Referer、自訂的）有帶到，瀏覽器名稱跟網頁一樣 [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+PASS GM_xmlhttpRequest：@connect 有寫的網域會帶這個瀏覽器的 Cookie [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+PASS GM_xmlhttpRequest：POST 的內容送得到、二進位回應拿得到 [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+PASS GM_xmlhttpRequest：串流一段一段收到 [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+PASS GM_xmlhttpRequest：腳本沒有允許的網域連不了 ['[us4] top - xhr denied ok']
+PASS 對照：網頁自己連同一個網址會被擋（所以上面是程式代連的） ['[us4] top - pagefetch blocked']
+PASS 還沒載入的空白框架：通道也拿掉了，而且留了記號 [uspage] top - blank webview=undefined marker=1
+PASS 空白框架的視窗被沿用的話腳本不跑（沒被沿用就照常跑） [uspage] top - reuse reused=false innerRan=true
+PASS 有裝腳本時，工具列有「使用者腳本」按鈕 
+PASS 使用者腳本按鈕：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 選單列出這個網頁的腳本和它登記的項目 ['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']
+PASS 選單上標出腳本正在執行 ['測試腳本四', '執行中']
+PASS 點腳本的選單項目：腳本的函式有執行、選單關掉 ['[us4] top - menu set v1794731129752', '[us4] top - change new="v1794731129752" remote=false', '[us4] frame - change new="v1794731129752" remote=true']
+PASS 腳本改了設定值：同一頁的別的框架收到通知（remote=true），自己這份是 remote=false ['[us4] top - menu set v1794731129752', '[us4] top - change new="v1794731129752" remote=false', '[us4] frame - change new="v1794731129752" remote=true']
+PASS 使用者腳本按鈕（第二次）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 開關類的項目（按了不關選單）：選單還在、標題跟著變 ['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【開】開關', '測試：開分頁', '管理使用者腳本'] ['[us4] top - menu toggle on=true']
+PASS 另一個分頁開同一個網站：一開始就拿到剛才設的值 ['[us4] top ?two=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined', '[us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined']
+PASS 使用者腳本按鈕（另一個分頁）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 在這個分頁改值：另一個分頁（沒在顯示）也收到（remote=true） ['[us4] top ?two=1&noxhr menu set v1794731148389', '[us4] top ?two=1&noxhr change new="v1794731148389" remote=false', '[us4] frame - change new="v1794731148389" remote=true', '[us4] top - change new="v1794731148389" remote=true', '[us4] frame - change new="v1794731148389" remote=true']
+PASS 使用者腳本按鈕（開分頁）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【關】開關', '測試：開分頁', '管理使用者腳本']]
+PASS GM_openInTab：開了新分頁並切過去 6 → 7 '127.0.0.1:8765/snap.html?gmtab=1'
+PASS 使用者腳本按鈕（開關腳本）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '測試：設值', '【開】開關', '測試：開分頁', '管理使用者腳本']]
+PASS 在選單點腳本的名稱：關掉（選單上標「已關閉」） ['測試腳本四', '已關閉']
+PASS 腳本關掉後重新整理：這支不跑了，其他的照跑 [] ['1794731163.96 [us] start ran /us.html body=false', '1794731164.02 [us] start ran /usframe.html body=false', '1794731164.03 [us] start ran /usinner.html body=false']
+PASS 使用者腳本按鈕（再打開腳本）：出現選單 [['使用者腳本', '測試腳本二', '測試腳本四', '管理使用者腳本']]
+PASS 再打開、重新整理：又跑了 ['[us4] top - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined', '[us4] top - pagefetch blocked', '[us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined']
+PASS 開腳本的網址（.user.js）：出現安裝畫面，不是直接顯示程式碼 'chrome://extensions/install?url=http%3A%2F%2F127.0.0.1%3A8765%2Finst.user.js' 擴充功能
+擴充功能
+安裝使用者腳本
+安裝使用者腳本
+安裝測試腳本　1.0
+從網址安裝的測試
+來源
+http://127.0.0.1:8765/inst.user.js
+會在這些網頁執行
+http://127.0.0.1:8765/us.html*
+安裝之後
+這支腳本會在上面那些網頁上執行，看得到、也改得了網頁的內容。只安裝你信任的來源的腳本。
+安裝
+取消
+PASS 按「安裝」：裝好了 擴充功能
+擴充功能
+安裝使用者腳本
+安裝使用者腳本
+安裝測試腳本　1.0
+從網址安裝的測試
+來源
+http://127.0.0.1:8765/inst.user.js
+會在這些網頁執行
+http://127.0.0.1:8765/us.html*
+安裝之後
+這支腳本會在上面那些網頁上執行，看得到、也改得了網頁的內容。只安裝你信任的來源的腳本。
+「安裝測試腳本」安裝好了。已經開著的網頁重新整理後就會執行。
+管理使用者腳本
+關閉
+PASS 裝好的腳本在網頁上執行 ['1794731194.94 [inst] ran v=1.0 ?inst=1&noxhr']
+PASS 擴充功能頁：有「檢查更新」「從網址安裝」「自動更新腳本」 覽器的篡改猴，最後是 Chrome 的篡改猴。
+匯入腳本
+從網址安裝
+貼上腳本
+檢查更新
+開啟腳本資料夾
+重新讀取
+自動更新腳本
+每天看一次腳本有沒有新版（照腳本自己寫的更新網址），有就換成新的
+Chrome 的篡改猴裡的腳本
+這台電腦的 Chrome 裡沒有找到開著的篡改猴。
+不該跑
+https://not-visited.invalid/*
+刪除
+安裝測試腳本　1.0
+http://127.0.0.1:8765/us.html*
+刪除
+測試腳本一
+http://127.0.0.1:8765/test.html*
+刪除
+測試腳本二
+http://127.0.0.1:8765/*、http://localhost:8765/*
+刪除
+測試腳本四　1.0
+http://127.0.0.1:8765/us.html*、http://localhost:8765/usframe.html*
+刪除
+PASS 按了「檢查更新」之後，前景還是瀏覽器視窗（沒有點到別的東西） 66080 '擴充功能'
+PASS 檢查更新：換成新版，重新整理後跑的是新版 ['1794731216.34 [inst] ran v=2.0 ?inst=2&noxhr']
+PASS 點網頁上的腳本連結：安裝畫面開在新分頁，原本的網頁還在 <HyperlinkControl '安裝連結' #inst . (163,300,227,318)> 7 → 8 'chrome://extensions/install?url=http%3A%2F%2F127.0.0.1%3A8765%2Finst.user.js'
+PASS 設定值有存進檔案（關掉程式再開還在） {'shared': '"v1794731148389"'}
+PASS userscripts：瀏覽器元件沒有當掉 [] []
+PASS userscripts：程式有回應 
+PASS 網頁一口氣開三個新分頁：三個都開出來 <ButtonControl '一次開三個' #multi . (231,297,314,321)> 5 → 8 ['測試頁', '短影片測試', 'Example Domain', '測試頁', '腳本測試', '127.0.0.1:8765', '127.0.0.1:8765', '127.0.0.1:8765']
+PASS 三個新分頁都載入了，而且都拿得到開它的網頁（window.opener） ['[uspage] top ?multi=1&noxhr multi opened=111', '[multi] child 1 opener=true', '[multi] child 3 opener=true', '[multi] child 2 opener=true']
+PASS 網頁那邊三次都拿到開出來的視窗（沒有被當成擋掉） ['[uspage] top ?multi=1&noxhr multi opened=111', '[multi] child 1 opener=true', '[multi] child 3 opener=true', '[multi] child 2 opener=true']
+PASS 排到晚一點才開的，後來都開成功了 排隊 0、成功 0
+PASS 連著開出來的分頁：重新整理後使用者腳本照樣跑 ['1794731265.00 [us] start ran /multi.html body=false', '1794731265.01 [multi] child 3 opener=true']
+PASS 網頁和內嵌框架同時各開一個新分頁：兩個都開出來、都載入了 <ButtonControl '兩邊同時開' #both . (317,297,401,321)> 8 → 10 ['[uspage] top ?multi=1&noxhr both top=1', '[uspage] frame both frame=1', '[multi] child 4 opener=true', '[multi] child 5 opener=true']
+PASS 同時開新分頁之後：排隊的都開成功了 0
+PASS multiopen：瀏覽器元件沒有當掉 [] []
+PASS multiopen：程式有回應 
+PASS 登入小視窗：跟開它的網頁連得上 [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗：登入結果送得回原本的網頁 [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗：登入完自己關掉，原本的網頁也知道 留下的視窗=[] [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗：裡面記住的登入狀態，原本的網頁讀得到 [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 登入小視窗（先到別的網站再轉回來）：跟開它的網頁連得上 [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先到別的網站再轉回來）：登入結果送得回原本的網頁 [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先到別的網站再轉回來）：登入完自己關掉，原本的網頁也知道 留下的視窗=[] [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先到別的網站再轉回來）：裡面記住的登入狀態，原本的網頁讀得到 [login] b2 open=window | [provider] loaded origin=http://localhost:8765 opener=true | [pop b2] loaded opener=true name=lp2 hist=2 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""} | [login] b2 closed=true cookie=login_b1=1; login_b2=1
+PASS 登入小視窗（先開空白再前往）：跟開它的網頁連得上 [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗（先開空白再前往）：登入結果送得回原本的網頁 [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗（先開空白再前往）：登入完自己關掉，原本的網頁也知道 留下的視窗=[] [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗（先開空白再前往）：裡面記住的登入狀態，原本的網頁讀得到 [login] b6 open=window | [pop b6] loaded opener=true name=lp6 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""} | [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 登入小視窗：開成另一個視窗、在最前面 [('登入', (234, 234, 730, 693))] fg=1966874
+PASS 登入小視窗：可以直接打字 [login] b8 open=window | [pop b8] loaded opener=true name=lp8 hist=1 size=480x420 | [pop b8] input:a | [pop b8] input:ab
+PASS 登入小視窗裡會開新視窗的連結（說明、忘記密碼這類）：點了有打開 分頁 5→6，視窗 1→1
+PASS 登入小視窗裡的連結：開在原本那個瀏覽器視窗的新分頁，那個視窗到最前面、小視窗還在 分頁 5→6 fg=66080 web=66080 目前='短影片測試'
+PASS 原本的網頁可以把登入小視窗關掉 關了=True [login] b8 open=window | [pop b8] loaded opener=true name=lp8 hist=1 size=480x420 | [pop b8] input:a | [pop b8] input:ab | [us] start ran /snap.html body=false | [snap] load h=486 | [login] c8 called close | [login] b8 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+PASS 開成新分頁的登入頁：網站拿得到開出來的分頁（不會以為被擋掉） [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+PASS 開成新分頁的登入頁：跟開它的網頁連得上、登入結果送得回來 [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+PASS 開成新分頁的登入頁：登入完分頁自己關掉、回到原本的分頁 分頁 5→5 目前='登入測試' [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+PASS 開成新分頁的登入頁（先開空白再前往）：網站拿得到開出來的分頁（不會以為被擋掉） [login] b4 open=window | [us] start ran /login-pop.html body=false | [pop b4] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""} | [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+PASS 開成新分頁的登入頁（先開空白再前往）：跟開它的網頁連得上、登入結果送得回來 [login] b4 open=window | [us] start ran /login-pop.html body=false | [pop b4] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""} | [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+PASS 開成新分頁的登入頁（先開空白再前往）：登入完分頁自己關掉、回到原本的分頁 分頁 5→5 目前='登入測試' [login] b4 open=window | [us] start ran /login-pop.html body=false | [pop b4] loaded opener=true name= hist=1 size=890x486 | [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""} | [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+PASS 送表單到新分頁：資料有送到 分頁 5→6 [us] start ran /post-echo body=false | [post] method=POST body=v=hello opener=false
+PASS 同一個名字的視窗開兩次：用同一個分頁（不會開兩個） 分頁 5→6 [pop b7a] loaded opener=true name=same7 hist=1 size=890x486 | [login] b7 w1=true w2=true same=true | [us] start ran /login-pop.html body=false | [pop b7b] loaded opener=true name=same7 hist=2 size=890x486
+PASS 一般的「開新分頁」連結：開新分頁，新分頁碰不到原本的網頁 分頁 5→6 [us] start ran /login-pop.html body=false | [pop a1] loaded opener=false name= hist=1 size=890x486
+PASS 指定要連著的連結（rel=opener）：新分頁拿得到原本的網頁 分頁 5→6 [pop a2] loaded opener=true name= hist=1 size=890x486
+PASS 無痕式視窗裡的登入小視窗：連得上、結果送得回來、自己關掉 留下的視窗=[] [login] b1 open=window | [pop b1] loaded opener=true name=lp1 hist=1 size=480x420 | [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""} | [login] b1 closed=true cookie=login_b1=1
+PASS 無痕式視窗裡的登入小視窗：用無痕的資料（讀得到自己存的、讀不到一般視窗的登入狀態） [login] b1 closed=true cookie=login_b1=1
+PASS 無痕式視窗裡開成新分頁的登入頁：連得上、結果送得回來、自己關掉 [login] b3 open=window | [pop b3] loaded opener=true name= hist=1 size=890x486 | [pop b3] posted | [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""} | [login] b3 closed=true cookie=login_b1=1; login_b3=1
+PASS login：瀏覽器元件沒有當掉 [] []
+PASS login：程式有回應 
+PASS 一般網頁按 F12：打開開發人員工具（另一個視窗） [('DevTools - 127.0.0.1:8765/test.html', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 開發人員工具開著時：瀏覽器視窗還在、有回應 
+PASS 開發人員工具：關得掉 []
+PASS 開過開發人員工具的分頁前往「設定」：改開在新分頁，原本的分頁留在網頁上 [('測試頁', False), ('設定', True), ('短影片測試', False), ('Example Domain', False), ('測試頁', False)]
+PASS 「設定」（程式自己的頁面）按 F12、Ctrl+Shift+I：不會打開開發人員工具 網址列上按 F12=True 頁面上按 F12=True Ctrl+Shift+I=True []
+PASS 「設定」按右鍵：沒有「檢查」 ['上一頁', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目']
+PASS ⋮（設定頁面上）：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS 「設定」頁面上：⋮ → 更多工具 →「開發人員工具」不能按 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束'], ['工作管理員', '檢視網頁原始碼（不能按）', '開發人員工具（不能按）', '清除這個網站的資料（Cookie、登入狀態）（不能按）']]
+PASS 一般網頁按右鍵：最後一項是「檢查」 ['上一頁', '下一頁', '重新載入', '另存新檔…', '列印…', '測試擴充項目', '檢視網頁原始碼', '檢查']
+PASS 右鍵 → 檢查：打開開發人員工具 [('DevTools - 127.0.0.1:8765/test.html', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS ⋮（要開開發人員工具）：出現選單 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束']]
+PASS ⋮ → 更多工具：有「開發人員工具」，一般網頁上可以按 [['新分頁', '新視窗', '新增無痕式視窗', '歷史記錄', '下載', '書籤和清單', '擴充功能', '刪除瀏覽資料…', '縮放', '列印…', '尋找…', '儲存及分享', '更多工具', '設定', '結束'], ['工作管理員', '檢視網頁原始碼', '開發人員工具', '清除這個網站的資料（Cookie、登入狀態）']]
+PASS ⋮ → 更多工具 → 開發人員工具：打開 [('DevTools - 127.0.0.1:8765/test.html', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 新分頁（程式自己的頁面）按 F12：不會打開開發人員工具 []
+PASS 從新分頁前往一般網頁之後按 F12：打得開 [('DevTools - 127.0.0.1:8765/snap.html?devtools', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 開發人員工具開著時按上一頁要回到新分頁：原本的分頁留在網頁上，新分頁另外開 [('測試頁', False), ('短影片測試', False), ('Example Domain', False), ('測試頁', False), ('短影片測試', False), ('新分頁', True)] 工具視窗=[('DevTools - 127.0.0.1:8765/snap.html?devtools', 'Chrome_WidgetWin_1', (100, 100, 740, 740))]
+PASS 開發人員工具這一步結束：沒有留下工具視窗、分頁回到原本的樣子 [] 分頁 4/4
+PASS devtools：瀏覽器元件沒有當掉 [] []
+PASS devtools：程式有回應 
+PASS 無痕式視窗關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 4→5
+PASS 登入小視窗自己關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 5→6
+PASS 開發人員工具關掉：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 4→5
+PASS 切到別的程式再切回來：回到瀏覽器視窗後不用先點一下，快捷鍵（Ctrl+T）馬上有用 瀏覽器視窗在最前面=True 鍵盤在網頁或工具列裡=True 分頁 4→5
+PASS refocus：瀏覽器元件沒有當掉 [] []
+PASS refocus：程式有回應 
+PASS 網址列左邊的圓鈕：不管停在哪裡（正中間的線條上也一樣）都會跳出提示文字 {(0, 0): True, (-6, -6): True, (6, 6): True, (-8, 0): True, (8, 0): True, (0, -9): True, (0, 9): True, (3, 0): True, (-1, 2): True, (1, -4): True}
+PASS 工具列每個按鈕、分頁、書籤：停在正中間都會跳出提示文字 {'上一頁': True, '下一頁': True, '重新載入': True, '首頁': True, '星星': True, '擴充功能': True, '頭像': True, '⋮': True, '搜尋分頁': True, '新分頁': True, '最小化': True, '最大化': True, '關閉': True, '書籤': True, '所有書籤': True, '分頁': True, '分頁的 ×': True}
+PASS 網址列的文字上：沒有提示文字 
+PASS （對照）網頁裡照做的按鈕：圖示不單獨接滑鼠的那兩個，停在線條上提示文字會出現 {'a1': False, 'a2': True, 'a3': True, 'a4': False, 'a5': False, 'a6': True, 'b1': False, 'b2': True, 'b3': True, 'b4': True, 'b5': True}
+PASS tips：瀏覽器元件沒有當掉 [] []
+PASS tips：程式有回應 
+PASS 按縮小：縮到工作列 
+PASS 從工作列還原 
+PASS 還原後：大小沒變 rect=(150, 84, 1050, 704) client=(150, 84, 900, 620)
+PASS minimize：瀏覽器元件沒有當掉 [] []
+PASS minimize：程式有回應 
+PASS 按關閉：視窗關掉 
+PASS 關閉後：記住是關著的、分頁都還在 open=False tabs=['測試頁', '短影片測試', 'Example Domain', '測試頁']
+PASS 關掉瀏覽器視窗後：主程式還在、有回應 main=262628
+PASS close：瀏覽器元件沒有當掉 [] []
+PASS close：程式有回應 
+484/484 passed
+
+----- page log -----
+1794730505.04 [extbg] menu created err=
+1794730505.05 [extbg] bg started
+1794730505.15 [us] start ran /test.html body=false
+1794730505.29 [frame] load mb=true
+1794730505.34 [test] load:890x486 dpr=1 
+1794730505.39 [us] end ran n=1 /test.html
+1794730511.65 [test] resize:1024x599
+1794730512.80 [test] resize:890x486
+1794730513.97 [test] resize:1024x599
+1794730515.14 [test] resize:890x486
+1794730516.33 [test] resize:1024x599
+1794730517.75 [test] vis:hidden
+1794730517.77 [us] start ran /snap.html body=false
+1794730517.82 [snap] load h=599
+1794730518.31 [snap] after-resize slide:1 h=599
+1794730519.39 [test] vis:visible
+1794730521.18 [test] resize:890x486
+1794730523.28 [test] vis:hidden
+1794730523.77 [snap] after-resize slide:1 h=486
+1794730526.14 [snap] slide:1
+1794730526.74 [snap] slide:2
+1794730527.90 [snap] slide:3
+1794730529.06 [snap] slide:4
+1794730531.09 [snap] after-resize slide:4 h=599
+1794730533.50 [snap] after-resize slide:4 h=486
+1794730537.37 [snap] after-resize slide:4 h=599
+1794730539.30 [snap] after-resize slide:4 h=486
+1794730542.99 [snap] after-resize slide:4 h=599
+1794730545.88 [snap] after-resize slide:4 h=486
+1794730547.71 [test] vis:visible
+1794730547.72 [test] resize:1024x599
+1794730547.72 [test] resize:890x486
+1794730573.82 [test] vis:hidden
+1794730573.83 [us] start ran /snap.html body=false
+1794730573.83 [snap] load h=486
+1794730576.65 [us] end ran n=2 /test.html
+1794730579.73 [test] vis:hidden
+1794730584.12 [us] start ran /test.html body=false
+1794730584.15 [test] load:890x486 dpr=1 ?new
+1794730584.15 [us] end ran n=3 /test.html
+1794730584.17 [frame] load mb=true
+1794730590.26 [test] vis:visible
+1794730590.27 [test] vis:hidden
+1794730602.21 [test] vis:hidden
+1794730602.22 [us] start ran /snap.html body=false
+1794730602.22 [snap] load h=486
+1794730605.17 [us] end ran n=4 /test.html
+1794730611.65 [us] end ran n=5 /test.html
+1794730613.97 [test] vis:hidden
+1794730613.99 [us] start ran /test.html body=false
+1794730613.99 [test] load:890x486 dpr=1 
+1794730613.99 [us] end ran n=6 /test.html
+1794730614.03 [frame] load mb=true
+1794730635.83 [test] resize:809x442
+1794730637.56 [test] resize:890x486
+1794730645.54 [test] vis:hidden
+1794730647.66 [test] vis:visible
+1794730649.67 [test] vis:visible
+1794730649.67 [test] vis:hidden
+1794730653.50 [us] start ran /test.html body=false
+1794730653.51 [test] load:890x486 dpr=1 
+1794730653.51 [us] end ran n=7 /test.html
+1794730653.55 [frame] load mb=true
+1794730662.72 [test] title typing=true
+1794730664.38 [test] title typing=false
+1794730668.28 [test] vis:hidden
+1794730668.33 [us] start ran /test.html body=false
+1794730668.36 [test] load:890x486 dpr=1 
+1794730668.36 [us] end ran n=8 /test.html
+1794730668.38 [frame] load mb=true
+1794730677.84 [test] vis:visible
+1794730685.90 [test] vis:hidden
+1794730692.07 [test] vis:visible
+1794730694.09 [test] vis:hidden
+1794730699.85 [test] vis:visible
+1794730701.89 [test] vis:hidden
+1794730707.73 [test] vis:visible
+1794730709.80 [test] vis:hidden
+1794730715.78 [test] vis:visible
+1794730717.82 [test] vis:hidden
+1794730723.74 [test] vis:visible
+1794730725.77 [test] vis:hidden
+1794730734.45 [test] vis:visible
+1794730736.49 [test] vis:hidden
+1794730741.15 [us] start ran /snap.html body=false
+1794730741.17 [snap] load h=486
+1794730744.09 [test] vis:visible
+1794730746.11 [test] vis:visible
+1794730746.11 [test] vis:hidden
+1794730749.27 [test] vis:hidden
+1794730752.94 [us] start ran /snap.html body=false
+1794730752.96 [snap] load h=486
+1794730755.69 [test] vis:visible
+1794730757.45 [test] vis:hidden
+1794730757.53 [us] start ran /snap.html body=false
+1794730757.53 [snap] load h=486
+1794730760.54 [test] vis:visible
+1794730761.76 [test] vis:hidden
+1794730762.91 [test] vis:visible
+1794730764.12 [test] vis:hidden
+1794730765.61 [test] vis:visible
+1794730767.11 [test] vis:hidden
+1794730767.13 [us] start ran /snap.html body=false
+1794730767.15 [snap] load h=486
+1794730769.19 [test] vis:visible
+1794730771.14 [test] vis:visible
+1794730771.15 [test] vis:hidden
+1794730775.24 [test] resize:809x442
+1794730778.23 [test] resize:890x486
+1794730781.70 [us] start ran /test.html body=false
+1794730781.71 [test] load:890x486 dpr=1 
+1794730781.71 [us] end ran n=9 /test.html
+1794730781.75 [frame] load mb=true
+1794730784.49 [test] resize:890x520
+1794730785.92 [test] resize:890x486
+1794730792.00 [test] vis:visible
+1794730792.00 [test] resize:890x520
+1794730792.00 [test] resize:890x486
+1794730792.07 [test] vis:hidden
+1794730792.44 [snap] after-resize slide:4 h=486
+1794730792.48 [snap] after-resize slide:4 h=486
+1794730796.66 [test] vis:visible
+1794730796.68 [test] vis:hidden
+1794730798.98 [test] vis:hidden
+1794730801.61 [test] vis:visible
+1794730803.62 [test] vis:visible
+1794730803.63 [test] vis:hidden
+1794730811.65 [test] vis:hidden
+1794730811.66 [us] start ran /snap.html body=false
+1794730811.67 [snap] load h=486
+1794730814.94 [us] end ran n=10 /test.html
+1794730819.46 [us] end ran n=11 /test.html
+1794730881.19 [test] vis:hidden
+1794730883.17 [test] vis:visible
+1794730893.94 [test] vis:hidden
+1794730897.00 [test] vis:visible
+1794730899.07 [test] vis:visible
+1794730899.08 [test] vis:hidden
+1794730909.46 [snap] load h=486
+1794730935.75 [test] vis:hidden
+1794730938.75 [test] vis:visible
+1794730940.25 [test] vis:hidden
+1794730940.26 [test] vis:visible
+1794730943.38 [test] title typing=true
+1794730944.48 [test] input:h
+1794730944.66 [test] input:he
+1794730944.66 [test] input:hel
+1794730944.67 [test] input:hell
+1794730944.73 [test] input:hello
+1794730945.74 [test] title typing=false
+1794730947.21 [test] title typing=true
+1794730948.31 [test] input:hellox
+1794730948.37 [test] input:helloxy
+1794730949.15 [test] title typing=false
+1794730950.04 [test] message {"__mbTyping":true}
+1794730950.04 [frame] focus hasFocus=true
+1794730950.04 [frame] pointerdown f hasFocus=false mb=true
+1794730950.04 [test] title typing=true
+1794730950.12 [frame] blur
+1794730950.12 [test] message {"__mbTyping":false}
+1794730950.13 [frame] window blur
+1794730950.13 [test] title typing=false
+1794730950.13 [test] title typing=true
+1794730950.13 [test] message {"__mbTyping":true}
+1794730950.13 [frame] focus hasFocus=true
+1794730951.14 [frame] input:f
+1794730951.19 [frame] input:fr
+1794730952.48 [test] message {"__mbTyping":false}
+1794730952.48 [frame] blur
+1794730952.48 [frame] window blur
+1794730952.48 [frame] window blur
+1794730953.36 [test] title typing=true
+1794730954.61 [test] title typing=false
+1794730955.79 [test] title typing=true
+1794730956.88 [test] input:helloxyw
+1794730957.90 [test] title typing=false
+1794730964.26 [test] vis:hidden
+1794730964.27 [us] start ran /snap.html body=false
+1794730964.28 [snap] load h=486
+1794730973.25 [us] end ran n=12 /test.html
+1794730975.87 [test] vis:hidden
+1794730982.14 [us] start ran /snap.html body=false
+1794730982.15 [snap] load h=486
+1794730985.07 [test] vis:visible
+1794730987.11 [test] vis:hidden
+1794730987.11 [test] vis:visible
+1794730993.01 [test] vis:hidden
+1794730996.88 [test] vis:visible
+1794730998.91 [test] vis:visible
+1794730998.91 [test] vis:hidden
+1794731002.06 [us] start ran /test.html body=false
+1794731002.07 [us] end ran n=13 /test.html
+1794731002.07 [test] load:890x486 dpr=1 
+1794731002.11 [frame] load mb=true
+1794731010.33 [popup] opened opener=true
+1794731012.72 [popup] input:p
+1794731012.78 [popup] input:pp
+1794731016.94 [test] vis:hidden
+1794731020.88 [us] start ran /notitle.html body=false
+1794731020.88 [notitle] start
+1794731021.74 [notitle] done steps=40 total=863ms max=22ms
+1794731024.63 [notitle] input:n
+1794731024.69 [notitle] input:nt
+1794731028.50 [test] vis:visible
+1794731030.52 [test] vis:visible
+1794731030.52 [test] vis:hidden
+1794731040.65 [test] vis:hidden
+1794731043.06 [snap] after-resize slide:4 h=487
+1794731043.31 [snap] after-resize slide:4 h=487
+1794731043.32 [snap] after-resize slide:4 h=487
+1794731045.84 [snap] after-resize slide:4 h=363
+1794731050.27 [snap] after-resize slide:4 h=362
+1794731050.44 [snap] after-resize slide:4 h=362
+1794731052.89 [snap] after-resize slide:4 h=486
+1794731054.37 [test] resize:568x290
+1794731054.37 [test] vis:visible
+1794731054.37 [test] resize:890x486
+1794731056.47 [test] fullscreen on
+1794731056.47 [test] fullscreenchange true 890x486
+1794731056.52 [test] resize:1920x1080
+1794731058.66 [test] fullscreenchange false 1920x1080
+1794731058.70 [test] resize:890x486
+1794731061.92 [test] resize:1920x1080
+1794731064.32 [test] resize:1920x959
+1794731066.70 [test] resize:1920x1080
+1794731068.36 [test] resize:890x486
+1794731073.66 [test] vis:visible
+1794731073.66 [test] resize:568x290
+1794731073.66 [test] resize:890x486
+1794731073.79 [ext] opened
+1794731073.80 [ext] active:["http://127.0.0.1:8765/test.html"]
+1794731073.80 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+1794731073.80 [ext] all:[["http://127.0.0.1:8765/test.html",true,1415744614],["about:blank",true,1415744617],["about:blank",true,1415744619],["about:blank",true,1415744621],["about:blank",true,1415744623],["http://127.0.0.1:8765/snap.html",true,1415744625],["https://example.com/",true,1415744627],["http://127.0.0.1:8765/test.html?new",true,1415744629],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,1415744684]]
+1794731073.93 [ext] native com.maoboo.uitest.chrome → {"pong":"com.maoboo.uitest.chrome","from":"host"} err=
+1794731073.94 [ext] native com.maoboo.uitest.edge → {"pong":"com.maoboo.uitest.edge","from":"host"} err=
+1794731074.10 [snap] after-resize slide:4 h=486
+1794731074.14 [snap] after-resize slide:4 h=486
+1794731081.93 [extbg] bg started
+1794731081.93 [extbg] menu clicked mbtest
+1794731089.77 [ext] all:[["http://127.0.0.1:8765/test.html",true,1415744614],["about:blank",true,1415744617],["about:blank",true,1415744619],["about:blank",true,1415744621],["about:blank",true,1415744623],["http://127.0.0.1:8765/snap.html",true,1415744625],["https://example.com/",true,1415744627],["http://127.0.0.1:8765/test.html?new",true,1415744629],["chrome-extension://eamehjingoajmedombhecpkpagoadodo/popup.html",true,1415744686]]
+1794731089.77 [ext] opened
+1794731089.78 [ext] active:["http://127.0.0.1:8765/test.html"]
+1794731089.78 [ext] lastFocused:["http://127.0.0.1:8765/test.html"]
+1794731089.90 [ext] native com.maoboo.uitest.chrome → {"pong":"com.maoboo.uitest.chrome","from":"host"} err=
+1794731089.90 [ext] native com.maoboo.uitest.edge → {"pong":"com.maoboo.uitest.edge","from":"host"} err=
+1794731099.38 [test] vis:hidden
+1794731106.72 [test] vis:visible
+1794731109.94 [test] vis:hidden
+1794731113.44 [us] start ran /setck body=false
+1794731119.02 [us] start ran /us.html body=false
+1794731119.04 [us4] top - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731119.05 [uspage] top - webview=undefined extra=0
+1794731119.07 [uspage] top - blank webview=undefined marker=1
+1794731119.10 [us] start ran /usframe.html body=false
+1794731119.10 [us4] frame - start pageRan=false ready=loading webview=undefined shared=null handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731119.10 [uspage] frame webview=undefined extra=0
+1794731119.22 [us4] top - pagefetch blocked
+1794731119.22 [us] start ran /usinner.html body=false
+1794731119.22 [us4] top - xhr denied ok
+1794731119.23 [uspage] top - reuse reused=false innerRan=true
+1794731121.05 [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+1794731121.05 [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+1794731122.25 [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+1794731129.76 [us4] top - menu set v1794731129752
+1794731129.76 [us4] top - change new="v1794731129752" remote=false
+1794731129.76 [us4] frame - change new="v1794731129752" remote=true
+1794731133.71 [us4] top - menu toggle on=true
+1794731141.55 [us4] top ?two=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731141.55 [us] start ran /us.html body=false
+1794731141.56 [uspage] top ?two=1&noxhr webview=undefined extra=0
+1794731141.56 [uspage] top ?two=1&noxhr blank webview=undefined marker=1
+1794731141.63 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731129752" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731141.63 [uspage] top ?two=1&noxhr reuse reused=false innerRan=true
+1794731141.63 [us] start ran /usinner.html body=false
+1794731141.63 [us] start ran /usframe.html body=false
+1794731141.63 [uspage] frame webview=undefined extra=0
+1794731148.40 [us4] top ?two=1&noxhr menu set v1794731148389
+1794731148.40 [us4] top ?two=1&noxhr change new="v1794731148389" remote=false
+1794731148.40 [us4] frame - change new="v1794731148389" remote=true
+1794731148.40 [us4] top - change new="v1794731148389" remote=true
+1794731148.40 [us4] frame - change new="v1794731148389" remote=true
+1794731153.01 [us4] top ?two=1&noxhr menu tab
+1794731153.27 [us] start ran /snap.html body=false
+1794731153.29 [snap] load h=486
+1794731163.96 [us] start ran /us.html body=false
+1794731163.96 [uspage] top - webview=undefined extra=0
+1794731163.99 [uspage] top - blank webview=undefined marker=1
+1794731164.02 [us] start ran /usframe.html body=false
+1794731164.03 [uspage] frame webview=undefined extra=0
+1794731164.03 [us] start ran /usinner.html body=false
+1794731164.04 [uspage] top - reuse reused=false innerRan=true
+1794731173.58 [us4] top - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731173.59 [us] start ran /us.html body=false
+1794731173.60 [uspage] top - webview=undefined extra=0
+1794731173.60 [uspage] top - blank webview=undefined marker=1
+1794731173.65 [us4] top - pagefetch blocked
+1794731173.65 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731173.65 [us] start ran /usinner.html body=false
+1794731173.65 [uspage] top - reuse reused=false innerRan=true
+1794731173.65 [us] start ran /usframe.html body=false
+1794731173.66 [uspage] frame webview=undefined extra=0
+1794731173.70 [us4] top - xhr denied ok
+1794731175.59 [us4] top - xhr get status=200 method=GET referer=https://ref.example/ xtest=abc cookie=mbck=abc ua=true final=http://localhost:8765/xhr-echo?auto=1 hdr=true
+1794731175.59 [us4] top - xhr post status=200 bytes=true body={"a":"中文"} ctype=application/json
+1794731176.79 [us4] top - xhr stream chunks=3 text=data: 1|data: 2|data: 3|
+1794731194.87 [us4] top ?inst=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731194.88 [uspage] top ?inst=1&noxhr webview=undefined extra=0
+1794731194.88 [us] start ran /us.html body=false
+1794731194.88 [uspage] top ?inst=1&noxhr blank webview=undefined marker=1
+1794731194.94 [inst] ran v=1.0 ?inst=1&noxhr
+1794731194.95 [uspage] top ?inst=1&noxhr reuse reused=false innerRan=true
+1794731194.95 [us] start ran /usinner.html body=false
+1794731194.96 [us] start ran /usframe.html body=false
+1794731194.96 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731194.96 [uspage] frame webview=undefined extra=0
+1794731216.26 [us] start ran /us.html body=false
+1794731216.27 [us4] top ?inst=2&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731216.28 [uspage] top ?inst=2&noxhr webview=undefined extra=0
+1794731216.28 [uspage] top ?inst=2&noxhr blank webview=undefined marker=1
+1794731216.34 [inst] ran v=2.0 ?inst=2&noxhr
+1794731216.35 [us] start ran /usframe.html body=false
+1794731216.35 [uspage] top ?inst=2&noxhr reuse reused=false innerRan=true
+1794731216.35 [us] start ran /usinner.html body=false
+1794731216.36 [uspage] frame webview=undefined extra=0
+1794731216.36 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731234.00 [test] vis:visible
+1794731234.02 [test] vis:hidden
+1794731237.24 [test] vis:hidden
+1794731241.73 [us4] top ?multi=1&noxhr start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731241.74 [us] start ran /us.html body=false
+1794731241.75 [uspage] top ?multi=1&noxhr webview=undefined extra=0
+1794731241.78 [uspage] top ?multi=1&noxhr blank webview=undefined marker=1
+1794731241.80 [us] start ran /usframe.html body=false
+1794731241.81 [inst] ran v=2.0 ?multi=1&noxhr
+1794731241.81 [us] start ran /usinner.html body=false
+1794731241.82 [uspage] frame webview=undefined extra=0
+1794731241.82 [us4] frame - start pageRan=false ready=loading webview=undefined shared="v1794731148389" handler=MAOBOO ver=1.0 types=function,undefined,undefined
+1794731241.82 [uspage] top ?multi=1&noxhr reuse reused=false innerRan=true
+1794731247.27 [uspage] top ?multi=1&noxhr multi opened=111
+1794731247.64 [multi] child 1 opener=true
+1794731247.66 [multi] child 3 opener=true
+1794731247.66 [multi] child 2 opener=true
+1794731265.00 [us] start ran /multi.html body=false
+1794731265.01 [multi] child 3 opener=true
+1794731271.19 [uspage] top ?multi=1&noxhr both top=1
+1794731271.40 [uspage] frame both frame=1
+1794731271.40 [multi] child 4 opener=true
+1794731271.53 [us] start ran /multi.html body=false
+1794731271.54 [multi] child 5 opener=true
+1794731271.54 [us] start ran /multi.html body=false
+1794731290.20 [test] vis:visible
+1794731292.20 [test] vis:visible
+1794731292.21 [test] vis:hidden
+1794731294.59 [test] vis:hidden
+1794731297.85 [hdr] ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0' sec-ch-ua='"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"'
+1794731297.93 [us] start ran /login.html body=false
+1794731297.93 [login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]
+1794731301.59 [login] b1 open=window
+1794731301.61 [pop b1] loaded opener=true name=lp1 hist=1 size=480x420
+1794731302.62 [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""}
+1794731302.79 [login] b1 closed=true cookie=login_b1=1
+1794731308.74 [login] b2 open=window
+1794731308.80 [provider] loaded origin=http://localhost:8765 opener=true
+1794731309.56 [pop b2] loaded opener=true name=lp2 hist=2 size=480x420
+1794731310.54 [login] message from http://127.0.0.1:8765 {"tag":"b2","user":""}
+1794731310.73 [login] b2 closed=true cookie=login_b1=1; login_b2=1
+1794731315.91 [login] b6 open=window
+1794731316.32 [pop b6] loaded opener=true name=lp6 hist=1 size=480x420
+1794731317.32 [login] message from http://127.0.0.1:8765 {"tag":"b6","user":""}
+1794731317.50 [login] b6 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+1794731323.20 [login] b8 open=window
+1794731323.23 [pop b8] loaded opener=true name=lp8 hist=1 size=480x420
+1794731326.40 [pop b8] input:a
+1794731326.46 [pop b8] input:ab
+1794731327.83 [us] start ran /snap.html body=false
+1794731327.84 [snap] load h=486
+1794731333.02 [login] c8 called close
+1794731333.19 [login] b8 closed=true cookie=login_b1=1; login_b2=1; login_b6=1
+1794731339.16 [login] b3 open=window
+1794731339.32 [pop b3] loaded opener=true name= hist=1 size=890x486
+1794731340.28 [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""}
+1794731340.33 [login] b3 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1
+1794731346.60 [login] b4 open=window
+1794731347.76 [us] start ran /login-pop.html body=false
+1794731347.77 [pop b4] loaded opener=true name= hist=1 size=890x486
+1794731348.76 [login] message from http://127.0.0.1:8765 {"tag":"b4","user":""}
+1794731348.82 [login] b4 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+1794731354.28 [us] start ran /post-echo body=false
+1794731354.29 [post] method=POST body=v=hello opener=false
+1794731362.67 [pop b7a] loaded opener=true name=same7 hist=1 size=890x486
+1794731364.74 [login] b7 w1=true w2=true same=true
+1794731364.77 [us] start ran /login-pop.html body=false
+1794731364.77 [pop b7b] loaded opener=true name=same7 hist=2 size=890x486
+1794731372.46 [us] start ran /login-pop.html body=false
+1794731372.49 [pop a1] loaded opener=false name= hist=1 size=890x486
+1794731380.35 [pop a2] loaded opener=true name= hist=1 size=890x486
+1794731394.43 [hdr] ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0' sec-ch-ua='"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"'
+1794731394.53 [login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]
+1794731397.91 [login] b1 open=window
+1794731397.93 [pop b1] loaded opener=true name=lp1 hist=1 size=480x420
+1794731398.93 [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""}
+1794731399.11 [login] b1 closed=true cookie=login_b1=1
+1794731404.66 [login] b3 open=window
+1794731404.81 [pop b3] loaded opener=true name= hist=1 size=890x486
+1794731405.73 [pop b3] posted
+1794731405.73 [login] message from http://127.0.0.1:8765 {"tag":"b3","user":""}
+1794731405.74 [login] b3 closed=true cookie=login_b1=1; login_b3=1
+1794731412.43 [test] vis:visible
+1794731414.10 [test] vis:visible
+1794731414.11 [test] vis:hidden
+1794731422.42 [test] vis:hidden
+1794731447.53 [test] vis:visible
+1794731461.82 [test] vis:hidden
+1794731470.02 [us] start ran /snap.html body=false
+1794731470.03 [snap] load h=486
+1794731483.44 [test] vis:visible
+1794731485.48 [test] vis:visible
+1794731485.49 [test] vis:hidden
+1794731496.28 [snap] load h=486
+1794731502.02 [test] vis:hidden
+1794731504.13 [test] vis:visible
+1794731506.15 [test] vis:visible
+1794731506.17 [test] vis:hidden
+1794731508.44 [test] vis:hidden
+1794731511.70 [hdr] ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0' sec-ch-ua='"Chromium";v="156", "Microsoft Edge";v="156", "Not:A-Brand";v="8", "Microsoft Edge WebView2";v="156"'
+1794731511.78 [us] start ran /login.html body=false
+1794731511.79 [login] load ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0 brands=[{"brand":"Chromium","version":"156"},{"brand":"Microsoft Edge","version":"156"},{"brand":"Not:A-Brand","version":"8"},{"brand":"Microsoft Edge WebView2","version":"156"}]
+1794731515.29 [login] b1 open=window
+1794731515.31 [pop b1] loaded opener=true name=lp1 hist=1 size=480x420
+1794731516.32 [login] message from http://127.0.0.1:8765 {"tag":"b1","user":""}
+1794731516.48 [login] b1 closed=true cookie=login_b1=1; login_b2=1; login_b6=1; login_b3=1; login_b4=1
+1794731526.12 [test] vis:visible
+1794731528.14 [test] vis:visible
+1794731528.15 [test] vis:hidden
+1794731533.14 [test] vis:hidden
+1794731535.22 [test] vis:visible
+1794731537.23 [test] vis:visible
+1794731537.24 [test] vis:hidden
+1794731541.86 [test] vis:hidden
+1794731543.94 [test] vis:visible
+1794731545.96 [test] vis:visible
+1794731545.97 [test] vis:hidden
+1794731595.04 [test] vis:hidden
+1794731606.78 [test] vis:visible
+1794731611.15 [us] start ran /tip.html body=false
+1794731611.16 [tip] load
+1794731614.71 [tip] over a1 path
+1794731614.76 [tip] over a1 svg
+1794731614.77 [tip] over a1 path
+1794731617.60 [tip] over a2 BUTTON
+1794731620.47 [tip] over a3 svg
+1794731623.38 [tip] over a4 BUTTON
+1794731626.26 [tip] over a5 path
+1794731626.29 [tip] over a5 svg
+1794731626.33 [tip] over a5 path
+1794731629.16 [tip] over a6 BUTTON
+1794731632.04 [tip] over b1 path
+1794731632.07 [tip] over b1 svg
+1794731632.11 [tip] over b1 path
+1794731634.94 [tip] over b2 svg
+1794731637.83 [tip] over b3 svg
+1794731640.73 [tip] over b4 svg
+1794731643.62 [tip] over b5 BUTTON
+1794731646.52 [tip] over a1 path
+1794731646.55 [tip] over a1 svg
+1794731646.58 [tip] over a1 path
+1794731650.50 [tip] over a4 BUTTON
+1794731654.49 [tip] over a5 path
+1794731654.52 [tip] over a5 svg
+1794731654.54 [tip] over a5 path
+1794731658.35 [tip] over go BUTTON
+1794731658.47 [tip] churn start
+1794731660.07 [tip] over c1 BUTTON
+1794731662.97 [tip] over c2 path
+1794731662.99 [tip] over c2 svg
+1794731663.02 [tip] over c2 path
+1794731663.22 [tip] over c2 path
+1794731663.47 [tip] over c2 path
+1794731663.72 [tip] over c2 path
+1794731663.97 [tip] over c2 path
+1794731664.22 [tip] over c2 path
+1794731664.47 [tip] over c2 path
+1794731664.72 [tip] over c2 path
+1794731664.97 [tip] over c2 path
+1794731668.89 [us] start ran /test.html body=false
+1794731668.92 [test] load:890x486 dpr=1 
+1794731668.92 [us] end ran n=14 /test.html
+1794731668.96 [frame] load mb=true
+1794731675.98 [test] resize:150x1
+1794731677.22 [test] resize:890x486
+
+
+----- game keys -----
+key:a
+key:b
+key:c
+key:Escape
+key:d
+
