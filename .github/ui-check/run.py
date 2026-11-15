@@ -4645,6 +4645,26 @@ def s_extprobe():
         except Exception:
             log(traceback.format_exc())
             check("extprobe 篡改猴整個暫停 (沒有錯誤)", False, "exception")
+        # 篡改猴在瀏覽器資料夾裡的存放區（瀏覽器核心寫出來的 LevelDB）：抄一份到結果裡，拿來驗證程式自己的讀取器
+        def copy_tm_db(dst):
+            src = os.path.join(data_dir, "web-profile", "EBWebView", "Default", "Local Extension Settings", TM)
+            os.makedirs(dst, exist_ok=True)
+            got = []
+            for f in sorted(os.listdir(src)) if os.path.isdir(src) else []:
+                if f == "LOCK":
+                    continue
+                try:
+                    with open(os.path.join(src, f), "rb") as a, open(os.path.join(dst, f), "wb") as c:
+                        c.write(a.read())
+                    got.append((f, os.path.getsize(os.path.join(dst, f))))
+                except Exception as e:
+                    got.append((f, repr(e)))
+            return got
+
+        try:
+            log("  [篡改猴] 存放區的檔案：", copy_tm_db(os.path.join(OUT, "tm-leveldb")))
+        except Exception:
+            log(traceback.format_exc())
         routed = [l for l in tm_lines() if "通知到讀取用的網頁" in l]
         log("  [篡改猴] 開新分頁的要求有沒有通知到讀取用的網頁：", routed[:6])
         log("  [篡改猴] 最後的訊息：")
