@@ -4665,6 +4665,96 @@ def s_extprobe():
             log("  [篡改猴] 存放區的檔案：", copy_tm_db(os.path.join(OUT, "tm-leveldb")))
         except Exception:
             log(traceback.format_exc())
+        # ---- Chrome 的篡改猴裡的腳本：開瀏覽器（或按「從 Chrome 重新同步」）時帶過來 ----
+        req_js = os.path.join(HERE, "pages", "req.js")
+        try:
+            import hashlib
+
+            def ctm_lines():
+                return [l for l in tm_lines() if "Chrome" in l]
+
+            chrome_db = os.path.join(chrome_root, "Default", "Local Extension Settings", TM)
+
+            def sync_from_chrome(tag):
+                """擴充功能頁面按「從 Chrome 重新同步」，等程式把 Chrome 篡改猴的腳本帶過來；回傳（有沒有帶過來, 頁面上的文字）"""
+                go("chrome://extensions/", wait=3.5)
+                n_c = len(ctm_lines())
+                btn = page_click(lambda n: n.type == "ButtonControl" and "從 Chrome 重新同步" in n.name, wait=1.0)
+                got = wait_for(lambda: any("帶過來 1 支腳本" in l for l in ctm_lines()[n_c:]), 20)
+                time.sleep(3.0)
+                txt = page_text() or ""
+                shot(tag)
+                log(f"  [Chrome 篡改猴] {tag}：按鈕 {btn is not None}；", ctm_lines()[n_c:][-3:])
+                return (btn is not None and bool(got)), txt
+
+            # 0. 先試「Chrome 正開著」的情況：假的 Chrome 設定檔裡篡改猴的存放區，直接連到這個瀏覽器正在用的那個資料夾
+            #    （瀏覽器核心正開著它、鎖著它）——一樣要讀得出來。這時候兩邊是同一支腳本：Chrome 那份只列出來，不重複執行
+            os.makedirs(os.path.dirname(chrome_db), exist_ok=True)
+            live = os.path.join(data_dir, "web-profile", "EBWebView", "Default", "Local Extension Settings", TM)
+            r = subprocess.run(["cmd", "/c", "mklink", "/J", chrome_db, live], capture_output=True, text=True)
+            log("  [Chrome 篡改猴] 連到正在使用中的存放區：", r.returncode, (r.stdout or r.stderr).strip()[:200], sorted(os.listdir(chrome_db))[:8] if os.path.isdir(chrome_db) else None)
+            ok0, txt0 = sync_from_chrome("ctm_live")
+            check("Chrome 的篡改猴：存放區正被瀏覽器核心開著、鎖著的時候也讀得出來", ok0, f"{ctm_lines()[-3:]}")
+            check("兩邊是同一支腳本時：Chrome 那份只列出來、不重複執行", "跟上面那支同名" in txt0 and "Chrome 篡改猴" in txt0, f"{txt0[-700:]!r}")
+            go(f"http://127.0.0.1:{PORT}/test.html", wait=3.0)
+            t7 = reload_test()
+            check("兩邊是同一支腳本時：網頁上只跑一次", len([l for l in ran(t7) if "v2.0 /test.html" in l]) == 1, f"{ran(t7)}")
+            subprocess.run(["cmd", "/c", "rmdir", chrome_db], capture_output=True, text=True)
+            # 1. 這個瀏覽器的篡改猴的存放區（真的瀏覽器核心寫出來的資料），抄一份到假的 Chrome 設定檔裡，當成「Chrome 的篡改猴」
+            log("  [Chrome 篡改猴] 放進假的 Chrome 設定檔：", copy_tm_db(chrome_db))
+            # 2. 這個瀏覽器的篡改猴裡那支腳本刪掉：只剩 Chrome 帶過來的那一份，改由它執行
+            c7 = changed_n()
+            r = b.ev(swx(), "chrome.storage.local.get(null).then(o => { const ks = Object.keys(o).filter(k => /@(source|meta|st|re|uid|ext)#/.test(k)); return chrome.storage.local.remove(ks).then(() => ks.length); })")
+            gone = wait_for(lambda: changed_n() > c7, 15)
+            time.sleep(2.0)
+            t8 = reload_test()
+            check("這個瀏覽器的篡改猴裡刪掉那支腳本之後：改由 Chrome 帶過來的那一份執行", bool(gone) and len([l for l in ran(t8) if "v2.0 /test.html" in l]) == 1, f"{r} {gone} {ran(t8)} {tm_lines()[-2:]}")
+            # 3. 腳本需要的外部檔案：原本的網址下載不到了、這邊存的也清掉（只剩篡改猴存好的那一份可以用）
+            os.rename(req_js, req_js + ".off")
+            for u in (f"http://127.0.0.1:{PORT}/req.js", f"http://127.0.0.1:{PORT}/res.css"):
+                for ext_ in (".bin", ".type", ".txt"):
+                    try:
+                        os.remove(os.path.join(data_dir, "web-scripts", "deps", hashlib.sha256(u.encode()).hexdigest() + ext_))
+                    except OSError:
+                        pass
+            # 4. 擴充功能頁面按「從 Chrome 重新同步」
+            ok4, txt = sync_from_chrome("ctm_ext_page")
+            check("Chrome 的篡改猴：按「從 Chrome 重新同步」把它裡面的腳本帶過來", ok4, f"{ctm_lines()[-3:]}")
+            check("擴充功能頁面：列出 Chrome 篡改猴帶過來的腳本", "Chrome 的篡改猴裡的腳本" in txt and "帶過來 1 支" in txt and "MB Sync Test" in txt and "Chrome 篡改猴" in txt, f"{txt[-800:]!r}")
+            go(f"http://127.0.0.1:{PORT}/test.html", wait=3.0)
+            t9 = reload_test()
+            r9 = ran(t9)
+            check("Chrome 篡改猴帶過來的腳本：有執行，設定值也帶過來了", any("v2.0 /test.html" in l and "seed=from-tm num=42" in l for l in r9), f"{r9}")
+            check("Chrome 篡改猴帶過來的腳本：需要的外部檔案用篡改猴存好的那一份（原本的網址已經下載不到）", any("req=string" in l and " res=0 " not in l for l in r9), f"{r9}")
+            # 5. 可以在這邊單獨把它關掉、再打開（工具列的「使用者腳本」選單）
+            home()
+            ms = open_menu(US_BTN, "使用者腳本按鈕（Chrome 篡改猴的腳本）")
+            names = [n for _, m in ms for n in names_of(m)]
+            shot("ctm_us_menu")
+            ok = menu_click("MB Sync Test", exact=False, wait=1.5)
+            close_menus()
+            click_blank(0.5)
+            time.sleep(2.0)
+            t10 = reload_test()
+            check("Chrome 篡改猴帶過來的腳本：可以在這邊單獨關掉", bool(ok) and not ran(t10), f"{names} {ran(t10)}")
+            home()
+            ms = open_menu(US_BTN, "使用者腳本按鈕（Chrome 篡改猴的腳本，再打開）")
+            ok = menu_click("MB Sync Test", exact=False, wait=1.5)
+            close_menus()
+            click_blank(0.5)
+            time.sleep(2.0)
+            t11 = reload_test()
+            check("Chrome 篡改猴帶過來的腳本：再打開又會跑", bool(ok) and any("v2.0 /test.html" in l for l in ran(t11)), f"{ran(t11)}")
+            log("  [Chrome 篡改猴] 程式的訊息：", ctm_lines()[-6:])
+        except Exception:
+            log(traceback.format_exc())
+            check("extprobe Chrome 的篡改猴 (沒有錯誤)", False, "exception")
+        finally:
+            try:
+                if os.path.exists(req_js + ".off"):
+                    os.rename(req_js + ".off", req_js)
+            except Exception:
+                pass
         routed = [l for l in tm_lines() if "通知到讀取用的網頁" in l]
         log("  [篡改猴] 開新分頁的要求有沒有通知到讀取用的網頁：", routed[:6])
         log("  [篡改猴] 最後的訊息：")
