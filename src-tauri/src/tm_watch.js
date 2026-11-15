@@ -7,7 +7,7 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     // 認得的存法：跟腳本無關的變動（篡改猴自己記的時間之類）不用通知
-    if (window.__mbTmUsual !== false && !Object.keys(changes).some((k) => /@(source|meta|st)#/.test(k))) return;
+    if (window.__mbTmUsual !== false && !Object.keys(changes).some((k) => /@(source|meta|st)#|#config$/.test(k))) return;
     n += 1;
     try {
       if (!document.head) document.documentElement.insertBefore(document.createElement("head"), document.documentElement.firstChild);

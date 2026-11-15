@@ -18,10 +18,12 @@
     } catch (e) {
       keys = null;
     }
-    // 認得的存法：只拿腳本的內容、資訊、設定值那幾種；不認得（篡改猴改了存法）：全部拿來，靠內容認
+    // 認得的存法：只拿腳本的內容、資訊、設定值，和篡改猴自己的設定那幾種；不認得（篡改猴改了存法）：全部拿來，靠內容認
     const usual = Array.isArray(keys) && keys.some((k) => k.includes("@source#"));
     window.__mbTmUsual = usual;
-    const data = usual ? await L.get(keys.filter((k) => /@(source|meta|st)#/.test(k))) : await L.get(null);
+    const data = usual ? await L.get(keys.filter((k) => /@(source|meta|st)#|#config$/.test(k))) : await L.get(null);
+    // 篡改猴小選單最上面的「已啟用」取消打勾 = 整個篡改猴暫停（所有腳本都不執行）
+    let paused = false;
     // 同一支腳本的幾筆資料，鍵的結尾（# 後面）是同一個編號
     const by = new Map();
     const at = (k) => {
@@ -33,6 +35,10 @@
     };
     for (const k of Object.keys(data)) {
       const v = un(data[k]);
+      if (k.endsWith("#config")) {
+        if (v && typeof v === "object" && v.enabled === false) paused = true;
+        continue;
+      }
       if (typeof v === "string") {
         if (isSrc(v) && (k.includes("@source#") || !at(k).src)) at(k).src = v;
       } else if (v && typeof v === "object" && !Array.isArray(v)) {
@@ -68,7 +74,7 @@
       if (ts && k[1] !== ts && Object.keys(e.st.data).length) row.vals = Object.fromEntries(Object.entries(e.st.data).map(([key, v]) => [wf(key), v]));
       list.push(row);
     }
-    return out({ ok: true, list });
+    return out({ ok: true, paused, list });
   } catch (e) {
     return out({ ok: false, why: "error: " + ((e && e.message) || e) });
   }

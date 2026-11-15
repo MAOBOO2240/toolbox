@@ -721,11 +721,18 @@ fn scripts_menu(wid: &str, tid: &str) -> Menu {
     }
     // 篡改猴裡的腳本：開關在篡改猴裡，點了就開它的控制台
     let tm_page = crate::userscripts::tm_ext().and_then(|id| ext_list().into_iter().find(|e| e.id == id)).map(|e| e.options).filter(|o| !o.is_empty());
+    let tm_paused = crate::userscripts::tm_paused();
     for r in &rows {
         let sub = if r.dup {
             "跟自己安裝的腳本同名，以自己安裝的為準（這支沒有執行）"
         } else if r.off {
-            if r.tm { "在篡改猴裡關閉了" } else { "已關閉" }
+            if r.tm && tm_paused {
+                "篡改猴暫停中（它的小選單最上面的「已啟用」沒有打勾）"
+            } else if r.tm {
+                "在篡改猴裡關閉了"
+            } else {
+                "已關閉"
+            }
         } else if r.broken {
             "缺少需要的檔案，沒有執行（到「管理使用者腳本」按「重新讀取」）"
         } else if r.running {

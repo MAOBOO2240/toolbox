@@ -328,10 +328,10 @@ fn read(app: &AppHandle) {
 fn finish(app: &AppHandle, r: Result<String, String>) {
     let (mut again, mut failed) = (false, false);
     match r.and_then(|json| scripts::tm_parse(&json)) {
-        Ok(list) => {
-            let n = list.len();
-            let done = scripts::tm_apply(list);
-            crate::dlog!("[tm] 讀到 {n} 支腳本，現在有 {} 支，清單{}", done.count, if done.changed { "變了" } else { "沒變" });
+        Ok(read) => {
+            let (n, paused) = (read.list.len(), read.paused);
+            let done = scripts::tm_apply(read);
+            crate::dlog!("[tm] 讀到 {n} 支腳本{}，現在有 {} 支，清單{}", if paused { "（篡改猴暫停中）" } else { "" }, done.count, if done.changed { "變了" } else { "沒變" });
             let mut st = lock(&ST);
             st.retries = 0;
             st.ok = true;

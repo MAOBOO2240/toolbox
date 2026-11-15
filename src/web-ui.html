@@ -751,7 +751,7 @@
         ui.nav.remove();
         const sync = btn("從 Chrome 重新同步", "", "sync");
         ui.right.append(sync);
-        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true, tm: { ext: "", read_at: 0, count: 0 } }, q = ui.input.value.trim().toLowerCase();
+        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true, tm: { ext: "", read_at: 0, count: 0, paused: false } }, q = ui.input.value.trim().toLowerCase();
         ui.col.style.maxWidth = "1100px";
         ui.col.style.margin = "0 auto";
         sync.onclick = async () => {
@@ -871,7 +871,10 @@
             row.dataset.tm = "status";
             const tx = el("div", "tx");
             const when = tm.read_at ? new Date(tm.read_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
-            tx.append(el("div", "", "篡改猴裡的腳本"), el("small", "", tm.read_at ? `讀到 ${tm.count} 支，由這裡代為執行（${when} 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。` : "還沒讀到。瀏覽器視窗開著時會自動讀取，也可以按上面的「重新讀取」。"));
+            const info = !tm.read_at ? "還沒讀到。瀏覽器視窗開著時會自動讀取，也可以按上面的「重新讀取」。"
+              : tm.paused ? `讀到 ${tm.count} 支（${when} 讀取），但篡改猴目前整個暫停了（它的小選單最上面的「已啟用」沒有打勾），所以這些腳本都不會執行。`
+              : `讀到 ${tm.count} 支，由這裡代為執行（${when} 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。`;
+            tx.append(el("div", "", "篡改猴裡的腳本"), el("small", "", info));
             row.append(tx);
             const tmExt = exts.list.find((e) => e.id === tm.ext);
             if (tmExt && tmExt.options) {
@@ -893,7 +896,7 @@
             const where = [...(s.meta.matches || []), ...(s.meta.includes || [])].slice(0, 3).join("、");
             row.dataset.script = s.file;
             const sub = s.tm && s.dup ? "跟自己安裝的腳本同名，以自己安裝的為準（這支沒有執行）"
-              : s.tm && s.off ? "在篡改猴裡關閉了"
+              : s.tm && s.off ? (tm && tm.paused ? "篡改猴暫停中" : "在篡改猴裡關閉了")
               : s.missing && s.missing.length ? `缺少 ${s.missing.length} 個需要的檔案（按「重新讀取」再下載一次）`
               : where || s.meta.description || s.file;
             tx.append(el("small", "", sub));

@@ -412,14 +412,16 @@ fn load_all() -> Vec<Script> {
     // 篡改猴裡的腳本（篡改猴擴充功能在這個瀏覽器裡開著才算）
     if tm_on() {
         let own: HashSet<(String, String)> = out.iter().map(|s| (s.meta.namespace.clone(), s.meta.name.clone())).collect();
-        for (uuid, e) in &tm_index().scripts {
+        let idx = tm_index();
+        TM_PAUSED.store(idx.paused, Ordering::SeqCst);
+        for (uuid, e) in &idx.scripts {
             let Ok(code) = std::fs::read_to_string(tm_path(uuid)) else { continue };
             let mut meta = parse_meta(&code);
             e.opts.apply(&mut meta);
             let (missing, requires, resources) = load_deps(&meta);
             let file = tm_file(uuid);
             let dup = own.contains(&(meta.namespace.clone(), meta.name.clone()));
-            out.push(Script { off: !e.enabled, id: id_of(&file), file, meta, missing, tm: true, dup, code, requires, resources });
+            out.push(Script { off: !e.enabled || idx.paused, id: id_of(&file), file, meta, missing, tm: true, dup, code, requires, resources });
         }
     }
     out.sort_by(|a, b| a.meta.name.to_lowercase().cmp(&b.meta.name.to_lowercase()).then_with(|| a.tm.cmp(&b.tm)));
@@ -1370,6 +1372,13 @@ pub const TM_IDS: [&str; 2] = ["dhdgffkkebhmkfjojejmpbldmpobfkfo", "gcalenpjmijn
 static TM_EXT: Mutex<Option<String>> = Mutex::new(None);
 /// 同一時間只處理一份讀到的資料
 static TM_LOCK: Mutex<()> = Mutex::new(());
+/// 篡改猴整個暫停了（它的小選單最上面的「已啟用」取消打勾）：它的腳本都不執行
+static TM_PAUSED: AtomicBool = AtomicBool::new(false);
+
+/// 篡改猴是不是整個暫停了（以最近一次讀到的為準）
+pub fn tm_paused() -> bool {
+    tm_on() && TM_PAUSED.load(Ordering::SeqCst)
+}
 
 fn tm_on() -> bool {
     lock(&TM_EXT).is_some()
@@ -1471,6 +1480,8 @@ struct TmIndex {
     scripts: BTreeMap<String, TmEntry>,
     /// 上次讀到的時間（毫秒；0 = 還沒讀過）
     read_at: u64,
+    /// 篡改猴整個暫停了
+    paused: bool,
 }
 
 fn tm_index() -> TmIndex {
@@ -1532,17 +1543,21 @@ pub struct TmIn {
     pub vals: Option<BTreeMap<String, serde_json::Value>>,
 }
 
-#[derive(Deserialize)]
-struct TmRead {
+/// 讀到的全部
+#[derive(Debug, Deserialize)]
+pub struct TmRead {
     ok: bool,
     #[serde(default)]
     why: String,
+    /// 篡改猴整個暫停了
     #[serde(default)]
-    list: Vec<TmIn>,
+    pub paused: bool,
+    #[serde(default)]
+    pub list: Vec<TmIn>,
 }
 
 /// 解讀瀏覽器回傳的結果（DevTools 的 Runtime.evaluate）。Err = 讀不到（原因）
-pub fn tm_parse(cdp: &str) -> Result<Vec<TmIn>, String> {
+pub fn tm_parse(cdp: &str) -> Result<TmRead, String> {
     let v: serde_json::Value = serde_json::from_str(cdp).map_err(|e| format!("回傳的不是 JSON：{e}"))?;
     if let Some(ex) = v.get("exceptionDetails") {
         let text = ex["exception"]["description"].as_str().or_else(|| ex["text"].as_str()).unwrap_or("出錯了");
@@ -1551,7 +1566,7 @@ pub fn tm_parse(cdp: &str) -> Result<Vec<TmIn>, String> {
     let text = v["result"]["value"].as_str().ok_or("沒有結果")?;
     let r: TmRead = serde_json::from_str(text).map_err(|e| format!("結果看不懂：{e}"))?;
     if r.ok {
-        Ok(r.list)
+        Ok(r)
     } else {
         Err(if r.why.is_empty() { "讀不到".into() } else { r.why })
     }
@@ -1593,11 +1608,16 @@ pub struct TmDone {
 
 /// 把讀到的腳本存成這裡的一份：新的、內容變了的寫進檔案（並下載它需要的外部檔案），篡改猴裡已經沒有的拿掉。
 /// 會連外下載，不要在主執行緒呼叫
-pub fn tm_apply(list: Vec<TmIn>) -> TmDone {
+pub fn tm_apply(read: TmRead) -> TmDone {
+    let TmRead { list, paused, .. } = read;
     let guard = lock(&TM_LOCK);
     let mut idx = tm_index();
     let _ = std::fs::create_dir_all(tm_dir());
     let (mut changed, mut vals_changed, mut again) = (false, false, false);
+    if idx.paused != paused {
+        idx.paused = paused;
+        changed = true;
+    }
     let mut seen: HashSet<String> = HashSet::new();
     for s in list {
         let Some(uuid) = tm_safe_id(&s.id) else { continue };
@@ -1641,7 +1661,8 @@ pub fn tm_apply(list: Vec<TmIn>) -> TmDone {
             }
             e.vals_ts = s.ts;
         }
-        if old.as_ref() != Some(&e) {
+        // 開關、另外的設定變了才算清單變了（內容變了上面已經算過；只有設定值的時間不一樣不算）
+        if old.as_ref().is_none_or(|o| o.enabled != e.enabled || o.opts != e.opts) {
             changed = true;
         }
         idx.scripts.insert(uuid.clone(), e);
@@ -1656,6 +1677,7 @@ pub fn tm_apply(list: Vec<TmIn>) -> TmDone {
     }
     idx.read_at = now_ms();
     tm_save(&idx);
+    TM_PAUSED.store(idx.paused, Ordering::SeqCst);
     let count = idx.scripts.len();
     drop(guard);
     if changed {
@@ -1682,6 +1704,8 @@ pub struct TmStatus {
     pub read_at: u64,
     /// 讀過來幾支
     pub count: usize,
+    /// 篡改猴整個暫停了（它的腳本都不執行）
+    pub paused: bool,
 }
 
 pub fn tm_status() -> TmStatus {
@@ -1690,7 +1714,7 @@ pub fn tm_status() -> TmStatus {
         return TmStatus::default();
     }
     let idx = tm_index();
-    TmStatus { ext, read_at: idx.read_at, count: idx.scripts.len() }
+    TmStatus { ext, read_at: idx.read_at, count: idx.scripts.len(), paused: idx.paused }
 }
 
 /* ---------------- 給「擴充功能」頁面的指令 ---------------- */
@@ -2150,10 +2174,11 @@ mod tests {
         let a2 = a1.replace("A1;", "A2;");
         let b1 = format!("// ==UserScript==\n// @name TmB\n// @match https://b.example/*\n// @require http://127.0.0.1:{port}/echo?req=1\n// @noframes\n// ==/UserScript==\nB1;");
         let find = |name: &str| list().iter().find(|s| s.meta.name == name).cloned();
+        let rd = |list: Vec<TmIn>| TmRead { ok: true, why: String::new(), paused: false, list };
 
         // 篡改猴沒開著：讀過來的不算
         assert_eq!(tm_known(), serde_json::json!({}));
-        let d = tm_apply(vec![item(a_id, Some(a1), &hash(a1)), item(b_id, Some(&b1), &hash(&b1))]);
+        let d = tm_apply(rd(vec![item(a_id, Some(a1), &hash(a1)), item(b_id, Some(&b1), &hash(&b1))]));
         assert!(d.changed && d.count == 2 && !d.again);
         assert!(list().is_empty() && !any() && tm_status().ext.is_empty());
         // 開著：兩支都在、會執行；需要的檔案下載好了
@@ -2180,23 +2205,32 @@ mod tests {
 
         // 一樣的再讀一次：沒有變化
         let g1 = gen();
-        let d = tm_apply(vec![item(a_id, None, &hash(a1)), item(b_id, None, &hash(&b1))]);
+        let d = tm_apply(rd(vec![item(a_id, None, &hash(a1)), item(b_id, None, &hash(&b1))]));
         assert!(!d.changed && d.count == 2 && gen() == g1);
         // 在篡改猴裡關掉一支、改了另一支的設定（多一個執行的網址、改成一開始就執行、只在最上層）
         let mut off = item(b_id, None, &hash(&b1));
         off.enabled = false;
         let mut ov = item(a_id, None, &hash(a1));
         ov.opts = TmOpts { includes: Some(vec![]), matches: Some(vec!["https://a.example/*".into(), "https://extra.example/*".into()]), excludes: Some(vec!["https://a.example/no*".into()]), run_at: Some("document-start".into()), noframes: Some(true) };
-        let d = tm_apply(vec![ov.clone(), off]);
+        let d = tm_apply(rd(vec![ov.clone(), off]));
         assert!(d.changed && gen() > g1);
         let (a, b) = (find("TmA").unwrap(), find("TmB").unwrap());
         assert!(b.off && !b.active() && by_id(&b.id).is_none());
         assert!(runs_on(&a, "https://extra.example/1", true) && !runs_on(&a, "https://a.example/no", true) && !runs_on(&a, "https://a.example/x", false));
         assert_eq!(a.meta.run_at, "document-start");
+        // 整個篡改猴暫停（它的小選單最上面的「已啟用」取消打勾）：它的腳本都不執行；恢復之後照舊
+        let g2 = gen();
+        let mut paused = rd(vec![ov.clone()]);
+        paused.paused = true;
+        let d = tm_apply(paused);
+        assert!(d.changed && gen() > g2 && tm_paused() && tm_status().paused);
+        assert!(find("TmA").is_some_and(|s| s.off && !s.active()) && def_scripts().is_empty());
+        let d = tm_apply(rd(vec![ov.clone()]));
+        assert!(d.changed && !tm_paused() && find("TmA").is_some_and(|s| s.active()));
         // 亂寫的執行時機不理
         let mut bad = ov.clone();
         bad.opts.run_at = Some("whenever".into());
-        tm_apply(vec![bad]);
+        tm_apply(rd(vec![bad]));
         assert_eq!(find("TmA").unwrap().meta.run_at, "document-end");
         assert!(find("TmB").is_none());
 
@@ -2210,7 +2244,7 @@ mod tests {
                 .chain([("num".to_string(), serde_json::json!(7))])
                 .collect(),
         );
-        let d = tm_apply(vec![up]);
+        let d = tm_apply(rd(vec![up]));
         assert!(d.changed);
         let a = find("TmA").unwrap();
         assert!(a.code.ends_with("A2;"));
@@ -2220,11 +2254,11 @@ mod tests {
         );
         assert_eq!(tm_known()[a_id], serde_json::json!([hash(&a2), 1794717849499u64]));
         // 沒傳內容、雜湊卻對不上（這裡的檔案不見了之類）：這次不算，要再讀一次
-        let d = tm_apply(vec![item(a_id, None, "feedbeef")]);
+        let d = tm_apply(rd(vec![item(a_id, None, "feedbeef")]));
         assert!(d.again && d.count == 0 && find("TmA").is_none() && tm_known() == serde_json::json!({}));
 
         // 自己安裝了同名的（名稱和 @namespace 都一樣）：以自己安裝的為準，篡改猴那支不執行
-        tm_apply(vec![item(a_id, Some(&a2), &hash(&a2))]);
+        tm_apply(rd(vec![item(a_id, Some(&a2), &hash(&a2))]));
         let own = write_source(&a1.replace("A1;", "OWN;")).unwrap();
         invalidate();
         let both: Vec<Script> = list().iter().filter(|s| s.meta.name == "TmA").cloned().collect();
@@ -2235,7 +2269,7 @@ mod tests {
         assert!(find("TmA").is_some_and(|s| s.tm && !s.dup && s.active()));
 
         // 編號奇怪的也能用（換成雜湊當檔名）；太大的、不是腳本的不收
-        let d = tm_apply(vec![item("../x y", Some(a1), &hash(a1)), item("con", Some(&b1), &hash(&b1)), item("zzzzzzzz1", Some("nope"), "h"), item("", Some(a1), "h")]);
+        let d = tm_apply(rd(vec![item("../x y", Some(a1), &hash(a1)), item("con", Some(&b1), &hash(&b1)), item("zzzzzzzz1", Some("nope"), "h"), item("", Some(a1), "h")]));
         assert_eq!(d.count, 2);
         assert!(tm_index().scripts.keys().all(|k| k.starts_with('x') && k.len() == 25));
         assert!(std::fs::read_dir(tm_dir()).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().contains("..")));
@@ -2245,7 +2279,9 @@ mod tests {
         assert!(list().is_empty() && tm_status().count == 0);
         // 解讀瀏覽器回傳的結果
         let ok = serde_json::json!({ "result": { "type": "string", "value": serde_json::json!({ "ok": true, "list": [{ "id": a_id, "hash": "h", "enabled": false, "ts": 5, "opts": { "includes": null, "matches": ["*://*/*"], "excludes": [], "run_at": null, "noframes": null } }] }).to_string() } }).to_string();
-        let l = tm_parse(&ok).unwrap();
+        let got = tm_parse(&ok).unwrap();
+        assert!(!got.paused && tm_parse(&ok.replace("\\\"ok\\\":true", "\\\"ok\\\":true,\\\"paused\\\":true")).unwrap().paused);
+        let l = got.list;
         assert!(l.len() == 1 && !l[0].enabled && l[0].src.is_none() && l[0].opts.matches.as_deref() == Some(&["*://*/*".to_string()][..]) && l[0].opts.includes.is_none() && l[0].ts == 5);
         assert_eq!(tm_parse(&serde_json::json!({ "result": { "type": "string", "value": "{\"ok\":false,\"why\":\"no-storage\"}" } }).to_string()).unwrap_err(), "no-storage");
         assert!(tm_parse("{\"result\":{\"type\":\"object\"},\"exceptionDetails\":{\"text\":\"Uncaught\",\"exception\":{\"description\":\"ReferenceError: x\"}}}").unwrap_err().contains("ReferenceError"));
