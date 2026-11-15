@@ -408,6 +408,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 socketserver.ThreadingTCPServer.allow_reuse_address = True
+# 網頁一載入會同時連好幾條線（網頁自己、內嵌框、使用者腳本各自回報）：排隊的位子多留一點，才不會有一條被拒絕、少記到一筆
+socketserver.ThreadingTCPServer.request_queue_size = 128
 srv = socketserver.ThreadingTCPServer(("0.0.0.0", PORT), Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
