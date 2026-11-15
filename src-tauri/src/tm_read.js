@@ -3,7 +3,9 @@
   // 用擴充功能自己的存放區把使用者的腳本讀出來，結果是一段 JSON 文字。
   // known = 程式那邊已經有的 { 編號: [內容的雜湊, 設定值的時間] }：一樣的就不傳內容
   const known = __KNOWN__;
-  const out = (o) => JSON.stringify(o);
+  // 文字裡不成對的代理字元（壞掉的字）換掉：程式那邊解讀 JSON 時不接受
+  const wf = (t) => (typeof t.toWellFormed === "function" ? t.toWellFormed() : t);
+  const out = (o) => JSON.stringify(o, (k, v) => (typeof v === "string" ? wf(v) : v));
   const L = typeof chrome === "object" && chrome && chrome.storage && chrome.storage.local;
   if (!L) return out({ ok: false, why: "no-storage" });
   try {
@@ -63,7 +65,7 @@
         },
       };
       if (k[0] !== hash) row.src = e.src;
-      if (ts && k[1] !== ts && Object.keys(e.st.data).length) row.vals = e.st.data;
+      if (ts && k[1] !== ts && Object.keys(e.st.data).length) row.vals = Object.fromEntries(Object.entries(e.st.data).map(([key, v]) => [wf(key), v]));
       list.push(row);
     }
     return out({ ok: true, list });

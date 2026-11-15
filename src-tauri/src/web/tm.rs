@@ -104,6 +104,7 @@ pub(super) fn kick(app: &AppHandle, wid: &str, ms: u64, force: bool) {
     if scripts::tm_ext().is_none() {
         return;
     }
+    watchdog(app);
     let (app, wid) = (app.clone(), wid.to_string());
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(ms));
@@ -120,6 +121,45 @@ pub(super) fn kick(app: &AppHandle, wid: &str, ms: u64, force: bool) {
         if force || idle {
             lock(&ST).retries = 0;
             reload(&app);
+        }
+    });
+}
+
+/// 保險：每隔幾分鐘自己再讀一次（存放區變動的通知萬一漏了也跟得上）；讀取用的網頁不在了、壞了就重新準備
+fn watchdog(app: &AppHandle) {
+    static STARTED: AtomicBool = AtomicBool::new(false);
+    if STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let mut n = 0u32;
+        loop {
+            std::thread::sleep(Duration::from_secs(180));
+            n = n.wrapping_add(1);
+            let Some(wid) = open_ids().into_iter().next() else { continue };
+            if scripts::tm_ext().is_none() {
+                continue;
+            }
+            if helper(&app).is_none() {
+                lock(&ST).retries = 0;
+                make_soon(&app, &wid, 0, 0);
+                continue;
+            }
+            let (ok, busy, retries) = {
+                let st = lock(&ST);
+                (st.ok, st.reading.is_some_and(|t| t.elapsed() < Duration::from_secs(45)), st.retries)
+            };
+            if busy {
+                continue;
+            }
+            if ok {
+                read(&app);
+            } else if retries == 0 || (retries > 8 && n % 5 == 0) {
+                // 一直沒讀到、也沒有排重試（試過幾次放棄了的：每十五分鐘再試一輪）
+                lock(&ST).retries = 0;
+                reload(&app);
+            }
         }
     });
 }
@@ -188,7 +228,7 @@ fn make(app: &AppHandle, wid: &str, tries: u32) {
         })
         .on_document_title_changed(move |_wv, title| {
             if title.starts_with(MARK) {
-                read_soon(&a2, 350);
+                read_soon(&a2, 150);
             }
         });
     let made = win.add_child(b, PhysicalPosition::new(-96i32, -96i32), PhysicalSize::new(32u32, 32u32));
@@ -395,7 +435,7 @@ const NOTE_JS: &str = r#"(() => {
       bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;display:flex;align-items:center;gap:10px;padding:7px 12px;background:#1f2937;color:#f3f4f6;font:13px/1.5 'Microsoft JhengHei UI','Microsoft JhengHei',system-ui,sans-serif;box-shadow:0 -1px 6px rgba(0,0,0,.35)";
       const text = document.createElement("span");
       text.style.cssText = "flex:1;min-width:0";
-      text.textContent = "工具箱：這個瀏覽器沒有「允許使用者腳本」（Allow User Scripts）的開關，上面那則提示可以不用理會。這裡的腳本由瀏覽器代為執行，存檔之後重新整理網頁就會生效。";
+      text.textContent = "工具箱：這個瀏覽器沒有「允許使用者腳本（Allow User Scripts）」開關，上面的提示不用理會。這裡的腳本由瀏覽器代為執行，存檔後重新整理網頁就生效。";
       const x = document.createElement("span");
       x.textContent = "×";
       x.title = "收起來";
