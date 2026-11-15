@@ -523,6 +523,7 @@ fn main() {
             web::web_tab_close,
             web::web_tab_move,
             web::web_ext_list,
+            web::web_tm_read,
             web::web_ext_sync,
             web::web_ext_toggle,
             web::web_ext_pin,

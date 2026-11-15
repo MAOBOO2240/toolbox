@@ -519,6 +519,10 @@ pub(super) struct Row {
     pub running: bool,
     /// 需要的檔案沒下載到
     pub broken: bool,
+    /// 篡改猴擴充功能裡的腳本（開關、刪除都在篡改猴裡做）
+    pub tm: bool,
+    /// 篡改猴裡的，但這裡已經自己裝了同名的一支：這支不執行
+    pub dup: bool,
     pub cmds: Vec<Cmd>,
 }
 
@@ -546,7 +550,7 @@ pub(super) fn rows(wid: &str, tid: &str) -> Vec<Row> {
             cmds = b;
             a
         };
-        out.push(Row { file: s.file.clone(), name: s.meta.name.clone(), off: s.off, running: run, broken: !s.missing.is_empty(), cmds: if s.off { Vec::new() } else { mine } });
+        out.push(Row { file: s.file.clone(), name: s.meta.name.clone(), off: s.off, running: run, broken: !s.missing.is_empty(), tm: s.tm, dup: s.dup, cmds: if s.off || s.dup { Vec::new() } else { mine } });
     }
     out
 }

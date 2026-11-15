@@ -2,6 +2,7 @@
 //! （WebView2 沒有「允許使用者腳本」這個開關，篡改猴在這個瀏覽器裡裝得起來但沒辦法執行腳本）
 //!
 //! - 腳本放在 web-scripts/ 資料夾（匯入 .user.js、篡改猴匯出的 zip，或開啟 .user.js 的網址安裝）
+//! - 使用者在篡改猴擴充功能裡新增、匯入的腳本也會讀過來一份（web-scripts/tm/），照樣由這裡執行（見「篡改猴裡的腳本」）
 //! - @match、@include、@exclude 決定在哪些網頁執行；@run-at 決定什麼時候跑；內嵌框架也會跑（除非 @noframes）
 //! - @require、@resource 在安裝時先下載好，跟著腳本一起注入
 //! - 設定值（GM_getValue／GM_setValue）每支腳本一份、整個瀏覽器共用，存在 web-scripts/values/
@@ -273,6 +274,10 @@ pub struct Script {
     pub off: bool,
     /// 安裝時沒下載到的 @require／@resource
     pub missing: Vec<String>,
+    /// 這支是從篡改猴擴充功能讀過來的（新增、編輯、開關、刪除都在篡改猴裡做）
+    pub tm: bool,
+    /// 從篡改猴讀過來的，但這裡已經自己裝了同名的一支：以自己裝的為準，這支不執行
+    pub dup: bool,
     #[serde(skip)]
     pub code: String,
     #[serde(skip)]
@@ -282,9 +287,9 @@ pub struct Script {
 }
 
 impl Script {
-    /// 會不會執行（開著，而且需要的檔案都有）
+    /// 會不會執行（開著，需要的檔案都有，而且不是重複的那一支）
     pub fn active(&self) -> bool {
-        !self.off && self.missing.is_empty()
+        !self.off && self.missing.is_empty() && !self.dup
     }
 }
 
@@ -366,38 +371,58 @@ fn mime_by_ext(url: &str) -> &'static str {
     }
 }
 
+/// 讀腳本需要的外部檔案（安裝時下載好的）：（沒下載到的, @require 的內容, @resource）
+fn load_deps(meta: &Meta) -> (Vec<String>, Vec<String>, BTreeMap<String, Res>) {
+    let mut missing = Vec::new();
+    let mut requires = Vec::new();
+    for u in &meta.requires {
+        match read_dep(u) {
+            Some((b, _)) => requires.push(String::from_utf8_lossy(&b).into_owned()),
+            None => missing.push(u.clone()),
+        }
+    }
+    let mut resources = BTreeMap::new();
+    for (n, u) in &meta.resources {
+        match read_dep(u) {
+            Some((b, t)) => {
+                let mime = if t.is_empty() { mime_by_ext(u).to_string() } else { t };
+                resources.insert(n.clone(), Res { b64: base64::engine::general_purpose::STANDARD.encode(b), mime });
+            }
+            None => missing.push(u.clone()),
+        }
+    }
+    (missing, requires, resources)
+}
+
 fn load_all() -> Vec<Script> {
     let st = state();
     let mut out = Vec::new();
-    let Ok(rd) = std::fs::read_dir(dir()) else { return out };
-    for e in rd.flatten() {
-        let name = e.file_name().to_string_lossy().to_string();
-        if !name.ends_with(".user.js") {
-            continue;
-        }
-        let Ok(code) = std::fs::read_to_string(e.path()) else { continue };
-        let meta = parse_meta(&code);
-        let mut missing = Vec::new();
-        let mut requires = Vec::new();
-        for u in &meta.requires {
-            match read_dep(u) {
-                Some((b, _)) => requires.push(String::from_utf8_lossy(&b).into_owned()),
-                None => missing.push(u.clone()),
+    if let Ok(rd) = std::fs::read_dir(dir()) {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".user.js") {
+                continue;
             }
+            let Ok(code) = std::fs::read_to_string(e.path()) else { continue };
+            let meta = parse_meta(&code);
+            let (missing, requires, resources) = load_deps(&meta);
+            out.push(Script { off: st.off.contains(&name), id: id_of(&name), file: name, meta, missing, tm: false, dup: false, code, requires, resources });
         }
-        let mut resources = BTreeMap::new();
-        for (n, u) in &meta.resources {
-            match read_dep(u) {
-                Some((b, t)) => {
-                    let mime = if t.is_empty() { mime_by_ext(u).to_string() } else { t };
-                    resources.insert(n.clone(), Res { b64: base64::engine::general_purpose::STANDARD.encode(b), mime });
-                }
-                None => missing.push(u.clone()),
-            }
-        }
-        out.push(Script { off: st.off.contains(&name), id: id_of(&name), file: name, meta, missing, code, requires, resources });
     }
-    out.sort_by(|a, b| a.meta.name.to_lowercase().cmp(&b.meta.name.to_lowercase()));
+    // 篡改猴裡的腳本（篡改猴擴充功能在這個瀏覽器裡開著才算）
+    if tm_on() {
+        let own: HashSet<(String, String)> = out.iter().map(|s| (s.meta.namespace.clone(), s.meta.name.clone())).collect();
+        for (uuid, e) in &tm_index().scripts {
+            let Ok(code) = std::fs::read_to_string(tm_path(uuid)) else { continue };
+            let mut meta = parse_meta(&code);
+            e.opts.apply(&mut meta);
+            let (missing, requires, resources) = load_deps(&meta);
+            let file = tm_file(uuid);
+            let dup = own.contains(&(meta.namespace.clone(), meta.name.clone()));
+            out.push(Script { off: !e.enabled, id: id_of(&file), file, meta, missing, tm: true, dup, code, requires, resources });
+        }
+    }
+    out.sort_by(|a, b| a.meta.name.to_lowercase().cmp(&b.meta.name.to_lowercase()).then_with(|| a.tm.cmp(&b.tm)));
     out
 }
 
@@ -530,6 +555,10 @@ pub fn import_file(path: &Path) -> Result<(usize, Vec<String>), String> {
 }
 
 pub fn set_off(file: &str, off: bool) {
+    // 篡改猴裡的腳本：開關在篡改猴裡
+    if is_tm_file(file) {
+        return;
+    }
     let mut st = state();
     st.off.retain(|f| f != file);
     if off {
@@ -540,8 +569,8 @@ pub fn set_off(file: &str, off: bool) {
 }
 
 pub fn remove(file: &str) {
-    // 檔名只能是腳本資料夾裡的檔案
-    if file.contains(['/', '\\']) || !file.ends_with(".user.js") {
+    // 檔名只能是腳本資料夾裡的檔案；篡改猴裡的腳本要在篡改猴裡刪
+    if file.contains(['/', '\\']) || !file.ends_with(".user.js") || is_tm_file(file) {
         return;
     }
     let _ = std::fs::remove_file(dir().join(file));
@@ -1273,7 +1302,7 @@ pub fn check_updates(force: bool) -> Vec<String> {
         return Vec::new();
     }
     let mut done = Vec::new();
-    for s in list().iter() {
+    for s in list().iter().filter(|s| !s.tm) {
         let m = &s.meta;
         let from = [m.download_url.as_str(), m.update_url.as_str(), st.src.get(&s.file).map(String::as_str).unwrap_or("")].into_iter().find(|u| !u.is_empty());
         let Some(from) = from else { continue };
@@ -1323,6 +1352,347 @@ pub fn start_background() {
     });
 }
 
+/* ---------------- 篡改猴裡的腳本 ---------------- */
+//
+// WebView2 沒有「允許使用者腳本」開關（那個開關在瀏覽器核心自己的擴充功能管理頁，WebView2 沒有那一頁），
+// 篡改猴在這個瀏覽器裡裝得起來、介面也能用，但它沒辦法把腳本放進網頁執行。
+// 所以使用者在篡改猴裡新增、匯入的腳本，這裡讀一份過來（唯讀），照平常的方式代為執行：
+// - 新增、編輯、開關、刪除都還是在篡改猴裡做，這裡跟著變
+// - 使用者在篡改猴裡另外設定的「執行的網址、什麼時候執行、只在最上層執行」也照著做
+// - 篡改猴存的設定值（例如從別的瀏覽器匯入備份時帶來的）第一次讀到時帶過來；之後篡改猴那邊有改才再帶一次
+// - 這裡已經自己裝了同名的腳本（名稱和 @namespace 都一樣）：以自己裝的為準，篡改猴那支不執行
+// 怎麼讀到的（開一個藏起來的網頁，讀篡改猴自己的存放區）在 web/tm.rs。
+
+/// 篡改猴擴充功能的編號（正式版、測試版）
+pub const TM_IDS: [&str; 2] = ["dhdgffkkebhmkfjojejmpbldmpobfkfo", "gcalenpjmijncebpfijmoaglllgpjagf"];
+
+/// 這個瀏覽器裡開著的篡改猴（擴充功能編號）；None = 沒裝或停用了
+static TM_EXT: Mutex<Option<String>> = Mutex::new(None);
+/// 同一時間只處理一份讀到的資料
+static TM_LOCK: Mutex<()> = Mutex::new(());
+
+fn tm_on() -> bool {
+    lock(&TM_EXT).is_some()
+}
+
+/// 這個瀏覽器裡的篡改猴開著（ext = 它的擴充功能編號）或沒有了（None）。有變的話腳本清單跟著變
+pub fn tm_set(ext: Option<String>) {
+    let changed = {
+        let mut g = lock(&TM_EXT);
+        let changed = *g != ext;
+        *g = ext;
+        changed
+    };
+    if changed {
+        invalidate();
+    }
+}
+
+fn tm_dir() -> PathBuf {
+    dir().join("tm")
+}
+
+fn tm_path(uuid: &str) -> PathBuf {
+    tm_dir().join(format!("{uuid}.user.js"))
+}
+
+/// 篡改猴裡的腳本在這裡用的「檔名」（識別用：設定值、網頁裡的編號都靠它；腳本資料夾裡沒有這個檔案）
+fn tm_file(uuid: &str) -> String {
+    format!("tm-{uuid}.user.js")
+}
+
+fn is_tm_file(file: &str) -> bool {
+    file.strip_prefix("tm-").and_then(|f| f.strip_suffix(".user.js")).is_some_and(|u| tm_index().scripts.contains_key(u))
+}
+
+/// 篡改猴給每支腳本的編號 → 這裡用的編號（只留英數字和 -；其他的、太短太長的換成雜湊，才能當檔名）
+fn tm_safe_id(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.len() > 512 {
+        return None;
+    }
+    if (8..=64).contains(&raw.len()) && raw.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        Some(raw.to_ascii_lowercase())
+    } else {
+        Some(format!("x{}", &crate::sha256::hex(raw.as_bytes())[..24]))
+    }
+}
+
+/// 使用者在篡改猴裡對一支腳本另外做的設定（None = 照腳本自己寫的）
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TmOpts {
+    /// 實際要執行、不要執行的網址（篡改猴把腳本自己寫的和使用者另外加的合起來之後的結果）
+    pub includes: Option<Vec<String>>,
+    pub matches: Option<Vec<String>>,
+    pub excludes: Option<Vec<String>>,
+    /// 什麼時候執行
+    pub run_at: Option<String>,
+    /// 只在最上層的網頁執行
+    pub noframes: Option<bool>,
+}
+
+impl TmOpts {
+    fn apply(&self, m: &mut Meta) {
+        if let Some(v) = &self.includes {
+            m.includes = v.clone();
+        }
+        if let Some(v) = &self.matches {
+            m.matches = v.clone();
+        }
+        if let Some(v) = &self.excludes {
+            m.excludes = v.clone();
+        }
+        if let Some(r) = self.run_at.as_deref().filter(|r| matches!(*r, "document-start" | "document-body" | "document-end" | "document-idle" | "context-menu")) {
+            m.run_at = r.to_string();
+        }
+        if let Some(n) = self.noframes {
+            m.noframes = n;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+struct TmEntry {
+    /// 內容的雜湊（讀取時算的；一樣就不用重傳內容）
+    hash: String,
+    /// 在篡改猴裡是開著的
+    enabled: bool,
+    opts: TmOpts,
+    /// 設定值帶過來時，篡改猴那邊記的時間（一樣就不用再帶）
+    vals_ts: u64,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct TmIndex {
+    /// 編號 → 那支腳本（內容在 tm/編號.user.js）
+    scripts: BTreeMap<String, TmEntry>,
+    /// 上次讀到的時間（毫秒；0 = 還沒讀過）
+    read_at: u64,
+}
+
+fn tm_index() -> TmIndex {
+    std::fs::read_to_string(tm_dir().join("index.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, path)
+}
+
+fn tm_save(idx: &TmIndex) {
+    let _ = std::fs::create_dir_all(tm_dir());
+    if let Ok(t) = serde_json::to_string_pretty(idx) {
+        let _ = write_atomic(&tm_dir().join("index.json"), &t);
+    }
+}
+
+/// 目前有的那一份：{ 編號: [內容的雜湊, 設定值的時間] }（交給讀取的那段程式：一樣的就不用重傳）
+fn tm_known() -> serde_json::Value {
+    let mut m = serde_json::Map::new();
+    for (uuid, e) in &tm_index().scripts {
+        if tm_path(uuid).is_file() {
+            m.insert(uuid.clone(), serde_json::json!([e.hash, e.vals_ts]));
+        }
+    }
+    serde_json::Value::Object(m)
+}
+
+/// 在篡改猴套件裡的一份文件裡執行、把腳本讀出來的那段程式（結果是一段 JSON 文字，交給 tm_parse）
+pub fn tm_read_js() -> String {
+    include_str!("tm_read.js").replace("__KNOWN__", &tm_known().to_string())
+}
+
+/// 存放區一有變動就改文件標題（mark + 第幾次）通知程式的那段程式
+pub fn tm_watch_js(mark: &str) -> String {
+    include_str!("tm_watch.js").replace("__MARK__", &serde_json::to_string(mark).unwrap_or_else(|_| "\"\"".into()))
+}
+
+/// 讀到的一支腳本
+#[derive(Debug, Clone, Deserialize)]
+pub struct TmIn {
+    pub id: String,
+    #[serde(default)]
+    pub hash: String,
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    /// 內容（跟上次一樣就不會傳）
+    #[serde(default)]
+    pub src: Option<String>,
+    #[serde(default)]
+    pub opts: TmOpts,
+    /// 設定值是什麼時候的
+    #[serde(default)]
+    pub ts: u64,
+    /// 設定值（跟上次同一個時間就不會傳）
+    #[serde(default)]
+    pub vals: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+#[derive(Deserialize)]
+struct TmRead {
+    ok: bool,
+    #[serde(default)]
+    why: String,
+    #[serde(default)]
+    list: Vec<TmIn>,
+}
+
+/// 解讀瀏覽器回傳的結果（DevTools 的 Runtime.evaluate）。Err = 讀不到（原因）
+pub fn tm_parse(cdp: &str) -> Result<Vec<TmIn>, String> {
+    let v: serde_json::Value = serde_json::from_str(cdp).map_err(|e| format!("回傳的不是 JSON：{e}"))?;
+    if let Some(ex) = v.get("exceptionDetails") {
+        let text = ex["exception"]["description"].as_str().or_else(|| ex["text"].as_str()).unwrap_or("出錯了");
+        return Err(text.chars().take(300).collect());
+    }
+    let text = v["result"]["value"].as_str().ok_or("沒有結果")?;
+    let r: TmRead = serde_json::from_str(text).map_err(|e| format!("結果看不懂：{e}"))?;
+    if r.ok {
+        Ok(r.list)
+    } else {
+        Err(if r.why.is_empty() { "讀不到".into() } else { r.why })
+    }
+}
+
+/// 篡改猴存的設定值 → 這裡存的 JSON 文字。篡改猴的值是「第一個字是型別（s 文字、n 數字、b 是非、o 物件）＋內容」
+fn tm_val_json(v: &serde_json::Value) -> Option<String> {
+    let Some(raw) = v.as_str() else {
+        // 不是那種格式：照原樣
+        return (!v.is_null()).then(|| v.to_string());
+    };
+    let mut it = raw.chars();
+    let t = it.next()?;
+    let rest = it.as_str();
+    match t {
+        's' => serde_json::to_string(rest).ok(),
+        'b' => Some(if rest == "true" { "true" } else { "false" }.to_string()),
+        'n' => Some(match serde_json::from_str::<serde_json::Value>(rest) {
+            Ok(n) if n.is_number() => rest.to_string(),
+            // NaN、Infinity 沒辦法用 JSON 表示
+            _ => "null".to_string(),
+        }),
+        'o' => serde_json::from_str::<serde_json::Value>(rest).ok().map(|_| rest.to_string()),
+        // undefined
+        'u' => None,
+        _ => serde_json::to_string(raw).ok(),
+    }
+}
+
+/// 存完的結果
+pub struct TmDone {
+    /// 腳本清單變了
+    pub changed: bool,
+    /// 現在有幾支
+    pub count: usize,
+    /// 有腳本這次沒算進來（內容對不上）：要再讀一次，那時會重傳內容
+    pub again: bool,
+}
+
+/// 把讀到的腳本存成這裡的一份：新的、內容變了的寫進檔案（並下載它需要的外部檔案），篡改猴裡已經沒有的拿掉。
+/// 會連外下載，不要在主執行緒呼叫
+pub fn tm_apply(list: Vec<TmIn>) -> TmDone {
+    let guard = lock(&TM_LOCK);
+    let mut idx = tm_index();
+    let _ = std::fs::create_dir_all(tm_dir());
+    let (mut changed, mut vals_changed, mut again) = (false, false, false);
+    let mut seen: HashSet<String> = HashSet::new();
+    for s in list {
+        let Some(uuid) = tm_safe_id(&s.id) else { continue };
+        if seen.contains(&uuid) {
+            continue;
+        }
+        let path = tm_path(&uuid);
+        // 這裡原本有的那一份（檔案還在才算）
+        let old = idx.scripts.get(&uuid).cloned().filter(|_| path.is_file());
+        let mut e = old.clone().unwrap_or_default();
+        match &s.src {
+            Some(src) => {
+                if src.len() > 24 << 20 || !src.contains("==UserScript==") {
+                    continue;
+                }
+                // 內容真的不一樣才寫（編號特別的腳本每次都會重傳內容）
+                if old.as_ref().is_none_or(|o| o.hash != s.hash || s.hash.is_empty()) {
+                    if write_atomic(&path, src).is_err() {
+                        continue;
+                    }
+                    fetch_deps(&parse_meta(src));
+                    changed = true;
+                }
+                e.hash = s.hash.clone();
+            }
+            // 沒傳內容 = 應該跟這裡有的一樣；這裡卻沒有（或對不上）：這次先不算，再讀一次時會重傳
+            None if old.as_ref().is_none_or(|o| o.hash != s.hash) => {
+                again = true;
+                continue;
+            }
+            None => {}
+        }
+        e.enabled = s.enabled;
+        e.opts = s.opts;
+        if let Some(vals) = &s.vals {
+            let file = tm_file(&uuid);
+            for (k, v) in vals {
+                if let Some(json) = tm_val_json(v) {
+                    vals_changed |= value_set(&file, k, Some(&json));
+                }
+            }
+            e.vals_ts = s.ts;
+        }
+        if old.as_ref() != Some(&e) {
+            changed = true;
+        }
+        idx.scripts.insert(uuid.clone(), e);
+        seen.insert(uuid);
+    }
+    // 篡改猴裡已經沒有的（或這次讀到的不能用的）
+    let gone: Vec<String> = idx.scripts.keys().filter(|k| !seen.contains(*k)).cloned().collect();
+    for uuid in gone {
+        idx.scripts.remove(&uuid);
+        let _ = std::fs::remove_file(tm_path(&uuid));
+        changed = true;
+    }
+    idx.read_at = now_ms();
+    tm_save(&idx);
+    let count = idx.scripts.len();
+    drop(guard);
+    if changed {
+        invalidate();
+    } else if vals_changed {
+        // 只有設定值變了：開著的分頁預先帶著的那一份要換新
+        if let Some(f) = ON_CHANGE.get() {
+            f();
+        }
+    }
+    TmDone { changed, count, again }
+}
+
+/// 這個瀏覽器裡開著的篡改猴（擴充功能編號）
+pub fn tm_ext() -> Option<String> {
+    lock(&TM_EXT).clone()
+}
+
+#[derive(Serialize, Default)]
+pub struct TmStatus {
+    /// 這個瀏覽器裡開著的篡改猴（擴充功能編號；空的 = 沒有）
+    pub ext: String,
+    /// 上次讀到的時間（毫秒；0 = 還沒讀過）
+    pub read_at: u64,
+    /// 讀過來幾支
+    pub count: usize,
+}
+
+pub fn tm_status() -> TmStatus {
+    let ext = lock(&TM_EXT).clone().unwrap_or_default();
+    if ext.is_empty() {
+        return TmStatus::default();
+    }
+    let idx = tm_index();
+    TmStatus { ext, read_at: idx.read_at, count: idx.scripts.len() }
+}
+
 /* ---------------- 給「擴充功能」頁面的指令 ---------------- */
 
 #[derive(Serialize)]
@@ -1331,11 +1701,13 @@ pub struct ScriptsOut {
     pub dir: String,
     /// 自動更新開著
     pub auto_update: bool,
+    /// 篡改猴裡的腳本（讀過來代為執行的）
+    pub tm: TmStatus,
 }
 
 #[tauri::command]
 pub fn web_scripts_list() -> ScriptsOut {
-    ScriptsOut { list: list().as_ref().clone(), dir: dir().to_string_lossy().into_owned(), auto_update: !state().no_update }
+    ScriptsOut { list: list().as_ref().clone(), dir: dir().to_string_lossy().into_owned(), auto_update: !state().no_update, tm: tm_status() }
 }
 
 #[tauri::command]
@@ -1763,7 +2135,121 @@ mod tests {
         assert!(value_set(&file, "a", None));
         remove(&file);
         assert!(list().is_empty() && !values_path(&file).exists());
+
+        tm_mirror(port);
         let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    /// 篡改猴裡的腳本讀過來代為執行（接在上面那個測試後面跑：共用同一個腳本資料夾）
+    fn tm_mirror(port: u16) {
+        let hash = |s: &str| crate::sha256::hex(s.as_bytes());
+        let item = |id: &str, src: Option<&str>, h: &str| TmIn { id: id.into(), hash: h.into(), enabled: true, src: src.map(str::to_string), opts: TmOpts::default(), ts: 0, vals: None };
+        let a_id = "8835732a-48e5-4591-a9f3-24731b068ca2";
+        let b_id = "979f5883-475b-4576-b6dd-35ad4a3fd458";
+        let a1 = "// ==UserScript==\n// @name TmA\n// @namespace ns\n// @match https://a.example/*\n// @run-at document-end\n// ==/UserScript==\nA1;";
+        let a2 = a1.replace("A1;", "A2;");
+        let b1 = format!("// ==UserScript==\n// @name TmB\n// @match https://b.example/*\n// @require http://127.0.0.1:{port}/echo?req=1\n// @noframes\n// ==/UserScript==\nB1;");
+        let find = |name: &str| list().iter().find(|s| s.meta.name == name).cloned();
+
+        // 篡改猴沒開著：讀過來的不算
+        assert_eq!(tm_known(), serde_json::json!({}));
+        let d = tm_apply(vec![item(a_id, Some(a1), &hash(a1)), item(b_id, Some(&b1), &hash(&b1))]);
+        assert!(d.changed && d.count == 2 && !d.again);
+        assert!(list().is_empty() && !any() && tm_status().ext.is_empty());
+        // 開著：兩支都在、會執行；需要的檔案下載好了
+        let g0 = gen();
+        tm_set(Some(TM_IDS[0].to_string()));
+        assert!(gen() > g0);
+        let (a, b) = (find("TmA").unwrap(), find("TmB").unwrap());
+        assert!(a.tm && b.tm && a.active() && b.active() && !a.dup, "{:?} {:?}", a.missing, b.missing);
+        assert_eq!((a.file.as_str(), b.requires.len()), (format!("tm-{a_id}.user.js").as_str(), 1));
+        assert!(runs_on(&a, "https://a.example/x", true) && !runs_on(&b, "https://b.example/x", false) && runs_on(&b, "https://b.example/x", true));
+        assert!(by_id(&a.id).is_some() && def_scripts().len() == 2 && any());
+        let st = tm_status();
+        assert!(st.ext == TM_IDS[0] && st.count == 2 && st.read_at > 0);
+        // 讀取用的程式帶著目前有的那一份（一樣的不用重傳）
+        assert_eq!(tm_known()[a_id], serde_json::json!([hash(a1), 0]));
+        let js = tm_read_js();
+        assert!(js.contains(a_id) && !js.contains("__KNOWN__") && tm_watch_js("m:").contains("\"m:\"") && !tm_watch_js("m:").contains("__MARK__"));
+
+        // 這裡不能開關、刪除（在篡改猴裡做）；也不會被這裡的更新檢查動到
+        set_off(&a.file, true);
+        remove(&a.file);
+        assert!(find("TmA").is_some_and(|s| s.active()));
+        assert!(check_updates(true).is_empty());
+
+        // 一樣的再讀一次：沒有變化
+        let g1 = gen();
+        let d = tm_apply(vec![item(a_id, None, &hash(a1)), item(b_id, None, &hash(&b1))]);
+        assert!(!d.changed && d.count == 2 && gen() == g1);
+        // 在篡改猴裡關掉一支、改了另一支的設定（多一個執行的網址、改成一開始就執行、只在最上層）
+        let mut off = item(b_id, None, &hash(&b1));
+        off.enabled = false;
+        let mut ov = item(a_id, None, &hash(a1));
+        ov.opts = TmOpts { includes: Some(vec![]), matches: Some(vec!["https://a.example/*".into(), "https://extra.example/*".into()]), excludes: Some(vec!["https://a.example/no*".into()]), run_at: Some("document-start".into()), noframes: Some(true) };
+        let d = tm_apply(vec![ov.clone(), off]);
+        assert!(d.changed && gen() > g1);
+        let (a, b) = (find("TmA").unwrap(), find("TmB").unwrap());
+        assert!(b.off && !b.active() && by_id(&b.id).is_none());
+        assert!(runs_on(&a, "https://extra.example/1", true) && !runs_on(&a, "https://a.example/no", true) && !runs_on(&a, "https://a.example/x", false));
+        assert_eq!(a.meta.run_at, "document-start");
+        // 亂寫的執行時機不理
+        let mut bad = ov.clone();
+        bad.opts.run_at = Some("whenever".into());
+        tm_apply(vec![bad]);
+        assert_eq!(find("TmA").unwrap().meta.run_at, "document-end");
+        assert!(find("TmB").is_none());
+
+        // 內容改了（在篡改猴的編輯器存檔）：換成新的；設定值帶過來（各種型別）
+        let mut up = item(a_id, Some(&a2), &hash(&a2));
+        up.ts = 1794717849499;
+        up.vals = Some(
+            [("s", "sabc"), ("n", "n42.5"), ("nan", "nNaN"), ("b", "btrue"), ("o", "o{\"k\":[1,2]}"), ("bad", "o{oops"), ("u", "uundefined"), ("x", "?raw")]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), serde_json::Value::String(v.to_string())))
+                .chain([("num".to_string(), serde_json::json!(7))])
+                .collect(),
+        );
+        let d = tm_apply(vec![up]);
+        assert!(d.changed);
+        let a = find("TmA").unwrap();
+        assert!(a.code.ends_with("A2;"));
+        assert_eq!(
+            values_of(&[a.id.clone()])[&a.id],
+            serde_json::json!({ "s": "\"abc\"", "n": "42.5", "nan": "null", "b": "true", "o": "{\"k\":[1,2]}", "x": "\"?raw\"", "num": "7" })
+        );
+        assert_eq!(tm_known()[a_id], serde_json::json!([hash(&a2), 1794717849499u64]));
+        // 沒傳內容、雜湊卻對不上（這裡的檔案不見了之類）：這次不算，要再讀一次
+        let d = tm_apply(vec![item(a_id, None, "feedbeef")]);
+        assert!(d.again && d.count == 0 && find("TmA").is_none() && tm_known() == serde_json::json!({}));
+
+        // 自己安裝了同名的（名稱和 @namespace 都一樣）：以自己安裝的為準，篡改猴那支不執行
+        tm_apply(vec![item(a_id, Some(&a2), &hash(&a2))]);
+        let own = write_source(&a1.replace("A1;", "OWN;")).unwrap();
+        invalidate();
+        let both: Vec<Script> = list().iter().filter(|s| s.meta.name == "TmA").cloned().collect();
+        assert_eq!(both.len(), 2);
+        assert!(!both[0].tm && both[0].active() && both[1].tm && both[1].dup && !both[1].active());
+        assert_eq!(def_scripts().len(), 1);
+        remove(&own);
+        assert!(find("TmA").is_some_and(|s| s.tm && !s.dup && s.active()));
+
+        // 編號奇怪的也能用（換成雜湊當檔名）；太大的、不是腳本的不收
+        let d = tm_apply(vec![item("../x y", Some(a1), &hash(a1)), item("con", Some(&b1), &hash(&b1)), item("zzzzzzzz1", Some("nope"), "h"), item("", Some(a1), "h")]);
+        assert_eq!(d.count, 2);
+        assert!(tm_index().scripts.keys().all(|k| k.starts_with('x') && k.len() == 25));
+        assert!(std::fs::read_dir(tm_dir()).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().contains("..")));
+
+        // 篡改猴關掉（或移除）了：它的腳本不算
+        tm_set(None);
+        assert!(list().is_empty() && tm_status().count == 0);
+        // 解讀瀏覽器回傳的結果
+        let ok = serde_json::json!({ "result": { "type": "string", "value": serde_json::json!({ "ok": true, "list": [{ "id": a_id, "hash": "h", "enabled": false, "ts": 5, "opts": { "includes": null, "matches": ["*://*/*"], "excludes": [], "run_at": null, "noframes": null } }] }).to_string() } }).to_string();
+        let l = tm_parse(&ok).unwrap();
+        assert!(l.len() == 1 && !l[0].enabled && l[0].src.is_none() && l[0].opts.matches.as_deref() == Some(&["*://*/*".to_string()][..]) && l[0].opts.includes.is_none() && l[0].ts == 5);
+        assert_eq!(tm_parse(&serde_json::json!({ "result": { "type": "string", "value": "{\"ok\":false,\"why\":\"no-storage\"}" } }).to_string()).unwrap_err(), "no-storage");
+        assert!(tm_parse("{\"result\":{\"type\":\"object\"},\"exceptionDetails\":{\"text\":\"Uncaught\",\"exception\":{\"description\":\"ReferenceError: x\"}}}").unwrap_err().contains("ReferenceError"));
+        assert!(tm_parse("{\"result\":{\"type\":\"undefined\"}}").is_err() && tm_parse("oops").is_err());
     }
 
     #[test]
@@ -1774,6 +2260,8 @@ mod tests {
             meta: parse_meta("// ==UserScript==\n// @name a\n// @match *://*/*\n// @grant GM_getValue\n// ==/UserScript==\nconsole.log(1)"),
             off: false,
             missing: vec![],
+            tm: false,
+            dup: false,
             code: "console.log(1) // 結尾是註解".into(),
             requires: vec!["var q = 1;".into()],
             resources: Default::default(),

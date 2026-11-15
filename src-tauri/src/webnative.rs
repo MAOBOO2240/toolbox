@@ -1112,6 +1112,32 @@ pub fn close_target(w: &Wv, id: &str) {
     }
 }
 
+/// 對這個網頁下一個 DevTools 指令，結果（JSON 文字）交給 done；失敗是 Err（原因）。
+/// done 是在主執行緒被呼叫的，裡面不可以等主執行緒做事
+pub fn cdp_call(w: &Wv, method: &str, params: &str, done: Box<dyn FnOnce(Result<String, String>) + Send + 'static>) {
+    // 指令送不出去時這裡自己回報；送出去了就等 WebView2 回報（兩邊只會有一邊拿到 done）
+    let slot = std::rc::Rc::new(RefCell::new(Some(done)));
+    let slot2 = slot.clone();
+    unsafe {
+        let h = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |r, json| {
+            let done = slot2.borrow_mut().take();
+            if let Some(done) = done {
+                done(match r {
+                    Ok(()) => Ok(json),
+                    Err(e) => Err(format!("{e} {}", json.chars().take(300).collect::<String>())),
+                });
+            }
+            Ok(())
+        }));
+        if let Err(e) = w.core.CallDevToolsProtocolMethod(&HSTRING::from(method), &HSTRING::from(params), &h) {
+            let done = slot.borrow_mut().take();
+            if let Some(done) = done {
+                done(Err(e.to_string()));
+            }
+        }
+    }
+}
+
 /* ---------------- 視窗 ---------------- */
 
 /// 選單小視窗：Windows 11 的圓角與深色的細邊框（Windows 10 沒有這兩個設定，會直接略過）

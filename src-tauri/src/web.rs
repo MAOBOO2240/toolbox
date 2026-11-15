@@ -30,6 +30,7 @@ use tauri::{
 
 pub mod pages;
 pub mod pop;
+mod tm;
 mod us;
 
 /// 新視窗、新分頁開的頁面
@@ -121,6 +122,9 @@ mod webnative {
         done(String::new())
     }
     pub fn close_target(_w: &Wv, _id: &str) {}
+    pub fn cdp_call(_w: &Wv, _method: &str, _params: &str, done: Box<dyn FnOnce(Result<String, String>) + Send + 'static>) {
+        done(Err(String::new()));
+    }
 }
 
 /// 注入外部網頁的小腳本：只負責「現在有沒有輸入框被選取」，用標題最後的隱形記號告訴程式。
@@ -1300,7 +1304,11 @@ fn page_builder(app: &AppHandle, wid: &str, tid: &str, url: Url, ext: Option<Pat
         b = b.extensions_path(dir);
     }
     // 使用者腳本：執行環境與每支腳本（網頁一開始就在；程式自己的頁面不跑）
-    let b = us::register(b, wid, tid, &first, incognito);
+    let mut b = us::register(b, wid, tid, &first, incognito);
+    // 篡改猴自己的頁面（控制台、編輯器）最下面加一行說明（見 tm::note_script）；沒裝篡改猴就不用
+    if crate::userscripts::tm_ext().is_some() {
+        b = b.initialization_script(tm::note_script());
+    }
     b.initialization_script_for_all_frames(TYPING_JS)
         // 讓網頁自己的拖放（例如上傳檔案、排序清單）可以正常使用
         .disable_drag_drop_handler()
@@ -2149,6 +2157,8 @@ fn add_page(app: &AppHandle, win: &Window, wid: &str, tid: &str, url: Url, pos: 
                 // 擴充功能剛裝好會一口氣開好幾個說明頁：預先建立好的空白網頁多準備幾個，而且現在就開始準備
                 *lock(&SPARE_BURST) = Some(Instant::now());
                 spare_soon(app, wid, 300);
+                // 篡改猴可能現在才裝進瀏覽器（或換了新版）：等一下重新讀它裡面的腳本
+                tm::kick(app, wid, 3000, true);
             }
             Ok(w)
         }
@@ -2624,6 +2634,7 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     }
     // 每次開啟都先跟 Chrome 同步（新的擴充功能要在網頁建立前準備好）
     sync_on_open(app);
+    tm::refresh();
 
     // 位置與大小（實體像素）：新視窗預設 1280×720（依 Windows 的縮放比例），螢幕放不下就縮小一點
     let mut cfg = cfg;
@@ -2797,6 +2808,8 @@ fn open_window(app: &AppHandle, id: &str, reveal: bool) -> Result<(), String> {
     });
     // 網頁要開新分頁時要用的空白網頁也先準備一個（見 Spare）
     spare_soon(app, id, 2500);
+    // 篡改猴裡的腳本：準備讀取用的網頁，讀一次（見 web/tm.rs）
+    tm::kick(app, id, 4000, false);
     Ok(())
 }
 
@@ -2850,6 +2863,7 @@ fn close_window(app: &AppHandle, id: &str) {
         us::forget(app, id, &t.id);
     }
     spare_forget(app, id);
+    tm::window_closing(app, id);
     if let Some(win) = app.get_window(&win_label(id)) {
         let _ = win.destroy();
     }
@@ -3232,7 +3246,7 @@ fn on_target(app: &AppHandle, wid: &str, tid: &str, json: &str) {
         return;
     }
     let (Some(id), Some(url)) = (target_field(json, "targetId"), target_field(json, "url")) else { return };
-    if !url.starts_with("chrome-extension://") {
+    if !url.starts_with("chrome-extension://") || tm::is_helper_url(&url) {
         return;
     }
     {
@@ -4251,11 +4265,16 @@ fn open_ext_popup(app: &AppHandle, wid: &str, url: Url, anchor: (i32, i32, i32, 
     let (a1, w1) = (app.clone(), wid.to_string());
     let (a0, w0) = (app.clone(), wid.to_string());
     let gen = EXT_POPUP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
-    let b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
+    let mut b = WebviewBuilder::new(ext_popup_label(wid), WebviewUrl::External(url))
         .data_directory(profile_dir())
         .browser_extensions_enabled(true)
         .initialization_script(&patch)
-        .disable_drag_drop_handler()
+        .disable_drag_drop_handler();
+    // 篡改猴的小選單最下面也加那一行說明
+    if crate::userscripts::TM_IDS.contains(&ext_id.as_str()) {
+        b = b.initialization_script(tm::note_script());
+    }
+    let b = b
         // 小視窗的網頁自己要關掉（見 EXT_TABS_JS）：收起來
         .on_document_title_changed(move |_wv, title| {
             if title == EXT_CLOSE_MARK {
@@ -4402,6 +4421,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
         let _ = WEB_DIR.set(dir.to_path_buf());
         crate::userscripts::init(dir.to_path_buf());
         us::init(app);
+        // 篡改猴擴充功能開著的話，它裡面的腳本（上次讀過來的那一份）也算
+        tm::refresh();
         win32::mid_watch();
         load_side(dir);
     }
@@ -4480,7 +4501,7 @@ pub fn init(app: &AppHandle, path: PathBuf) {
             if rx.recv_timeout(Duration::from_secs(6)).is_err() {
                 let held = |b: bool| if b { "佔著" } else { "空" };
                 eprintln!(
-                    "[hang] 主執行緒 6 秒沒有回應。鎖：瀏覽器資料={} 執行狀態={} 打字中的視窗={} 擴充功能小視窗={} 擴充功能清單={} {} {} {}",
+                    "[hang] 主執行緒 6 秒沒有回應。鎖：瀏覽器資料={} 執行狀態={} 打字中的視窗={} 擴充功能小視窗={} 擴充功能清單={} {} {} {} {}",
                     held(STORE.get().is_some_and(|m| m.try_lock().is_err())),
                     held(RT.try_lock().is_err()),
                     held(TYPING_HWND.try_lock().is_err()),
@@ -4488,7 +4509,8 @@ pub fn init(app: &AppHandle, path: PathBuf) {
                     held(EXT_LOCK.try_lock().is_err()),
                     pop::lock_state(),
                     us::lock_state(),
-                    crate::userscripts::lock_state()
+                    crate::userscripts::lock_state(),
+                    tm::lock_state()
                 );
                 std::thread::sleep(Duration::from_secs(30));
             }
@@ -5254,6 +5276,8 @@ fn ext_pins() -> Vec<ExtInfo> {
 
 /// 擴充功能清單變了：每個視窗的工具列更新圖示
 fn emit_exts(app: &AppHandle) {
+    // 篡改猴被開啟、關閉或移除了：它裡面的腳本跟著算或不算
+    tm::refresh_live(app);
     let pins = ext_pins();
     for id in open_ids() {
         let _ = app.emit_to(bar_label(&id).as_str(), "web-exts", pins.clone());
@@ -5305,6 +5329,13 @@ pub async fn web_ext_sync(app: AppHandle) -> Result<ExtStatus, String> {
     EXT_BROKEN.store(false, Ordering::SeqCst);
     emit_exts(&app);
     Ok(ExtStatus { list, broken: false })
+}
+
+/// 現在就把篡改猴裡的腳本重新讀一次（擴充功能頁面的「重新讀取」），回傳最新的腳本清單
+#[tauri::command]
+pub async fn web_tm_read(app: AppHandle) -> crate::userscripts::ScriptsOut {
+    let _ = tauri::async_runtime::spawn_blocking(move || tm::read_wait(&app, 8)).await;
+    crate::userscripts::web_scripts_list()
 }
 
 /* ---------------- 指令：瀏覽器視窗上面的工具列 ---------------- */

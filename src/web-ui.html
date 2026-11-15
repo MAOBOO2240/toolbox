@@ -143,6 +143,7 @@
     .ext .ft .sp { flex: 1; }
     .ext.off .hd { opacity: 0.55; }
     .note { color: var(--dim); font-size: 12px; padding: 0 4px 12px; line-height: 1.7; }
+    .tmtag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: rgba(168, 199, 250, 0.16); color: var(--accent); font-size: 11px; vertical-align: 1px; }
 
     /* 對話框 */
     .veil { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; padding: 24px; }
@@ -750,7 +751,7 @@
         ui.nav.remove();
         const sync = btn("從 Chrome 重新同步", "", "sync");
         ui.right.append(sync);
-        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true }, q = ui.input.value.trim().toLowerCase();
+        let exts = { list: [], broken: false }, scripts = { list: [], dir: "", auto_update: true, tm: { ext: "", read_at: 0, count: 0 } }, q = ui.input.value.trim().toLowerCase();
         ui.col.style.maxWidth = "1100px";
         ui.col.style.margin = "0 auto";
         sync.onclick = async () => {
@@ -809,7 +810,7 @@
           const head = el("h2", "", "使用者腳本");
           head.style.marginTop = "20px";
           ui.col.append(head);
-          ui.col.append(el("div", "note", "篡改猴（Tampermonkey）的腳本由這個瀏覽器自己執行，要裝在這裡才會跑（裝在篡改猴擴充功能裡的不會執行：這個瀏覽器的核心沒有讓擴充功能執行腳本的開關）。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip）。安裝、開關之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。"));
+          ui.col.append(el("div", "note", "使用者腳本（篡改猴 Tampermonkey 用的那種 .user.js）由這個瀏覽器自己執行。這個瀏覽器的核心沒有「允許使用者腳本」的開關，篡改猴自己沒辦法執行腳本（它畫面上那則提示可以不用理會），所以裝在這裡的腳本、還有在篡改猴裡新增或匯入的腳本，都由這裡代為執行。安裝方式：開啟腳本的網址（.user.js，例如腳本網站上的「安裝」）會出現安裝畫面；也可以匯入檔案或篡改猴匯出的備份（.zip），或直接在篡改猴裡新增。安裝、開關、存檔之後，已經開著的網頁重新整理就會生效。腳本登記的選單在工具列的「使用者腳本」按鈕裡。"));
           const bar = el("div");
           bar.style.cssText = "display:flex;gap:8px;padding:0 4px 12px;flex-wrap:wrap";
           const imp = btn("匯入腳本", "", "plus"), byUrl = btn("從網址安裝", "", "link"), paste = btn("貼上腳本", "", "script"), upd = btn("檢查更新", "", "sync"), dir = btn("開啟腳本資料夾", "", "folder"), rel = btn("重新讀取", "", "reload");
@@ -845,7 +846,14 @@
             loadScripts();
           };
           dir.onclick = () => quiet("web_scripts_open_dir");
-          rel.onclick = async () => { scripts = (await quiet("web_scripts_reload")) || scripts; render(); };
+          rel.onclick = async () => {
+            rel.disabled = true;
+            // 篡改猴裡的腳本也重新讀一次
+            await quiet("web_tm_read");
+            scripts = (await quiet("web_scripts_reload")) || scripts;
+            rel.disabled = false;
+            render();
+          };
           bar.append(imp, byUrl, paste, upd, dir, rel);
           ui.col.append(bar);
           const sc = el("div", "card");
@@ -856,19 +864,51 @@
             row.append(tx, switchOf(scripts.auto_update !== false, async (on) => { await quiet("web_scripts_auto", { on }); scripts.auto_update = on; }));
             sc.append(row);
           }
+          // 篡改猴擴充功能裡的腳本：讀過來由這裡代為執行（篡改猴開著才有這一列）
+          const tm = scripts.tm && scripts.tm.ext ? scripts.tm : null;
+          if (tm) {
+            const row = el("div", "opt");
+            row.dataset.tm = "status";
+            const tx = el("div", "tx");
+            const when = tm.read_at ? new Date(tm.read_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+            tx.append(el("div", "", "篡改猴裡的腳本"), el("small", "", tm.read_at ? `讀到 ${tm.count} 支，由這裡代為執行（${when} 讀取）。新增、編輯、開關、刪除都在篡改猴裡做，這裡會自動跟著變。` : "還沒讀到。瀏覽器視窗開著時會自動讀取，也可以按上面的「重新讀取」。"));
+            row.append(tx);
+            const tmExt = exts.list.find((e) => e.id === tm.ext);
+            if (tmExt && tmExt.options) {
+              const o = btn("開啟篡改猴");
+              o.onclick = () => open(tmExt.options, true);
+              row.append(o);
+            }
+            sc.append(row);
+          }
           const sl = scripts.list.filter((s) => !q || (s.meta.name || "").toLowerCase().includes(q));
           if (!sl.length) sc.append(el("div", "emptybox", "還沒有腳本"));
           for (const s of sl) {
             const row = el("div", "opt");
             row.append(glyph("script"));
             const tx = el("div", "tx");
-            tx.append(el("div", "", `${s.meta.name}${s.meta.version ? `　${s.meta.version}` : ""}`));
+            const nm = el("div", "", `${s.meta.name}${s.meta.version ? `　${s.meta.version}` : ""}`);
+            if (s.tm) nm.append(el("span", "tmtag", "篡改猴"));
+            tx.append(nm);
             const where = [...(s.meta.matches || []), ...(s.meta.includes || [])].slice(0, 3).join("、");
             row.dataset.script = s.file;
-            tx.append(el("small", "", s.missing && s.missing.length ? `缺少 ${s.missing.length} 個需要的檔案（按「重新讀取」再下載一次）` : where || s.meta.description || s.file));
-            const x = ib("trash", "刪除");
-            x.onclick = async () => { await quiet("web_scripts_delete", { file: s.file }); loadScripts(); };
-            row.append(tx, x, switchOf(!s.off, async (on) => { await quiet("web_scripts_toggle", { file: s.file, on }); loadScripts(); }));
+            const sub = s.tm && s.dup ? "跟自己安裝的腳本同名，以自己安裝的為準（這支沒有執行）"
+              : s.tm && s.off ? "在篡改猴裡關閉了"
+              : s.missing && s.missing.length ? `缺少 ${s.missing.length} 個需要的檔案（按「重新讀取」再下載一次）`
+              : where || s.meta.description || s.file;
+            tx.append(el("small", "", sub));
+            if (s.tm) {
+              // 篡改猴裡的腳本：開關、刪除都在篡改猴裡做，這裡只顯示狀態
+              const sw = switchOf(!s.off && !s.dup, () => {});
+              sw.disabled = true;
+              sw.title = "在篡改猴裡開關";
+              sw.style.opacity = "0.55";
+              row.append(tx, sw);
+            } else {
+              const x = ib("trash", "刪除");
+              x.onclick = async () => { await quiet("web_scripts_delete", { file: s.file }); loadScripts(); };
+              row.append(tx, x, switchOf(!s.off, async (on) => { await quiet("web_scripts_toggle", { file: s.file, on }); loadScripts(); }));
+            }
             sc.append(row);
           }
           ui.col.append(sc);
@@ -878,10 +918,13 @@
           render();
         }
         ui.input.addEventListener("input", debounce(() => { q = ui.input.value.trim().toLowerCase(); render(); }, 150));
-        (async () => {
+        const loadAll = async () => {
           exts = (await quiet("web_ext_list")) || exts;
           await loadScripts();
-        })();
+        };
+        // 切回這個分頁時重新讀一次（這段時間可能在篡改猴裡新增、開關了腳本）；對話框開著時不動
+        document.addEventListener("visibilitychange", () => { if (!document.hidden && veil.hidden) loadAll(); });
+        loadAll();
       }
 
       /* ---------- 設定 ---------- */

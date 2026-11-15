@@ -719,17 +719,31 @@ fn scripts_menu(wid: &str, tid: &str) -> Menu {
     if rows.is_empty() {
         m.add(Item::of("info", "這個網頁沒有要執行的腳本。"), Act::Nothing);
     }
+    // 篡改猴裡的腳本：開關在篡改猴裡，點了就開它的控制台
+    let tm_page = crate::userscripts::tm_ext().and_then(|id| ext_list().into_iter().find(|e| e.id == id)).map(|e| e.options).filter(|o| !o.is_empty());
     for r in &rows {
-        let sub = if r.off {
-            "已關閉"
+        let sub = if r.dup {
+            "跟自己安裝的腳本同名，以自己安裝的為準（這支沒有執行）"
+        } else if r.off {
+            if r.tm { "在篡改猴裡關閉了" } else { "已關閉" }
         } else if r.broken {
             "缺少需要的檔案，沒有執行（到「管理使用者腳本」按「重新讀取」）"
         } else if r.running {
-            "執行中"
+            if r.tm { "執行中（在篡改猴裡管理）" } else { "執行中" }
+        } else if r.tm {
+            "重新整理網頁後執行（在篡改猴裡管理）"
         } else {
             "重新整理網頁後執行"
         };
-        m.add(Item::new(r.name.clone(), "").check(!r.off).sub(sub), Act::GmToggle(r.file.clone(), !r.off));
+        if r.tm {
+            let act = match &tm_page {
+                Some(p) => Act::ExtPage(p.clone()),
+                None => Act::Nothing,
+            };
+            m.add(Item::new(r.name.clone(), "").check(!r.off && !r.dup).sub(sub), act);
+        } else {
+            m.add(Item::new(r.name.clone(), "").check(!r.off).sub(sub), Act::GmToggle(r.file.clone(), !r.off));
+        }
         for c in &r.cmds {
             m.add(Item::new(c.caption.clone(), "").sub(c.title.clone()), Act::GmCmd(c.sid.clone(), c.id.clone(), c.close));
         }
