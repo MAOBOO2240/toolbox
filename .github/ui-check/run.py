@@ -4434,6 +4434,62 @@ def s_extprobe():
     log("  userScripts（一開始）：", json.dumps(b.ev(sw, "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"), ensure_ascii=False))
     log("  permissions：", json.dumps(b.ev(sw, "chrome.permissions.getAll()"), ensure_ascii=False)[:900])
 
+    # ---- （實驗）瀏覽器核心自己的「擴充功能管理頁」在這裡開不開得出來？開得出來的話，
+    #      篡改猴要的「允許使用者腳本」開關就可以從那裡打開（跟 Chrome 的做法一樣） ----
+    try:
+        US_Q = "({type: typeof chrome.userScripts, get: chrome.userScripts ? await chrome.userScripts.getScripts().then(x => 'ok ' + x.length, e => 'ERR ' + e.message) : 'undefined'})"
+        pt = next((t for t in b.targets() if t.get("type") == "page" and "/test.html" in t.get("url", "")), None)
+        log("  [管理頁實驗] 用來實驗的分頁：", pt and (pt.get("targetId"), pt.get("url")))
+        if pt is not None:
+            ps = b.attach(pt["targetId"])
+            INFO = "({href: location.href, title: document.title, dp: typeof chrome.developerPrivate, mg: typeof chrome.management, keys: (typeof chrome === 'object' ? Object.keys(chrome).join(',') : 'no chrome'), text: ((document.body && document.body.innerText) || '').slice(0, 400)})"
+            for url in ("edge://version/", "edge://extensions/", "chrome://extensions/", f"edge://extensions/?id={TM}"):
+                r = b.call("Page.navigate", {"url": url}, session=ps, wait=15)
+                time.sleep(4.0)
+                b.pump(0.5)
+                log(f"  [管理頁實驗] 前往 {url} →", json.dumps((r or {}).get("result", r), ensure_ascii=False)[:300])
+                log(f"  [管理頁實驗] {url} 的內容：", json.dumps(b.ev(ps, INFO), ensure_ascii=False)[:900])
+                log(f"  [管理頁實驗] 網址列：{bar_state().get('shown')!r}；視窗標題：{title(web)!r}")
+                shot("usperm_" + re.sub(r"[^a-z]+", "_", url)[:24])
+            has_dp = b.ev(ps, "typeof chrome.developerPrivate")
+            log("  [管理頁實驗] 管理頁有沒有管理用的功能：", has_dp)
+            if has_dp == "object":
+                GET = f"chrome.developerPrivate.getExtensionInfo('{TM}').then(i => ({{name: i.name, state: i.state, location: i.location, us: i.userScriptsAccess, incog: i.incognitoAccess, dev: i.type}}))"
+                log("  [管理頁實驗] 篡改猴目前的設定：", json.dumps(b.ev(ps, GET), ensure_ascii=False)[:600])
+                log("  [管理頁實驗] profile：", json.dumps(b.ev(ps, "chrome.developerPrivate.getProfileConfiguration()"), ensure_ascii=False)[:400])
+                r = b.ev(ps, f"chrome.developerPrivate.updateExtensionConfiguration({{extensionId: '{TM}', userScriptsAccess: true}}).then(() => 'ok')")
+                log("  [管理頁實驗] 打開「允許使用者腳本」→", json.dumps(r, ensure_ascii=False)[:300])
+                time.sleep(2.0)
+                log("  [管理頁實驗] 打開之後的設定：", json.dumps(b.ev(ps, GET), ensure_ascii=False)[:600])
+            # 回到測試頁
+            b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html"}, session=ps, wait=15)
+            time.sleep(3.0)
+            # 篡改猴的背景程式可能重新啟動了：重新接上
+            t2 = sw_of(TM)
+            sw2 = b.attach(t2["targetId"]) if t2 else None
+            after = b.ev(sw2, US_Q) if sw2 else "沒有背景程式"
+            log("  [管理頁實驗] 打開之後，篡改猴的 userScripts：", json.dumps(after, ensure_ascii=False))
+            ok_us = isinstance(after, dict) and str(after.get("get", "")).startswith("ok")
+            check("（實驗）從瀏覽器核心自己的管理頁打開「允許使用者腳本」之後，篡改猴可以登記腳本了", ok_us, f"{after}")
+            if ok_us:
+                # 真的登記一支、重新整理測試頁，看它有沒有跑
+                t0u = time.time()
+                REG = ("chrome.userScripts.register([{id: 'mbprobe', matches: ['http://127.0.0.1/*'], runAt: 'document_start', world: 'MAIN', "
+                       "js: [{code: \"fetch('http://127.0.0.1:" + str(PORT) + "/log?m=' + encodeURIComponent('[tmus] ran ' + location.pathname)).catch(() => {})\"}]}]).then(() => 'ok')")
+                log("  [管理頁實驗] 用 userScripts 登記一支腳本 →", json.dumps(b.ev(sw2, REG), ensure_ascii=False)[:300])
+                b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html?tmus=1"}, session=ps, wait=15)
+                time.sleep(4.0)
+                ran = [l for l in page_log_since(t0u) if "[tmus] ran" in l]
+                check("（實驗）用 userScripts 登記的腳本在網頁上執行了", bool(ran), f"{ran}")
+                log("  [管理頁實驗] 拿掉那支腳本 →", json.dumps(b.ev(sw2, "chrome.userScripts.unregister({ids: ['mbprobe']}).then(() => 'ok')"), ensure_ascii=False)[:200])
+                b.call("Page.navigate", {"url": f"http://127.0.0.1:{PORT}/test.html"}, session=ps, wait=15)
+                time.sleep(2.5)
+                # 之後的檢查用新接上的那個
+                sw = sw2
+    except Exception:
+        log(traceback.format_exc())
+        check("extprobe 管理頁實驗 (沒有錯誤)", False, "exception")
+
     # ---- 擴充功能要開分頁、視窗時會怎樣 ----
     def act(tag, expr, settle=3.5):
         before = snap_state(tag + " 之前")
